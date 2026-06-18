@@ -151,7 +151,7 @@ function AppContent() {
   const reportNav = [
     { to: '/reports/stock', label: 'Остатки на складе', perm: 'reports.view' },
     { to: '/reports/documents', label: 'Документы за период', perm: 'reports.view' },
-    { to: '/reports/debts', label: 'Задолженности', perm: 'reports.view' },
+    { to: '/reports/debts/debtors', label: 'Задолженности', perm: 'reports.view' },
     { to: '/reports/reconciliation', label: 'Акт сверки', perm: 'reports.view' },
     { to: '/reports/returns', label: 'Возвраты поставщикам', perm: 'reports.view' },
   ].filter((item) => hasPermission(user, item.perm));

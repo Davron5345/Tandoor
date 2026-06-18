@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Navigate, NavLink, Route, Routes } from 'react-router-dom';
+import { Navigate, NavLink, Outlet, Route, Routes } from 'react-router-dom';
 import { api, formatDate, formatMoney } from '../api';
 import { DOC_TYPE_LABELS } from '../permissions';
 import { useBranch } from '../BranchContext';
@@ -1078,24 +1078,22 @@ function DebtsReportShell() {
         </div>
         <nav className="debt-kind-tabs" aria-label="Тип задолженности">
           <NavLink
-            to="debtors"
+            to="/reports/debts/debtors"
+            end
             className={({ isActive }) => `debt-kind-tab debt-kind-tab-debtors${isActive ? ' active' : ''}`}
           >
             Дебиторы
           </NavLink>
           <NavLink
-            to="creditors"
+            to="/reports/debts/creditors"
+            end
             className={({ isActive }) => `debt-kind-tab debt-kind-tab-creditors${isActive ? ' active' : ''}`}
           >
             Кредиторы
           </NavLink>
         </nav>
       </div>
-      <Routes>
-        <Route index element={<Navigate to="debtors" replace />} />
-        <Route path="debtors" element={<CounterpartyDebtReport kind="debtors" />} />
-        <Route path="creditors" element={<CounterpartyDebtReport kind="creditors" />} />
-      </Routes>
+      <Outlet />
     </div>
   );
 }
@@ -1106,7 +1104,12 @@ export default function Reports() {
       <Route index element={<Navigate to="stock" replace />} />
       <Route path="stock" element={<StockReport />} />
       <Route path="documents" element={<DocumentsReport />} />
-      <Route path="debts/*" element={<DebtsReportShell />} />
+      <Route path="debts" element={<DebtsReportShell />}>
+        <Route index element={<Navigate to="debtors" replace />} />
+        <Route path="debtors" element={<CounterpartyDebtReport kind="debtors" />} />
+        <Route path="creditors" element={<CounterpartyDebtReport kind="creditors" />} />
+        <Route path="*" element={<Navigate to="/reports/debts/debtors" replace />} />
+      </Route>
       <Route path="debtors" element={<Navigate to="/reports/debts/debtors" replace />} />
       <Route path="creditors" element={<Navigate to="/reports/debts/creditors" replace />} />
       <Route path="reconciliation" element={<ReconciliationReport />} />
