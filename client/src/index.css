@@ -2056,6 +2056,56 @@ input[type='number']::-webkit-inner-spin-button {
   gap: 12px;
 }
 
+.debts-report-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.debts-report-head {
+  margin-bottom: 0;
+}
+
+.debt-kind-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.debt-kind-tab {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.debt-kind-tab:hover {
+  color: var(--text);
+  border-color: var(--border-strong, var(--border));
+}
+
+.debt-kind-tab.active {
+  color: var(--text);
+  border-color: transparent;
+}
+
+.debt-kind-tab-debtors.active {
+  background: color-mix(in srgb, var(--prihod, #10b981) 14%, var(--card));
+  color: var(--prihod, #10b981);
+}
+
+.debt-kind-tab-creditors.active {
+  background: color-mix(in srgb, var(--rashod, #f97316) 14%, var(--card));
+  color: var(--rashod, #f97316);
+}
+
 .debt-toolbar-grid {
   grid-template-columns: minmax(260px, 1fr) auto;
   align-items: center;

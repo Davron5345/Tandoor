@@ -87,7 +87,7 @@ function AppContent() {
     ];
 
     const reportPathsLocal = [
-      ...(hasPermission(user, 'reports.view') ? ['/reports/stock', '/reports/documents', '/reports/debtors', '/reports/creditors'] : []),
+      ...(hasPermission(user, 'reports.view') ? ['/reports/stock', '/reports/documents', '/reports/debts', '/reports/reconciliation', '/reports/returns'] : []),
     ];
 
     const docPathsLocal = [
@@ -151,8 +151,7 @@ function AppContent() {
   const reportNav = [
     { to: '/reports/stock', label: 'Остатки на складе', perm: 'reports.view' },
     { to: '/reports/documents', label: 'Документы за период', perm: 'reports.view' },
-    { to: '/reports/debtors', label: 'Дебиторы', perm: 'reports.view' },
-    { to: '/reports/creditors', label: 'Кредиторы', perm: 'reports.view' },
+    { to: '/reports/debts', label: 'Задолженности', perm: 'reports.view' },
     { to: '/reports/reconciliation', label: 'Акт сверки', perm: 'reports.view' },
     { to: '/reports/returns', label: 'Возвраты поставщикам', perm: 'reports.view' },
   ].filter((item) => hasPermission(user, item.perm));

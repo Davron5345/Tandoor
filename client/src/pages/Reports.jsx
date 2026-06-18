@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, NavLink, Route, Routes } from 'react-router-dom';
 import { api, formatDate, formatMoney } from '../api';
 import { DOC_TYPE_LABELS } from '../permissions';
 import { useBranch } from '../BranchContext';
@@ -568,7 +568,7 @@ function CounterpartyDebtReport({ kind }) {
   const [includeZero, setIncludeZero] = useState(false);
   const [includeUnlinkedPayments, setIncludeUnlinkedPayments] = useState(true);
   const [search, setSearch] = useState('');
-  const { branchName, branchId } = useBranch();
+  const { branchId } = useBranch();
 
   const load = () => {
     setLoading(true);
@@ -602,7 +602,6 @@ function CounterpartyDebtReport({ kind }) {
     [rows],
   );
 
-  const title = kind === 'debtors' ? 'Дебиторы' : 'Кредиторы';
   const balanceLabel = kind === 'debtors' ? 'Нам должны' : 'Мы должны';
   const hasSearch = !!search.trim();
   const allCount = report?.rows?.length ?? 0;
@@ -610,10 +609,6 @@ function CounterpartyDebtReport({ kind }) {
   return (
     <div className="debt-report-page">
       <div className="stock-report-top">
-        <div className="stock-report-head">
-          <h1>{title}</h1>
-          <span className="stock-location-chip">📍 {branchName}</span>
-        </div>
         <div className="stock-report-kpi">
           <div className="stat-card stock-kpi-card">
             <span className="label">Контрагентов</span>
@@ -1071,12 +1066,38 @@ function SupplierReturnsReport() {
   );
 }
 
-function DebtorsReport() {
-  return <CounterpartyDebtReport kind="debtors" />;
-}
+function DebtsReportShell() {
+  const { branchName } = useBranch();
 
-function CreditorsReport() {
-  return <CounterpartyDebtReport kind="creditors" />;
+  return (
+    <div className="debts-report-shell">
+      <div className="stock-report-top">
+        <div className="stock-report-head debts-report-head">
+          <h1>Задолженности</h1>
+          <span className="stock-location-chip">📍 {branchName}</span>
+        </div>
+        <nav className="debt-kind-tabs" aria-label="Тип задолженности">
+          <NavLink
+            to="debtors"
+            className={({ isActive }) => `debt-kind-tab debt-kind-tab-debtors${isActive ? ' active' : ''}`}
+          >
+            Дебиторы
+          </NavLink>
+          <NavLink
+            to="creditors"
+            className={({ isActive }) => `debt-kind-tab debt-kind-tab-creditors${isActive ? ' active' : ''}`}
+          >
+            Кредиторы
+          </NavLink>
+        </nav>
+      </div>
+      <Routes>
+        <Route index element={<Navigate to="debtors" replace />} />
+        <Route path="debtors" element={<CounterpartyDebtReport kind="debtors" />} />
+        <Route path="creditors" element={<CounterpartyDebtReport kind="creditors" />} />
+      </Routes>
+    </div>
+  );
 }
 
 export default function Reports() {
@@ -1085,8 +1106,9 @@ export default function Reports() {
       <Route index element={<Navigate to="stock" replace />} />
       <Route path="stock" element={<StockReport />} />
       <Route path="documents" element={<DocumentsReport />} />
-      <Route path="debtors" element={<DebtorsReport />} />
-      <Route path="creditors" element={<CreditorsReport />} />
+      <Route path="debts/*" element={<DebtsReportShell />} />
+      <Route path="debtors" element={<Navigate to="/reports/debts/debtors" replace />} />
+      <Route path="creditors" element={<Navigate to="/reports/debts/creditors" replace />} />
       <Route path="reconciliation" element={<ReconciliationReport />} />
       <Route path="returns" element={<SupplierReturnsReport />} />
     </Routes>
