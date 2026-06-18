@@ -1,0 +1,34 @@
+{
+  "name": "prihod-rashod",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:server": "node --watch server/index.js",
+    "dev:client": "npm run dev --prefix client",
+    "build": "npm run build --prefix client",
+    "start": "node server/index.js",
+    "setup": "npm install && npm install --prefix client",
+    "db:backup": "node server/scripts/db-backup.mjs",
+    "db:verify": "node server/scripts/db-verify.mjs",
+    "db:list-backups": "node server/scripts/db-list-backups.mjs",
+    "db:restore": "node server/scripts/db-restore.mjs",
+    "perms:verify": "node server/scripts/verify-cashier-perms.mjs"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "multer": "^2.2.0",
+    "node-telegram-bot-api": "^0.66.0",
+    "sql.js": "^1.12.0",
+    "uuid": "^11.0.3"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

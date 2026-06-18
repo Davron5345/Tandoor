@@ -1,0 +1,5 @@
+products: 5
+documents: 0
+counterparties: 0
+stock rows: 0
+settings demo_seed: check in db
