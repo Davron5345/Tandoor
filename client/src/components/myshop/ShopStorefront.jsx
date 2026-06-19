@@ -357,6 +357,7 @@ function CategoryGridBlock({
 function PublicCategoryCatalog({
   categories,
   products,
+  searchQuery = '',
   onProductOpen,
   onProductAdd,
   onProductQtyChange,
@@ -366,33 +367,48 @@ function PublicCategoryCatalog({
     () => buildDirectCategoryProductMap(products),
     [products],
   );
+  const query = searchQuery.trim().toLowerCase();
+
+  const sections = categories
+    .map((category) => {
+      const allProducts = productsByCategory.get(category.id) || [];
+      const categoryProducts = query
+        ? allProducts.filter((product) => productMatchesSearch(product, query))
+        : allProducts;
+      return { category, categoryProducts };
+    })
+    .filter(({ categoryProducts }) => categoryProducts.length > 0);
+
+  if (query && sections.length === 0) {
+    return (
+      <div className="myshop-empty myshop-search-empty">
+        По запросу «{searchQuery.trim()}» ничего не найдено
+      </div>
+    );
+  }
 
   return (
     <div className="myshop-public-category-catalog">
-      {categories.map((category) => {
-        const categoryProducts = productsByCategory.get(category.id) || [];
-        if (!categoryProducts.length) return null;
-        return (
-          <section
-            key={category.id}
-            className="myshop-public-category-section"
-            data-category-section={category.id}
-          >
-            <div className="myshop-block-section-head">
-              <h3>{category.name}</h3>
-              <span className="myshop-public-catalog-count">{categoryProducts.length}</span>
-            </div>
-            <ProductGrid
-              products={categoryProducts}
-              onProductOpen={onProductOpen}
-              onProductAdd={onProductAdd}
-              onProductQtyChange={onProductQtyChange}
-              cartQtyByKey={cartQtyByKey}
-              publicMode
-            />
-          </section>
-        );
-      })}
+      {sections.map(({ category, categoryProducts }) => (
+        <section
+          key={category.id}
+          className="myshop-public-category-section"
+          data-category-section={category.id}
+        >
+          <div className="myshop-block-section-head">
+            <h3>{category.name}</h3>
+            <span className="myshop-public-catalog-count">{categoryProducts.length}</span>
+          </div>
+          <ProductGrid
+            products={categoryProducts}
+            onProductOpen={onProductOpen}
+            onProductAdd={onProductAdd}
+            onProductQtyChange={onProductQtyChange}
+            cartQtyByKey={cartQtyByKey}
+            publicMode
+          />
+        </section>
+      ))}
     </div>
   );
 }
@@ -583,8 +599,6 @@ export default function ShopStorefront({
     });
   }, [products, search, activeCategoryId]);
 
-  const isSearchActive = publicMode && !activeCategoryId && !!search.trim();
-
   const branchCategories = useMemo(
     () => getCategoriesWithDirectProducts(categories, products),
     [categories, products],
@@ -720,7 +734,7 @@ export default function ShopStorefront({
             <input
               type="search"
               className="myshop-search"
-              placeholder="Поиск товаров"
+              placeholder="Найти товар"
               value={search}
               onChange={onSearchChange ? (e) => onSearchChange(e.target.value) : undefined}
               readOnly={!onSearchChange}
@@ -776,37 +790,10 @@ export default function ShopStorefront({
       );
     }
 
-    if (isSearchActive) {
-      return (
-        <section className="myshop-public-catalog myshop-public-catalog-primary">
-          <div className="myshop-block-section-head">
-            <h3>Результаты поиска</h3>
-            {filteredProducts.length > 0 && (
-              <span className="myshop-public-catalog-count">{filteredProducts.length}</span>
-            )}
-          </div>
-          {filteredProducts.length > 0 ? (
-            <ProductGrid
-              products={filteredProducts}
-              onProductOpen={onProductOpen}
-              onProductAdd={onProductAdd}
-              onProductQtyChange={onProductQtyChange}
-              cartQtyByKey={cartQtyByKey}
-              publicMode
-            />
-          ) : (
-            <div className="myshop-empty myshop-search-empty">
-              По запросу «{search.trim()}» ничего не найдено
-            </div>
-          )}
-        </section>
-      );
-    }
-
-    if (publicMode && !activeCategoryId && !search.trim() && branchCategories.length > 0) {
+    if (publicMode && !activeCategoryId && branchCategories.length > 0) {
       return (
         <>
-          {hasBlocks && (
+          {hasBlocks && !search.trim() && (
             <div className="myshop-blocks">
               <div className="myshop-public-blocks-label">Категории</div>
               {blocks.map((block) => (
@@ -832,6 +819,7 @@ export default function ShopStorefront({
           <PublicCategoryCatalog
             categories={branchCategories}
             products={products}
+            searchQuery={search}
             onProductOpen={onProductOpen}
             onProductAdd={onProductAdd}
             onProductQtyChange={onProductQtyChange}
