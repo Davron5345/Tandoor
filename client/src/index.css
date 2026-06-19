@@ -3347,8 +3347,15 @@ input[type='number']::-webkit-inner-spin-button {
   margin-bottom: 20px;
   border-bottom: 1px solid var(--border);
   overflow-x: auto;
+  overflow-y: hidden;
   flex-wrap: nowrap;
   -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .tab {
@@ -3994,6 +4001,7 @@ input[type='number']::-webkit-inner-spin-button {
 
 .products-list-tabs {
   margin-bottom: 12px;
+  overflow: visible;
 }
 
 .products-list-tabs .tab {
