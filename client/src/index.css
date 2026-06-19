@@ -542,6 +542,11 @@ button, input, select, textarea {
   align-items: center;
 }
 
+.app.sidebar-collapsed .sidebar-panel,
+.app.sidebar-collapsed .sidebar-body {
+  overflow: visible;
+}
+
 .app.sidebar-collapsed .sidebar-body {
   padding: 8px 8px 12px;
 }
@@ -584,11 +589,10 @@ button, input, select, textarea {
   height: 36px;
 }
 
-.app.sidebar-collapsed .nav-group-items {
+.app.sidebar-collapsed .nav-group-items,
+.app.sidebar-collapsed .nav-flyout-panel {
   display: none;
-  position: absolute;
-  left: calc(100% + 8px);
-  top: 0;
+  position: fixed;
   min-width: 220px;
   max-width: min(280px, 70vw);
   margin: 0;
@@ -597,7 +601,12 @@ button, input, select, textarea {
   border: 1px solid var(--border);
   background: var(--sidebar-bg);
   box-shadow: var(--shadow);
-  z-index: 220;
+  z-index: 400;
+}
+
+.app.sidebar-collapsed .nav-group-items.is-visible,
+.app.sidebar-collapsed .nav-flyout-panel.is-visible {
+  display: flex;
 }
 
 .app.sidebar-collapsed .nav-flyout-title {
@@ -611,16 +620,6 @@ button, input, select, textarea {
 .app.sidebar-collapsed .nav-link-sub {
   padding: 10px 12px;
   border-radius: 8px;
-}
-
-.app.sidebar-collapsed .nav-group-items.is-visible {
-  display: flex;
-}
-
-@media (hover: hover) {
-  .app.sidebar-collapsed .nav-group:hover .nav-group-items {
-    display: flex;
-  }
 }
 
 .app:not(.sidebar-collapsed) .nav-group-items.is-visible {

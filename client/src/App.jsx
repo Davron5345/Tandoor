@@ -52,31 +52,76 @@ function NavGroup({ groupId, icon, label, children, paths, isOpen, onToggle, sid
   const location = useLocation();
   const isActive = pathInGroup(location.pathname, paths);
   const [flyoutOpen, setFlyoutOpen] = useState(false);
+  const [flyoutPos, setFlyoutPos] = useState({ top: 0, left: 0 });
   const groupRef = useRef(null);
+  const toggleRef = useRef(null);
+  const flyoutRef = useRef(null);
   const itemsVisible = sidebarCollapsed ? flyoutOpen : isOpen;
+
+  const syncFlyoutPosition = useCallback(() => {
+    const el = toggleRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const maxTop = Math.max(8, window.innerHeight - 360);
+    setFlyoutPos({
+      top: Math.min(Math.max(8, rect.top), maxTop),
+      left: rect.right + 8,
+    });
+  }, []);
 
   useEffect(() => {
     if (!sidebarCollapsed) setFlyoutOpen(false);
   }, [sidebarCollapsed]);
 
   useEffect(() => {
-    if (!flyoutOpen) return undefined;
-    const closeFlyout = (event) => {
-      if (groupRef.current && !groupRef.current.contains(event.target)) {
-        setFlyoutOpen(false);
-      }
-    };
-    document.addEventListener('click', closeFlyout);
-    return () => document.removeEventListener('click', closeFlyout);
-  }, [flyoutOpen]);
+    setFlyoutOpen(false);
+  }, [location.pathname]);
 
-  const handleToggle = () => {
+  useEffect(() => {
+    if (!flyoutOpen || !sidebarCollapsed) return undefined;
+
+    syncFlyoutPosition();
+    const onLayout = () => syncFlyoutPosition();
+    window.addEventListener('resize', onLayout);
+    window.addEventListener('scroll', onLayout, true);
+
+    const closeFlyout = (event) => {
+      const target = event.target;
+      if (toggleRef.current?.contains(target)) return;
+      if (flyoutRef.current?.contains(target)) return;
+      if (groupRef.current?.contains(target)) return;
+      setFlyoutOpen(false);
+    };
+
+    const timer = window.setTimeout(() => {
+      document.addEventListener('click', closeFlyout);
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener('click', closeFlyout);
+      window.removeEventListener('resize', onLayout);
+      window.removeEventListener('scroll', onLayout, true);
+    };
+  }, [flyoutOpen, sidebarCollapsed, syncFlyoutPosition]);
+
+  const handleToggle = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
     if (sidebarCollapsed) {
-      setFlyoutOpen((open) => !open);
+      setFlyoutOpen((open) => {
+        const next = !open;
+        if (next) window.requestAnimationFrame(syncFlyoutPosition);
+        return next;
+      });
       return;
     }
     onToggle(groupId);
   };
+
+  const flyoutStyle = sidebarCollapsed && flyoutOpen
+    ? { top: flyoutPos.top, left: flyoutPos.left }
+    : undefined;
 
   return (
     <div
@@ -89,6 +134,7 @@ function NavGroup({ groupId, icon, label, children, paths, isOpen, onToggle, sid
       ].filter(Boolean).join(' ')}
     >
       <button
+        ref={toggleRef}
         type="button"
         className="nav-group-toggle"
         onClick={handleToggle}
@@ -101,7 +147,11 @@ function NavGroup({ groupId, icon, label, children, paths, isOpen, onToggle, sid
         </span>
         <span className="nav-group-chevron" aria-hidden="true">{isOpen ? '▾' : '▸'}</span>
       </button>
-      <div className={`nav-group-items${itemsVisible ? ' is-visible' : ''}`}>
+      <div
+        ref={flyoutRef}
+        className={`nav-group-items${itemsVisible ? ' is-visible' : ''}${sidebarCollapsed ? ' nav-flyout-panel' : ''}`}
+        style={flyoutStyle}
+      >
         {sidebarCollapsed && <div className="nav-flyout-title">{label}</div>}
         {children}
       </div>
