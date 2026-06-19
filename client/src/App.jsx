@@ -68,10 +68,21 @@ function NavItemContent({ icon: Icon, label }) {
   );
 }
 
-function NavGroup({ groupId, icon: Icon, label, children, paths, isOpen, onToggle, sidebarCollapsed }) {
+function NavGroup({
+  groupId,
+  icon: Icon,
+  label,
+  children,
+  paths,
+  isOpen,
+  onToggle,
+  sidebarCollapsed,
+  flyoutOpen,
+  onFlyoutToggle,
+  onFlyoutClose,
+}) {
   const location = useLocation();
   const isActive = pathInGroup(location.pathname, paths);
-  const [flyoutOpen, setFlyoutOpen] = useState(false);
   const [flyoutPos, setFlyoutPos] = useState({ top: 0, left: 0 });
   const groupRef = useRef(null);
   const toggleRef = useRef(null);
@@ -90,14 +101,6 @@ function NavGroup({ groupId, icon: Icon, label, children, paths, isOpen, onToggl
   }, []);
 
   useEffect(() => {
-    if (!sidebarCollapsed) setFlyoutOpen(false);
-  }, [sidebarCollapsed]);
-
-  useEffect(() => {
-    setFlyoutOpen(false);
-  }, [location.pathname]);
-
-  useEffect(() => {
     if (!flyoutOpen || !sidebarCollapsed) return undefined;
 
     syncFlyoutPosition();
@@ -110,7 +113,7 @@ function NavGroup({ groupId, icon: Icon, label, children, paths, isOpen, onToggl
       if (toggleRef.current?.contains(target)) return;
       if (flyoutRef.current?.contains(target)) return;
       if (groupRef.current?.contains(target)) return;
-      setFlyoutOpen(false);
+      onFlyoutClose();
     };
 
     const timer = window.setTimeout(() => {
@@ -123,17 +126,14 @@ function NavGroup({ groupId, icon: Icon, label, children, paths, isOpen, onToggl
       window.removeEventListener('resize', onLayout);
       window.removeEventListener('scroll', onLayout, true);
     };
-  }, [flyoutOpen, sidebarCollapsed, syncFlyoutPosition]);
+  }, [flyoutOpen, sidebarCollapsed, syncFlyoutPosition, onFlyoutClose]);
 
   const handleToggle = (event) => {
     event.preventDefault();
     event.stopPropagation();
     if (sidebarCollapsed) {
-      setFlyoutOpen((open) => {
-        const next = !open;
-        if (next) window.requestAnimationFrame(syncFlyoutPosition);
-        return next;
-      });
+      if (!flyoutOpen) window.requestAnimationFrame(syncFlyoutPosition);
+      onFlyoutToggle();
       return;
     }
     onToggle(groupId);
@@ -184,6 +184,7 @@ function NavGroup({ groupId, icon: Icon, label, children, paths, isOpen, onToggl
 function AppContent() {
   const [telegramOnline, setTelegramOnline] = useState(false);
   const [openNavGroup, setOpenNavGroup] = useState(null);
+  const [openFlyoutGroup, setOpenFlyoutGroup] = useState(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(readSidebarCollapsed);
   const { theme, toggleTheme } = useTheme();
   const { user, loading, logout } = useAuth();
@@ -196,6 +197,14 @@ function AppContent() {
   }, [user]);
 
   useEffect(() => { refreshTelegramStatus(); }, [location.pathname, refreshTelegramStatus]);
+
+  useEffect(() => {
+    if (!sidebarCollapsed) setOpenFlyoutGroup(null);
+  }, [sidebarCollapsed]);
+
+  useEffect(() => {
+    setOpenFlyoutGroup(null);
+  }, [location.pathname]);
 
   useEffect(() => {
     if (!user) return;
@@ -316,6 +325,20 @@ function AppContent() {
     setOpenNavGroup((current) => (current === groupId ? null : groupId));
   };
 
+  const toggleFlyoutGroup = (groupId) => {
+    setOpenFlyoutGroup((current) => (current === groupId ? null : groupId));
+  };
+
+  const closeFlyoutGroup = () => {
+    setOpenFlyoutGroup(null);
+  };
+
+  const navGroupFlyoutProps = (groupId) => ({
+    flyoutOpen: openFlyoutGroup === groupId,
+    onFlyoutToggle: () => toggleFlyoutGroup(groupId),
+    onFlyoutClose: closeFlyoutGroup,
+  });
+
   const toggleSidebar = () => {
     setSidebarCollapsed((collapsed) => {
       const next = !collapsed;
@@ -380,6 +403,7 @@ function AppContent() {
                 isOpen={openNavGroup === 'documents'}
                 onToggle={toggleNavGroup}
                 sidebarCollapsed={sidebarCollapsed}
+                {...navGroupFlyoutProps('documents')}
               >
                 {docNav.map((item) => (
                   <NavLink
@@ -402,6 +426,7 @@ function AppContent() {
                 isOpen={openNavGroup === 'catalog'}
                 onToggle={toggleNavGroup}
                 sidebarCollapsed={sidebarCollapsed}
+                {...navGroupFlyoutProps('catalog')}
               >
                 {canViewProducts && (
                   <>
@@ -439,6 +464,7 @@ function AppContent() {
                 isOpen={openNavGroup === 'reports'}
                 onToggle={toggleNavGroup}
                 sidebarCollapsed={sidebarCollapsed}
+                {...navGroupFlyoutProps('reports')}
               >
                 {reportNav.map((item) => (
                   <NavLink
@@ -505,6 +531,7 @@ function AppContent() {
                 isOpen={openNavGroup === 'admin'}
                 onToggle={toggleNavGroup}
                 sidebarCollapsed={sidebarCollapsed}
+                {...navGroupFlyoutProps('admin')}
               >
                 {canViewUsers && (
                   <NavLink
