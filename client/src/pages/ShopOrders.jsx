@@ -87,6 +87,11 @@ export default function ShopOrders() {
           <h1>Заказы MyShop</h1>
           <p className="page-subtitle">{branchName} · онлайн-заказы клиентов</p>
         </div>
+        <div className="btn-group">
+          <a href="/warehouse/orders" target="_blank" rel="noreferrer" className="btn btn-ghost btn-sm">
+            Мобильная версия
+          </a>
+        </div>
       </div>
 
       <div className="card shop-orders-card">

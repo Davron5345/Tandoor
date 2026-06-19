@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import App from './App';
 import PublicShop from './pages/PublicShop';
+import ShopOrdersMobile from './pages/ShopOrdersMobile';
 import { ThemeProvider } from './ThemeContext';
 import { AuthProvider } from './AuthContext';
 import { BranchProvider } from './BranchContext';
@@ -15,6 +16,16 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         <Routes>
           <Route path="/shop/:branchId/dept/:departmentId" element={<PublicShop />} />
           <Route path="/shop/:branchId" element={<PublicShop />} />
+          <Route
+            path="/warehouse/orders"
+            element={(
+              <AuthProvider>
+                <BranchProvider>
+                  <ShopOrdersMobile />
+                </BranchProvider>
+              </AuthProvider>
+            )}
+          />
           <Route
             path="*"
             element={(
