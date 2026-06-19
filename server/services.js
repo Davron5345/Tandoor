@@ -26,6 +26,7 @@ export {
   createProduct,
   updateProduct,
   deleteProduct,
+  archiveProductVariant,
   getProductLastPrice,
   getProductBranchSettings,
 } from './services/products.js';

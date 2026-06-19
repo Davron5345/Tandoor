@@ -114,6 +114,10 @@ export const api = {
   createProduct: (data) => request('/products', { method: 'POST', body: JSON.stringify(data) }),
   updateProduct: (id, data) => request(`/products/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteProduct: (id) => request(`/products/${id}`, { method: 'DELETE' }),
+  archiveProductVariant: (productId, variantId) => request(
+    `/products/${productId}/variants/${variantId}/archive`,
+    { method: 'POST' },
+  ),
 
   getCalculations: (params = {}) => {
     const q = new URLSearchParams(params).toString();

@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import ProductMediaCubes, { revokePendingImages } from './ProductMediaCubes';
 import { formatPriceInput, parsePriceInput } from '../api';
 
@@ -37,7 +38,24 @@ export default function ProductVariantEditor({
   show,
   uploading,
   setUploading,
+  focusVariantId = null,
 }) {
+  const focusedRef = useRef(false);
+
+  useEffect(() => {
+    if (!focusVariantId) {
+      focusedRef.current = false;
+      return undefined;
+    }
+    const variant = variants.find((v) => v.id === focusVariantId);
+    if (!variant) return undefined;
+    const timer = window.setTimeout(() => {
+      document.getElementById(`product-variant-card-${variant.clientId}`)
+        ?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }, focusedRef.current ? 0 : 120);
+    focusedRef.current = true;
+    return () => window.clearTimeout(timer);
+  }, [focusVariantId, variants]);
   const updateVariant = (clientId, patch) => {
     setVariants((prev) => prev.map((v) => (v.clientId === clientId ? { ...v, ...patch } : v)));
   };
@@ -72,7 +90,14 @@ export default function ProductVariantEditor({
 
       <div className="product-variants-list">
         {variants.map((variant, index) => (
-          <div key={variant.clientId} className="product-variant-card">
+          <div
+            key={variant.clientId}
+            id={`product-variant-card-${variant.clientId}`}
+            className={[
+              'product-variant-card',
+              focusVariantId && variant.id === focusVariantId ? 'product-variant-card-focused' : '',
+            ].filter(Boolean).join(' ')}
+          >
           <div className="product-variant-card-head">
             <span className="product-variant-card-title">Вариант {index + 1}</span>
             {canEdit && variants.length > 1 && (

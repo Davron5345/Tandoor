@@ -71,6 +71,14 @@ export function registerCatalogRoutes(app, { productImageUpload }) {
     }
   });
 
+  app.post('/api/products/:productId/variants/:variantId/archive', requirePermission('products.edit'), attachBranch, (req, res) => {
+    try {
+      res.json(svc.archiveProductVariant(req.params.productId, req.params.variantId, req.branchId));
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
   app.get('/api/products/:id/images', requirePermission('products.view'), (req, res) => {
     try {
       const variantId = req.query.variant_id || null;

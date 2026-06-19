@@ -3848,6 +3848,11 @@ input[type='number']::-webkit-inner-spin-button {
   background: var(--bg-soft, #fafafa);
 }
 
+.product-variant-card-focused {
+  border-color: var(--primary, #2563eb);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary, #2563eb) 20%, transparent);
+}
+
 .product-variant-fields {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;

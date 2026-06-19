@@ -329,6 +329,7 @@ function migrateSchema() {
   migrateProductImages();
   migrateProductVariants();
   migrateProductVariantStock();
+  migrateProductVariantArchive();
   migrateCounterpartyContracts();
   migrateDocNumberPerType();
   migrateReturnSupplierSourceDocument();
@@ -603,6 +604,13 @@ function migrateProductVariants() {
   if (!done) {
     run("INSERT OR REPLACE INTO settings (key, value) VALUES ('product_variants_v1', '1')");
     saveDb();
+  }
+}
+
+function migrateProductVariantArchive() {
+  const variantCols = queryAll('PRAGMA table_info(product_variants)').map((c) => c.name);
+  if (!variantCols.includes('archived')) {
+    run('ALTER TABLE product_variants ADD COLUMN archived INTEGER DEFAULT 0');
   }
 }
 

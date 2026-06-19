@@ -387,7 +387,10 @@ function normalizeVariantsInput(variants) {
 }
 
 function syncProductStockFromVariants(productId, branchId = DEFAULT_BRANCH_ID) {
-  const variants = queryAll('SELECT id FROM product_variants WHERE product_id = ?', [productId]);
+  const variants = queryAll(
+    'SELECT id FROM product_variants WHERE product_id = ? AND COALESCE(archived, 0) = 0',
+    [productId],
+  );
   let total = 0;
   for (const variant of variants) {
     total += getVariantBranchStock(variant.id, branchId);
@@ -401,7 +404,7 @@ function getProductVariants(productId, departmentId = null, branchId = DEFAULT_B
   const variants = queryAll(`
     SELECT id, product_id, name, price, stock, sort_order
     FROM product_variants
-    WHERE product_id = ?
+    WHERE product_id = ? AND COALESCE(archived, 0) = 0
     ORDER BY sort_order, name
   `, [productId]);
 
@@ -461,7 +464,8 @@ function saveProductVariants(productId, hasVariants, variantsInput, branchId = D
   }
 
   const variants = normalizeVariantsInput(variantsInput);
-  const existingIds = queryAll('SELECT id FROM product_variants WHERE product_id = ?', [productId]).map((r) => r.id);
+  const existingRows = queryAll('SELECT id, archived FROM product_variants WHERE product_id = ?', [productId]);
+  const existingIds = existingRows.map((r) => r.id);
   const keptIds = [];
   const defaultDeptId = getDefaultDepartmentId(branchId);
 
@@ -490,6 +494,8 @@ function saveProductVariants(productId, hasVariants, variantsInput, branchId = D
 
   for (const oldId of existingIds) {
     if (!keptIds.includes(oldId)) {
+      const archived = existingRows.find((r) => r.id === oldId)?.archived;
+      if (archived) continue;
       deleteVariantImages(oldId);
       deleteVariantDepartmentStock(oldId);
       run('DELETE FROM product_variants WHERE id = ?', [oldId]);
@@ -661,6 +667,34 @@ export function updateProduct(id, data, branchId = DEFAULT_BRANCH_ID, options = 
     saveProductBranchSettings(id, data.branch_settings);
   }
   return enrichProduct(fetchProductRow(id, branchId), branchId);
+}
+
+export function archiveProductVariant(productId, variantId, branchId = DEFAULT_BRANCH_ID) {
+  const row = queryOne(
+    'SELECT id FROM product_variants WHERE id = ? AND product_id = ? AND COALESCE(archived, 0) = 0',
+    [variantId, productId],
+  );
+  if (!row) throw new Error('Вариант не найден');
+
+  const activeCount = queryOne(
+    'SELECT COUNT(*) as c FROM product_variants WHERE product_id = ? AND COALESCE(archived, 0) = 0',
+    [productId],
+  ).c;
+  if (activeCount <= 1) throw new Error('Нельзя архивировать последний вариант товара');
+
+  run('UPDATE product_variants SET archived = 1 WHERE id = ?', [variantId]);
+
+  const remaining = queryAll(
+    'SELECT price FROM product_variants WHERE product_id = ? AND COALESCE(archived, 0) = 0',
+    [productId],
+  );
+  if (remaining.length) {
+    const minPrice = Math.min(...remaining.map((v) => v.price));
+    run('UPDATE products SET price = ? WHERE id = ?', [minPrice, productId]);
+  }
+
+  syncProductStockFromVariants(productId, branchId);
+  return enrichProduct(fetchProductRow(productId, branchId), branchId);
 }
 
 export function deleteProduct(id) {

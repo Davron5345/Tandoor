@@ -130,7 +130,9 @@ export function getProductBranchSettings(productId) {
   );
   const byBranch = Object.fromEntries(rows.map((row) => [row.branch_id, row]));
   const variants = queryAll(
-    'SELECT id, name, price FROM product_variants WHERE product_id = ? ORDER BY sort_order, name',
+    `SELECT id, name, price FROM product_variants
+     WHERE product_id = ? AND COALESCE(archived, 0) = 0
+     ORDER BY sort_order, name`,
     [productId],
   );
   const variantPriceMap = getVariantBranchPriceMap(productId);

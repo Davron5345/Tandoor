@@ -84,6 +84,16 @@ function IconTrash() {
   );
 }
 
+function IconArchive() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="3" y="4" width="18" height="4" rx="1" fill="none" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+      <path d="M10 12h4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function formatProductPrice(product) {
   if (product.has_variants && product.variant_price_min != null) {
     if (product.variant_price_max != null && product.variant_price_max !== product.variant_price_min) {
@@ -181,6 +191,7 @@ export default function Products() {
   const [images, setImages] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [productCardTab, setProductCardTab] = useState('main');
+  const [focusedVariantId, setFocusedVariantId] = useState(null);
   const [highlightedProductId, setHighlightedProductId] = useState(null);
   const [expandedProductIds, setExpandedProductIds] = useState(() => new Set());
   const [productPage, setProductPage] = useState(1);
@@ -396,6 +407,7 @@ export default function Products() {
     });
     setBranchSettings(isAdmin ? buildDefaultBranchSettings() : []);
     setProductCardTab('main');
+    setFocusedVariantId(null);
     setModal('create');
   };
 
@@ -408,11 +420,13 @@ export default function Products() {
       supplier_ids: (p.suppliers || []).map((s) => s.id),
     });
     setProductCardTab('main');
+    setFocusedVariantId(null);
     setModal('create');
     show('Скопированы категория, ед. изм. и поставщики');
   };
 
-  const openEdit = async (p) => {
+  const openEdit = async (p, options = {}) => {
+    const { variantId = null } = options;
     const priceSource = isAdmin ? (p.base_price ?? p.price) : p.price;
     setForm({
       name: p.name,
@@ -427,7 +441,8 @@ export default function Products() {
       has_variants: !!p.has_variants,
       variants: p.has_variants ? mapProductVariants(p.variants || []) : [],
     });
-    setProductCardTab('main');
+    setProductCardTab(variantId ? 'variants' : 'main');
+    setFocusedVariantId(variantId);
     setModal(p.id);
     if (isAdmin) {
       try {
@@ -479,6 +494,7 @@ export default function Products() {
   const finishSave = async (savedId) => {
     clearImages();
     setModal(null);
+    setFocusedVariantId(null);
     setHighlightedProductId(savedId);
     await load();
   };
@@ -573,6 +589,18 @@ export default function Products() {
     }
   };
 
+  const archiveVariant = async (product, variant) => {
+    const label = getVariantDisplayName(product, variant);
+    if (!confirm(`Архивировать вариант «${label}»? Он скроется из списка и выбора товаров.`)) return;
+    try {
+      await api.archiveProductVariant(product.id, variant.id);
+      show('Вариант отправлен в архив');
+      load();
+    } catch (e) {
+      show(e.message, 'error');
+    }
+  };
+
   const renderListRow = (row) => {
     const { product: p, variant, kind, rowKey } = row;
     const isVariant = kind === 'variant';
@@ -637,7 +665,16 @@ export default function Products() {
           )}
         </td>
         <td>
-          {!isVariant && canEdit ? (
+          {canEdit && isVariant ? (
+            <div className="btn-group btn-group-icons">
+              <IconButton title="Изменить" onClick={() => openEdit(p, { variantId: variant.id })}>
+                <IconEdit />
+              </IconButton>
+              <IconButton title="Архивировать" onClick={() => archiveVariant(p, variant)}>
+                <IconArchive />
+              </IconButton>
+            </div>
+          ) : !isVariant && canEdit ? (
             <div className="btn-group btn-group-icons">
               <IconButton title="Изменить" onClick={() => openEdit(p)}>
                 <IconEdit />
@@ -718,10 +755,10 @@ export default function Products() {
           wide
           className="modal-product"
           title={modal === 'create' ? 'Новый товар' : 'Карточка товара'}
-          onClose={() => { clearImages(); setHighlightedProductId(null); setModal(null); load(); }}
+          onClose={() => { clearImages(); setHighlightedProductId(null); setFocusedVariantId(null); setModal(null); load(); }}
           footer={
             <>
-              <button type="button" className="btn btn-ghost" onClick={() => { clearImages(); setModal(null); }}>Отмена</button>
+              <button type="button" className="btn btn-ghost" onClick={() => { clearImages(); setFocusedVariantId(null); setModal(null); }}>Отмена</button>
               <button type="button" className="btn btn-primary" onClick={save}>Сохранить</button>
             </>
           }
@@ -917,6 +954,7 @@ export default function Products() {
                       show={show}
                       uploading={uploading}
                       setUploading={setUploading}
+                      focusVariantId={focusedVariantId}
                     />
                   ) : (
                     <div className="product-variants-empty">
