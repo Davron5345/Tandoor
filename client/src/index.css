@@ -6161,13 +6161,65 @@ tr.product-row-highlight td:first-child {
   padding: 0 16px 12px;
 }
 
+.myshop-search-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.myshop-search-icon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  font-size: 18px;
+  line-height: 1;
+  pointer-events: none;
+}
+
 .myshop-search {
   width: 100%;
-  padding: 12px 14px;
+  padding: 12px 40px 12px 40px;
   border-radius: 14px;
   border: 1px solid var(--control-border);
   background: var(--control-bg);
   color: var(--text);
+  font-size: var(--font-base);
+}
+
+.myshop-search:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--primary) 45%, var(--control-border));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 14%, transparent);
+}
+
+.myshop-search-clear {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+
+.myshop-search-clear:hover {
+  background: var(--nav-hover);
+  color: var(--text);
+}
+
+.myshop-search-empty {
+  padding: 32px 16px 48px;
+  text-align: center;
 }
 
 .myshop-categories {

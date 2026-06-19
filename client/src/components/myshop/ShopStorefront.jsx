@@ -61,6 +61,16 @@ function getSectionScrollTop(root, section, offset = 8) {
   return root.scrollTop + section.getBoundingClientRect().top - root.getBoundingClientRect().top - offset;
 }
 
+function productMatchesSearch(product, query) {
+  const haystack = [
+    product.name,
+    product.sku,
+    product.category_name,
+    product.parent_category_name,
+  ].filter(Boolean).join(' ').toLowerCase();
+  return haystack.includes(query);
+}
+
 function smoothScrollElement(root, targetTop, duration = 480) {
   const start = root.scrollTop;
   const change = targetTop - start;
@@ -569,15 +579,11 @@ export default function ShopStorefront({
         if (!inCategory) return false;
       }
       if (!q) return true;
-      const haystack = [
-        product.name,
-        product.category_name,
-        product.parent_category_name,
-        product.sku,
-      ].filter(Boolean).join(' ').toLowerCase();
-      return haystack.includes(q);
+      return productMatchesSearch(product, q);
     });
   }, [products, search, activeCategoryId]);
+
+  const isSearchActive = publicMode && !activeCategoryId && !!search.trim();
 
   const branchCategories = useMemo(
     () => getCategoriesWithDirectProducts(categories, products),
@@ -707,20 +713,35 @@ export default function ShopStorefront({
         )}
       </header>
 
-      {settings.showcase !== false && !showCategoryView && (
+      {(publicMode || settings.showcase !== false) && !showCategoryView && (
         <div className="myshop-search-wrap">
-          <input
-            type="search"
-            className="myshop-search"
-            placeholder="Поиск товаров"
-            value={search}
-            onChange={onSearchChange ? (e) => onSearchChange(e.target.value) : undefined}
-            readOnly={!onSearchChange}
-          />
+          <div className="myshop-search-field">
+            <span className="myshop-search-icon" aria-hidden>⌕</span>
+            <input
+              type="search"
+              className="myshop-search"
+              placeholder="Поиск товаров"
+              value={search}
+              onChange={onSearchChange ? (e) => onSearchChange(e.target.value) : undefined}
+              readOnly={!onSearchChange}
+              aria-label="Поиск товаров"
+              enterKeyHint="search"
+            />
+            {!!search && onSearchChange && (
+              <button
+                type="button"
+                className="myshop-search-clear"
+                aria-label="Очистить поиск"
+                onClick={() => onSearchChange('')}
+              >
+                ×
+              </button>
+            )}
+          </div>
         </div>
       )}
 
-      {publicMode && branchCategories.length > 0 && !showCategoryView && (
+      {publicMode && branchCategories.length > 0 && !showCategoryView && !search.trim() && (
         <div ref={chipBarRef} className="myshop-categories myshop-categories-sticky">
           {branchCategories.map((category) => (
             <button
@@ -755,21 +776,29 @@ export default function ShopStorefront({
       );
     }
 
-    if (publicMode && !activeCategoryId && search.trim() && filteredProducts.length > 0) {
+    if (isSearchActive) {
       return (
         <section className="myshop-public-catalog myshop-public-catalog-primary">
           <div className="myshop-block-section-head">
             <h3>Результаты поиска</h3>
-            <span className="myshop-public-catalog-count">{filteredProducts.length}</span>
+            {filteredProducts.length > 0 && (
+              <span className="myshop-public-catalog-count">{filteredProducts.length}</span>
+            )}
           </div>
-          <ProductGrid
-            products={filteredProducts}
-            onProductOpen={onProductOpen}
-            onProductAdd={onProductAdd}
-            onProductQtyChange={onProductQtyChange}
-            cartQtyByKey={cartQtyByKey}
-            publicMode
-          />
+          {filteredProducts.length > 0 ? (
+            <ProductGrid
+              products={filteredProducts}
+              onProductOpen={onProductOpen}
+              onProductAdd={onProductAdd}
+              onProductQtyChange={onProductQtyChange}
+              cartQtyByKey={cartQtyByKey}
+              publicMode
+            />
+          ) : (
+            <div className="myshop-empty myshop-search-empty">
+              По запросу «{search.trim()}» ничего не найдено
+            </div>
+          )}
         </section>
       );
     }
