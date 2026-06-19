@@ -7590,8 +7590,7 @@ html.public-shop-lock #root {
   padding-bottom: calc(2px + env(safe-area-inset-bottom, 0px));
 }
 
-.public-shop-header-cart {
-  position: relative;
+.public-shop-header-settings {
   flex-shrink: 0;
   width: 44px;
   height: 44px;
@@ -7601,27 +7600,22 @@ html.public-shop-lock #root {
   cursor: pointer;
   display: grid;
   place-items: center;
+  color: var(--text-muted);
 }
 
-.public-shop-header-cart-icon {
-  font-size: 18px;
-  line-height: 1;
+.public-shop-header-settings:hover {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--primary) 28%, var(--control-border));
 }
 
-.public-shop-header-cart-count {
-  position: absolute;
-  top: -4px;
-  right: -4px;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  border-radius: 999px;
-  background: var(--primary);
-  color: #fff;
-  font-size: 11px;
-  font-weight: 700;
+.public-shop-header-settings-icon {
   display: grid;
   place-items: center;
+}
+
+.public-shop-header-settings-icon svg {
+  width: 22px;
+  height: 22px;
 }
 
 .myshop-product-card {

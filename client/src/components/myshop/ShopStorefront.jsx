@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { formatMoney } from '../../api';
 import { IconImage } from '../ActionIcons';
-import { IconNavShop, IconNavCart } from '../NavIcons';
+import { useTheme } from '../../ThemeContext';
+import { IconNavShop, IconNavCart, IconNavSettings } from '../NavIcons';
 import { getBlockMeta } from '../../utils/myShopLayout';
 
 export function formatShopPrice(product) {
@@ -505,6 +506,7 @@ export default function ShopStorefront({
   cartCount = 0,
   onNavChange,
 }) {
+  const { theme, toggleTheme } = useTheme();
   const scrollBodyRef = useRef(null);
   const chipBarRef = useRef(null);
   const scrollSpyFrameRef = useRef(null);
@@ -656,12 +658,14 @@ export default function ShopStorefront({
         {publicMode && (
           <button
             type="button"
-            className="public-shop-header-cart"
-            onClick={() => onNavChange?.('cart')}
-            aria-label="Корзина"
+            className="public-shop-header-settings"
+            onClick={toggleTheme}
+            aria-label={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
+            title={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
           >
-            <span className="public-shop-header-cart-icon" aria-hidden>🛒</span>
-            {cartCount > 0 && <span className="public-shop-header-cart-count">{cartCount}</span>}
+            <span className="public-shop-header-settings-icon" aria-hidden>
+              <IconNavSettings />
+            </span>
           </button>
         )}
       </header>

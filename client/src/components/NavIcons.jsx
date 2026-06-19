@@ -56,6 +56,21 @@ export function IconNavCart() {
   );
 }
 
+export function IconNavSettings() {
+  return (
+    <NavSvg>
+      <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" strokeWidth="1.75" />
+      <path
+        d="M12 2.8v2.2M12 19v2.2M4.9 4.9l1.6 1.6M17.5 17.5l1.6 1.6M2.8 12h2.2M19 12h2.2M4.9 19.1l1.6-1.6M17.5 6.5l1.6-1.6M6.1 6.1 7.7 7.7M16.3 16.3l1.6 1.6M6.1 17.9l1.6-1.6M16.3 7.7l1.6-1.6"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+      />
+    </NavSvg>
+  );
+}
+
 export function IconNavReports() {
   return (
     <NavSvg>
