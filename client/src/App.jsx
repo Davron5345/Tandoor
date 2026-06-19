@@ -214,8 +214,11 @@ function AppContent() {
         <div className="sidebar-panel">
         <div className="sidebar-header">
           <div className="logo">
-            📦 Склад
-            <span>Учёт прихода и расхода</span>
+            <div className="logo-mark" aria-hidden>📦</div>
+            <div className="logo-text">
+              <strong>Склад</strong>
+              <span>Учёт прихода и расхода</span>
+            </div>
           </div>
           <div className="sidebar-header-actions">
             <button
