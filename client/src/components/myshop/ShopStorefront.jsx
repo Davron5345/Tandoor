@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { formatMoney } from '../../api';
 import { IconImage } from '../ActionIcons';
 import { useTheme } from '../../ThemeContext';
-import { IconNavShop, IconNavCart, IconNavSettings } from '../NavIcons';
+import { IconNavShop, IconNavCart, IconNavSettings, IconBannerOfPeace } from '../NavIcons';
 import { getBlockMeta } from '../../utils/myShopLayout';
 
 export function formatShopPrice(product) {
@@ -716,7 +716,9 @@ export default function ShopStorefront({
     <>
       <header className="myshop-header">
         <div className="myshop-brand">
-          <span className="myshop-brand-mark" aria-hidden><IconNavShop /></span>
+          <span className={`myshop-brand-mark${publicMode ? ' is-flag' : ''}`} aria-hidden>
+            {publicMode ? <IconBannerOfPeace /> : <IconNavShop />}
+          </span>
           <div>
             <strong>{publicMode ? branchName : 'MyShop'}</strong>
             <span>{publicMode ? (branchPhone || 'Онлайн-магазин') : branchName}</span>

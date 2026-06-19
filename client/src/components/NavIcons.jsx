@@ -45,6 +45,17 @@ export function IconNavShop() {
   );
 }
 
+export function IconBannerOfPeace() {
+  return (
+    <svg viewBox="0 0 42 42" aria-hidden="true">
+      <rect width="42" height="42" rx="11" fill="#00B0F0" />
+      <circle cx="21" cy="11.5" r="6.8" fill="#fff" />
+      <circle cx="12.2" cy="23.5" r="6.8" fill="#fff" />
+      <circle cx="29.8" cy="23.5" r="6.8" fill="#fff" />
+    </svg>
+  );
+}
+
 export function IconNavCart() {
   return (
     <NavSvg>

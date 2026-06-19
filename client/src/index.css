@@ -6145,6 +6145,20 @@ tr.product-row-highlight td:first-child {
   color: var(--primary);
 }
 
+.myshop-brand-mark.is-flag {
+  padding: 0;
+  overflow: hidden;
+  background: transparent;
+  border: 1px solid color-mix(in srgb, #00b0f0 40%, var(--control-border));
+}
+
+.myshop-brand-mark.is-flag svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  color: unset;
+}
+
 .myshop-brand strong {
   display: block;
   font-size: var(--font-lg);

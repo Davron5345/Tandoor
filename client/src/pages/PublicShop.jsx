@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { api, formatMoney } from '../api';
 import ShopStorefront from '../components/myshop/ShopStorefront';
 import CartSwipeItem from '../components/myshop/CartSwipeItem';
-import { IconNavShop, IconNavCart } from '../components/NavIcons';
+import { IconNavShop, IconNavCart, IconBannerOfPeace } from '../components/NavIcons';
 import {
   addCartItem,
   cartCount,
@@ -259,7 +259,7 @@ export default function PublicShop() {
         <div className="myshop-page myshop-page-public">
           <header className="myshop-header">
             <div className="myshop-brand">
-              <span className="myshop-brand-mark" aria-hidden>🛒</span>
+              <span className="myshop-brand-mark is-flag" aria-hidden><IconBannerOfPeace /></span>
               <div>
                 <strong>{branch.name}</strong>
                 <span>Онлайн-магазин</span>
