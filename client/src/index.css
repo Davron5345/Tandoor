@@ -6590,6 +6590,48 @@ tr.product-row-highlight td:first-child {
   grid-template-columns: 1fr 1fr;
 }
 
+.myshop-bottom-nav-icons {
+  padding: 4px 20px calc(2px + env(safe-area-inset-bottom, 0px));
+  gap: 8px;
+}
+
+.myshop-bottom-nav-icons .myshop-bottom-nav-item {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 44px;
+  padding: 8px;
+  border-radius: 14px;
+  font-size: 0;
+}
+
+.myshop-bottom-nav-icons .myshop-bottom-nav-item svg {
+  width: 24px;
+  height: 24px;
+}
+
+.myshop-bottom-nav-icons .myshop-bottom-nav-item.active {
+  background: color-mix(in srgb, var(--primary) 12%, var(--surface));
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.myshop-bottom-nav-badge {
+  position: absolute;
+  top: 2px;
+  right: calc(50% - 26px);
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+}
+
 .myshop-bottom-nav-item.active {
   color: var(--primary);
   background: color-mix(in srgb, var(--primary) 10%, transparent);
@@ -7338,7 +7380,8 @@ tr.product-row-highlight td:first-child {
 .myshop-page-public .myshop-bottom-nav-public {
   position: static;
   flex-shrink: 0;
-  padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+  padding-top: 2px;
+  padding-bottom: calc(2px + env(safe-area-inset-bottom, 0px));
 }
 
 .public-shop-header-cart {
