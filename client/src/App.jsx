@@ -232,7 +232,7 @@ function AppContent() {
 
     const myshopPathsLocal = [
       ...(hasPermission(user, 'myshop.view') ? ['/myshop'] : []),
-      ...(hasPermission(user, 'shop_orders.view') ? ['/shop-orders', '/warehouse/orders'] : []),
+      ...(hasPermission(user, 'shop_orders.view') ? ['/shop-orders'] : []),
       ...(hasPermission(user, 'myshop.edit') ? ['/myshop/constructor'] : []),
     ];
 
@@ -312,7 +312,7 @@ function AppContent() {
 
   const myshopPaths = [
     ...(canViewMyShop ? ['/myshop'] : []),
-    ...(canViewShopOrders ? ['/shop-orders', '/warehouse/orders'] : []),
+    ...(canViewShopOrders ? ['/shop-orders'] : []),
     ...(canEditMyShop ? ['/myshop/constructor'] : []),
   ];
 
@@ -455,14 +455,6 @@ function AppContent() {
                     className={({ isActive }) => `nav-link nav-link-sub${isActive ? ' active' : ''}`}
                   >
                     Заказы
-                  </NavLink>
-                )}
-                {canViewShopOrders && (
-                  <NavLink
-                    to="/warehouse/orders"
-                    className={({ isActive }) => `nav-link nav-link-sub${isActive ? ' active' : ''}`}
-                  >
-                    Заказы (моб.)
                   </NavLink>
                 )}
               </NavGroup>
