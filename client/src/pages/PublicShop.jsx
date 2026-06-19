@@ -392,6 +392,16 @@ export default function PublicShop() {
     }
   };
 
+  const handleCategorySelect = (id) => {
+    setActiveCategoryId(id);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleCategoryClear = () => {
+    setActiveCategoryId('');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const handleNav = (tab) => {
     if (tab === 'menu') {
       setView('menu');
@@ -431,10 +441,12 @@ export default function PublicShop() {
           categories={categories}
           products={products}
           branchName={branch.name}
+          branchPhone={branch.phone}
           search={search}
           onSearchChange={setSearch}
           activeCategoryId={activeCategoryId}
-          onCategoryClick={setActiveCategoryId}
+          onCategoryClick={handleCategorySelect}
+          onCategoryClear={handleCategoryClear}
           onProductOpen={setSelectedProduct}
           publicMode
           activeNav="menu"

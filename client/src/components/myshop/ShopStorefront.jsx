@@ -51,11 +51,11 @@ export function ShopMedia({ image, name, outside = false, emptyClassName = '' })
   );
 }
 
-function CategoryTile({ category, imageUrl, photoOutside, onClick }) {
+function CategoryTile({ category, imageUrl, photoOutside, onClick, active = false }) {
   return (
     <button
       type="button"
-      className={`myshop-cat-tile${photoOutside ? ' myshop-cat-tile-outside' : ''}`}
+      className={`myshop-cat-tile${photoOutside ? ' myshop-cat-tile-outside' : ''}${active ? ' is-active' : ''}`}
       onClick={onClick ? () => onClick(category.id) : undefined}
     >
       {imageUrl ? (
@@ -68,7 +68,108 @@ function CategoryTile({ category, imageUrl, photoOutside, onClick }) {
   );
 }
 
-function CategoryGridBlock({ block, categoriesById, categoryImages, settings, onCategoryClick }) {
+function ShopProductCard({ product, onOpen, publicMode = false }) {
+  const inStock = product.has_variants
+    ? (product.variants || []).some((v) => (v.stock || 0) > 0)
+    : (product.stock || 0) > 0;
+
+  return (
+    <article className={`myshop-product-card${!inStock ? ' is-out-of-stock' : ''}`}>
+      <button
+        type="button"
+        className="myshop-product-card-media-btn"
+        onClick={() => onOpen?.(product)}
+        aria-label={product.name}
+      >
+        <ShopMedia image={product.primary_image} name={product.name} />
+        {!inStock && <span className="myshop-product-badge">Нет в наличии</span>}
+      </button>
+      <div className="myshop-product-card-body">
+        <button type="button" className="myshop-product-card-name" onClick={() => onOpen?.(product)}>
+          {product.name}
+        </button>
+        <div className="myshop-product-card-footer">
+          <span className="myshop-product-card-price">{formatShopPrice(product)}</span>
+          {publicMode && inStock && (
+            <button
+              type="button"
+              className="myshop-product-add-btn"
+              onClick={() => onOpen?.(product)}
+              aria-label={`Добавить ${product.name}`}
+            >
+              +
+            </button>
+          )}
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function ProductGrid({ products, onProductOpen, publicMode = false, emptyText = 'Нет товаров' }) {
+  if (!products.length) {
+    return <div className="myshop-empty">{emptyText}</div>;
+  }
+
+  return (
+    <div className="myshop-grid">
+      {products.map((product) => (
+        <ShopProductCard
+          key={product.id}
+          product={product}
+          onOpen={onProductOpen}
+          publicMode={publicMode}
+        />
+      ))}
+    </div>
+  );
+}
+
+function CategoryCatalogView({
+  category,
+  products,
+  search,
+  onBack,
+  onProductOpen,
+  publicMode,
+}) {
+  const title = category?.name || 'Каталог';
+
+  return (
+    <section className="myshop-category-view">
+      <div className="myshop-category-view-head">
+        <button type="button" className="myshop-back-btn" onClick={onBack}>
+          ← Назад
+        </button>
+        <div>
+          <h2>{title}</h2>
+          <span>{products.length} товаров</span>
+        </div>
+      </div>
+      {search.trim() && (
+        <div className="myshop-category-view-note">Поиск: «{search.trim()}»</div>
+      )}
+      <ProductGrid
+        products={products}
+        onProductOpen={onProductOpen}
+        publicMode={publicMode}
+        emptyText="В этой категории пока нет товаров"
+      />
+    </section>
+  );
+}
+
+function CategoryGridBlock({
+  block,
+  categoriesById,
+  categoryImages,
+  settings,
+  onCategoryClick,
+  publicMode = false,
+  productsByCategory,
+  onProductOpen,
+  activeCategoryId = '',
+}) {
   const meta = getBlockMeta(block.type);
   const items = block.categoryIds
     .map((id) => categoriesById.get(id))
@@ -79,17 +180,39 @@ function CategoryGridBlock({ block, categoriesById, categoryImages, settings, on
   }
 
   return (
-    <div className={`myshop-block-grid myshop-block-${meta.layout}`}>
-      {items.map((category) => (
-        <CategoryTile
-          key={category.id}
-          category={category}
-          imageUrl={categoryImages.get(category.id)}
-          photoOutside={settings.photoOutside}
-          onClick={onCategoryClick}
-        />
-      ))}
-    </div>
+    <>
+      <div className={`myshop-block-grid myshop-block-${meta.layout}`}>
+        {items.map((category) => (
+          <CategoryTile
+            key={category.id}
+            category={category}
+            imageUrl={categoryImages.get(category.id)}
+            photoOutside={settings.photoOutside}
+            onClick={onCategoryClick}
+            active={activeCategoryId === category.id}
+          />
+        ))}
+      </div>
+      {publicMode && !activeCategoryId && items.map((category) => {
+        const categoryProducts = (productsByCategory.get(category.id) || []).slice(0, 4);
+        if (!categoryProducts.length) return null;
+        return (
+          <div key={`products-${category.id}`} className="myshop-public-category-section">
+            <div className="myshop-block-section-head">
+              <h3>{category.name}</h3>
+              <button type="button" className="myshop-link-btn" onClick={() => onCategoryClick?.(category.id)}>
+                Все →
+              </button>
+            </div>
+            <ProductGrid
+              products={categoryProducts}
+              onProductOpen={onProductOpen}
+              publicMode
+            />
+          </div>
+        );
+      })}
+    </>
   );
 }
 
@@ -135,18 +258,12 @@ function SliderBlock({
             {products.length > 0 && (
               <div className="myshop-grid myshop-grid-compact">
                 {products.map((product) => (
-                  <button
+                  <ShopProductCard
                     key={product.id}
-                    type="button"
-                    className="myshop-card"
-                    onClick={() => onProductOpen?.(product)}
-                  >
-                    <ShopMedia image={product.primary_image} name={product.name} />
-                    <div className="myshop-card-body">
-                      <div className="myshop-card-name">{product.name}</div>
-                      <div className="myshop-card-price">{formatShopPrice(product)}</div>
-                    </div>
-                  </button>
+                    product={product}
+                    onOpen={onProductOpen}
+                    publicMode
+                  />
                 ))}
               </div>
             )}
@@ -165,6 +282,8 @@ function ShopBlock({
   settings,
   onProductOpen,
   onCategoryClick,
+  publicMode = false,
+  activeCategoryId = '',
 }) {
   const meta = getBlockMeta(block.type);
   const isSlider = block.type === 'slider';
@@ -193,9 +312,13 @@ function ShopBlock({
           categoryImages={categoryImages}
           settings={settings}
           onCategoryClick={onCategoryClick}
+          publicMode={publicMode}
+          productsByCategory={productsByCategory}
+          onProductOpen={onProductOpen}
+          activeCategoryId={activeCategoryId}
         />
       )}
-      {!isSlider && meta.max != null && (
+      {!isSlider && meta.max != null && !publicMode && (
         <div className="myshop-block-head-meta">
           <span className="myshop-block-type">{meta.shortLabel}</span>
           <span className="myshop-block-count">{block.categoryIds.length}/{meta.max}</span>
@@ -214,9 +337,11 @@ export default function ShopStorefront({
   onSearchChange,
   activeCategoryId = '',
   onCategoryClick,
+  onCategoryClear,
   onProductOpen,
   preview = false,
   publicMode = false,
+  branchPhone = '',
   activeNav = 'menu',
   cartCount = 0,
   onNavChange,
@@ -247,9 +372,22 @@ export default function ShopStorefront({
   const pageClass = [
     'myshop-page',
     preview ? 'myshop-page-preview' : '',
+    publicMode ? 'myshop-page-public' : '',
     settings.hideBackground ? 'myshop-page-hide-bg' : '',
     settings.transparentBackground ? 'myshop-page-transparent' : '',
   ].filter(Boolean).join(' ');
+
+  const activeCategory = activeCategoryId ? categoriesById.get(activeCategoryId) : null;
+  const showCategoryView = publicMode && activeCategoryId;
+
+  const handleCategoryChip = (categoryId) => {
+    if (!onCategoryClick) return;
+    if (activeCategoryId === categoryId) {
+      onCategoryClear?.();
+    } else {
+      onCategoryClick(categoryId);
+    }
+  };
 
   return (
     <div className={pageClass}>
@@ -257,13 +395,24 @@ export default function ShopStorefront({
         <div className="myshop-brand">
           <span className="myshop-brand-mark" aria-hidden><IconNavShop /></span>
           <div>
-            <strong>MyShop</strong>
-            <span>{branchName}</span>
+            <strong>{publicMode ? branchName : 'MyShop'}</strong>
+            <span>{publicMode ? (branchPhone || 'Онлайн-магазин') : branchName}</span>
           </div>
         </div>
+        {publicMode && (
+          <button
+            type="button"
+            className="public-shop-header-cart"
+            onClick={() => onNavChange?.('cart')}
+            aria-label="Корзина"
+          >
+            <span className="public-shop-header-cart-icon" aria-hidden>🛒</span>
+            {cartCount > 0 && <span className="public-shop-header-cart-count">{cartCount}</span>}
+          </button>
+        )}
       </header>
 
-      {settings.showcase !== false && (
+      {settings.showcase !== false && !showCategoryView && (
         <div className="myshop-search-wrap">
           <input
             type="search"
@@ -276,7 +425,40 @@ export default function ShopStorefront({
         </div>
       )}
 
-      {hasBlocks ? (
+      {publicMode && categories.length > 0 && !showCategoryView && (
+        <div className="myshop-categories">
+          <button
+            type="button"
+            className={`myshop-category-chip${!activeCategoryId ? ' active' : ''}`}
+            onClick={() => onCategoryClear?.()}
+          >
+            Все
+          </button>
+          {categories
+            .filter((c) => products.some((p) => p.category_id === c.id))
+            .map((category) => (
+              <button
+                key={category.id}
+                type="button"
+                className={`myshop-category-chip${activeCategoryId === category.id ? ' active' : ''}`}
+                onClick={() => handleCategoryChip(category.id)}
+              >
+                {category.name}
+              </button>
+            ))}
+        </div>
+      )}
+
+      {showCategoryView ? (
+        <CategoryCatalogView
+          category={activeCategory}
+          products={filteredProducts}
+          search={search}
+          onBack={() => onCategoryClear?.()}
+          onProductOpen={onProductOpen}
+          publicMode
+        />
+      ) : hasBlocks ? (
         <div className="myshop-blocks">
           {blocks.map((block) => (
             <ShopBlock
@@ -288,8 +470,23 @@ export default function ShopStorefront({
               settings={settings}
               onProductOpen={onProductOpen}
               onCategoryClick={onCategoryClick}
+              publicMode={publicMode}
+              activeCategoryId={activeCategoryId}
             />
           ))}
+          {publicMode && !activeCategoryId && filteredProducts.length > 0 && (
+            <section className="myshop-public-catalog">
+              <div className="myshop-block-section-head">
+                <h3>{search.trim() ? 'Результаты поиска' : 'Все товары'}</h3>
+                <span className="myshop-public-catalog-count">{filteredProducts.length}</span>
+              </div>
+              <ProductGrid
+                products={filteredProducts}
+                onProductOpen={onProductOpen}
+                publicMode
+              />
+            </section>
+          )}
         </div>
       ) : preview ? (
         <div className="myshop-preview-placeholder">
@@ -303,32 +500,21 @@ export default function ShopStorefront({
           {filteredProducts.length === 0 ? (
             <div className="myshop-empty">Нет товаров в этом филиале</div>
           ) : (
-            <div className="myshop-grid">
-              {filteredProducts.map((product) => (
-                <button
-                  key={product.id}
-                  type="button"
-                  className="myshop-card"
-                  onClick={() => onProductOpen?.(product)}
-                >
-                  <ShopMedia image={product.primary_image} name={product.name} />
-                  <div className="myshop-card-body">
-                    <div className="myshop-card-name">{product.name}</div>
-                    <div className="myshop-card-price">{formatShopPrice(product)}</div>
-                  </div>
-                </button>
-              ))}
-            </div>
+            <ProductGrid
+              products={filteredProducts}
+              onProductOpen={onProductOpen}
+              publicMode={publicMode}
+            />
           )}
         </div>
       )}
 
       {settings.menu !== false && (
-        <nav className="myshop-bottom-nav" aria-label="Меню магазина">
+        <nav className={`myshop-bottom-nav${publicMode ? ' myshop-bottom-nav-public' : ''}`} aria-label="Меню магазина">
           <button
             type="button"
             className={`myshop-bottom-nav-item${activeNav === 'menu' ? ' active' : ''}`}
-            onClick={publicMode && onNavChange ? () => onNavChange('menu') : undefined}
+            onClick={() => (publicMode ? onNavChange?.('menu') : undefined)}
           >
             Меню
           </button>
@@ -338,7 +524,7 @@ export default function ShopStorefront({
           <button
             type="button"
             className={`myshop-bottom-nav-item${activeNav === 'cart' ? ' active' : ''}${publicMode && cartCount > 0 ? ' has-badge' : ''}`}
-            onClick={publicMode && onNavChange ? () => onNavChange('cart') : undefined}
+            onClick={() => (publicMode ? onNavChange?.('cart') : undefined)}
           >
             Корзина{publicMode && cartCount > 0 ? ` (${cartCount})` : ''}
           </button>
