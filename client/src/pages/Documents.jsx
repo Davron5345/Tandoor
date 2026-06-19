@@ -886,9 +886,9 @@ export default function Documents({ defaultType }) {
         <div className="btn-group">
           {!defaultType && canEdit && (
             <>
-              <button className="btn btn-success" onClick={() => openCreate('prihod')}>+ Приход</button>
-              <button className="btn btn-primary" style={{ background: 'var(--rashod)' }} onClick={() => openCreate('rashod')}>+ Расход</button>
-              <button className="btn btn-primary" style={{ background: 'var(--rashod)' }} onClick={() => openCreate(RETURN_SUPPLIER_TYPE)}>+ Возврат поставщику</button>
+              <button type="button" className="btn btn-prihod" onClick={() => openCreate('prihod')}>+ Приход</button>
+              <button type="button" className="btn btn-rashod" onClick={() => openCreate('rashod')}>+ Расход</button>
+              <button type="button" className="btn btn-rashod" onClick={() => openCreate(RETURN_SUPPLIER_TYPE)}>+ Возврат поставщику</button>
             </>
           )}
           {defaultType && canEdit && (

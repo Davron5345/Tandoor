@@ -106,9 +106,9 @@ export default function AuditLog() {
         <h1>Журнал аудита</h1>
       </div>
 
-      <div className="card" style={{ marginBottom: 16, padding: 16 }}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-end' }}>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13 }}>
+      <div className="card filter-panel">
+        <div className="filter-panel-row">
+          <label className="filter-field">
             Действие
             <select
               value={draft.action}
@@ -120,7 +120,7 @@ export default function AuditLog() {
               ))}
             </select>
           </label>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13 }}>
+          <label className="filter-field">
             Пользователь
             <input
               type="text"
@@ -129,7 +129,7 @@ export default function AuditLog() {
               onChange={(e) => setDraft((f) => ({ ...f, username: e.target.value }))}
             />
           </label>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13 }}>
+          <label className="filter-field">
             С даты
             <input
               type="date"
@@ -137,7 +137,7 @@ export default function AuditLog() {
               onChange={(e) => setDraft((f) => ({ ...f, date_from: e.target.value }))}
             />
           </label>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13 }}>
+          <label className="filter-field">
             По дату
             <input
               type="date"

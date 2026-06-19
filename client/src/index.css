@@ -51,6 +51,7 @@
   --control-border: rgba(255, 255, 255, 0.1);
   --control-radius: 10px;
   --accent-glow: rgba(59, 130, 246, 0.18);
+  color-scheme: dark;
 }
 
 [data-theme="light"] {
@@ -106,10 +107,10 @@
   --control-border: #e2e8f0;
   --control-radius: 10px;
   --accent-glow: rgba(37, 99, 235, 0.12);
+  color-scheme: light;
 }
 
 :root {
-  color-scheme: light dark;
   --sidebar-width-expanded: clamp(248px, 20vw, 288px);
   --sidebar-width-collapsed: 76px;
   --sidebar-width: var(--sidebar-width-expanded);
@@ -169,6 +170,56 @@ a {
 button, input, select, textarea {
   font-family: inherit;
   font-size: var(--font-base);
+}
+
+input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']):not([type='color']),
+select,
+textarea {
+  padding: 10px 12px;
+  background: var(--control-bg);
+  border: 1px solid var(--control-border);
+  border-radius: var(--control-radius);
+  color: var(--text);
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+}
+
+input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']):not([type='color']):focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--primary) 45%, var(--control-border));
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+select option {
+  background: var(--surface);
+  color: var(--text);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-muted);
+  opacity: 0.85;
+}
+
+[data-theme="dark"] input[type='date']::-webkit-calendar-picker-indicator,
+[data-theme="dark"] input[type='datetime-local']::-webkit-calendar-picker-indicator {
+  filter: invert(0.85);
+  opacity: 0.85;
+}
+
+.filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: var(--font-sm);
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.filter-field input,
+.filter-field select {
+  min-width: 140px;
 }
 
 .app {
@@ -1909,6 +1960,30 @@ button, input, select, textarea {
   color: white;
 }
 
+.btn-prihod {
+  background: var(--prihod);
+  color: #fff;
+  border-color: transparent;
+  box-shadow: 0 2px 10px color-mix(in srgb, var(--prihod) 32%, transparent);
+}
+
+.btn-prihod:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--prihod) 86%, #052e1c);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--prihod) 38%, transparent);
+}
+
+.btn-rashod {
+  background: var(--rashod);
+  color: #fff;
+  border-color: transparent;
+  box-shadow: 0 2px 10px color-mix(in srgb, var(--rashod) 32%, transparent);
+}
+
+.btn-rashod:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--rashod) 86%, #431407);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--rashod) 38%, transparent);
+}
+
 .btn-danger {
   background: var(--danger);
   color: white;
@@ -3492,6 +3567,18 @@ input[type='number']::-webkit-inner-spin-button {
   white-space: nowrap;
 }
 
+.filter-panel {
+  margin-bottom: 16px;
+  padding: 16px;
+}
+
+.filter-panel-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 14px;
+  align-items: flex-end;
+}
+
 .filters {
   display: flex;
   flex-wrap: wrap;
@@ -3507,7 +3594,8 @@ input[type='number']::-webkit-inner-spin-button {
 
 .filters select,
 .filters input[type="search"],
-.filters input[type="date"] {
+.filters input[type="date"],
+.filters input[type="text"] {
   padding: 10px 12px;
   background: var(--control-bg);
   border: 1px solid var(--control-border);
@@ -3519,7 +3607,8 @@ input[type='number']::-webkit-inner-spin-button {
 
 .filters select:focus,
 .filters input[type="search"]:focus,
-.filters input[type="date"]:focus {
+.filters input[type="date"]:focus,
+.filters input[type="text"]:focus {
   outline: none;
   border-color: color-mix(in srgb, var(--primary) 45%, var(--control-border));
   box-shadow: 0 0 0 3px var(--accent-glow);
