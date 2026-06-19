@@ -7529,6 +7529,17 @@ tr.product-row-highlight td:first-child {
 }
 
 .myshop-public-category-section,
+.myshop-public-category-section[data-category-section] {
+  scroll-margin-top: 8px;
+}
+
+.myshop-public-category-catalog {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 0 12px 12px;
+}
+
 .myshop-public-catalog {
   padding-top: 8px;
 }

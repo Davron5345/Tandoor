@@ -286,12 +286,10 @@ export default function PublicShop() {
 
   const handleCategorySelect = (id) => {
     setActiveCategoryId(id);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleCategoryClear = () => {
     setActiveCategoryId('');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleNav = (tab) => {

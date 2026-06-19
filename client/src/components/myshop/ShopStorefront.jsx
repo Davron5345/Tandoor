@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { formatMoney } from '../../api';
 import { IconImage } from '../ActionIcons';
 import { IconNavShop, IconNavCart } from '../NavIcons';
@@ -214,6 +214,7 @@ function CategoryGridBlock({
   onProductOpen,
   onProductAdd,
   activeCategoryId = '',
+  catalogBrowseMode = false,
 }) {
   const meta = getBlockMeta(block.type);
   const items = block.categoryIds
@@ -238,16 +239,30 @@ function CategoryGridBlock({
           />
         ))}
       </div>
-      {publicMode && !activeCategoryId && items.map((category) => {
-        const categoryProducts = (productsByCategory.get(category.id) || []).slice(0, 4);
+    </>
+  );
+}
+
+function PublicCategoryCatalog({
+  categories,
+  productsByCategory,
+  onProductOpen,
+  onProductAdd,
+}) {
+  return (
+    <div className="myshop-public-category-catalog">
+      {categories.map((category) => {
+        const categoryProducts = productsByCategory.get(category.id) || [];
         if (!categoryProducts.length) return null;
         return (
-          <div key={`products-${category.id}`} className="myshop-public-category-section">
+          <section
+            key={category.id}
+            className="myshop-public-category-section"
+            data-category-section={category.id}
+          >
             <div className="myshop-block-section-head">
               <h3>{category.name}</h3>
-              <button type="button" className="myshop-link-btn" onClick={() => onCategoryClick?.(category.id)}>
-                Все →
-              </button>
+              <span className="myshop-public-catalog-count">{categoryProducts.length}</span>
             </div>
             <ProductGrid
               products={categoryProducts}
@@ -255,10 +270,10 @@ function CategoryGridBlock({
               onProductAdd={onProductAdd}
               publicMode
             />
-          </div>
+          </section>
         );
       })}
-    </>
+    </div>
   );
 }
 
@@ -271,6 +286,7 @@ function SliderBlock({
   onProductOpen,
   onProductAdd,
   onCategoryClick,
+  catalogBrowseMode = false,
 }) {
   const sections = block.categoryIds
     .map((id) => categoriesById.get(id))
@@ -302,7 +318,7 @@ function SliderBlock({
                 onClick={onCategoryClick}
               />
             </div>
-            {products.length > 0 && (
+            {products.length > 0 && !catalogBrowseMode && (
               <div className="myshop-grid myshop-grid-compact">
                 {products.map((product) => (
                   <ShopProductCard
@@ -333,6 +349,7 @@ function ShopBlock({
   onCategoryClick,
   publicMode = false,
   activeCategoryId = '',
+  catalogBrowseMode = false,
 }) {
   const meta = getBlockMeta(block.type);
   const isSlider = block.type === 'slider';
@@ -354,6 +371,7 @@ function ShopBlock({
           onProductOpen={onProductOpen}
           onProductAdd={onProductAdd}
           onCategoryClick={onCategoryClick}
+          catalogBrowseMode={catalogBrowseMode}
         />
       ) : (
         <CategoryGridBlock
@@ -367,6 +385,7 @@ function ShopBlock({
           onProductOpen={onProductOpen}
           onProductAdd={onProductAdd}
           activeCategoryId={activeCategoryId}
+          catalogBrowseMode={catalogBrowseMode}
         />
       )}
       {!isSlider && meta.max != null && !publicMode && (
@@ -398,6 +417,11 @@ export default function ShopStorefront({
   cartCount = 0,
   onNavChange,
 }) {
+  const scrollBodyRef = useRef(null);
+  const chipBarRef = useRef(null);
+  const scrollSpyFrameRef = useRef(null);
+  const [highlightedCategoryId, setHighlightedCategoryId] = useState('');
+
   const settings = layout?.settings || {};
   const blocks = layout?.blocks || [];
   const hasBlocks = blocks.length > 0;
@@ -440,14 +464,88 @@ export default function ShopStorefront({
 
   const activeCategory = activeCategoryId ? categoriesById.get(activeCategoryId) : null;
   const showCategoryView = publicMode && activeCategoryId;
+  const scrollSpyEnabled = publicMode && !showCategoryView && !search.trim() && !activeCategoryId;
+  const chipActiveId = activeCategoryId || highlightedCategoryId;
+
+  useEffect(() => {
+    if (!publicMode) return;
+    scrollBodyRef.current?.scrollTo({ top: 0 });
+    setHighlightedCategoryId('');
+  }, [publicMode, activeCategoryId, search]);
+
+  const updateScrollSpy = useCallback(() => {
+    const root = scrollBodyRef.current;
+    if (!root || !scrollSpyEnabled) return;
+
+    const scrollTop = root.scrollTop;
+    const offset = 16;
+    let current = '';
+
+    for (const category of branchCategories) {
+      const section = root.querySelector(`[data-category-section="${category.id}"]`);
+      if (!section) continue;
+      if (section.offsetTop - offset <= scrollTop) {
+        current = category.id;
+      }
+    }
+
+    setHighlightedCategoryId((prev) => (prev === current ? prev : current));
+  }, [branchCategories, scrollSpyEnabled]);
+
+  useEffect(() => {
+    if (!scrollSpyEnabled) {
+      setHighlightedCategoryId('');
+      return undefined;
+    }
+
+    const root = scrollBodyRef.current;
+    if (!root) return undefined;
+
+    const onScroll = () => {
+      if (scrollSpyFrameRef.current) cancelAnimationFrame(scrollSpyFrameRef.current);
+      scrollSpyFrameRef.current = requestAnimationFrame(updateScrollSpy);
+    };
+
+    onScroll();
+    root.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      root.removeEventListener('scroll', onScroll);
+      if (scrollSpyFrameRef.current) cancelAnimationFrame(scrollSpyFrameRef.current);
+    };
+  }, [scrollSpyEnabled, updateScrollSpy, branchCategories, products]);
+
+  useEffect(() => {
+    if (!scrollSpyEnabled || !highlightedCategoryId) return;
+    const chip = chipBarRef.current?.querySelector(`[data-category-chip="${highlightedCategoryId}"]`);
+    chip?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+  }, [highlightedCategoryId, scrollSpyEnabled]);
+
+  const scrollToCategorySection = (categoryId) => {
+    const root = scrollBodyRef.current;
+    if (!root) return;
+    if (!categoryId) {
+      root.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    const section = root.querySelector(`[data-category-section="${categoryId}"]`);
+    section?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   const handleCategoryChip = (categoryId) => {
-    if (!onCategoryClick) return;
-    if (activeCategoryId === categoryId) {
-      onCategoryClear?.();
-    } else {
-      onCategoryClick(categoryId);
+    if (activeCategoryId) {
+      if (activeCategoryId === categoryId) onCategoryClear?.();
+      else onCategoryClick?.(categoryId);
+      return;
     }
+    scrollToCategorySection(categoryId);
+  };
+
+  const handleAllChip = () => {
+    if (activeCategoryId) {
+      onCategoryClear?.();
+      return;
+    }
+    scrollToCategorySection('');
   };
 
   const topBar = (
@@ -487,11 +585,12 @@ export default function ShopStorefront({
       )}
 
       {publicMode && branchCategories.length > 0 && !showCategoryView && (
-        <div className="myshop-categories myshop-categories-sticky">
+        <div ref={chipBarRef} className="myshop-categories myshop-categories-sticky">
           <button
             type="button"
-            className={`myshop-category-chip${!activeCategoryId ? ' active' : ''}`}
-            onClick={() => onCategoryClear?.()}
+            className={`myshop-category-chip${!chipActiveId ? ' active' : ''}`}
+            data-category-chip=""
+            onClick={handleAllChip}
           >
             Все
           </button>
@@ -499,7 +598,8 @@ export default function ShopStorefront({
             <button
               key={category.id}
               type="button"
-              className={`myshop-category-chip${activeCategoryId === category.id ? ' active' : ''}`}
+              className={`myshop-category-chip${chipActiveId === category.id ? ' active' : ''}`}
+              data-category-chip={category.id}
               onClick={() => handleCategoryChip(category.id)}
             >
               {category.name}
@@ -512,10 +612,10 @@ export default function ShopStorefront({
 
   const mainContent = (
     <>
-      {publicMode && !showCategoryView && !activeCategoryId && filteredProducts.length > 0 && (
+      {publicMode && !showCategoryView && !activeCategoryId && search.trim() && filteredProducts.length > 0 && (
         <section className="myshop-public-catalog myshop-public-catalog-primary">
           <div className="myshop-block-section-head">
-            <h3>{search.trim() ? 'Результаты поиска' : 'Каталог'}</h3>
+            <h3>Результаты поиска</h3>
             <span className="myshop-public-catalog-count">{filteredProducts.length}</span>
           </div>
           <ProductGrid
@@ -525,6 +625,40 @@ export default function ShopStorefront({
             publicMode
           />
         </section>
+      )}
+
+      {publicMode && !showCategoryView && !activeCategoryId && !search.trim() && branchCategories.length > 0 && (
+        <>
+          {hasBlocks && (
+            <div className="myshop-blocks">
+              {publicMode && (
+                <div className="myshop-public-blocks-label">Категории</div>
+              )}
+              {blocks.map((block) => (
+                <ShopBlock
+                  key={block.id}
+                  block={block}
+                  categoriesById={categoriesById}
+                  categoryImages={categoryImages}
+                  productsByCategory={productsByCategory}
+                  settings={settings}
+                  onProductOpen={onProductOpen}
+                  onProductAdd={onProductAdd}
+                  onCategoryClick={scrollSpyEnabled ? scrollToCategorySection : onCategoryClick}
+                  publicMode={publicMode}
+                  activeCategoryId={activeCategoryId}
+                  catalogBrowseMode
+                />
+              ))}
+            </div>
+          )}
+          <PublicCategoryCatalog
+            categories={branchCategories}
+            productsByCategory={productsByCategory}
+            onProductOpen={onProductOpen}
+            onProductAdd={onProductAdd}
+          />
+        </>
       )}
 
       {showCategoryView ? (
@@ -537,7 +671,7 @@ export default function ShopStorefront({
           onProductAdd={onProductAdd}
           publicMode
         />
-      ) : hasBlocks ? (
+      ) : hasBlocks && !(publicMode && !activeCategoryId && !search.trim()) ? (
         <div className="myshop-blocks">
           {publicMode && !activeCategoryId && (
             <div className="myshop-public-blocks-label">Категории</div>
@@ -636,7 +770,7 @@ export default function ShopStorefront({
     return (
       <div className={pageClass}>
         <div className="myshop-public-topbar">{topBar}</div>
-        <div className="myshop-public-body">{mainContent}</div>
+        <div ref={scrollBodyRef} className="myshop-public-body">{mainContent}</div>
         {bottomNav}
       </div>
     );
