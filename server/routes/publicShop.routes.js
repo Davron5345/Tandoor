@@ -18,6 +18,14 @@ export function registerPublicShopRoutes(app) {
     }
   });
 
+  app.get('/api/public/shop/:branchId/dept/:departmentId/catalog', (req, res) => {
+    try {
+      res.json(getPublicCatalog(req.params.branchId, req.params.departmentId));
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
   app.get('/api/public/shop/:branchId/media/:productId/:fileName', (req, res) => {
     const filePath = resolvePublicProductMedia(
       req.params.branchId,
@@ -33,6 +41,15 @@ export function registerPublicShopRoutes(app) {
   app.post('/api/public/shop/:branchId/orders', (req, res) => {
     try {
       const order = createShopOrder(req.params.branchId, req.body);
+      res.status(201).json(order);
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
+  app.post('/api/public/shop/:branchId/dept/:departmentId/orders', (req, res) => {
+    try {
+      const order = createShopOrder(req.params.branchId, req.body, req.params.departmentId);
       res.status(201).json(order);
     } catch (e) {
       res.status(400).json({ error: e.message });

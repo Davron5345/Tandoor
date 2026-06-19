@@ -13,6 +13,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <ThemeProvider>
       <BrowserRouter>
         <Routes>
+          <Route path="/shop/:branchId/dept/:departmentId" element={<PublicShop />} />
           <Route path="/shop/:branchId" element={<PublicShop />} />
           <Route
             path="*"

@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import db from './db.js';
 import { getBranch } from './branches.js';
+import { assertDepartmentInBranch } from './departments.js';
 import { getProducts } from './services/products.js';
 import { getSetting, setSetting } from './services/telegram.js';
 import { sendShopOrderNotification } from './telegram.js';
@@ -113,14 +114,22 @@ function resolveLineItem(maps, item) {
   };
 }
 
-export function createShopOrder(branchId, payload) {
+export function createShopOrder(branchId, payload, departmentId = null) {
   const branch = getBranch(branchId);
   if (!branch || !branch.active) throw new Error('Филиал не найден');
 
   const settings = getShopSettings(branchId);
   if (!settings.enabled) throw new Error('Магазин временно недоступен');
 
-  const customerName = String(payload.customer_name || '').trim() || 'Гость';
+  let department = null;
+  const resolvedDepartmentId = departmentId || payload.department_id || null;
+  if (resolvedDepartmentId) {
+    department = assertDepartmentInBranch(resolvedDepartmentId, branchId);
+  }
+
+  const customerName = department
+    ? department.name
+    : (String(payload.customer_name || '').trim() || 'Гость');
   const customerPhoneRaw = String(payload.customer_phone || '').replace(/\D/g, '');
   const customerPhone = customerPhoneRaw.length >= 9 ? customerPhoneRaw : '—';
   const deliveryType = payload.delivery_type === 'delivery' ? 'delivery' : 'pickup';
@@ -139,9 +148,9 @@ export function createShopOrder(branchId, payload) {
 
   run(
     `INSERT INTO shop_orders
-      (id, branch_id, number, customer_name, customer_phone, delivery_type, address, comment, status, total_amount)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'new', ?)`,
-    [orderId, branchId, number, customerName, customerPhone, deliveryType, address, comment, totalAmount],
+      (id, branch_id, department_id, number, customer_name, customer_phone, delivery_type, address, comment, status, total_amount)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?)`,
+    [orderId, branchId, department?.id || null, number, customerName, customerPhone, deliveryType, address, comment, totalAmount],
   );
 
   for (const line of lines) {
@@ -173,7 +182,12 @@ export function createShopOrder(branchId, payload) {
 }
 
 export function getShopOrder(id) {
-  const order = queryOne('SELECT * FROM shop_orders WHERE id = ?', [id]);
+  const order = queryOne(`
+    SELECT so.*, d.name as department_name
+    FROM shop_orders so
+    LEFT JOIN departments d ON d.id = so.department_id
+    WHERE so.id = ?
+  `, [id]);
   if (!order) return null;
   const items = queryAll('SELECT * FROM shop_order_items WHERE order_id = ? ORDER BY product_name', [id]);
   return {
@@ -184,15 +198,20 @@ export function getShopOrder(id) {
 }
 
 export function getShopOrders(branchId, filters = {}) {
-  let sql = 'SELECT * FROM shop_orders WHERE branch_id = ?';
+  let sql = `
+    SELECT so.*, d.name as department_name
+    FROM shop_orders so
+    LEFT JOIN departments d ON d.id = so.department_id
+    WHERE so.branch_id = ?
+  `;
   const params = [branchId];
 
   if (filters.status && ORDER_STATUSES.has(filters.status)) {
-    sql += ' AND status = ?';
+    sql += ' AND so.status = ?';
     params.push(filters.status);
   }
 
-  sql += ' ORDER BY created_at DESC, number DESC LIMIT ?';
+  sql += ' ORDER BY so.created_at DESC, so.number DESC LIMIT ?';
   params.push(Math.min(Number(filters.limit) || 100, 200));
 
   return queryAll(sql, params).map((order) => ({

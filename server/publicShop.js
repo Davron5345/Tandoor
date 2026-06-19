@@ -5,6 +5,7 @@ import { getBranch, getBranchesEnriched } from './branches.js';
 import { getProducts, getProductCategories } from './services/products.js';
 import { getMyShopLayout } from './myShop.js';
 import { getShopSettings } from './shopOrders.js';
+import { assertDepartmentInBranch } from './departments.js';
 import { uploadsDir } from './dbBackup.js';
 
 const { queryOne } = db;
@@ -115,12 +116,18 @@ export function getPublicBranches() {
     }));
 }
 
-export function getPublicCatalog(branchId) {
+export function getPublicCatalog(branchId, departmentId = null) {
   const branch = getBranch(branchId);
   if (!branch || !branch.active) throw new Error('Филиал не найден');
 
   const settings = getShopSettings(branchId);
   if (!settings.enabled) throw new Error('Магазин временно недоступен');
+
+  let department = null;
+  if (departmentId) {
+    const dept = assertDepartmentInBranch(departmentId, branchId);
+    department = { id: dept.id, name: dept.name };
+  }
 
   const layout = getMyShopLayout(branchId);
   const rawProducts = getProducts({ branch_id: branchId, archived: '0' }).map((p) => mapPublicProduct(p, branchId));
@@ -134,6 +141,7 @@ export function getPublicCatalog(branchId) {
       address: branch.address || '',
       phone: branch.phone || '',
     },
+    department,
     layout,
     products,
     categories,

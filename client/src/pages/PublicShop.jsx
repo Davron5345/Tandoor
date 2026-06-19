@@ -72,14 +72,14 @@ function CartView({ items, onBack, onCheckout, onClear, onQtyChange, onRemove, s
 }
 
 export default function PublicShop() {
-  const { branchId } = useParams();
+  const { branchId, departmentId } = useParams();
   const [catalog, setCatalog] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [view, setView] = useState('menu');
   const [search, setSearch] = useState('');
   const [activeCategoryId, setActiveCategoryId] = useState('');
-  const [cartItems, setCartItems] = useState(() => getCartItems(branchId));
+  const [cartItems, setCartItems] = useState(() => getCartItems(branchId, departmentId));
   const [submitting, setSubmitting] = useState(false);
   const [orderNotice, setOrderNotice] = useState('');
 
@@ -87,7 +87,7 @@ export default function PublicShop() {
     setLoading(true);
     setError('');
     try {
-      const data = await api.getPublicShopCatalog(branchId);
+      const data = await api.getPublicShopCatalog(branchId, departmentId);
       setCatalog(data);
     } catch (err) {
       setCatalog(null);
@@ -95,10 +95,10 @@ export default function PublicShop() {
     } finally {
       setLoading(false);
     }
-  }, [branchId]);
+  }, [branchId, departmentId]);
 
   useEffect(() => { load(); }, [load]);
-  useEffect(() => { setCartItems(getCartItems(branchId)); }, [branchId]);
+  useEffect(() => { setCartItems(getCartItems(branchId, departmentId)); }, [branchId, departmentId]);
 
   useEffect(() => {
     const html = document.documentElement;
@@ -126,12 +126,13 @@ export default function PublicShop() {
   useEffect(() => {
     const prevTitle = document.title;
     if (catalog?.branch?.name) {
-      document.title = `${catalog.branch.name} — магазин`;
+      const suffix = catalog.department?.name ? ` — ${catalog.department.name}` : '';
+      document.title = `${catalog.branch.name}${suffix} — магазин`;
     }
     return () => {
       document.title = prevTitle;
     };
-  }, [catalog?.branch?.name]);
+  }, [catalog?.branch?.name, catalog?.department?.name]);
 
   useEffect(() => {
     if (!orderNotice) return undefined;
@@ -149,27 +150,27 @@ export default function PublicShop() {
       price: product.price ?? 0,
       unit: product.unit || 'шт',
       image_url: product.primary_image?.url || null,
-    });
+    }, departmentId);
     setCartItems(next);
   };
 
   const handleProductQtyChange = (product, quantity) => {
-    const next = updateCartItemQty(branchId, product.id, product.variant_id || null, quantity);
+    const next = updateCartItemQty(branchId, product.id, product.variant_id || null, quantity, departmentId);
     setCartItems(next);
   };
 
   const handleQtyChange = (productId, variantId, quantity) => {
-    const next = updateCartItemQty(branchId, productId, variantId, quantity);
+    const next = updateCartItemQty(branchId, productId, variantId, quantity, departmentId);
     setCartItems(next);
   };
 
   const handleRemove = (productId, variantId) => {
-    const next = removeCartItem(branchId, productId, variantId);
+    const next = removeCartItem(branchId, productId, variantId, departmentId);
     setCartItems(next);
   };
 
   const handleClearCart = () => {
-    clearCart(branchId);
+    clearCart(branchId, departmentId);
     setCartItems([]);
   };
 
@@ -178,7 +179,7 @@ export default function PublicShop() {
     setSubmitting(true);
     try {
       const order = await api.createPublicShopOrder(branchId, {
-        customer_name: 'Гость',
+        customer_name: catalog?.department?.name || 'Гость',
         customer_phone: '',
         delivery_type: 'pickup',
         items: cartItems.map((item) => ({
@@ -186,8 +187,8 @@ export default function PublicShop() {
           variant_id: item.variant_id,
           quantity: item.quantity,
         })),
-      });
-      clearCart(branchId);
+      }, departmentId);
+      clearCart(branchId, departmentId);
       setCartItems([]);
       setOrderNotice(`Заказ №${order.number} принят и отправлен в заявки`);
       setView('menu');
@@ -251,7 +252,7 @@ export default function PublicShop() {
     );
   }
 
-  const { branch, layout, products, categories } = catalog;
+  const { branch, department, layout, products, categories } = catalog;
 
   if (products.length === 0) {
     return (
@@ -262,7 +263,7 @@ export default function PublicShop() {
               <span className="myshop-brand-mark is-flag" aria-hidden><IconBannerOfPeace /></span>
               <div>
                 <strong>{branch.name}</strong>
-                <span>Онлайн-магазин</span>
+                <span>{department?.name || 'Онлайн-магазин'}</span>
               </div>
             </div>
           </header>
@@ -292,6 +293,7 @@ export default function PublicShop() {
           categories={categories}
           products={products}
           branchName={branch.name}
+          departmentName={department?.name || ''}
           branchPhone={branch.phone}
           search={search}
           onSearchChange={setSearch}

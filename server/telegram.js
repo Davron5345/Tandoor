@@ -186,6 +186,7 @@ export async function sendShopOrderNotification(order, branch) {
   const deliveryLabel = order.delivery_type === 'delivery' ? '🚚 Доставка' : '🏪 Самовывоз';
   let text = `🛒 *Новый заказ №${order.number}*\n\n`;
   text += `🏢 Филиал: ${branch?.name || order.branch_id}\n`;
+  if (order.department_name) text += `🏷 Отдел: ${order.department_name}\n`;
   text += `👤 ${order.customer_name}\n`;
   text += `📞 ${order.customer_phone}\n`;
   text += `${deliveryLabel}\n`;

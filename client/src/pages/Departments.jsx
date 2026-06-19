@@ -6,6 +6,10 @@ import { useAutoRefresh } from '../hooks/useAutoRefresh';
 
 const empty = { id: '', branch_id: '', name: '', active: true };
 
+function departmentShopUrl(branchId, departmentId) {
+  return `${window.location.origin}/shop/${encodeURIComponent(branchId)}/dept/${encodeURIComponent(departmentId)}`;
+}
+
 export default function Departments() {
   const [list, setList] = useState([]);
   const [modal, setModal] = useState(null);
@@ -63,6 +67,16 @@ export default function Departments() {
     }
   };
 
+  const copyShopLink = async (d) => {
+    const url = departmentShopUrl(d.branch_id, d.id);
+    try {
+      await navigator.clipboard.writeText(url);
+      show('Ссылка магазина скопирована');
+    } catch {
+      show('Не удалось скопировать ссылку', 'error');
+    }
+  };
+
   return (
     <div>
       {Toast}
@@ -79,6 +93,7 @@ export default function Departments() {
                 <th>Название</th>
                 <th>Филиал</th>
                 <th>Код</th>
+                <th>Ссылка магазина</th>
                 <th>Статус</th>
                 <th></th>
               </tr>
@@ -89,6 +104,25 @@ export default function Departments() {
                   <td><strong>{d.name}</strong></td>
                   <td>{d.branch_name || d.branch_id}</td>
                   <td><code>{d.id}</code></td>
+                  <td>
+                    {d.active ? (
+                      <div className="btn-group">
+                        <a
+                          href={departmentShopUrl(d.branch_id, d.id)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="btn btn-sm btn-ghost"
+                        >
+                          Открыть
+                        </a>
+                        <button type="button" className="btn btn-sm btn-ghost" onClick={() => copyShopLink(d)}>
+                          Копировать
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-muted">—</span>
+                    )}
+                  </td>
                   <td>
                     <span className={`badge badge-${d.active ? 'confirmed' : 'cancelled'}`}>
                       {d.active ? 'Активен' : 'Отключён'}
@@ -103,7 +137,7 @@ export default function Departments() {
                 </tr>
               ))}
               {list.length === 0 && (
-                <tr><td colSpan={5} className="empty">Отделы не найдены</td></tr>
+                <tr><td colSpan={6} className="empty">Отделы не найдены</td></tr>
               )}
             </tbody>
           </table>

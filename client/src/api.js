@@ -136,11 +136,21 @@ export const api = {
     body: JSON.stringify({ status }),
   }),
   getPublicShopBranches: () => publicRequest('/public/shop/branches'),
-  getPublicShopCatalog: (branchId) => publicRequest(`/public/shop/${encodeURIComponent(branchId)}/catalog`),
-  createPublicShopOrder: (branchId, data) => publicRequest(`/public/shop/${encodeURIComponent(branchId)}/orders`, {
-    method: 'POST',
-    body: JSON.stringify(data),
-  }),
+  getPublicShopCatalog: (branchId, departmentId) => {
+    const path = departmentId
+      ? `/public/shop/${encodeURIComponent(branchId)}/dept/${encodeURIComponent(departmentId)}/catalog`
+      : `/public/shop/${encodeURIComponent(branchId)}/catalog`;
+    return publicRequest(path);
+  },
+  createPublicShopOrder: (branchId, data, departmentId) => {
+    const path = departmentId
+      ? `/public/shop/${encodeURIComponent(branchId)}/dept/${encodeURIComponent(departmentId)}/orders`
+      : `/public/shop/${encodeURIComponent(branchId)}/orders`;
+    return publicRequest(path, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
   getProductBranchSettings: (id) => request(`/products/${id}/branch-settings`),
   createProduct: (data) => request('/products', { method: 'POST', body: JSON.stringify(data) }),
   updateProduct: (id, data) => request(`/products/${id}`, { method: 'PUT', body: JSON.stringify(data) }),

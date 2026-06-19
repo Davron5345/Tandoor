@@ -107,6 +107,7 @@ export default function ShopOrders() {
                   <th>№</th>
                   <th>Дата</th>
                   <th>Клиент</th>
+                  <th>Отдел</th>
                   <th>Телефон</th>
                   <th>Способ</th>
                   <th>Сумма</th>
@@ -120,6 +121,7 @@ export default function ShopOrders() {
                     <td>{order.number}</td>
                     <td>{formatDate(order.created_at)}</td>
                     <td>{order.customer_name}</td>
+                    <td>{order.department_name || '—'}</td>
                     <td>{order.customer_phone}</td>
                     <td>{order.delivery_type === 'delivery' ? 'Доставка' : 'Самовывоз'}</td>
                     <td>{formatMoney(order.total_amount)}</td>
@@ -173,6 +175,9 @@ export default function ShopOrders() {
             <div className="shop-order-detail-scroll">
               <div className="shop-order-detail-grid">
                 <div><span>Клиент</span><strong>{selected.customer_name}</strong></div>
+                {selected.department_name && (
+                  <div><span>Отдел</span><strong>{selected.department_name}</strong></div>
+                )}
                 <div><span>Телефон</span><strong>{selected.customer_phone}</strong></div>
                 <div><span>Способ</span><strong>{selected.delivery_type === 'delivery' ? 'Доставка' : 'Самовывоз'}</strong></div>
                 <div><span>Дата</span><strong>{formatDate(selected.created_at)}</strong></div>

@@ -345,6 +345,7 @@ function migrateSchema() {
   migrateProductBranches();
   migrateProductBranchesBackfill();
   migrateShopOrders();
+  migrateShopOrdersDepartment();
 }
 
 function migrateProductBranchesBackfill() {
@@ -411,6 +412,18 @@ function migrateShopOrders() {
   `);
 
   run("INSERT OR REPLACE INTO settings (key, value) VALUES ('shop_orders_v1', '1')");
+}
+
+function migrateShopOrdersDepartment() {
+  const done = queryOne("SELECT value FROM settings WHERE key = 'shop_orders_dept_v1'");
+  if (done) return;
+
+  const cols = queryAll('PRAGMA table_info(shop_orders)');
+  if (!cols.some((col) => col.name === 'department_id')) {
+    run('ALTER TABLE shop_orders ADD COLUMN department_id TEXT REFERENCES departments(id)');
+  }
+
+  run("INSERT OR REPLACE INTO settings (key, value) VALUES ('shop_orders_dept_v1', '1')");
 }
 
 function migrateProductBranches() {

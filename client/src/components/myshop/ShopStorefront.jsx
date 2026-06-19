@@ -557,6 +557,7 @@ export default function ShopStorefront({
   categories = [],
   products = [],
   branchName,
+  departmentName = '',
   search = '',
   onSearchChange,
   activeCategoryId = '',
@@ -721,7 +722,7 @@ export default function ShopStorefront({
           </span>
           <div>
             <strong>{publicMode ? branchName : 'MyShop'}</strong>
-            <span>{publicMode ? (branchPhone || 'Онлайн-магазин') : branchName}</span>
+            <span>{publicMode ? (departmentName || branchPhone || 'Онлайн-магазин') : branchName}</span>
           </div>
         </div>
         {publicMode && (
