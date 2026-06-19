@@ -111,34 +111,31 @@ function CategoryTile({ category, imageUrl, photoOutside, onClick, active = fals
 
 function ShopProductCard({ product, onOpen, onAdd, publicMode = false }) {
   const inStock = (product.stock || 0) > 0;
+  const canOrder = publicMode || inStock;
 
   const handleActivate = () => {
-    if (!inStock) return;
-    if (publicMode) {
-      onOpen?.(product);
-      return;
-    }
+    if (!canOrder) return;
     onOpen?.(product);
   };
 
   return (
-    <article className={`myshop-product-card${!inStock ? ' is-out-of-stock' : ''}${publicMode ? ' is-clickable' : ''}`}>
+    <article className={`myshop-product-card${!canOrder ? ' is-out-of-stock' : ''}${publicMode ? ' is-clickable' : ''}`}>
       <button
         type="button"
         className="myshop-product-card-media-btn"
         onClick={handleActivate}
         aria-label={product.name}
-        disabled={publicMode && !inStock}
+        disabled={!canOrder}
       >
         <ShopMedia image={product.primary_image} name={product.name} />
-        {!inStock && <span className="myshop-product-badge">Нет в наличии</span>}
+        {!publicMode && !inStock && <span className="myshop-product-badge">Нет в наличии</span>}
       </button>
       <div className="myshop-product-card-body">
         <button
           type="button"
           className="myshop-product-card-name"
           onClick={handleActivate}
-          disabled={publicMode && !inStock}
+          disabled={!canOrder}
         >
           {product.name}
         </button>

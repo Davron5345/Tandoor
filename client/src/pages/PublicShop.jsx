@@ -16,8 +16,8 @@ import {
 
 function PublicProductSheet({ product, onClose, onAdd }) {
   const [qty, setQty] = useState(1);
-  const stock = product?.stock ?? 0;
   const price = product?.price ?? 0;
+  const maxQty = 999;
 
   useEffect(() => {
     const prev = document.body.style.overflow;
@@ -39,8 +39,7 @@ function PublicProductSheet({ product, onClose, onAdd }) {
   if (!product) return null;
 
   const handleAdd = () => {
-    if (stock <= 0) return;
-    onAdd(product, Math.min(qty, stock));
+    onAdd(product, qty);
     onClose();
   };
 
@@ -58,11 +57,9 @@ function PublicProductSheet({ product, onClose, onAdd }) {
             <div className="myshop-sheet-category">{product.category_name}</div>
           )}
           <div className="myshop-sheet-price">{formatMoney(price)}</div>
-          <div className="myshop-sheet-meta">
-            {stock > 0
-              ? `В наличии: ${Number(stock).toLocaleString('ru-RU')} ${product.unit || 'шт.'}`
-              : 'Нет в наличии'}
-          </div>
+          {product.unit && (
+            <div className="myshop-sheet-meta">Единица: {product.unit}</div>
+          )}
 
           <div className="myshop-qty-row">
             <span>Количество</span>
@@ -71,16 +68,16 @@ function PublicProductSheet({ product, onClose, onAdd }) {
               <span>{qty}</span>
               <button
                 type="button"
-                onClick={() => setQty((v) => Math.min(stock || v + 1, v + 1))}
+                onClick={() => setQty((v) => Math.min(maxQty, v + 1))}
                 aria-label="Больше"
-                disabled={qty >= stock}
+                disabled={qty >= maxQty}
               >
                 +
               </button>
             </div>
           </div>
 
-          <button type="button" className="btn btn-primary myshop-add-btn" onClick={handleAdd} disabled={stock <= 0}>
+          <button type="button" className="btn btn-primary myshop-add-btn" onClick={handleAdd}>
             В корзину
           </button>
         </div>
@@ -329,7 +326,6 @@ export default function PublicShop() {
   }, [catalog?.branch?.name]);
 
   const handleProductAdd = (product, quantity = 1) => {
-    if ((product.stock || 0) <= 0) return;
     const next = addCartItem(branchId, {
       product_id: product.id,
       variant_id: product.variant_id || null,

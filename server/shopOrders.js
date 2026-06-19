@@ -84,9 +84,6 @@ function resolveLineItem(maps, item) {
     const row = maps.variantById.get(`${productId}:${variantId}`);
     if (!row) throw new Error('Товар или вариант не найден');
     const { product, variant } = row;
-    if ((variant.stock || 0) < quantity) {
-      throw new Error(`Недостаточно «${product.name} — ${variant.name}» на складе`);
-    }
     const price = variant.price ?? product.price ?? 0;
     return {
       product_id: productId,
@@ -103,9 +100,6 @@ function resolveLineItem(maps, item) {
   const product = maps.byId.get(productId);
   if (!product) throw new Error('Товар не найден');
   if (product.has_variants) throw new Error(`Выберите вариант для «${product.name}»`);
-  if ((product.stock || 0) < quantity) {
-    throw new Error(`Недостаточно «${product.name}» на складе`);
-  }
   const price = product.price ?? 0;
   return {
     product_id: productId,
