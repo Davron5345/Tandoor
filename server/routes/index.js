@@ -10,8 +10,8 @@ import { registerPublicShopRoutes } from './publicShop.routes.js';
 import { registerShopOrdersRoutes } from './shopOrders.routes.js';
 
 export function registerApiRoutes(app, deps = {}) {
-  registerAuthRoutes(app, deps);
   registerPublicShopRoutes(app);
+  registerAuthRoutes(app, deps);
   registerAdminRoutes(app);
   registerOrgRoutes(app);
   registerCatalogRoutes(app, deps);

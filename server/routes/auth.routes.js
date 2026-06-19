@@ -33,7 +33,12 @@ export function registerAuthRoutes(app, { authRequired }) {
     }
   });
 
-  app.use('/api', authRequired);
+  app.use('/api', (req, res, next) => {
+    if (req.path.startsWith('/public/')) {
+      return next();
+    }
+    return authRequired(req, res, next);
+  });
 
   app.get('/api/auth/me', (req, res) => {
     res.json(req.user);
