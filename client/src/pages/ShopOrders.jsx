@@ -33,21 +33,27 @@ export default function ShopOrders() {
   const [selected, setSelected] = useState(null);
   const [updating, setUpdating] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
     try {
       const data = await api.getShopOrders(statusFilter ? { status: statusFilter } : {});
       setOrders(data);
     } catch (err) {
-      show(err.message || 'Не удалось загрузить заказы', 'error');
-      setOrders([]);
+      if (!silent) {
+        show(err.message || 'Не удалось загрузить заказы', 'error');
+        setOrders([]);
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [statusFilter, show, branchId]);
 
   useEffect(() => { load(); }, [load, branchId]);
-  useAutoRefresh(load, [load, branchId], { enabled: !selected });
+  useAutoRefresh(
+    () => load({ silent: true }),
+    [statusFilter, branchId],
+    { enabled: !selected, intervalMs: 60_000 },
+  );
 
   const openOrder = async (order) => {
     try {
@@ -65,7 +71,7 @@ export default function ShopOrders() {
       const updated = await api.updateShopOrderStatus(selected.id, status);
       setSelected(updated);
       show('Статус обновлён');
-      load();
+      load({ silent: true });
     } catch (err) {
       show(err.message || 'Не удалось обновить статус', 'error');
     } finally {
@@ -83,19 +89,19 @@ export default function ShopOrders() {
         </div>
       </div>
 
-      <div className="card shop-orders-toolbar">
-        <label className="shop-orders-filter">
-          <span>Статус</span>
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-            {STATUS_OPTIONS.map((opt) => (
-              <option key={opt.value || 'all'} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
-        </label>
-      </div>
+      <div className="card shop-orders-card">
+        <div className="shop-orders-toolbar">
+          <label className="filter-field shop-orders-filter">
+            <span>Статус</span>
+            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+              {STATUS_OPTIONS.map((opt) => (
+                <option key={opt.value || 'all'} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </label>
+        </div>
 
-      <div className="card">
-        {loading ? (
+        {loading && orders.length === 0 ? (
           <div className="empty">Загрузка...</div>
         ) : orders.length === 0 ? (
           <div className="empty">Заказов пока нет</div>
