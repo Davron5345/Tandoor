@@ -437,15 +437,26 @@ function AppContent() {
           {!isBranchAdmin && user.branch_id && (
             <div className="sidebar-branch-name">📍 {branchName}</div>
           )}
-          <div className="sidebar-user">
-            <span className="sidebar-user-name">{user.name}</span>
-            {user.roleLabel !== user.name && (
-              <span className="sidebar-user-role">{user.roleLabel}</span>
-            )}
+          <div className="sidebar-profile">
+            <div className="sidebar-profile-avatar" aria-hidden>
+              {(user.name || '?').charAt(0).toUpperCase()}
+            </div>
+            <div className="sidebar-profile-meta">
+              <span className="sidebar-user-name">{user.name}</span>
+              {user.roleLabel !== user.name && (
+                <span className="sidebar-user-role">{user.roleLabel}</span>
+              )}
+            </div>
+            <button
+              type="button"
+              className="sidebar-logout-btn"
+              onClick={logout}
+              title="Выйти"
+              aria-label="Выйти"
+            >
+              ⏻
+            </button>
           </div>
-          <button type="button" className="btn btn-ghost logout-btn" onClick={logout}>
-            Выйти
-          </button>
           {hasPermission(user, 'telegram.view') && (
             <div className={`telegram-badge ${telegramOnline ? 'online' : 'offline'}`}>
               {telegramOnline ? '🟢 Telegram бот активен' : '🟡 Telegram не настроен'}
