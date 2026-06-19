@@ -7703,14 +7703,20 @@ tr.product-row-highlight td:first-child {
 }
 
 .public-shop-page {
-  min-height: calc(100vh - 32px);
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
+  background: var(--surface);
 }
 
 .public-shop-view {
   flex: 1;
-  padding: 16px 16px 88px;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 16px 16px 12px;
 }
 
 .public-shop-subheader {
@@ -7723,6 +7729,26 @@ tr.product-row-highlight td:first-child {
 .public-shop-subheader h2 {
   margin: 0;
   font-size: var(--font-lg);
+  flex: 1;
+}
+
+.public-shop-clear-btn {
+  margin-left: auto;
+  border: none;
+  background: none;
+  color: var(--danger, #dc2626);
+  font-size: var(--font-sm);
+  font-weight: 600;
+  cursor: pointer;
+  padding: 6px 0;
+}
+
+.public-shop-cart-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 32px 16px;
 }
 
 .public-shop-cart-list {

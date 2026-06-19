@@ -14,18 +14,31 @@ import {
   updateCartItemQty,
 } from '../utils/publicShopCart';
 
-function CartView({ items, onBack, onCheckout, onQtyChange, onRemove }) {
+function CartView({ items, onBack, onCheckout, onClear, onQtyChange, onRemove }) {
   const total = cartTotal(items);
+
+  const handleClear = () => {
+    if (items.length === 0) return;
+    if (confirm('Очистить корзину?')) onClear?.();
+  };
 
   return (
     <div className="public-shop-view">
       <header className="public-shop-subheader">
         <button type="button" className="myshop-link-btn" onClick={onBack}>← Меню</button>
         <h2>Корзина</h2>
+        {items.length > 0 && (
+          <button type="button" className="public-shop-clear-btn" onClick={handleClear}>
+            Очистить
+          </button>
+        )}
       </header>
 
       {items.length === 0 ? (
-        <div className="myshop-empty">Корзина пуста</div>
+        <div className="public-shop-cart-empty">
+          <div className="myshop-empty">Корзина пуста</div>
+          <button type="button" className="btn btn-primary" onClick={onBack}>К каталогу</button>
+        </div>
       ) : (
         <>
           <ul className="public-shop-cart-list">
@@ -76,14 +89,6 @@ function CartView({ items, onBack, onCheckout, onQtyChange, onRemove }) {
             </button>
           </div>
         </>
-      )}
-
-      {selectedProduct && view === 'menu' && (
-        <PublicProductSheet
-          product={selectedProduct}
-          onClose={() => setSelectedProduct(null)}
-          onAdd={handleProductAdd}
-        />
       )}
     </div>
   );
@@ -280,6 +285,11 @@ export default function PublicShop() {
     setCartItems(next);
   };
 
+  const handleClearCart = () => {
+    clearCart(branchId);
+    setCartItems([]);
+  };
+
   const handleCheckoutSubmit = async (payload) => {
     setSubmitting(true);
     setSubmitError('');
@@ -384,11 +394,12 @@ export default function PublicShop() {
       )}
 
       {view === 'cart' && (
-        <div className="myshop-page public-shop-page">
+        <div className="myshop-page myshop-page-public public-shop-page">
           <CartView
             items={cartItems}
             onBack={() => setView('menu')}
             onCheckout={() => setView('checkout')}
+            onClear={handleClearCart}
             onQtyChange={handleQtyChange}
             onRemove={handleRemove}
           />
@@ -413,7 +424,7 @@ export default function PublicShop() {
       )}
 
       {view === 'checkout' && (
-        <div className="myshop-page public-shop-page">
+        <div className="myshop-page myshop-page-public public-shop-page">
           <CheckoutView
             branch={branch}
             items={cartItems}
@@ -426,7 +437,7 @@ export default function PublicShop() {
       )}
 
       {view === 'success' && completedOrder && (
-        <div className="myshop-page public-shop-page">
+        <div className="myshop-page myshop-page-public public-shop-page">
           <SuccessView
             order={completedOrder}
             branch={branch}
