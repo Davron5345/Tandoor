@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { formatMoney } from '../../api';
+import { IconImage } from '../ActionIcons';
 
 const DELETE_WIDTH = 76;
 
@@ -80,13 +80,18 @@ export default function CartSwipeItem({ item, onRemove, onQtyChange }) {
         onPointerCancel={onPointerCancel}
       >
         <div className="public-shop-cart-item">
-          <div className="public-shop-cart-item-main">
-            <strong>{label}</strong>
-            <span>{formatMoney(item.price)} × {item.quantity} {item.unit || 'шт'}</span>
-            <strong>{formatMoney(item.price * item.quantity)}</strong>
-          </div>
-          <div className="public-shop-cart-item-actions">
-            <div className="myshop-qty-controls myshop-qty-controls-sm">
+          <div className="public-shop-cart-row">
+            <div className="public-shop-cart-photo">
+              {item.image_url ? (
+                <img src={item.image_url} alt="" loading="lazy" />
+              ) : (
+                <div className="public-shop-cart-photo-empty" aria-hidden>
+                  <IconImage />
+                </div>
+              )}
+            </div>
+            <div className="public-shop-cart-name">{label}</div>
+            <div className="public-shop-cart-qty myshop-qty-controls myshop-qty-controls-sm">
               <button
                 type="button"
                 onClick={() => onQtyChange(item.product_id, item.variant_id, item.quantity - 1)}

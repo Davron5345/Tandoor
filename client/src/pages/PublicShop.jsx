@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { api, formatMoney } from '../api';
 import ShopStorefront from '../components/myshop/ShopStorefront';
@@ -148,6 +148,7 @@ export default function PublicShop() {
       quantity,
       price: product.price ?? 0,
       unit: product.unit || 'шт',
+      image_url: product.primary_image?.url || null,
     });
     setCartItems(next);
   };
@@ -214,6 +215,23 @@ export default function PublicShop() {
   };
 
   const count = cartCount(cartItems);
+
+  const cartItemsView = useMemo(() => {
+    if (!catalog?.products?.length) return cartItems;
+    const productsByKey = new Map(
+      catalog.products.map((product) => [
+        `${product.id}:${product.variant_id || ''}`,
+        product,
+      ]),
+    );
+    return cartItems.map((item) => {
+      const product = productsByKey.get(`${item.product_id}:${item.variant_id || ''}`);
+      return {
+        ...item,
+        image_url: item.image_url || product?.primary_image?.url || null,
+      };
+    });
+  }, [cartItems, catalog?.products]);
 
   if (loading) {
     return (
@@ -293,7 +311,7 @@ export default function PublicShop() {
       {view === 'cart' && (
         <div className="myshop-page myshop-page-public public-shop-page">
           <CartView
-            items={cartItems}
+            items={cartItemsView}
             onBack={() => setView('menu')}
             onCheckout={handlePlaceOrder}
             onClear={handleClearCart}
