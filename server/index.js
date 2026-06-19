@@ -19,25 +19,23 @@ async function start() {
   initPermissions(db);
   seedDefaultUsers();
 
-  if (process.env.TELEGRAM_ENABLED !== 'false') {
-    const dbToken = svc.getSetting('telegram_bot_token');
-    const token = dbToken || process.env.TELEGRAM_BOT_TOKEN;
-    if (token) {
-      try {
-        await initTelegram(token);
-      } catch (err) {
-        console.error('⚠️  Telegram бот не запущен:', err.message);
-      }
-    }
-  }
-
-  app.listen(PORT, () => {
+  app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Сервер: http://localhost:${PORT}`);
     console.log(`📁 База данных: ${dbPath}`);
     if (process.env.NODE_ENV !== 'production') {
       console.log('👤 Логины: admin/admin123, sklad/sklad123, kassir/kassir123');
     }
   });
+
+  if (process.env.TELEGRAM_ENABLED !== 'false') {
+    const dbToken = svc.getSetting('telegram_bot_token');
+    const token = dbToken || process.env.TELEGRAM_BOT_TOKEN;
+    if (token) {
+      initTelegram(token).catch((err) => {
+        console.error('⚠️  Telegram бот не запущен:', err.message);
+      });
+    }
+  }
 }
 
 start().catch((err) => {

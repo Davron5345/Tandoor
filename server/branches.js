@@ -1,10 +1,22 @@
 import { v4 as uuidv4 } from 'uuid';
 import db from './db.js';
-import { seedCashArticlesForBranch } from './cashArticles.js';
+import { DEFAULT_CASH_ARTICLES, cashArticleId } from './cashArticleDefaults.js';
 
 const { queryAll, queryOne, run } = db;
 
 export const DEFAULT_BRANCH_ID = 'main';
+
+function seedCashArticlesForBranch(branchId) {
+  for (const article of DEFAULT_CASH_ARTICLES) {
+    const id = cashArticleId(branchId, article.code);
+    run(
+      `INSERT OR IGNORE INTO cash_articles
+        (id, name, direction, sort_order, active, branch_id, code)
+       VALUES (?, ?, ?, ?, 1, ?, ?)`,
+      [id, article.name, article.direction, article.sort_order, branchId, article.code],
+    );
+  }
+}
 
 export function getBranches(activeOnly = false) {
   let sql = 'SELECT * FROM branches';
