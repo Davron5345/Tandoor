@@ -40,7 +40,30 @@ function buildCategoryProductMap(products) {
 
 function productMatchesCategory(product, categoryId) {
   if (!categoryId) return true;
-  return product.category_id === categoryId || product.category_parent_id === categoryId;
+  return product.category_id === categoryId;
+}
+
+function getCategoriesWithDirectProducts(categories, products) {
+  const parentIds = new Set(
+    categories.filter((category) => category.parent_id).map((category) => category.parent_id),
+  );
+  const directProductCategoryIds = new Set(
+    products.map((product) => product.category_id).filter(Boolean),
+  );
+
+  return categories
+    .filter((category) => directProductCategoryIds.has(category.id) && !parentIds.has(category.id))
+    .sort((a, b) => {
+      const aParent = categories.find((c) => c.id === a.parent_id);
+      const bParent = categories.find((c) => c.id === b.parent_id);
+      const aSort = aParent?.sort_order ?? a.sort_order ?? 999;
+      const bSort = bParent?.sort_order ?? b.sort_order ?? 999;
+      if (aSort !== bSort) return aSort - bSort;
+      const aParentName = aParent?.name || '';
+      const bParentName = bParent?.name || '';
+      if (aParentName !== bParentName) return aParentName.localeCompare(bParentName, 'ru');
+      return a.name.localeCompare(b.name, 'ru');
+    });
 }
 
 export function ShopMedia({ image, name, outside = false, emptyClassName = '' }) {
@@ -378,9 +401,10 @@ export default function ShopStorefront({
     });
   }, [products, search, activeCategoryId]);
 
-  const branchCategories = useMemo(() => (
-    categories.filter((category) => products.some((product) => productMatchesCategory(product, category.id)))
-  ), [categories, products]);
+  const branchCategories = useMemo(
+    () => getCategoriesWithDirectProducts(categories, products),
+    [categories, products],
+  );
 
   const pageClass = [
     'myshop-page',
