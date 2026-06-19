@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, formatDate } from '../api';
 import Modal, { useToast } from '../components/Modal';
+import { IconEdit, IconEye, IconEyeOff, IconKey, IconSave, IconSend, IconTrash } from '../components/ActionIcons';
 import { useAuth } from '../AuthContext';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import { hasPermission } from '../permissions';
@@ -113,7 +114,8 @@ export default function TelegramPage({ onStatusChange }) {
         <h1>Telegram</h1>
         {canSend && (
           <button className="btn btn-primary" onClick={() => setModal(true)} disabled={!settings?.enabled}>
-            📨 Отправить сообщение
+            <IconSend />
+            <span>Отправить сообщение</span>
           </button>
         )}
       </div>
@@ -121,14 +123,14 @@ export default function TelegramPage({ onStatusChange }) {
       {canManageSettings && (
       <div className="card">
         <div className="card-header">
-          <strong>🔑 Токен бота</strong>
+          <strong className="card-header-title"><IconKey /> Токен бота</strong>
           {settings?.enabled && <span className="badge badge-confirmed">Активен</span>}
         </div>
         <div className="card-body">
           <div className={`alert ${settings?.enabled ? 'alert-success' : 'alert-error'}`} style={{ marginBottom: 16 }}>
             {settings?.enabled
-              ? '✅ Бот работает. Уведомления отправляются автоматически при проведении документов.'
-              : '⚠️ Бот не настроен. Получите токен у @BotFather и вставьте ниже.'}
+              ? 'Бот работает. Уведомления отправляются автоматически при проведении документов.'
+              : 'Бот не настроен. Получите токен у @BotFather и вставьте ниже.'}
           </div>
 
           {settings?.hasToken && !editing && (
@@ -158,11 +160,11 @@ export default function TelegramPage({ onStatusChange }) {
                 />
                 <button
                   type="button"
-                  className="btn btn-ghost"
+                  className="btn btn-icon btn-ghost"
                   onClick={() => setShowToken(!showToken)}
                   title={showToken ? 'Скрыть' : 'Показать'}
                 >
-                  {showToken ? '🙈' : '👁️'}
+                  {showToken ? <IconEyeOff /> : <IconEye />}
                 </button>
               </div>
               <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
@@ -174,14 +176,21 @@ export default function TelegramPage({ onStatusChange }) {
           <div className="btn-group">
             {!editing && settings?.hasToken && (
               <>
-                <button className="btn btn-primary" onClick={startEdit}>✏️ Изменить токен</button>
-                <button className="btn btn-ghost" onClick={removeToken}>🗑️ Удалить</button>
+                <button type="button" className="btn btn-primary" onClick={startEdit}>
+                  <IconEdit />
+                  <span>Изменить токен</span>
+                </button>
+                <button type="button" className="btn btn-ghost" onClick={removeToken}>
+                  <IconTrash />
+                  <span>Удалить</span>
+                </button>
               </>
             )}
             {(editing || !settings?.hasToken) && (
               <>
-                <button className="btn btn-primary" onClick={saveToken} disabled={saving}>
-                  {saving ? 'Сохранение...' : '💾 Сохранить'}
+                <button type="button" className="btn btn-primary" onClick={saveToken} disabled={saving}>
+                  <IconSave />
+                  <span>{saving ? 'Сохранение...' : 'Сохранить'}</span>
                 </button>
                 {settings?.hasToken && (
                   <button className="btn btn-ghost" onClick={cancelEdit}>Отмена</button>

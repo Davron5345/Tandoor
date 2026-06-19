@@ -28,6 +28,7 @@ import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import { useFormDraft, formDraftKey, readFormDraft, clearFormDraft, promptRestoreDraft } from '../hooks/useFormDraft';
 import { useFormDirty } from '../hooks/useFormDirty';
 import { hasPermission } from '../permissions';
+import { IconImage } from '../components/ActionIcons';
 
 const UNITS = ['шт', 'кг', 'г', 'л', 'мл', 'м', 'м²', 'м³', 'уп', 'пач', 'кор'];
 
@@ -147,7 +148,7 @@ function ProductListPhoto({ product, variant = null }) {
   if (!image) {
     return (
       <div className="product-list-thumb product-list-thumb-empty" title="Нет фото">
-        🖼
+        <IconImage />
       </div>
     );
   }

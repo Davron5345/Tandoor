@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { formatMoney } from '../api';
+import { IconImage } from './ActionIcons';
 import {
   buildProductPickGroups,
   filterProductPickGroups,
@@ -19,7 +20,7 @@ function ProductThumb({ product, variant = null, className = '', compact = false
   if (!image) {
     return (
       <div className={`product-list-thumb product-list-thumb-empty product-select-thumb${sizeClass}${className ? ` ${className}` : ''}`} aria-hidden>
-        🖼
+        <IconImage />
       </div>
     );
   }

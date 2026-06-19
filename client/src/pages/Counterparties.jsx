@@ -5,6 +5,7 @@ import { IconButton, IconEdit, IconTrash } from '../components/ActionIcons';
 import { formatUzPhone } from '../phoneFormat';
 import { useAuth } from '../AuthContext';
 import { useBranch } from '../BranchContext';
+import BranchChip from '../components/BranchChip';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import {
   useFormDraft,
@@ -142,7 +143,7 @@ export default function Counterparties() {
       <div className="page-header">
         <h1>Контрагенты</h1>
         <div className="btn-group">
-          <span className="page-subtitle">📍 {branchName}</span>
+          <BranchChip>{branchName}</BranchChip>
           {canEdit && <button className="btn btn-primary" onClick={openCreate}>+ Добавить</button>}
         </div>
       </div>

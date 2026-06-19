@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useAuth } from '../AuthContext';
 import { useTheme } from '../ThemeContext';
+import { IconEye, IconEyeOff } from '../components/ActionIcons';
+import { IconNavMoon, IconNavSun, IconNavWarehouse } from '../components/NavIcons';
 
 const TEST_ACCOUNTS = [
   { username: 'admin', password: 'admin123', label: 'Администратор' },
@@ -46,12 +48,15 @@ export default function Login() {
         onClick={toggleTheme}
         title={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
       >
-        {theme === 'dark' ? '☀️' : '🌙'}
+        {theme === 'dark' ? <IconNavSun /> : <IconNavMoon />}
       </button>
       <div className="login-card">
         <div className="login-logo">
-          📦 Склад
-          <span>Учёт прихода и расхода</span>
+          <div className="login-logo-mark" aria-hidden><IconNavWarehouse /></div>
+          <div className="login-logo-text">
+            Склад
+            <span>Учёт прихода и расхода</span>
+          </div>
         </div>
         <h1>Вход в систему</h1>
         <form onSubmit={submit}>
@@ -78,8 +83,8 @@ export default function Login() {
                 style={{ flex: 1 }}
                 required
               />
-              <button type="button" className="btn btn-ghost" onClick={() => setShowPass(!showPass)}>
-                {showPass ? '🙈' : '👁️'}
+              <button type="button" className="btn btn-icon btn-ghost" onClick={() => setShowPass(!showPass)} title={showPass ? 'Скрыть' : 'Показать'}>
+                {showPass ? <IconEyeOff /> : <IconEye />}
               </button>
             </div>
           </div>

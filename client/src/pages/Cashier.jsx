@@ -5,6 +5,7 @@ import { IconButton, IconEdit, IconTrash } from '../components/ActionIcons';
 import { canModifyPaymentDate, hasAnyPermission } from '../permissions';
 import { useAuth } from '../AuthContext';
 import { useBranch } from '../BranchContext';
+import BranchChip from '../components/BranchChip';
 import { todayLocalIso } from '../utils/date';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
 
@@ -751,7 +752,7 @@ export default function Cashier() {
       <div className="cashier-top">
         <div className="cashier-head">
           <h1>Касса</h1>
-          <span className="page-subtitle">📍 {branchName}</span>
+          <BranchChip>{branchName}</BranchChip>
           <span className="cashier-hotkeys">Alt+1 приход · Alt+2 расход · Enter — провести</span>
         </div>
 

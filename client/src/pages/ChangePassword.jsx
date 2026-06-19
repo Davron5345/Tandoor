@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../AuthContext';
 import { api } from '../api';
+import { IconLock } from '../components/ActionIcons';
 
 export default function ChangePassword() {
   const { user, logout, reload } = useAuth();
@@ -34,8 +35,11 @@ export default function ChangePassword() {
     <div className="login-page">
       <div className="login-card">
         <div className="login-logo">
-          🔐 Безопасность
-          <span>Смена пароля</span>
+          <div className="login-logo-mark" aria-hidden><IconLock /></div>
+          <div className="login-logo-text">
+            Безопасность
+            <span>Смена пароля</span>
+          </div>
         </div>
         <h1>Установите новый пароль</h1>
         <p style={{ color: 'var(--text-muted)', marginBottom: 20, fontSize: 14 }}>

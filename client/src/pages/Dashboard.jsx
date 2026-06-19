@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { api, formatMoney } from '../api';
 import { DOC_TYPE_LABELS } from '../permissions';
 import { useBranch } from '../BranchContext';
+import BranchChip from '../components/BranchChip';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
 
 const MONTHS = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
@@ -146,7 +147,7 @@ export default function Dashboard() {
     <div className="dashboard-page">
       <div className="page-header">
         <h1>Главная</h1>
-        <span className="page-subtitle">📍 {branchName}</span>
+        <BranchChip>{branchName}</BranchChip>
       </div>
 
       <div className="stats-grid">

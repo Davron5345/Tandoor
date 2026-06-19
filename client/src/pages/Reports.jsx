@@ -3,6 +3,7 @@ import { Navigate, NavLink, Outlet, Route, Routes } from 'react-router-dom';
 import { api, formatDate, formatMoney } from '../api';
 import { DOC_TYPE_LABELS } from '../permissions';
 import { useBranch } from '../BranchContext';
+import BranchChip from '../components/BranchChip';
 import { todayLocalIso } from '../utils/date';
 
 function formatQty(n) {
@@ -262,7 +263,7 @@ function StockReport() {
       <div className="stock-report-top">
         <div className="stock-report-head">
           <h1>Остатки на складе</h1>
-          <span className="stock-location-chip">📍 {locationLabel}</span>
+          <BranchChip className="stock-location-chip">{locationLabel}</BranchChip>
         </div>
 
         <div className="stock-report-kpi">
@@ -475,7 +476,7 @@ function DocumentsReport() {
     <div>
       <div className="page-header">
         <h1>Документы за период</h1>
-        <span className="page-subtitle">📍 {branchName}</span>
+        <BranchChip>{branchName}</BranchChip>
       </div>
 
       <div className="card report-filters-card">
@@ -877,7 +878,7 @@ function ReconciliationReport() {
     <div>
       <div className="page-header">
         <h1>Акт сверки</h1>
-        <span className="page-subtitle">📍 {branchName}</span>
+        <BranchChip>{branchName}</BranchChip>
       </div>
       <div className="card report-filters-card">
         <div className="card-header report-toolbar">
@@ -999,7 +1000,7 @@ function SupplierReturnsReport() {
     <div>
       <div className="page-header">
         <h1>Возвраты поставщикам</h1>
-        <span className="page-subtitle">📍 {branchName}</span>
+        <BranchChip>{branchName}</BranchChip>
       </div>
       <div className="card report-filters-card">
         <div className="card-header report-toolbar">
@@ -1073,7 +1074,7 @@ function DebtsReportShell() {
       <div className="stock-report-top">
         <div className="stock-report-head debts-report-head">
           <h1>Задолженности</h1>
-          <span className="stock-location-chip">📍 {branchName}</span>
+          <BranchChip className="stock-location-chip">{branchName}</BranchChip>
         </div>
         <nav className="debt-kind-tabs" aria-label="Тип задолженности">
           <NavLink

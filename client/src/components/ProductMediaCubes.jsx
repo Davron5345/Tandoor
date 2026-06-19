@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api';
+import { IconImage } from './ActionIcons';
 
 export const MAX_PHOTOS = 5;
 export const MAX_GIFS = 2;
@@ -107,7 +108,7 @@ function MediaCube({
         <span className="product-media-cube-icon product-media-cube-icon-muted">☆</span>
         <span className="product-media-cube-icon product-media-cube-icon-muted product-media-cube-icon-right">✕</span>
         <div className="product-media-cube-empty-body">
-          <span className="product-media-cube-empty-icon">🖼</span>
+          <span className="product-media-cube-empty-icon"><IconImage /></span>
           {canEdit && (
             <button
               type="button"
