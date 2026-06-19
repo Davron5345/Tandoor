@@ -568,9 +568,8 @@ function CounterpartyDebtReport({ kind }) {
   const [includeZero, setIncludeZero] = useState(false);
   const [includeUnlinkedPayments, setIncludeUnlinkedPayments] = useState(true);
   const [search, setSearch] = useState('');
-  const { branchId } = useBranch();
 
-  const load = () => {
+  const load = useCallback(() => {
     setLoading(true);
     setLoadError('');
     setReport(null);
@@ -586,9 +585,9 @@ function CounterpartyDebtReport({ kind }) {
         setReport({ rows: [], count: 0, total_balance: 0 });
       })
       .finally(() => setLoading(false));
-  };
+  }, [includeZero, includeUnlinkedPayments, kind]);
 
-  useEffect(() => { load(); }, [branchId, includeZero, includeUnlinkedPayments, kind]);
+  useEffect(() => { load(); }, [load]);
 
   const rows = useMemo(() => {
     const list = report?.rows || [];

@@ -1,8 +1,10 @@
 import { hasPermission } from './permissions.js';
 import { getUserByToken } from './auth.js';
 import { resolveBranchId } from './branches.js';
+import { getSessionTokenFromRequest } from './sessionCookie.js';
+
 export function authOptional(req, res, next) {
-  const token = req.headers.authorization?.replace(/^Bearer\s+/i, '');
+  const token = getSessionTokenFromRequest(req);
   req.user = getUserByToken(token) || null;
   req.token = token || null;
   next();

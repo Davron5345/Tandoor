@@ -28,6 +28,7 @@ const BUILTIN_ROLES = {
 export const ACTION_LABELS = {
   view: 'Смотреть',
   write: 'Редактировать',
+  send: 'Отправлять',
   confirm: 'Провести',
   delete: 'Удалить',
   editPast: 'Прошлые даты',
@@ -36,12 +37,13 @@ export const ACTION_LABELS = {
 export const ACTION_TOOLTIPS = {
   view: 'Открыть раздел и видеть данные',
   write: 'Создавать и изменять записи',
+  send: 'Отправлять сообщения в Telegram',
   confirm: 'Проводить документы',
   delete: 'Удалять записи',
   editPast: 'Работать с датами, отличными от сегодняшней',
 };
 
-export const PERMISSION_ACTION_ORDER = ['view', 'write', 'confirm', 'delete', 'editPast'];
+export const PERMISSION_ACTION_ORDER = ['view', 'write', 'send', 'confirm', 'delete', 'editPast'];
 
 export const PERMISSION_CATEGORIES = [
   { id: 'main', label: 'Основное' },
@@ -72,7 +74,7 @@ export const PERMISSION_GROUPS = [
   { id: 'payments', label: 'Оплаты', category: 'finance', icon: '💰', hint: 'Старый раздел оплат (не путать с «Касса»)', actions: { view: 'payments.view', write: 'payments.edit', delete: 'payments.delete', editPast: 'payments.edit_past' } },
   { id: 'cash_articles', label: 'Статьи кассы', category: 'finance', icon: '📑', hint: 'Настройка статей прихода/расхода (бухгалтер)', actions: { view: 'cash_articles.view', write: 'cash_articles.edit' } },
   { id: 'reports', label: 'Отчёты', category: 'main', icon: '📊', hint: 'Остатки, дебиторы, кредиторы', actions: { view: 'reports.view' } },
-  { id: 'telegram', label: 'Telegram', category: 'admin', icon: '✈️', actions: { view: 'telegram.view', write: 'telegram.settings' } },
+  { id: 'telegram', label: 'Telegram', category: 'admin', icon: '✈️', hint: 'Просмотр истории, настройка бота и ручная отправка', actions: { view: 'telegram.view', write: 'telegram.settings', send: 'telegram.send' } },
   { id: 'users', label: 'Сотрудники', category: 'admin', icon: '👤', actions: { view: 'users.view', write: 'users.edit' } },
   { id: 'branches', label: 'Филиалы', category: 'admin', icon: '🏢', actions: { view: 'branches.view', write: 'branches.edit' } },
 ];
@@ -333,6 +335,7 @@ export function initPermissions(db) {
   migrateCashierPermissions(db);
   migrateCashierCounterpartiesAccess(db);
   migrateCashierBundleSync(db);
+  migrateTelegramSendPermission(db);
   permissionsCache = loadRolePermissionsFromDb(db) || { ...DEFAULT_ROLE_PERMISSIONS };
 }
 
@@ -355,8 +358,36 @@ export function normalizePermissionBundle(permissions) {
   if (set.has('payments.edit_past')) {
     set.add('payments.edit');
   }
+  if (set.has('telegram.settings') || set.has('telegram.send')) {
+    set.add('telegram.view');
+  }
 
   return [...set];
+}
+
+function migrateTelegramSendPermission(db) {
+  const done = db.queryOne("SELECT value FROM settings WHERE key = 'telegram_send_v1'");
+  if (done) return;
+
+  const roleRows = db.queryAll('SELECT DISTINCT role FROM role_permissions');
+  for (const { role } of roleRows) {
+    if (role === SYSTEM_ADMIN) continue;
+    const hasSettings = db.queryOne(
+      'SELECT 1 as ok FROM role_permissions WHERE role = ? AND permission = ? LIMIT 1',
+      [role, 'telegram.settings'],
+    );
+    if (hasSettings) {
+      const hasSend = db.queryOne(
+        'SELECT 1 as ok FROM role_permissions WHERE role = ? AND permission = ? LIMIT 1',
+        [role, 'telegram.send'],
+      );
+      if (!hasSend) {
+        db.run('INSERT INTO role_permissions (role, permission) VALUES (?, ?)', [role, 'telegram.send']);
+      }
+    }
+  }
+
+  db.run("INSERT OR REPLACE INTO settings (key, value) VALUES ('telegram_send_v1', '1')");
 }
 
 function migrateCashierBundleSync(db) {
@@ -646,6 +677,7 @@ export function getUserPayload(user) {
     branch_id: user.branch_id || null,
     branch_name: branch?.name || null,
     permissions: getPermissionsForRole(user.role),
+    must_change_password: !!user.must_change_password,
   };
 }
 

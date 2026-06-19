@@ -1,9 +1,17 @@
 const API = '/api';
-let authToken = null;
 let activeBranchId = null;
 
-export function setAuthToken(token) {
-  authToken = token;
+export function normalizeListResponse(data) {
+  if (Array.isArray(data)) {
+    return { items: data, total: data.length, page: 1, limit: data.length || 1, pages: 1 };
+  }
+  return {
+    items: data.items || [],
+    total: data.total ?? 0,
+    page: data.page ?? 1,
+    limit: data.limit ?? 50,
+    pages: data.pages ?? 1,
+  };
 }
 
 export function setActiveBranchId(id) {
@@ -12,7 +20,6 @@ export function setActiveBranchId(id) {
 
 async function request(path, options = {}) {
   const headers = { 'Content-Type': 'application/json', ...options.headers };
-  if (authToken) headers.Authorization = `Bearer ${authToken}`;
 
   let url = `${API}${path}`;
   if (activeBranchId) {
@@ -20,7 +27,7 @@ async function request(path, options = {}) {
     url += `${sep}branch_id=${encodeURIComponent(activeBranchId)}`;
   }
 
-  const res = await fetch(url, { ...options, headers });
+  const res = await fetch(url, { credentials: 'include', ...options, headers });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || 'Ошибка запроса');
   return data;
@@ -33,6 +40,7 @@ export const api = {
       res = await fetch(`${API}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ username, password }),
       });
     } catch {
@@ -43,6 +51,10 @@ export const api = {
     return data;
   },
   logout: () => request('/auth/logout', { method: 'POST' }),
+  changePassword: (current_password, new_password) => request('/auth/change-password', {
+    method: 'POST',
+    body: JSON.stringify({ current_password, new_password }),
+  }),
   getMe: () => request('/auth/me'),
   getRoles: () => request('/auth/roles'),
   getRolesList: () => request('/roles/list'),
@@ -92,10 +104,13 @@ export const api = {
   updateProductCategory: (id, data) => request(`/product-categories/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteProductCategory: (id) => request(`/product-categories/${id}`, { method: 'DELETE' }),
 
-  getProducts: (params = {}) => {
+  getProducts: async (params = {}) => {
     const q = new URLSearchParams(params).toString();
-    return request(`/products${q ? `?${q}` : ''}`);
+    const data = await request(`/products${q ? `?${q}` : ''}`);
+    if (params.page || params.limit) return normalizeListResponse(data);
+    return Array.isArray(data) ? data : data.items;
   },
+  getProductBranchSettings: (id) => request(`/products/${id}/branch-settings`),
   createProduct: (data) => request('/products', { method: 'POST', body: JSON.stringify(data) }),
   updateProduct: (id, data) => request(`/products/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteProduct: (id) => request(`/products/${id}`, { method: 'DELETE' }),
@@ -120,8 +135,6 @@ export const api = {
   uploadProductImage: async (productId, file, variantId = null) => {
     const form = new FormData();
     form.append('file', file);
-    const headers = {};
-    if (authToken) headers.Authorization = `Bearer ${authToken}`;
 
     const params = new URLSearchParams();
     if (activeBranchId) params.set('branch_id', activeBranchId);
@@ -129,7 +142,7 @@ export const api = {
     const qs = params.toString();
     const url = `${API}/products/${productId}/images${qs ? `?${qs}` : ''}`;
 
-    const res = await fetch(url, { method: 'POST', headers, body: form });
+    const res = await fetch(url, { method: 'POST', credentials: 'include', body: form });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || 'Ошибка загрузки');
     return data;
@@ -151,9 +164,11 @@ export const api = {
   updateCounterparty: (id, data) => request(`/counterparties/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteCounterparty: (id) => request(`/counterparties/${id}`, { method: 'DELETE' }),
 
-  getDocuments: (params = {}) => {
+  getDocuments: async (params = {}) => {
     const q = new URLSearchParams(params).toString();
-    return request(`/documents${q ? `?${q}` : ''}`);
+    const data = await request(`/documents${q ? `?${q}` : ''}`);
+    if (params.page || params.limit) return normalizeListResponse(data);
+    return Array.isArray(data) ? data : data.items;
   },
   getNextDocNumber: (type) => request(`/documents/next-number?type=${encodeURIComponent(type)}`),
   getDocument: (id) => request(`/documents/${id}`),
@@ -184,6 +199,16 @@ export const api = {
   getTelegramMessages: () => request('/telegram/messages'),
   sendTelegramMessage: (data) => request('/telegram/send', { method: 'POST', body: JSON.stringify(data) }),
   sendDocumentTelegram: (id) => request(`/telegram/send-document/${id}`, { method: 'POST' }),
+
+  getAuditLog: async (params = {}) => {
+    const clean = Object.fromEntries(
+      Object.entries({ page: 1, limit: 50, ...params }).filter(([, v]) => v !== '' && v != null),
+    );
+    const q = new URLSearchParams(clean).toString();
+    const data = await request(`/admin/audit-log?${q}`);
+    return normalizeListResponse(data);
+  },
+  getAuditActions: () => request('/admin/audit-log/actions'),
 };
 
 export function formatMoney(n) {

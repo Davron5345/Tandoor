@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import db from './db.js';
 
-const { queryOne, run, queryAll } = db;
+const { queryOne, run } = db;
 
 function scopeSql(departmentId, productId, variantId = null) {
   if (variantId) {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { api, formatDate } from '../api';
 import Modal, { useToast } from '../components/Modal';
 import { IconButton, IconEdit, IconTrash } from '../components/ActionIcons';
@@ -22,8 +22,11 @@ export default function Counterparties() {
   const { branchId, branchName } = useBranch();
   const canEdit = hasPermission(user, 'counterparties.edit');
 
-  const load = () => api.getCounterparties(filter || undefined).then(setItems).catch(console.error);
-  useEffect(() => { load(); }, [filter, branchId]);
+  const load = useCallback(
+    () => api.getCounterparties(filter || undefined).then(setItems).catch(console.error),
+    [filter],
+  );
+  useEffect(() => { load(); }, [load]);
 
   const loadContracts = (counterpartyId) => {
     if (!counterpartyId) {

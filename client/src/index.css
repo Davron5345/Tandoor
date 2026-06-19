@@ -145,6 +145,17 @@ button, input, select, textarea {
   overflow: hidden;
   z-index: 100;
   flex-shrink: 0;
+  transition: transform 0.25s ease, opacity 0.2s ease;
+}
+
+.app.sidebar-collapsed .sidebar {
+  transform: translateX(calc(-100% - 16px));
+  opacity: 0;
+  pointer-events: none;
+}
+
+.app.sidebar-collapsed {
+  --sidebar-width: 0px;
 }
 
 .sidebar-panel {
@@ -187,6 +198,67 @@ button, input, select, textarea {
   border-bottom: 1px solid var(--border);
   background: var(--surface2);
   flex-shrink: 0;
+}
+
+.sidebar-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.sidebar-toggle,
+.sidebar-reopen {
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--text-muted);
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+.sidebar-toggle:hover,
+.sidebar-reopen:hover,
+.sidebar-menu-btn:hover {
+  border-color: var(--accent-soft-border);
+  background: var(--accent-soft-bg);
+  color: var(--text);
+}
+
+.main-topbar {
+  display: flex;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.sidebar-menu-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-muted);
+  box-shadow: var(--shadow);
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+.sidebar-menu-btn:hover {
+  border-color: var(--accent-soft-border);
+  background: var(--accent-soft-bg);
+  color: var(--text);
 }
 
 .logo {
@@ -354,6 +426,7 @@ button, input, select, textarea {
   margin-left: var(--sidebar-width);
   padding: clamp(16px, 3vw, 32px);
   width: calc(100% - var(--sidebar-width));
+  transition: margin-left 0.25s ease, width 0.25s ease;
 }
 
 .main-content {
@@ -3984,6 +4057,10 @@ input[type='number']::-webkit-inner-spin-button {
     margin-left: 0;
     width: 100%;
     padding: 16px;
+  }
+
+  .app.sidebar-collapsed .sidebar {
+    display: none;
   }
 
   .app {

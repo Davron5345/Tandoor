@@ -45,7 +45,7 @@ function initRowOutputs(row, calcItems = []) {
   return { ...row, outputs };
 }
 
-function getProcessedWeight(item, calcItems = []) {
+function getProcessedWeight(item, _calcItems = []) {
   if (item.outputs && typeof item.outputs === 'object') {
     return Object.values(item.outputs).reduce((s, v) => s + (Number(v) || 0), 0);
   }
@@ -174,13 +174,13 @@ export default function Razdelka() {
 
   const branchDepartments = departments.filter((d) => d.active && d.branch_id === (branchId || 'main'));
 
-  const load = () => {
+  const load = useCallback(() => {
     const params = { type: 'razdelka' };
     if (filterStatus) params.status = filterStatus;
     api.getDocuments(params).then(setDocs).catch(console.error);
-  };
+  }, [filterStatus]);
 
-  useEffect(() => { load(); }, [filterStatus, branchId]);
+  useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
     Promise.all([
@@ -193,19 +193,6 @@ export default function Razdelka() {
       setCalculations(c);
     }).catch(console.error);
   }, [branchId, user]);
-
-  useEffect(() => {
-    if (departments.length === 0) return;
-    const raw = sessionStorage.getItem('razdelka_prefill');
-    if (!raw) return;
-    sessionStorage.removeItem('razdelka_prefill');
-    try {
-      const prefill = JSON.parse(raw);
-      openCreateFromPrefill(prefill);
-    } catch {
-      // ignore invalid prefill
-    }
-  }, [departments]);
 
   useEffect(() => {
     if (!modal) return;
@@ -246,7 +233,7 @@ export default function Razdelka() {
     api.getCalculation(selectedCalcId).then(setActiveCalc).catch(console.error);
   }, [selectedCalcId]);
 
-  const outputColumns = activeCalc?.items || [];
+  const outputColumns = useMemo(() => activeCalc?.items || [], [activeCalc?.items]);
 
   useEffect(() => {
     if (!activeCalc?.items?.length) return;
@@ -254,9 +241,9 @@ export default function Razdelka() {
       ...prev,
       input_items: prev.input_items.map((row) => initRowOutputs(row, activeCalc.items)),
     }));
-  }, [activeCalc?.id]);
+  }, [activeCalc?.id, activeCalc?.items]);
 
-  const openCreateFromPrefill = (prefill) => {
+  const openCreateFromPrefill = useCallback((prefill) => {
     const defaultFrom = branchDepartments.find((d) => d.id === 'main_wh')?.id
       || branchDepartments[0]?.id
       || '';
@@ -281,7 +268,20 @@ export default function Razdelka() {
     });
     setSelectedCalcId(prefill.calculation_id || '');
     setModal('create');
-  };
+  }, [branchDepartments]);
+
+  useEffect(() => {
+    if (departments.length === 0) return;
+    const raw = sessionStorage.getItem('razdelka_prefill');
+    if (!raw) return;
+    sessionStorage.removeItem('razdelka_prefill');
+    try {
+      const prefill = JSON.parse(raw);
+      openCreateFromPrefill(prefill);
+    } catch {
+      // ignore invalid prefill
+    }
+  }, [departments, openCreateFromPrefill]);
 
   const openCreate = () => {
     const defaultFrom = branchDepartments.find((d) => d.id === 'main_wh')?.id
@@ -376,22 +376,6 @@ export default function Razdelka() {
     );
     if (match) setSelectedCalcId(match.id);
     input_items[idx] = initRowOutputs(input_items[idx], activeCalc?.items || []);
-    setForm({ ...form, input_items });
-  };
-
-  const updateInput = (idx, field, value) => {
-    const input_items = [...form.input_items];
-    input_items[idx] = { ...input_items[idx], [field]: value };
-    if (field === 'product_id') {
-      const product = inputProducts.find((p) => p.id === value) || products.find((p) => p.id === value);
-      if (product) input_items[idx].price = product.price || 0;
-      const match = calculations.find(
-        (c) => c.source_product_id === value
-          || (c.source_product_ids || []).includes(value),
-      );
-      if (match) setSelectedCalcId(match.id);
-      input_items[idx] = initRowOutputs(input_items[idx], activeCalc?.items || []);
-    }
     setForm({ ...form, input_items });
   };
 

@@ -17,7 +17,12 @@
     "db:verify": "node server/scripts/db-verify.mjs",
     "db:list-backups": "node server/scripts/db-list-backups.mjs",
     "db:restore": "node server/scripts/db-restore.mjs",
-    "perms:verify": "node server/scripts/verify-cashier-perms.mjs"
+    "perms:verify": "node server/scripts/verify-cashier-perms.mjs",
+    "test": "node --test server/test/**/*.test.js",
+    "test:e2e": "playwright test",
+    "test:e2e:install": "playwright install chromium",
+    "test:all": "npm test && npm run test:e2e",
+    "lint": "eslint server client/src e2e --max-warnings 0"
   },
   "dependencies": {
     "cors": "^2.8.5",
@@ -29,6 +34,12 @@
     "uuid": "^11.0.3"
   },
   "devDependencies": {
-    "concurrently": "^9.1.2"
+    "@eslint/js": "^9.17.0",
+    "concurrently": "^9.1.2",
+    "eslint": "^9.17.0",
+    "eslint-plugin-react": "^7.37.3",
+    "eslint-plugin-react-hooks": "^5.1.0",
+    "globals": "^15.14.0",
+    "@playwright/test": "^1.51.0"
   }
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, formatDate, formatMoney, formatPriceInput, parsePriceInput } from '../api';
 import Modal, { useToast } from '../components/Modal';
 import { IconButton, IconEdit, IconTrash } from '../components/ActionIcons';
@@ -495,7 +495,7 @@ export default function Cashier() {
   const canEditPast = hasAnyPermission(user, ['cashier.edit_past', 'payments.edit_past']);
   const canWriteShift = canEdit && (shiftDate === todayIso() || canEditPast);
 
-  const applySavedPrefs = () => {
+  const applySavedPrefs = useCallback(() => {
     const prefs = loadPrefs(branchId);
     setIncomeForm((prev) => ({
       ...prev,
@@ -506,7 +506,7 @@ export default function Cashier() {
       article_id: prefs.expenseArticle || prev.article_id,
       counterparty_id: prefs.supplierId || prev.counterparty_id,
     }));
-  };
+  }, [branchId]);
 
   const loadPayments = async () => {
     try {
@@ -523,7 +523,7 @@ export default function Cashier() {
     }
   };
 
-  const load = async () => {
+  const load = useCallback(async () => {
     loadPayments().catch((err) => {
       console.error(err);
       show(err.message || 'Не удалось загрузить операции', 'error');
@@ -548,13 +548,13 @@ export default function Cashier() {
       console.error(err);
       setSuppliers([]);
     }
-  };
+  }, [show]);
 
-  useEffect(() => { load(); }, [branchId]);
+  useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
     applySavedPrefs();
-  }, [branchId]);
+  }, [applySavedPrefs]);
 
   useEffect(() => {
     if (canEdit) incomeAmountRef.current?.focus();

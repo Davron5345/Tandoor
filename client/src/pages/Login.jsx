@@ -8,6 +8,8 @@ const TEST_ACCOUNTS = [
   { username: 'kassir', password: 'kassir123', label: 'Кассир' },
 ];
 
+const isDev = import.meta.env.DEV;
+
 export default function Login() {
   const { login } = useAuth();
   const { theme, toggleTheme } = useTheme();
@@ -60,7 +62,7 @@ export default function Login() {
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               autoComplete="username"
-              placeholder="admin"
+              placeholder={isDev ? 'admin' : ''}
               required
             />
           </div>
@@ -72,7 +74,7 @@ export default function Login() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="current-password"
-                placeholder="admin123"
+                placeholder={isDev ? 'admin123' : ''}
                 style={{ flex: 1 }}
                 required
               />
@@ -85,19 +87,21 @@ export default function Login() {
             {loading ? 'Вход...' : 'Войти'}
           </button>
         </form>
-        <div className="login-hint">
-          <p><strong>Тестовые аккаунты</strong> (нажмите для автозаполнения):</p>
-          {TEST_ACCOUNTS.map((acc) => (
-            <button
-              key={acc.username}
-              type="button"
-              className="login-account-btn"
-              onClick={() => fillAccount(acc)}
-            >
-              <strong>{acc.username}</strong> / {acc.password} — {acc.label}
-            </button>
-          ))}
-        </div>
+        {isDev && (
+          <div className="login-hint">
+            <p><strong>Тестовые аккаунты</strong> (нажмите для автозаполнения):</p>
+            {TEST_ACCOUNTS.map((acc) => (
+              <button
+                key={acc.username}
+                type="button"
+                className="login-account-btn"
+                onClick={() => fillAccount(acc)}
+              >
+                <strong>{acc.username}</strong> / {acc.password} — {acc.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

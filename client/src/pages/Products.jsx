@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api, formatMoney, formatPriceInput, parsePriceInput } from '../api';
 import Modal, { useToast } from '../components/Modal';
@@ -17,6 +17,10 @@ import {
   getVariantPrimaryImage,
 } from '../utils/productVariants';
 import SupplierMultiSelect from '../components/SupplierMultiSelect';
+import ProductBranchSettings, {
+  mapBranchSettingsFromApi,
+  serializeBranchSettingsForApi,
+} from '../components/ProductBranchSettings';
 import { useAuth } from '../AuthContext';
 import { useBranch } from '../BranchContext';
 import { hasPermission } from '../permissions';
@@ -178,10 +182,15 @@ export default function Products() {
   const [productCardTab, setProductCardTab] = useState('main');
   const [highlightedProductId, setHighlightedProductId] = useState(null);
   const [collapsedProductIds, setCollapsedProductIds] = useState(() => new Set());
+  const [productPage, setProductPage] = useState(1);
+  const [productPages, setProductPages] = useState(1);
+  const [productTotal, setProductTotal] = useState(0);
+  const PRODUCT_PAGE_SIZE = 50;
   const { show, Toast } = useToast();
   const { user } = useAuth();
-  const { branchId } = useBranch();
+  const { branchId, branches, isAdmin } = useBranch();
   const canEdit = hasPermission(user, 'products.edit');
+  const [branchSettings, setBranchSettings] = useState([]);
 
   const productId = modal && modal !== 'create' ? modal : null;
 
@@ -211,24 +220,41 @@ export default function Products() {
     [suppliers],
   );
 
-  const load = () => {
+  const load = useCallback(() => {
     const params = {};
     if (filterCategory) params.category_id = filterCategory;
     if (filterSupplier) params.supplier_id = filterSupplier;
+    const searching = search.trim().length > 0;
+    if (!searching) {
+      params.page = productPage;
+      params.limit = PRODUCT_PAGE_SIZE;
+    }
     return Promise.all([
       api.getProducts(params),
       api.getProductCategories(),
       api.getCounterparties('supplier'),
     ])
       .then(([p, c, s]) => {
-        setProducts(p);
+        if (searching || Array.isArray(p)) {
+          setProducts(Array.isArray(p) ? p : p.items || []);
+          setProductPages(1);
+          setProductTotal(Array.isArray(p) ? p.length : (p.items?.length ?? 0));
+        } else {
+          setProducts(p.items);
+          setProductPages(p.pages);
+          setProductTotal(p.total);
+        }
         setCategories(c);
         setSuppliers(s);
       })
       .catch(console.error);
-  };
+  }, [filterCategory, filterSupplier, productPage, search]);
 
-  useEffect(() => { load(); }, [branchId, filterCategory, filterSupplier]);
+  useEffect(() => {
+    setProductPage(1);
+  }, [branchId, filterCategory, filterSupplier, search]);
+
+  useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
     setHighlightedProductId(null);
@@ -319,6 +345,45 @@ export default function Products() {
     });
   }, [highlightedProductId]);
 
+  const buildDefaultBranchSettings = useCallback((variants = []) => {
+    const variantRows = variants
+      .filter((v) => v.id)
+      .map((v) => ({
+        variant_id: v.id,
+        name: v.name,
+        base_price: parsePriceInput(v.price),
+        price: '',
+      }));
+    return branches.map((b) => ({
+      branch_id: b.id,
+      branch_name: b.name,
+      branch_active: !!b.active,
+      visible: b.id === branchId,
+      price: '',
+      variants: variantRows,
+    }));
+  }, [branches, branchId]);
+
+  const syncBranchSettingsVariants = useCallback((settings, variants) => {
+    const variantRows = variants
+      .filter((v) => v.id)
+      .map((v) => ({
+        variant_id: v.id,
+        name: v.name,
+        base_price: parsePriceInput(v.price),
+      }));
+    return settings.map((row) => ({
+      ...row,
+      variants: variantRows.map((variant) => {
+        const existing = row.variants?.find((v) => v.variant_id === variant.variant_id);
+        return {
+          ...variant,
+          price: existing?.price ?? '',
+        };
+      }),
+    }));
+  }, []);
+
   const openCreate = () => {
     clearImages();
     setForm({
@@ -327,6 +392,7 @@ export default function Products() {
       supplier_ids: [],
       variants: [],
     });
+    setBranchSettings(isAdmin ? buildDefaultBranchSettings() : []);
     setProductCardTab('main');
     setModal('create');
   };
@@ -344,7 +410,8 @@ export default function Products() {
     show('Скопированы категория, ед. изм. и поставщики');
   };
 
-  const openEdit = (p) => {
+  const openEdit = async (p) => {
+    const priceSource = isAdmin ? (p.base_price ?? p.price) : p.price;
     setForm({
       name: p.name,
       category_id: p.category_id || 'other',
@@ -353,13 +420,24 @@ export default function Products() {
       sku: p.sku || '',
       net_weight: p.net_weight ?? '',
       gross_weight: p.gross_weight ?? '',
-      price: p.price != null && p.price !== '' ? formatPriceInput(p.price) : '',
+      price: priceSource != null && priceSource !== '' ? formatPriceInput(priceSource) : '',
       supplier_ids: (p.suppliers || []).map((s) => s.id),
       has_variants: !!p.has_variants,
       variants: p.has_variants ? mapProductVariants(p.variants || []) : [],
     });
     setProductCardTab('main');
     setModal(p.id);
+    if (isAdmin) {
+      try {
+        const settings = await api.getProductBranchSettings(p.id);
+        setBranchSettings(mapBranchSettingsFromApi(settings));
+      } catch (e) {
+        console.error(e);
+        setBranchSettings(buildDefaultBranchSettings(p.variants || []));
+      }
+    } else {
+      setBranchSettings([]);
+    }
   };
 
   const toggleVariants = (enabled) => {
@@ -448,6 +526,12 @@ export default function Products() {
       };
       if (!form.has_variants) {
         payload.price = price;
+      }
+      if (isAdmin && branchSettings.length) {
+        const synced = form.has_variants
+          ? syncBranchSettingsVariants(branchSettings, buildVariantsPayload(form.variants))
+          : branchSettings;
+        payload.branch_settings = serializeBranchSettingsForApi(synced);
       }
 
       if (modal === 'create') {
@@ -611,6 +695,19 @@ export default function Products() {
       ) : (
         <div className="card">
           <ProductTable items={visibleListRows} renderRow={renderListRow} />
+          {!isSearching && productPages > 1 && (
+            <div className="table-pagination" style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '12px 16px', justifyContent: 'flex-end' }}>
+              <span style={{ color: 'var(--text-muted)', fontSize: 14 }}>
+                {productTotal} товаров · стр. {productPage} из {productPages}
+              </span>
+              <button type="button" className="btn btn-ghost" disabled={productPage <= 1} onClick={() => setProductPage((p) => p - 1)}>
+                ← Назад
+              </button>
+              <button type="button" className="btn btn-ghost" disabled={productPage >= productPages} onClick={() => setProductPage((p) => p + 1)}>
+                Вперёд →
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -650,6 +747,23 @@ export default function Products() {
               >
                 Варианты
               </button>
+              {isAdmin && (
+                <button
+                  type="button"
+                  className={`tab${productCardTab === 'branches' ? ' active' : ''}`}
+                  onClick={() => {
+                    if (form.has_variants) {
+                      setBranchSettings((prev) => syncBranchSettingsVariants(
+                        prev,
+                        buildVariantsPayload(form.variants),
+                      ));
+                    }
+                    setProductCardTab('branches');
+                  }}
+                >
+                  Филиалы
+                </button>
+              )}
             </div>
 
             <div className="product-card-tab-panels">
@@ -680,7 +794,7 @@ export default function Products() {
                     </div>
                     {!form.has_variants && (
                       <div className="form-group">
-                        <label>Цена *</label>
+                        <label>{isAdmin ? 'Базовая цена *' : 'Цена *'}</label>
                         <input
                           type="text"
                           inputMode="numeric"
@@ -809,6 +923,22 @@ export default function Products() {
                   )}
                 </div>
               </div>
+
+              {isAdmin && (
+                <div className={`product-card-tab-panel${productCardTab === 'branches' ? ' active' : ''}`}>
+                  <div className="form-section">
+                    <h3 className="form-section-title">Филиалы</h3>
+                    <ProductBranchSettings
+                      settings={branchSettings}
+                      setSettings={setBranchSettings}
+                      hasVariants={!!form.has_variants}
+                      basePrice={form.has_variants
+                        ? null
+                        : (parsePriceInput(form.price) ?? '—')}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </Modal>

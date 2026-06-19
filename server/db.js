@@ -332,6 +332,91 @@ function migrateSchema() {
   migrateVariantDepartmentStockV2();
   migrateCashArticles();
   migrateDocumentHistoryRetention();
+  migrateMustChangePassword();
+  migrateAuditLog();
+  migrateProductBranches();
+}
+
+function migrateProductBranches() {
+  run(`
+    CREATE TABLE IF NOT EXISTS product_branches (
+      id TEXT PRIMARY KEY,
+      product_id TEXT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+      branch_id TEXT NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
+      visible INTEGER NOT NULL DEFAULT 1,
+      price REAL,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(product_id, branch_id)
+    )
+  `);
+  run(`
+    CREATE TABLE IF NOT EXISTS product_variant_branches (
+      id TEXT PRIMARY KEY,
+      variant_id TEXT NOT NULL REFERENCES product_variants(id) ON DELETE CASCADE,
+      branch_id TEXT NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
+      price REAL,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(variant_id, branch_id)
+    )
+  `);
+  run('CREATE INDEX IF NOT EXISTS idx_product_branches_branch ON product_branches(branch_id, visible)');
+  run('CREATE INDEX IF NOT EXISTS idx_product_branches_product ON product_branches(product_id)');
+
+  const done = queryOne("SELECT value FROM settings WHERE key = 'product_branches_v1'");
+  if (done) return;
+
+  const products = queryAll('SELECT id FROM products');
+  const branches = queryAll('SELECT id FROM branches');
+  for (const product of products) {
+    for (const branch of branches) {
+      run(
+        `INSERT OR IGNORE INTO product_branches (id, product_id, branch_id, visible, price)
+         VALUES (?, ?, ?, 1, NULL)`,
+        [uuidv4(), product.id, branch.id],
+      );
+    }
+  }
+
+  run("INSERT OR REPLACE INTO settings (key, value) VALUES ('product_branches_v1', '1')");
+}
+
+function migrateAuditLog() {
+  run(`
+    CREATE TABLE IF NOT EXISTS audit_log (
+      id TEXT PRIMARY KEY,
+      user_id TEXT,
+      username TEXT,
+      action TEXT NOT NULL,
+      entity_type TEXT,
+      entity_id TEXT,
+      details TEXT,
+      ip TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+  run('CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_log(created_at DESC)');
+  run('CREATE INDEX IF NOT EXISTS idx_audit_log_action ON audit_log(action)');
+}
+
+function migrateMustChangePassword() {
+  const done = queryOne("SELECT value FROM settings WHERE key = 'must_change_pwd_v1'");
+  if (done) return;
+
+  const userCols = queryAll('PRAGMA table_info(users)').map((c) => c.name);
+  if (!userCols.includes('must_change_password')) {
+    run('ALTER TABLE users ADD COLUMN must_change_password INTEGER DEFAULT 0');
+  }
+
+  if (process.env.NODE_ENV === 'production') {
+    run(
+      "UPDATE users SET must_change_password = 1 WHERE LOWER(username) = 'admin' AND role = 'admin'",
+    );
+  }
+
+  run("INSERT OR REPLACE INTO settings (key, value) VALUES ('must_change_pwd_v1', '1')");
+  saveDb();
 }
 
 function migrateDocumentHistoryRetention() {

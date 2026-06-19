@@ -1,10 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { api, formatMoney, formatDate } from '../api';
 import { PAYMENT_TYPES } from '../permissions';
 import Modal, { useToast } from '../components/Modal';
 import { hasPermission } from '../permissions';
 import { useAuth } from '../AuthContext';
-import { useBranch } from '../BranchContext';
 
 const empty = {
   type: 'supplier_payment',
@@ -23,11 +22,10 @@ export default function Payments() {
   const [form, setForm] = useState(empty);
   const { show, Toast } = useToast();
   const { user } = useAuth();
-  const { branchId } = useBranch();
   const canEdit = hasPermission(user, 'payments.edit');
   const canDelete = hasPermission(user, 'payments.delete');
 
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
       const p = await api.getPayments();
       setPayments(p);
@@ -46,9 +44,9 @@ export default function Payments() {
     } catch (err) {
       console.error(err);
     }
-  };
+  }, [show]);
 
-  useEffect(() => { load(); }, [branchId]);
+  useEffect(() => { load(); }, [load]);
 
   const openCreate = () => { setForm({ ...empty }); setModal('create'); };
   const openEdit = (p) => {

@@ -2,11 +2,13 @@ import { scryptSync, randomBytes, timingSafeEqual } from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import db from './db.js';
 import { getUserPayload, roleExists } from './permissions.js';
-import { getBranch, DEFAULT_BRANCH_ID } from './branches.js';
+import { getBranch } from './branches.js';
 
 const { queryAll, queryOne, run } = db;
 
 const SESSION_DAYS = 7;
+const MIN_PASSWORD_LENGTH = 8;
+const WEAK_PASSWORDS = new Set(['admin123', 'sklad123', 'kassir123', 'password', '12345678']);
 
 /** Главный администратор — роль и логин нельзя менять через интерфейс */
 export const PROTECTED_ADMIN_USERNAME = 'admin';
@@ -73,6 +75,36 @@ export function getUserByToken(token) {
     WHERE s.token = ? AND s.expires_at >= datetime('now') AND u.active = 1
   `, [token]);
   return row ? getUserPayload(row) : null;
+}
+
+export function changePassword(userId, currentPassword, newPassword, keepToken = null) {
+  const user = queryOne('SELECT * FROM users WHERE id = ?', [userId]);
+  if (!user) throw new Error('Пользователь не найден');
+  if (!verifyPassword((currentPassword || '').trim(), user.password_hash)) {
+    throw new Error('Неверный текущий пароль');
+  }
+
+  const nextPassword = (newPassword || '').trim();
+  if (nextPassword.length < MIN_PASSWORD_LENGTH) {
+    throw new Error(`Пароль должен быть не менее ${MIN_PASSWORD_LENGTH} символов`);
+  }
+  if (WEAK_PASSWORDS.has(nextPassword.toLowerCase())) {
+    throw new Error('Слишком простой пароль. Выберите другой');
+  }
+
+  run(
+    'UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?',
+    [hashPassword(nextPassword), userId],
+  );
+
+  if (keepToken) {
+    run('DELETE FROM sessions WHERE user_id = ? AND token != ?', [userId, keepToken]);
+  } else {
+    run('DELETE FROM sessions WHERE user_id = ?', [userId]);
+  }
+
+  const updated = queryOne('SELECT * FROM users WHERE id = ?', [userId]);
+  return getUserPayload(updated);
 }
 
 export function getUsers() {
@@ -248,11 +280,13 @@ export function seedDefaultUsers() {
   ensureProtectedAdmin();
 
   if (!getSettingLocal('default_users_v2')) {
-    for (const [username, password, name, role] of defaults) {
-      run(`
-        UPDATE users SET password_hash = ?, name = ?, role = ?, active = 1
-        WHERE LOWER(username) = ?
-      `, [hashPassword(password), name, role, username]);
+    if (process.env.NODE_ENV !== 'production') {
+      for (const [username, password, name, role] of defaults) {
+        run(`
+          UPDATE users SET password_hash = ?, name = ?, role = ?, active = 1
+          WHERE LOWER(username) = ?
+        `, [hashPassword(password), name, role, username]);
+      }
     }
     setSettingLocal('default_users_v2', '1');
   }
@@ -262,12 +296,13 @@ export function seedDefaultUsers() {
 
 /** Главный admin всегда существует, активен и с ролью admin */
 function ensureProtectedAdmin() {
+  const mustChange = process.env.NODE_ENV === 'production' ? 1 : 0;
   const admin = queryOne('SELECT * FROM users WHERE LOWER(username) = ?', [PROTECTED_ADMIN_USERNAME]);
   if (!admin) {
     run(`
-      INSERT INTO users (id, username, password_hash, name, role, active, branch_id)
-      VALUES (?, ?, ?, ?, 'admin', 1, NULL)
-    `, [uuidv4(), PROTECTED_ADMIN_USERNAME, hashPassword('admin123'), 'Администратор']);
+      INSERT INTO users (id, username, password_hash, name, role, active, branch_id, must_change_password)
+      VALUES (?, ?, ?, ?, 'admin', 1, NULL, ?)
+    `, [uuidv4(), PROTECTED_ADMIN_USERNAME, hashPassword('admin123'), 'Администратор', mustChange]);
     return;
   }
 

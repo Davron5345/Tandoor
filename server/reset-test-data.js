@@ -2,7 +2,7 @@
  * Очистка операционных данных для повторного тестирования.
  * Важно: остановите dev-сервер или используйте POST /api/admin/reset-test-data.
  */
-import db, { initDb } from './db.js';
+import { initDb } from './db.js';
 import { resetTestData } from './resetTestData.js';
 
 async function main() {

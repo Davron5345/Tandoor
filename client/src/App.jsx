@@ -13,15 +13,27 @@ import Employees from './pages/Employees';
 import Roles from './pages/Roles';
 import Branches from './pages/Branches';
 import Departments from './pages/Departments';
+import AuditLog from './pages/AuditLog';
 import Razdelka from './pages/Razdelka';
 import Calculations from './pages/Calculations';
 import Reports from './pages/Reports';
 import Login from './pages/Login';
+import ChangePassword from './pages/ChangePassword';
 import { api } from './api';
 import { useTheme } from './ThemeContext';
 import { useAuth } from './AuthContext';
 import { useBranch } from './BranchContext';
 import { hasPermission, hasAnyPermission } from './permissions';
+
+const SIDEBAR_COLLAPSED_KEY = 'warehouse-sidebar-collapsed';
+
+function readSidebarCollapsed() {
+  try {
+    return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
 
 function pathInGroup(pathname, paths) {
   return paths.some((p) => pathname === p || pathname.startsWith(`${p}/`));
@@ -54,6 +66,7 @@ function NavGroup({ groupId, label, children, paths, isOpen, onToggle }) {
 function AppContent() {
   const [telegramOnline, setTelegramOnline] = useState(false);
   const [openNavGroup, setOpenNavGroup] = useState(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(readSidebarCollapsed);
   const { theme, toggleTheme } = useTheme();
   const { user, loading, logout } = useAuth();
   const { branches, branchId, branchName, setActiveBranchId, isAdmin: isBranchAdmin } = useBranch();
@@ -97,7 +110,7 @@ function AppContent() {
 
     const staffPathsLocal = [
       ...(canViewUsersLocal ? ['/employees'] : []),
-      ...(isAdminUser ? ['/roles', '/branches', '/departments'] : []),
+      ...(isAdminUser ? ['/roles', '/branches', '/departments', '/audit-log'] : []),
     ];
 
     const path = location.pathname;
@@ -120,6 +133,10 @@ function AppContent() {
     return <Login />;
   }
 
+  if (user.must_change_password) {
+    return <ChangePassword />;
+  }
+
   const isAdmin = user.role === 'admin';
   const canViewUsers = hasPermission(user, 'users.view');
   const showStaffGroup = canViewUsers || isAdmin;
@@ -128,7 +145,6 @@ function AppContent() {
 
   const canViewDocuments = hasPermission(user, 'documents.view');
   const canViewPayments = hasPermission(user, 'payments.view');
-  const canEditPayments = hasPermission(user, 'payments.edit');
   const canViewCashier = hasAnyPermission(user, ['cashier.view', 'cashier.edit', 'payments.view', 'payments.edit']);
   const canViewCashArticles = hasPermission(user, 'cash_articles.view');
   const canViewCounterparties = hasPermission(user, 'counterparties.view');
@@ -167,7 +183,7 @@ function AppContent() {
 
   const staffPaths = [
     ...(canViewUsers ? ['/employees'] : []),
-    ...(isAdmin ? ['/roles', '/branches', '/departments'] : []),
+    ...(isAdmin ? ['/roles', '/branches', '/departments', '/audit-log'] : []),
   ];
 
   const firstNavPath = ((user.role === 'cashier' && canViewCashier) ? '/cashier'
@@ -184,23 +200,44 @@ function AppContent() {
     setOpenNavGroup((current) => (current === groupId ? null : groupId));
   };
 
+  const toggleSidebar = () => {
+    setSidebarCollapsed((collapsed) => {
+      const next = !collapsed;
+      try {
+        localStorage.setItem(SIDEBAR_COLLAPSED_KEY, next ? '1' : '0');
+      } catch { /* ignore */ }
+      return next;
+    });
+  };
+
   return (
-    <div className="app">
-      <aside className="sidebar">
+    <div className={`app${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
+      <aside className="sidebar" aria-hidden={sidebarCollapsed}>
         <div className="sidebar-panel">
         <div className="sidebar-header">
           <div className="logo">
             📦 Склад
             <span>Учёт прихода и расхода</span>
           </div>
-          <button
-            type="button"
-            className="theme-toggle"
-            onClick={toggleTheme}
-            title={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
-          >
-            {theme === 'dark' ? '☀️' : '🌙'}
-          </button>
+          <div className="sidebar-header-actions">
+            <button
+              type="button"
+              className="sidebar-toggle"
+              onClick={toggleSidebar}
+              title="Скрыть меню"
+              aria-label="Скрыть меню"
+            >
+              ◀
+            </button>
+            <button
+              type="button"
+              className="theme-toggle"
+              onClick={toggleTheme}
+              title={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
+            >
+              {theme === 'dark' ? '☀️' : '🌙'}
+            </button>
+          </div>
         </div>
         <div className="sidebar-body">
           <nav className="nav">
@@ -377,6 +414,14 @@ function AppContent() {
                     Отделы
                   </NavLink>
                 )}
+                {isAdmin && (
+                  <NavLink
+                    to="/audit-log"
+                    className={({ isActive }) => `nav-link nav-link-sub${isActive ? ' active' : ''}`}
+                  >
+                    Журнал аудита
+                  </NavLink>
+                )}
               </NavGroup>
             )}
           </nav>
@@ -418,6 +463,18 @@ function AppContent() {
       </aside>
 
       <main className="main">
+        <div className="main-topbar">
+          <button
+            type="button"
+            className="sidebar-menu-btn"
+            onClick={toggleSidebar}
+            title={sidebarCollapsed ? 'Показать меню' : 'Скрыть меню'}
+            aria-label={sidebarCollapsed ? 'Показать меню' : 'Скрыть меню'}
+            aria-expanded={!sidebarCollapsed}
+          >
+            {sidebarCollapsed ? '☰ Меню' : '◀ Меню'}
+          </button>
+        </div>
         <div className="main-content">
         <Routes>
           <Route path="/" element={canViewDashboard ? <Dashboard /> : <Navigate to={firstNavPath} />} />
@@ -440,6 +497,7 @@ function AppContent() {
           <Route path="/roles" element={isAdmin ? <Roles /> : <Navigate to={firstNavPath} />} />
           <Route path="/branches" element={isAdmin ? <Branches /> : <Navigate to={firstNavPath} />} />
           <Route path="/departments" element={isAdmin ? <Departments /> : <Navigate to={firstNavPath} />} />
+          <Route path="/audit-log" element={isAdmin ? <AuditLog /> : <Navigate to={firstNavPath} />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
         </div>

@@ -1,9 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { api, formatDate } from '../api';
 import Modal, { useToast } from '../components/Modal';
-import { useBranch } from '../BranchContext';
+import { useAuth } from '../AuthContext';
+import { hasPermission } from '../permissions';
 
 export default function TelegramPage({ onStatusChange }) {
+  const { user } = useAuth();
+  const canManageSettings = hasPermission(user, 'telegram.settings');
+  const canSend = hasPermission(user, 'telegram.send');
   const [settings, setSettings] = useState(null);
   const [messages, setMessages] = useState([]);
   const [counterparties, setCounterparties] = useState([]);
@@ -14,21 +18,33 @@ export default function TelegramPage({ onStatusChange }) {
   const [showToken, setShowToken] = useState(false);
   const [saving, setSaving] = useState(false);
   const { show, Toast } = useToast();
-  const { branchId } = useBranch();
 
-  const load = () => {
-    Promise.all([
-      api.getTelegramSettings(),
+  const load = useCallback(() => {
+    const requests = [
+      api.getTelegramStatus(),
       api.getTelegramMessages(),
       api.getCounterparties(),
-    ]).then(([s, m, c]) => {
-      setSettings(s);
-      setMessages(m);
-      setCounterparties(c.filter((x) => x.telegram_chat_id));
-    }).catch(console.error);
-  };
+    ];
+    if (canManageSettings) {
+      requests[0] = api.getTelegramSettings();
+    }
 
-  useEffect(() => { load(); }, [branchId]);
+    Promise.all(requests).then((results) => {
+      if (canManageSettings) {
+        const [s, m, c] = results;
+        setSettings(s);
+        setMessages(m);
+        setCounterparties(c.filter((x) => x.telegram_chat_id));
+      } else {
+        const [status, m, c] = results;
+        setSettings({ enabled: status.enabled, hasToken: status.enabled });
+        setMessages(m);
+        setCounterparties(c.filter((x) => x.telegram_chat_id));
+      }
+    }).catch(console.error);
+  }, [canManageSettings]);
+
+  useEffect(() => { load(); }, [load]);
 
   const startEdit = () => {
     setEditing(true);
@@ -93,11 +109,14 @@ export default function TelegramPage({ onStatusChange }) {
       {Toast}
       <div className="page-header">
         <h1>Telegram</h1>
-        <button className="btn btn-primary" onClick={() => setModal(true)} disabled={!settings?.enabled}>
-          📨 Отправить сообщение
-        </button>
+        {canSend && (
+          <button className="btn btn-primary" onClick={() => setModal(true)} disabled={!settings?.enabled}>
+            📨 Отправить сообщение
+          </button>
+        )}
       </div>
 
+      {canManageSettings && (
       <div className="card">
         <div className="card-header">
           <strong>🔑 Токен бота</strong>
@@ -170,13 +189,18 @@ export default function TelegramPage({ onStatusChange }) {
           </div>
         </div>
       </div>
+      )}
 
       <div className="card">
         <div className="card-header"><strong>Как подключить контрагента</strong></div>
         <div className="card-body" style={{ fontSize: 14, color: 'var(--text-muted)' }}>
           <ol style={{ paddingLeft: 20, lineHeight: 2 }}>
             <li>Создайте бота через <strong>@BotFather</strong> в Telegram</li>
-            <li>Скопируйте токен и вставьте в поле выше</li>
+            {canManageSettings ? (
+              <li>Скопируйте токен и вставьте в поле выше</li>
+            ) : (
+              <li>Администратор настраивает токен бота в этом разделе</li>
+            )}
             <li>Контрагент пишет боту команду <strong>/start</strong></li>
             <li>Бот пришлёт Chat ID — укажите его в карточке контрагента</li>
             <li>При проведении документа уведомление отправится автоматически</li>
@@ -221,7 +245,7 @@ export default function TelegramPage({ onStatusChange }) {
         </div>
       </div>
 
-      {modal && (
+      {modal && canSend && (
         <Modal
           title="Отправить сообщение"
           onClose={() => setModal(false)}

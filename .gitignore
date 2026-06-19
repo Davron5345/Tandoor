@@ -2,6 +2,9 @@ node_modules/
 client/node_modules/
 client/dist/
 data/
+e2e/.data/
+test-results/
+playwright-report/
 .env
 *.db
 .DS_Store

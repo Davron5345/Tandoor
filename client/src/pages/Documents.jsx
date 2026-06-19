@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { api, formatMoney, formatDate, formatPriceInput, parsePriceInput, STATUS_LABELS, ACTION_LABELS } from '../api';
 import Modal, { useToast } from '../components/Modal';
@@ -24,7 +24,6 @@ import {
 
 import {
   encodeProductPick,
-  getPickPrice,
   getPickStock,
   resolvePickFromProducts,
 } from '../utils/productVariants';
@@ -75,6 +74,10 @@ export default function Documents({ defaultType }) {
   const [payments, setPayments] = useState([]);
   const [filterType, setFilterType] = useState(defaultType || '');
   const [filterStatus, setFilterStatus] = useState('');
+  const [docPage, setDocPage] = useState(1);
+  const [docPages, setDocPages] = useState(1);
+  const [docTotal, setDocTotal] = useState(0);
+  const DOC_PAGE_SIZE = 50;
   const [modal, setModal] = useState(null);
   const [paymentModal, setPaymentModal] = useState(null);
   const [paymentForm, setPaymentForm] = useState(emptyPayment);
@@ -238,13 +241,17 @@ export default function Documents({ defaultType }) {
       });
   }, [modal, form.type, form.source_document_id, products]);
 
-  const load = () => {
-    const params = {};
+  const load = useCallback(() => {
+    const params = { page: docPage, limit: DOC_PAGE_SIZE };
     const docType = defaultType || filterType;
     if (docType) params.type = docType;
     if (filterStatus) params.status = filterStatus;
-    api.getDocuments(params).then(setDocs).catch(console.error);
-  };
+    api.getDocuments(params).then((data) => {
+      setDocs(data.items);
+      setDocPages(data.pages);
+      setDocTotal(data.total);
+    }).catch(console.error);
+  }, [defaultType, filterType, filterStatus, docPage]);
 
   useEffect(() => {
     Promise.all([
@@ -263,9 +270,14 @@ export default function Documents({ defaultType }) {
 
   useEffect(() => {
     setFilterType(defaultType || '');
+    setDocPage(1);
   }, [defaultType]);
 
-  useEffect(() => { load(); }, [defaultType, filterType, filterStatus, branchId]);
+  useEffect(() => {
+    setDocPage(1);
+  }, [filterType, filterStatus, branchId]);
+
+  useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
     if (!actionsMenuId) return undefined;
@@ -372,9 +384,12 @@ export default function Documents({ defaultType }) {
     && form.date
     && form.date < selectedReturnSourceDoc.date
   );
-  const selectableProducts = form.type === RETURN_SUPPLIER_TYPE
-    ? (returnSourceDocBlocked ? [] : returnSourceProductOptions)
-    : docProducts;
+  const selectableProducts = useMemo(
+    () => (form.type === RETURN_SUPPLIER_TYPE
+      ? (returnSourceDocBlocked ? [] : returnSourceProductOptions)
+      : docProducts),
+    [form.type, returnSourceDocBlocked, returnSourceProductOptions, docProducts],
+  );
   const isDepartmentTransfer = form.type === 'peremeshchenie' && form.transfer_mode === 'department';
   const docBranchForDept = branchId || 'main';
   const transferBranchId = form.from_branch_id || docBranchForDept;
@@ -679,7 +694,6 @@ export default function Documents({ defaultType }) {
       }
       if (form.type === 'peremeshchenie') {
         if (form.transfer_mode === 'department') {
-          const branch = form.from_branch_id || branchId || 'main';
           if (!form.to_department_id && !form.from_department_id) {
             show('Укажите отдел отправления или получения', 'error');
             return;
@@ -944,6 +958,19 @@ export default function Documents({ defaultType }) {
             </tbody>
           </table>
         </div>
+        {docPages > 1 && (
+          <div className="table-pagination" style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '12px 16px', justifyContent: 'flex-end' }}>
+            <span style={{ color: 'var(--text-muted)', fontSize: 14 }}>
+              {docTotal} документов · стр. {docPage} из {docPages}
+            </span>
+            <button type="button" className="btn btn-ghost" disabled={docPage <= 1} onClick={() => setDocPage((p) => p - 1)}>
+              ← Назад
+            </button>
+            <button type="button" className="btn btn-ghost" disabled={docPage >= docPages} onClick={() => setDocPage((p) => p + 1)}>
+              Вперёд →
+            </button>
+          </div>
+        )}
       </div>
 
       {modal && (
