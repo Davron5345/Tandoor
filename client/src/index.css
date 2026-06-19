@@ -1795,6 +1795,7 @@ input[type='number']::-webkit-inner-spin-button {
   overflow: hidden;
   box-shadow: var(--shadow);
   margin: auto;
+  position: relative;
 }
 
 .modal-wide {
@@ -1858,6 +1859,55 @@ input[type='number']::-webkit-inner-spin-button {
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.modal-close-btn {
+  font-size: 22px;
+  line-height: 1;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+}
+
+.modal-close-guard {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: color-mix(in srgb, var(--overlay) 85%, transparent);
+  border-radius: 12px;
+}
+
+.modal-close-guard-card {
+  width: min(100%, 400px);
+  padding: 20px 22px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.modal-close-guard-title {
+  margin: 0 0 8px;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.modal-close-guard-text {
+  margin: 0 0 16px;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.modal-close-guard-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
 }
 
 .modal-body {

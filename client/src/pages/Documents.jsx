@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { api, formatMoney, formatDate, formatPriceInput, parsePriceInput, STATUS_LABELS, ACTION_LABELS } from '../api';
-import Modal, { useToast } from '../components/Modal';
+import Modal, { useToast, ModalCancelButton } from '../components/Modal';
 import CategorySelect from '../components/CategorySelect';
 import ProductSelect from '../components/ProductSelect';
 import { useAuth } from '../AuthContext';
@@ -29,6 +29,14 @@ import {
 } from '../utils/productVariants';
 import { todayLocalIso } from '../utils/date';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
+import {
+  useFormDraft,
+  formDraftKey,
+  readFormDraft,
+  clearFormDraft,
+  promptRestoreDraft,
+} from '../hooks/useFormDraft';
+import { useFormDirty } from '../hooks/useFormDirty';
 
 const DEFAULT_CONTRACT_ID = '__default__';
 const RETURN_SUPPLIER_TYPE = 'return_supplier';
@@ -93,6 +101,10 @@ export default function Documents({ defaultType }) {
   const [previewDocNumber, setPreviewDocNumber] = useState('');
   const [actionsMenuId, setActionsMenuId] = useState(null);
   const [actionsMenuPos, setActionsMenuPos] = useState(null);
+  const draftKey = formDraftKey('documents', modal);
+  const draftPayload = useMemo(() => ({ form }), [form]);
+  useFormDraft(draftKey, draftPayload, Boolean(modal));
+  const isFormDirty = useFormDirty(draftPayload, draftKey);
   const { show, Toast } = useToast();
   const { user } = useAuth();
   const { branches, branchId } = useBranch();
@@ -454,17 +466,27 @@ export default function Documents({ defaultType }) {
     });
   };
 
+  const applyDocumentDraft = useCallback((modalKey, defaultForm) => {
+    const key = formDraftKey('documents', modalKey);
+    const draft = readFormDraft(key);
+    if (draft?.form && promptRestoreDraft(draft, 'черновик документа')) {
+      return draft.form;
+    }
+    if (draft) clearFormDraft(key);
+    return defaultForm;
+  }, []);
+
   const openCreate = (type) => {
     if (isReadOnly) return;
     const docType = type || defaultType || 'prihod';
-    setForm({
+    setForm(applyDocumentDraft('create', {
       ...emptyDoc,
       type: docType,
       from_branch_id: branchId || 'main',
       to_branch_id: '',
       transfer_mode: docType === 'peremeshchenie' ? 'branch' : 'branch',
       items: [{ ...emptyItem }],
-    });
+    }));
     setModal('create');
   };
 
@@ -472,7 +494,7 @@ export default function Documents({ defaultType }) {
     if (!canTransfer) return;
     const full = await api.getDocument(doc.id);
     const sourceBranch = full.branch_id || branchId || 'main';
-    setForm({
+    setForm(applyDocumentDraft('transfer', {
       ...emptyDoc,
       type: 'peremeshchenie',
       transfer_mode: 'branch',
@@ -489,14 +511,14 @@ export default function Documents({ defaultType }) {
         quantity: i.quantity,
         price: i.price,
       })),
-    });
+    }));
     setModal('transfer');
   };
 
   const openCopyDoc = async (doc) => {
     if (isReadOnly) return;
     const full = await api.getDocument(doc.id);
-    setForm({
+    setForm(applyDocumentDraft('create', {
       ...emptyDoc,
       type: full.type,
       counterparty_id: full.counterparty_id || '',
@@ -508,7 +530,7 @@ export default function Documents({ defaultType }) {
       comment: `Копия документа №${full.number}`,
       status: 'draft',
       items: [{ ...emptyItem }],
-    });
+    }));
     setModal('create');
   };
 
@@ -548,7 +570,7 @@ export default function Documents({ defaultType }) {
 
   const openEdit = async (id) => {
     const doc = await api.getDocument(id);
-    setForm({
+    const loadedForm = {
       ...doc,
       contract_id: doc.contract_id || DEFAULT_CONTRACT_ID,
       from_branch_id: doc.from_branch_id || doc.branch_id || '',
@@ -562,7 +584,8 @@ export default function Documents({ defaultType }) {
         quantity: i.quantity,
         price: i.price,
       })),
-    });
+    };
+    setForm(applyDocumentDraft(id, loadedForm));
     setModal(id);
   };
 
@@ -754,6 +777,7 @@ export default function Documents({ defaultType }) {
         await api.updateDocument(modal, data);
         show('Документ обновлён');
       }
+      clearFormDraft(draftKey);
       setModal(null);
       load();
     } catch (e) {
@@ -979,10 +1003,12 @@ export default function Documents({ defaultType }) {
         <Modal
           className="modal-doc"
           title={modalTitle}
+          dirty={isFormDirty}
+          draftSaved
           onClose={() => setModal(null)}
           footer={
             <>
-              <button className="btn btn-ghost" onClick={() => setModal(null)}>Закрыть</button>
+              <ModalCancelButton>Закрыть</ModalCancelButton>
               {canEdit && (
                 <>
                   <button className="btn btn-ghost" onClick={() => save(false)} disabled={hasTransferStockOverflow}>Сохранить</button>

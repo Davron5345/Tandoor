@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api, formatMoney, formatPriceInput, parsePriceInput } from '../api';
-import Modal, { useToast } from '../components/Modal';
+import Modal, { useToast, ModalCancelButton } from '../components/Modal';
 import CategorySelect from '../components/CategorySelect';
 import ProductMediaCubes, { revokePendingImages, uploadPendingProductImages } from '../components/ProductMediaCubes';
 import ProductVariantEditor, {
@@ -24,6 +24,8 @@ import ProductBranchSettings, {
 import { useAuth } from '../AuthContext';
 import { useBranch } from '../BranchContext';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
+import { useFormDraft, formDraftKey, readFormDraft, clearFormDraft, promptRestoreDraft } from '../hooks/useFormDraft';
+import { useFormDirty } from '../hooks/useFormDirty';
 import { hasPermission } from '../permissions';
 
 const UNITS = ['шт', 'кг', 'г', 'л', 'мл', 'м', 'м²', 'м³', 'уп', 'пач', 'кор'];
@@ -216,6 +218,14 @@ export default function Products() {
   const [archivedVariants, setArchivedVariants] = useState([]);
 
   const productId = modal && modal !== 'create' ? modal : null;
+  const draftKey = formDraftKey('products', modal);
+  const draftPayload = useMemo(() => ({
+    form,
+    productCardTab,
+    branchSettings: isAdmin ? branchSettings : [],
+  }), [form, productCardTab, branchSettings, isAdmin]);
+  useFormDraft(draftKey, draftPayload, Boolean(modal));
+  const isFormDirty = useFormDirty(draftPayload, draftKey);
 
   const filterCategory = searchParams.get('category') || '';
   const filterSupplier = searchParams.get('supplier') || '';
@@ -413,14 +423,26 @@ export default function Products() {
 
   const openCreate = () => {
     clearImages();
-    setForm({
+    const key = formDraftKey('products', 'create');
+    const draft = readFormDraft(key);
+    let nextForm = {
       ...emptyProduct,
       category_id: filterCategory || categories[0]?.id || 'other',
       supplier_ids: [],
       variants: [],
-    });
-    setBranchSettings(isAdmin ? buildDefaultBranchSettings() : []);
-    setProductCardTab('main');
+    };
+    let tab = 'main';
+    let settings = isAdmin ? buildDefaultBranchSettings() : [];
+    if (draft && promptRestoreDraft(draft, 'черновик нового товара')) {
+      nextForm = draft.form || nextForm;
+      tab = draft.productCardTab || 'main';
+      settings = draft.branchSettings || settings;
+    } else if (draft) {
+      clearFormDraft(key);
+    }
+    setForm(nextForm);
+    setBranchSettings(settings);
+    setProductCardTab(tab);
     setFocusedVariantId(null);
     setArchivedVariants([]);
     setModal('create');
@@ -444,7 +466,7 @@ export default function Products() {
   const openEdit = async (p, options = {}) => {
     const { variantId = null } = options;
     const priceSource = isAdmin ? (p.base_price ?? p.price) : p.price;
-    setForm({
+    const baseForm = {
       name: p.name,
       category_id: p.category_id || 'other',
       unit: p.unit || 'шт',
@@ -456,8 +478,20 @@ export default function Products() {
       supplier_ids: (p.suppliers || []).map((s) => s.id),
       has_variants: !!p.has_variants,
       variants: p.has_variants ? mapProductVariants(p.variants || []) : [],
-    });
-    setProductCardTab(variantId ? 'variants' : 'main');
+    };
+    const key = formDraftKey('products', p.id);
+    const draft = readFormDraft(key);
+    let restoredFromDraft = false;
+    if (draft && promptRestoreDraft(draft, 'черновик товара')) {
+      restoredFromDraft = true;
+      setForm(draft.form || baseForm);
+      setProductCardTab(draft.productCardTab || (variantId ? 'variants' : 'main'));
+      if (draft.branchSettings?.length) setBranchSettings(draft.branchSettings);
+    } else {
+      if (draft) clearFormDraft(key);
+      setForm(baseForm);
+      setProductCardTab(variantId ? 'variants' : 'main');
+    }
     setFocusedVariantId(variantId);
     setArchivedVariants([]);
     setModal(p.id);
@@ -466,7 +500,7 @@ export default function Products() {
         .then(setArchivedVariants)
         .catch(() => setArchivedVariants([]));
     }
-    if (isAdmin) {
+    if (isAdmin && !(restoredFromDraft && draft?.branchSettings?.length)) {
       try {
         const settings = await api.getProductBranchSettings(p.id);
         setBranchSettings(mapBranchSettingsFromApi(settings));
@@ -514,6 +548,7 @@ export default function Products() {
   };
 
   const finishSave = async (savedId) => {
+    clearFormDraft(draftKey);
     clearImages();
     setModal(null);
     setFocusedVariantId(null);
@@ -861,10 +896,12 @@ export default function Products() {
           wide
           className="modal-product"
           title={modal === 'create' ? 'Новый товар' : 'Карточка товара'}
+          dirty={isFormDirty}
+          draftSaved
           onClose={() => { clearImages(); setHighlightedProductId(null); setFocusedVariantId(null); setModal(null); load(); }}
           footer={
             <>
-              <button type="button" className="btn btn-ghost" onClick={() => { clearImages(); setFocusedVariantId(null); setModal(null); }}>Отмена</button>
+              <ModalCancelButton />
               <button type="button" className="btn btn-primary" onClick={save}>Сохранить</button>
             </>
           }

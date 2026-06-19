@@ -1,11 +1,19 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api, formatDate } from '../api';
-import Modal, { useToast } from '../components/Modal';
+import Modal, { useToast, ModalCancelButton } from '../components/Modal';
 import { IconButton, IconEdit, IconTrash } from '../components/ActionIcons';
 import { formatUzPhone } from '../phoneFormat';
 import { useAuth } from '../AuthContext';
 import { useBranch } from '../BranchContext';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
+import {
+  useFormDraft,
+  formDraftKey,
+  readFormDraft,
+  clearFormDraft,
+  promptRestoreDraft,
+} from '../hooks/useFormDraft';
+import { useFormDirty } from '../hooks/useFormDirty';
 import { hasPermission } from '../permissions';
 
 const empty = { name: '', type: 'supplier', phone: '', email: '', telegram_chat_id: '', address: '', notes: '' };
@@ -18,6 +26,10 @@ export default function Counterparties() {
   const [form, setForm] = useState(empty);
   const [contracts, setContracts] = useState([]);
   const [newContract, setNewContract] = useState(emptyContract);
+  const draftKey = formDraftKey('counterparties', modal);
+  const draftPayload = useMemo(() => ({ form }), [form]);
+  useFormDraft(draftKey, draftPayload, Boolean(modal));
+  const isFormDirty = useFormDirty(draftPayload, draftKey);
   const { show, Toast } = useToast();
   const { user } = useAuth();
   const { branchId, branchName } = useBranch();
@@ -49,12 +61,30 @@ export default function Counterparties() {
     }
   }, [modal, form.type, branchId]);
 
-  const openCreate = () => { setForm(empty); setModal('create'); };
+  const openCreate = () => {
+    const key = formDraftKey('counterparties', 'create');
+    const draft = readFormDraft(key);
+    if (draft?.form && promptRestoreDraft(draft, 'черновик контрагента')) {
+      setForm(draft.form);
+    } else {
+      if (draft) clearFormDraft(key);
+      setForm(empty);
+    }
+    setModal('create');
+  };
   const openEdit = (c) => {
-    setForm({
+    const baseForm = {
       ...c,
       phone: c.phone ? formatUzPhone(c.phone) : '',
-    });
+    };
+    const key = formDraftKey('counterparties', c.id);
+    const draft = readFormDraft(key);
+    if (draft?.form && promptRestoreDraft(draft, 'черновик контрагента')) {
+      setForm(draft.form);
+    } else {
+      if (draft) clearFormDraft(key);
+      setForm(baseForm);
+    }
     setModal(c.id);
   };
 
@@ -67,6 +97,7 @@ export default function Counterparties() {
         await api.updateCounterparty(modal, form);
         show('Контрагент обновлён');
       }
+      clearFormDraft(draftKey);
       setModal(null);
       load();
     } catch (e) {
@@ -171,11 +202,13 @@ export default function Counterparties() {
       {modal && (
         <Modal
           title={modal === 'create' ? 'Новый контрагент' : 'Редактировать контрагента'}
+          dirty={isFormDirty}
+          draftSaved
           onClose={() => setModal(null)}
           footer={
             <>
-              <button className="btn btn-ghost" onClick={() => setModal(null)}>Отмена</button>
-              <button className="btn btn-primary" onClick={save}>Сохранить</button>
+              <ModalCancelButton />
+              <button type="button" className="btn btn-primary" onClick={save}>Сохранить</button>
             </>
           }
         >

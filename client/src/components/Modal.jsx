@@ -1,20 +1,110 @@
-import { useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 
-export default function Modal({ title, children, onClose, footer, wide, className = '' }) {
+const ModalCloseContext = createContext(null);
+
+export function useModalClose() {
+  const requestClose = useContext(ModalCloseContext);
+  return requestClose || (() => {});
+}
+
+export function ModalCancelButton({
+  children = 'Отмена',
+  className = 'btn btn-ghost',
+  ...props
+}) {
+  const requestClose = useModalClose();
+  return (
+    <button type="button" className={className} onClick={requestClose} {...props}>
+      {children}
+    </button>
+  );
+}
+
+export default function Modal({
+  title,
+  children,
+  onClose,
+  footer,
+  wide,
+  className = '',
+  dirty = false,
+  draftSaved = false,
+}) {
+  const [closePrompt, setClosePrompt] = useState(false);
   const sizeClass = wide ? ' modal-wide' : '';
   const extraClass = className ? ` ${className}` : '';
+
+  const requestClose = useCallback(() => {
+    if (dirty) {
+      setClosePrompt(true);
+      return;
+    }
+    onClose();
+  }, [dirty, onClose]);
+
+  const confirmClose = useCallback(() => {
+    setClosePrompt(false);
+    onClose();
+  }, [onClose]);
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        requestClose();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [requestClose]);
+
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className={`modal${sizeClass}${extraClass}`} onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h2>{title}</h2>
-          <div className="modal-header-actions">
-            {footer && <div className="modal-footer-actions">{footer}</div>}
+    <ModalCloseContext.Provider value={requestClose}>
+      <div className="modal-overlay" onClick={requestClose}>
+        <div className={`modal${sizeClass}${extraClass}`} onClick={(e) => e.stopPropagation()}>
+          {closePrompt && (
+            <div className="modal-close-guard" role="dialog" aria-modal="true">
+              <div className="modal-close-guard-card">
+                <p className="modal-close-guard-title">Закрыть без сохранения?</p>
+                <p className="modal-close-guard-text">
+                  {draftSaved
+                    ? 'Несохранённые данные останутся в черновике до конца сессии браузера — при следующем открытии можно восстановить.'
+                    : 'Несохранённые изменения будут потеряны.'}
+                </p>
+                <div className="modal-close-guard-actions">
+                  <button type="button" className="btn btn-primary" onClick={() => setClosePrompt(false)}>
+                    Продолжить редактирование
+                  </button>
+                  <button type="button" className="btn btn-ghost" onClick={confirmClose}>
+                    Закрыть
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+          <div className="modal-header">
+            <h2>{title}</h2>
+            <div className="modal-header-actions">
+              {footer && <div className="modal-footer-actions">{footer}</div>}
+              <button
+                type="button"
+                className="btn btn-icon btn-ghost btn-sm modal-close-btn"
+                onClick={requestClose}
+                aria-label="Закрыть"
+              >
+                ×
+              </button>
+            </div>
           </div>
+          <div className="modal-body">{children}</div>
         </div>
-        <div className="modal-body">{children}</div>
       </div>
-    </div>
+    </ModalCloseContext.Provider>
   );
 }
 
