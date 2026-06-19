@@ -12,7 +12,7 @@
     "dev:client": "npm run dev --prefix client",
     "build": "npm run build --prefix client",
     "start": "node server/index.js",
-    "setup": "npm install && npm install --prefix client",
+    "setup": "npm install && npm install --prefix client --include=dev",
     "db:backup": "node server/scripts/db-backup.mjs",
     "db:verify": "node server/scripts/db-verify.mjs",
     "db:list-backups": "node server/scripts/db-list-backups.mjs",
