@@ -226,8 +226,13 @@ function AppContent() {
     ].filter((item) => hasPermission(user, item.perm));
 
     const catalogPathsLocal = [
-      ...(canViewProductsLocal ? ['/products', '/product-categories', '/shop-orders'] : []),
+      ...(canViewProductsLocal ? ['/products', '/product-categories'] : []),
       ...(hasPermission(user, 'counterparties.view') ? ['/counterparties'] : []),
+    ];
+
+    const myshopPathsLocal = [
+      ...(canViewProductsLocal ? ['/myshop', '/shop-orders'] : []),
+      ...(hasPermission(user, 'products.edit') ? ['/myshop/constructor'] : []),
     ];
 
     const reportPathsLocal = [
@@ -247,6 +252,8 @@ function AppContent() {
     const path = location.pathname;
     if (docPathsLocal.length && pathInGroup(path, docPathsLocal)) {
       setOpenNavGroup('documents');
+    } else if (myshopPathsLocal.length && pathInGroup(path, myshopPathsLocal)) {
+      setOpenNavGroup('myshop');
     } else if (catalogPathsLocal.length && pathInGroup(path, catalogPathsLocal)) {
       setOpenNavGroup('catalog');
     } else if (reportPathsLocal.length && pathInGroup(path, reportPathsLocal)) {
@@ -294,9 +301,16 @@ function AppContent() {
   ].filter((item) => hasPermission(user, item.perm));
 
   const catalogPaths = [
-    ...(canViewProducts ? ['/products', '/product-categories', '/shop-orders'] : []),
+    ...(canViewProducts ? ['/products', '/product-categories'] : []),
     ...(canViewCounterparties ? ['/counterparties'] : []),
   ];
+
+  const myshopPaths = [
+    ...(canViewProducts ? ['/myshop', '/shop-orders'] : []),
+    ...(canEditProducts ? ['/myshop/constructor'] : []),
+  ];
+
+  const showMyShopGroup = canViewProducts || canEditProducts;
 
   const reportNav = [
     ...(canViewDocuments ? [{ to: '/documents', label: 'Журнал документов', perm: 'documents.view' }] : []),
@@ -401,34 +415,43 @@ function AppContent() {
               </NavLink>
             )}
 
-            {canViewProducts && (
-              <NavLink
-                to="/myshop"
-                className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
-                title={sidebarCollapsed ? 'MyShop' : undefined}
+            {showMyShopGroup && (
+              <NavGroup
+                groupId="myshop"
+                icon={IconNavShop}
+                label="MyShop"
+                paths={myshopPaths}
+                isOpen={openNavGroup === 'myshop'}
+                onToggle={toggleNavGroup}
+                sidebarCollapsed={sidebarCollapsed}
+                {...navGroupFlyoutProps('myshop')}
               >
-                <NavItemContent icon={IconNavShop} label="MyShop" />
-              </NavLink>
-            )}
-
-            {canEditProducts && (
-              <NavLink
-                to="/myshop/constructor"
-                className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
-                title={sidebarCollapsed ? 'Конструктор MyShop' : undefined}
-              >
-                <NavItemContent icon={IconNavCatalog} label="Конструктор MyShop" />
-              </NavLink>
-            )}
-
-            {canViewProducts && (
-              <NavLink
-                to="/shop-orders"
-                className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
-                title={sidebarCollapsed ? 'Заказы MyShop' : undefined}
-              >
-                <NavItemContent icon={IconNavDocuments} label="Заказы MyShop" />
-              </NavLink>
+                {canViewProducts && (
+                  <NavLink
+                    to="/myshop"
+                    end
+                    className={({ isActive }) => `nav-link nav-link-sub${isActive ? ' active' : ''}`}
+                  >
+                    Витрина
+                  </NavLink>
+                )}
+                {canEditProducts && (
+                  <NavLink
+                    to="/myshop/constructor"
+                    className={({ isActive }) => `nav-link nav-link-sub${isActive ? ' active' : ''}`}
+                  >
+                    Конструктор
+                  </NavLink>
+                )}
+                {canViewProducts && (
+                  <NavLink
+                    to="/shop-orders"
+                    className={({ isActive }) => `nav-link nav-link-sub${isActive ? ' active' : ''}`}
+                  >
+                    Заказы
+                  </NavLink>
+                )}
+              </NavGroup>
             )}
 
             {showDocumentsGroup && (
