@@ -24,6 +24,26 @@ import { useTheme } from './ThemeContext';
 import { useAuth } from './AuthContext';
 import { useBranch } from './BranchContext';
 import { hasPermission, hasAnyPermission } from './permissions';
+import {
+  IconNavHome,
+  IconNavDocuments,
+  IconNavCatalog,
+  IconNavReports,
+  IconNavCashier,
+  IconNavPayments,
+  IconNavArticles,
+  IconNavTelegram,
+  IconNavAdmin,
+  IconNavWarehouse,
+  IconNavSun,
+  IconNavMoon,
+  IconNavChevronLeft,
+  IconNavChevronRight,
+  IconNavChevronDown,
+  IconNavMenu,
+  IconNavLogout,
+  IconNavBranch,
+} from './components/NavIcons';
 
 const SIDEBAR_COLLAPSED_KEY = 'warehouse-sidebar-collapsed';
 
@@ -39,16 +59,16 @@ function pathInGroup(pathname, paths) {
   return paths.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 
-function NavItemContent({ icon, label }) {
+function NavItemContent({ icon: Icon, label }) {
   return (
     <>
-      <span className="nav-icon" aria-hidden="true">{icon}</span>
+      <span className="nav-icon">{Icon ? <Icon /> : null}</span>
       <span className="nav-label">{label}</span>
     </>
   );
 }
 
-function NavGroup({ groupId, icon, label, children, paths, isOpen, onToggle, sidebarCollapsed }) {
+function NavGroup({ groupId, icon: Icon, label, children, paths, isOpen, onToggle, sidebarCollapsed }) {
   const location = useLocation();
   const isActive = pathInGroup(location.pathname, paths);
   const [flyoutOpen, setFlyoutOpen] = useState(false);
@@ -142,10 +162,12 @@ function NavGroup({ groupId, icon, label, children, paths, isOpen, onToggle, sid
         title={sidebarCollapsed ? label : undefined}
       >
         <span className="nav-group-toggle-main">
-          <span className="nav-icon" aria-hidden="true">{icon}</span>
+          <span className="nav-icon">{Icon ? <Icon /> : null}</span>
           <span className="nav-label">{label}</span>
         </span>
-        <span className="nav-group-chevron" aria-hidden="true">{isOpen ? '▾' : '▸'}</span>
+        <span className={`nav-group-chevron${isOpen ? ' is-open' : ''}`} aria-hidden="true">
+          <IconNavChevronDown />
+        </span>
       </button>
       <div
         ref={flyoutRef}
@@ -310,7 +332,7 @@ function AppContent() {
         <div className="sidebar-panel">
         <div className="sidebar-header">
           <div className="logo">
-            <div className="logo-mark" aria-hidden>📦</div>
+            <div className="logo-mark" aria-hidden><IconNavWarehouse /></div>
             <div className="logo-text">
               <strong>Склад</strong>
               <span>Учёт прихода и расхода</span>
@@ -324,7 +346,7 @@ function AppContent() {
               title={sidebarCollapsed ? 'Развернуть меню' : 'Свернуть меню'}
               aria-label={sidebarCollapsed ? 'Развернуть меню' : 'Свернуть меню'}
             >
-              {sidebarCollapsed ? '▶' : '◀'}
+              {sidebarCollapsed ? <IconNavChevronRight /> : <IconNavChevronLeft />}
             </button>
             <button
               type="button"
@@ -332,7 +354,7 @@ function AppContent() {
               onClick={toggleTheme}
               title={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
             >
-              {theme === 'dark' ? '☀️' : '🌙'}
+              {theme === 'dark' ? <IconNavSun /> : <IconNavMoon />}
             </button>
           </div>
         </div>
@@ -345,14 +367,14 @@ function AppContent() {
                 className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
                 title={sidebarCollapsed ? 'Главная' : undefined}
               >
-                <NavItemContent icon="🏠" label="Главная" />
+                <NavItemContent icon={IconNavHome} label="Главная" />
               </NavLink>
             )}
 
             {showDocumentsGroup && (
               <NavGroup
                 groupId="documents"
-                icon="📋"
+                icon={IconNavDocuments}
                 label="Документы"
                 paths={docPaths}
                 isOpen={openNavGroup === 'documents'}
@@ -374,7 +396,7 @@ function AppContent() {
             {catalogPaths.length > 0 && (
               <NavGroup
                 groupId="catalog"
-                icon="🏷️"
+                icon={IconNavCatalog}
                 label="Справочники"
                 paths={catalogPaths}
                 isOpen={openNavGroup === 'catalog'}
@@ -411,7 +433,7 @@ function AppContent() {
             {reportNav.length > 0 && (
               <NavGroup
                 groupId="reports"
-                icon="📊"
+                icon={IconNavReports}
                 label="Отчёты"
                 paths={reportPaths}
                 isOpen={openNavGroup === 'reports'}
@@ -440,7 +462,7 @@ function AppContent() {
                 className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
                 title={sidebarCollapsed ? 'Касса' : undefined}
               >
-                <NavItemContent icon="💵" label="Касса" />
+                <NavItemContent icon={IconNavCashier} label="Касса" />
               </NavLink>
             )}
 
@@ -450,7 +472,7 @@ function AppContent() {
                 className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
                 title={sidebarCollapsed ? 'Оплаты' : undefined}
               >
-                <NavItemContent icon="💰" label="Оплаты" />
+                <NavItemContent icon={IconNavPayments} label="Оплаты" />
               </NavLink>
             )}
 
@@ -460,7 +482,7 @@ function AppContent() {
                 className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
                 title={sidebarCollapsed ? 'Статьи кассы' : undefined}
               >
-                <NavItemContent icon="📑" label="Статьи кассы" />
+                <NavItemContent icon={IconNavArticles} label="Статьи кассы" />
               </NavLink>
             )}
 
@@ -470,14 +492,14 @@ function AppContent() {
                 className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
                 title={sidebarCollapsed ? 'Telegram' : undefined}
               >
-                <NavItemContent icon="✈️" label="Telegram" />
+                <NavItemContent icon={IconNavTelegram} label="Telegram" />
               </NavLink>
             )}
 
             {showStaffGroup && (
               <NavGroup
                 groupId="admin"
-                icon="👤"
+                icon={IconNavAdmin}
                 label="Администрирование"
                 paths={staffPaths}
                 isOpen={openNavGroup === 'admin'}
@@ -544,7 +566,10 @@ function AppContent() {
             </div>
           )}
           {!isBranchAdmin && user.branch_id && (
-            <div className="sidebar-branch-name">📍 {branchName}</div>
+            <div className="sidebar-branch-name">
+              <IconNavBranch />
+              <span>{branchName}</span>
+            </div>
           )}
           <div className="sidebar-profile">
             <div className="sidebar-profile-avatar" aria-hidden>
@@ -563,12 +588,13 @@ function AppContent() {
               title="Выйти"
               aria-label="Выйти"
             >
-              ⏻
+              <IconNavLogout />
             </button>
           </div>
           {hasPermission(user, 'telegram.view') && (
             <div className={`telegram-badge ${telegramOnline ? 'online' : 'offline'}`}>
-              {telegramOnline ? '🟢 Telegram бот активен' : '🟡 Telegram не настроен'}
+              <span className="telegram-badge-dot" aria-hidden="true" />
+              <span>{telegramOnline ? 'Telegram бот активен' : 'Telegram не настроен'}</span>
             </div>
           )}
         </div>
@@ -585,7 +611,8 @@ function AppContent() {
             aria-label={sidebarCollapsed ? 'Показать меню' : 'Скрыть меню'}
             aria-expanded={!sidebarCollapsed}
           >
-            {sidebarCollapsed ? '☰ Меню' : '◀ Свернуть'}
+            <IconNavMenu />
+            <span>{sidebarCollapsed ? 'Меню' : 'Свернуть'}</span>
           </button>
         </div>
         <div className="main-content">

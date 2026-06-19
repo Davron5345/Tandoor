@@ -306,10 +306,16 @@ button, input, select, textarea {
   align-items: center;
   justify-content: center;
   border-radius: 12px;
-  background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, #6366f1 100%);
   font-size: 20px;
   line-height: 1;
-  box-shadow: 0 4px 14px rgba(59, 130, 246, 0.35);
+  color: #fff;
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--primary) 35%, transparent);
+}
+
+.logo-mark svg {
+  width: 22px;
+  height: 22px;
 }
 
 .logo-text strong {
@@ -340,10 +346,18 @@ button, input, select, textarea {
 
 .nav-icon {
   flex-shrink: 0;
-  width: 1.35em;
-  text-align: center;
-  font-size: 1.15em;
-  line-height: 1;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: inherit;
+}
+
+.nav-icon svg {
+  width: 20px;
+  height: 20px;
+  display: block;
 }
 
 .nav-label {
@@ -372,6 +386,27 @@ button, input, select, textarea {
 }
 
 .nav-link.active {
+  background: var(--nav-active-bg);
+  color: var(--nav-active-text);
+  font-weight: 600;
+}
+
+.nav-link.active .nav-icon,
+.nav-group-active .nav-icon {
+  color: var(--primary);
+}
+
+.nav-link-sub {
+  padding: 10px 14px;
+  font-size: var(--font-sm);
+}
+
+.nav-link-sub:hover {
+  background: var(--nav-hover);
+  color: var(--text);
+}
+
+.nav-link-sub.active {
   background: var(--nav-active-bg);
   color: var(--nav-active-text);
   font-weight: 600;
@@ -424,10 +459,28 @@ button, input, select, textarea {
 }
 
 .nav-group-chevron {
-  font-size: 12px;
-  opacity: 0.55;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  opacity: 0.45;
   flex-shrink: 0;
-  transition: transform 0.2s ease;
+  transition: transform 0.2s ease, opacity 0.15s;
+}
+
+.nav-group-chevron svg {
+  width: 14px;
+  height: 14px;
+}
+
+.nav-group-chevron:not(.is-open) {
+  transform: rotate(-90deg);
+}
+
+.nav-group-open .nav-group-chevron,
+.nav-group-toggle:hover .nav-group-chevron {
+  opacity: 0.75;
 }
 
 .nav-group-items {
@@ -444,11 +497,6 @@ button, input, select, textarea {
 
 .nav-flyout-title {
   display: none;
-}
-
-.nav-link-sub {
-  padding: 10px 14px;
-  font-size: var(--font-sm);
 }
 
 .nav-divider {
@@ -470,6 +518,41 @@ button, input, select, textarea {
   background: var(--sidebar-elevated);
 }
 
+.sidebar-toggle svg,
+.theme-toggle svg,
+.sidebar-logout-btn svg,
+.sidebar-menu-btn svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+.sidebar-menu-btn svg {
+  width: 17px;
+  height: 17px;
+}
+
+.sidebar-branch-name {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: var(--font-sm);
+  font-weight: 500;
+  color: var(--text-muted);
+  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sidebar-branch-name svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
 .telegram-badge {
   padding: 10px 12px;
   background: var(--surface);
@@ -479,6 +562,22 @@ button, input, select, textarea {
   font-weight: 500;
   width: 100%;
   line-height: 1.4;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.telegram-badge-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--warning);
+}
+
+.telegram-badge.online .telegram-badge-dot {
+  background: var(--success);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 20%, transparent);
 }
 
 .telegram-badge.online {
@@ -563,8 +662,8 @@ button, input, select, textarea {
 }
 
 .app.sidebar-collapsed .nav-icon {
-  width: auto;
-  font-size: 1.35em;
+  width: 22px;
+  height: 22px;
 }
 
 .app.sidebar-collapsed .nav-divider {
@@ -593,15 +692,45 @@ button, input, select, textarea {
 .app.sidebar-collapsed .nav-flyout-panel {
   display: none;
   position: fixed;
-  min-width: 220px;
-  max-width: min(280px, 70vw);
+  min-width: 240px;
+  max-width: min(300px, 72vw);
   margin: 0;
-  padding: 8px;
-  border-radius: 12px;
-  border: 1px solid var(--border);
-  background: var(--sidebar-bg);
-  box-shadow: var(--shadow);
+  padding: 6px;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+  background: var(--surface);
+  box-shadow:
+    0 4px 6px -2px rgba(15, 23, 42, 0.05),
+    0 18px 44px -10px rgba(15, 23, 42, 0.16);
   z-index: 400;
+  flex-direction: column;
+  gap: 2px;
+  animation: nav-flyout-in 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.app.sidebar-collapsed .nav-flyout-panel::before {
+  content: '';
+  position: absolute;
+  left: -5px;
+  top: 16px;
+  width: 10px;
+  height: 10px;
+  background: var(--surface);
+  border-left: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+  transform: rotate(45deg);
+}
+
+@keyframes nav-flyout-in {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 .app.sidebar-collapsed .nav-group-items.is-visible,
@@ -611,15 +740,35 @@ button, input, select, textarea {
 
 .app.sidebar-collapsed .nav-flyout-title {
   display: block;
-  padding: 8px 12px 6px;
-  font-size: var(--font-sm);
+  padding: 10px 12px 8px;
+  margin: 2px 2px 4px;
+  font-size: 11px;
   font-weight: 700;
-  color: var(--text);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-muted);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  text-align: left;
 }
 
 .app.sidebar-collapsed .nav-link-sub {
   padding: 10px 12px;
-  border-radius: 8px;
+  border-radius: 9px;
+  font-size: var(--font-base);
+  text-align: left;
+  justify-content: flex-start;
+  width: 100%;
+}
+
+.app.sidebar-collapsed .nav-link-sub:hover {
+  background: var(--nav-hover);
+  color: var(--text);
+}
+
+.app.sidebar-collapsed .nav-link-sub.active {
+  background: var(--nav-active-bg);
+  color: var(--nav-active-text);
+  font-weight: 600;
 }
 
 .app:not(.sidebar-collapsed) .nav-group-items.is-visible {
@@ -4644,17 +4793,6 @@ input[type='number']::-webkit-inner-spin-button {
   color: var(--text);
   font-size: var(--font-base);
   font-weight: 500;
-}
-
-.sidebar-branch-name {
-  width: 100%;
-  padding: 10px 12px;
-  font-size: var(--font-sm);
-  font-weight: 500;
-  color: var(--text-muted);
-  border-radius: 10px;
-  background: var(--surface);
-  border: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
 }
 
 .sidebar-profile {
