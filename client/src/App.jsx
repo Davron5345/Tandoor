@@ -17,6 +17,7 @@ import AuditLog from './pages/AuditLog';
 import Razdelka from './pages/Razdelka';
 import Calculations from './pages/Calculations';
 import Reports from './pages/Reports';
+import MyShop from './pages/MyShop';
 import Login from './pages/Login';
 import ChangePassword from './pages/ChangePassword';
 import { api } from './api';
@@ -28,6 +29,7 @@ import {
   IconNavHome,
   IconNavDocuments,
   IconNavCatalog,
+  IconNavShop,
   IconNavReports,
   IconNavCashier,
   IconNavPayments,
@@ -277,6 +279,7 @@ function AppContent() {
   const canViewCounterparties = hasPermission(user, 'counterparties.view');
   const canViewTelegram = hasPermission(user, 'telegram.view');
   const canViewDashboard = hasPermission(user, 'dashboard.view');
+  const isMyShop = location.pathname === '/myshop';
 
   const docNav = [
     { to: '/prihod', label: 'Приход', perm: 'documents.prihod' },
@@ -350,7 +353,7 @@ function AppContent() {
   };
 
   return (
-    <div className={`app${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
+    <div className={`app${sidebarCollapsed ? ' sidebar-collapsed' : ''}${isMyShop ? ' app-myshop-mode' : ''}`}>
       <aside className="sidebar">
         <div className="sidebar-panel">
         <div className="sidebar-header">
@@ -391,6 +394,16 @@ function AppContent() {
                 title={sidebarCollapsed ? 'Главная' : undefined}
               >
                 <NavItemContent icon={IconNavHome} label="Главная" />
+              </NavLink>
+            )}
+
+            {canViewProducts && (
+              <NavLink
+                to="/myshop"
+                className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
+                title={sidebarCollapsed ? 'MyShop' : undefined}
+              >
+                <NavItemContent icon={IconNavShop} label="MyShop" />
               </NavLink>
             )}
 
@@ -656,6 +669,7 @@ function AppContent() {
           <Route path="/cashier" element={canViewCashier ? <Cashier /> : <Navigate to={firstNavPath} />} />
           <Route path="/payments" element={canViewPayments ? <Payments /> : <Navigate to="/" />} />
           <Route path="/cash-articles" element={canViewCashArticles ? <CashArticles /> : <Navigate to={firstNavPath} />} />
+          <Route path="/myshop" element={canViewProducts ? <MyShop /> : <Navigate to="/" />} />
           <Route path="/products" element={canViewProducts ? <Products /> : <Navigate to="/" />} />
           <Route path="/product-categories" element={canViewProducts ? <ProductCategories /> : <Navigate to="/" />} />
           <Route path="/counterparties" element={hasPermission(user, 'counterparties.view') ? <Counterparties /> : <Navigate to="/" />} />

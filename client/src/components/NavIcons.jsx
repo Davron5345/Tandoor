@@ -36,6 +36,15 @@ export function IconNavCatalog() {
   );
 }
 
+export function IconNavShop() {
+  return (
+    <NavSvg>
+      <path d="M6 8h12l-1.2 9H7.2L6 8z" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinejoin="round" />
+      <path d="M9 8V6a3 3 0 0 1 6 0v2" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+    </NavSvg>
+  );
+}
+
 export function IconNavReports() {
   return (
     <NavSvg>
