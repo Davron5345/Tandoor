@@ -8,7 +8,7 @@ import { hasPermission } from '../permissions';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import Login from './Login';
 import ChangePassword from './ChangePassword';
-import { IconNavWarehouse, IconNavLogout, IconNavSun, IconNavMoon } from '../components/NavIcons';
+import { IconNavWarehouse, IconNavLogout, IconNavSun, IconNavMoon, IconNavRefresh } from '../components/NavIcons';
 
 const STATUS_FILTERS = [
   { value: '', label: 'Все' },
@@ -186,7 +186,7 @@ export default function ShopOrdersMobile() {
                 {theme === 'dark' ? <IconNavSun /> : <IconNavMoon />}
               </button>
               <button type="button" className="warehouse-orders-mobile-icon-btn" onClick={() => load()} aria-label="Обновить" title="Обновить">
-                ↻
+                <IconNavRefresh />
               </button>
               <button type="button" className="warehouse-orders-mobile-icon-btn" onClick={logout} aria-label="Выйти" title="Выйти">
                 <IconNavLogout />

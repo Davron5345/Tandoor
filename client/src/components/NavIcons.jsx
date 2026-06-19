@@ -3,7 +3,7 @@ export { IconWallet as IconNavPayments } from './ActionIcons';
 
 function NavSvg({ children }) {
   return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
+    <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" focusable="false">
       {children}
     </svg>
   );
@@ -190,6 +190,15 @@ export function IconNavLogout() {
     <NavSvg>
       <path d="M10 7V5a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-8a1 1 0 0 1-1-1v-2" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinejoin="round" />
       <path d="M13 12H3m0 0 3-3M3 12l3 3" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+    </NavSvg>
+  );
+}
+
+export function IconNavRefresh() {
+  return (
+    <NavSvg>
+      <path d="M20 12a8 8 0 1 1-2.34-5.66" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+      <path d="M20 4v4h-4" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
     </NavSvg>
   );
 }
