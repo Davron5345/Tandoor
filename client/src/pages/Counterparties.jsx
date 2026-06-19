@@ -5,6 +5,7 @@ import { IconButton, IconEdit, IconTrash } from '../components/ActionIcons';
 import { formatUzPhone } from '../phoneFormat';
 import { useAuth } from '../AuthContext';
 import { useBranch } from '../BranchContext';
+import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import { hasPermission } from '../permissions';
 
 const empty = { name: '', type: 'supplier', phone: '', email: '', telegram_chat_id: '', address: '', notes: '' };
@@ -27,6 +28,7 @@ export default function Counterparties() {
     [filter],
   );
   useEffect(() => { load(); }, [load]);
+  useAutoRefresh(load, [load, branchId], { enabled: !modal });
 
   const loadContracts = (counterpartyId) => {
     if (!counterpartyId) {

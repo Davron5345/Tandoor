@@ -6,6 +6,7 @@ import { canModifyPaymentDate, hasAnyPermission } from '../permissions';
 import { useAuth } from '../AuthContext';
 import { useBranch } from '../BranchContext';
 import { todayLocalIso } from '../utils/date';
+import { useAutoRefresh } from '../hooks/useAutoRefresh';
 
 const emptySideForm = {
   amountInput: '',
@@ -553,6 +554,7 @@ export default function Cashier() {
   }, [show]);
 
   useEffect(() => { load(); }, [load, branchId]);
+  useAutoRefresh(load, [load, branchId], { enabled: !editingPayment });
 
   useEffect(() => {
     applySavedPrefs();

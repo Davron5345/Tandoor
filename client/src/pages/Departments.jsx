@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../api';
 import Modal, { useToast } from '../components/Modal';
 import { useBranch } from '../BranchContext';
+import { useAutoRefresh } from '../hooks/useAutoRefresh';
 
 const empty = { id: '', branch_id: '', name: '', active: true };
 
@@ -18,6 +19,7 @@ export default function Departments() {
   };
 
   useEffect(() => { load(); }, [branchId]);
+  useAutoRefresh(load, [branchId], { enabled: !modal });
 
   const openCreate = () => {
     setForm({ ...empty, branch_id: branchId || activeBranches[0]?.id || 'main' });

@@ -28,6 +28,7 @@ import {
   resolvePickFromProducts,
 } from '../utils/productVariants';
 import { todayLocalIso } from '../utils/date';
+import { useAutoRefresh } from '../hooks/useAutoRefresh';
 
 const DEFAULT_CONTRACT_ID = '__default__';
 const RETURN_SUPPLIER_TYPE = 'return_supplier';
@@ -278,6 +279,7 @@ export default function Documents({ defaultType }) {
   }, [filterType, filterStatus, branchId]);
 
   useEffect(() => { load(); }, [load]);
+  useAutoRefresh(load, [load, branchId], { enabled: !modal && !paymentModal });
 
   useEffect(() => {
     if (!actionsMenuId) return undefined;

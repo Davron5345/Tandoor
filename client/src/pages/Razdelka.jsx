@@ -4,6 +4,7 @@ import Modal, { useToast } from '../components/Modal';
 import ProductSelect from '../components/ProductSelect';
 import { useAuth } from '../AuthContext';
 import { useBranch } from '../BranchContext';
+import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import { hasPermission } from '../permissions';
 import {
   IconButton,
@@ -181,6 +182,7 @@ export default function Razdelka() {
   }, [filterStatus]);
 
   useEffect(() => { load(); }, [load]);
+  useAutoRefresh(load, [load], { enabled: !modal });
 
   useEffect(() => {
     Promise.all([

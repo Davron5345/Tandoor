@@ -3,6 +3,7 @@ import { api } from '../api';
 import Modal, { useToast } from '../components/Modal';
 import { useAuth } from '../AuthContext';
 import { useBranch } from '../BranchContext';
+import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import { hasPermission } from '../permissions';
 
 const emptyUser = { username: '', password: '', name: '', role: 'warehouse', branch_id: 'main', active: true };
@@ -26,6 +27,7 @@ export default function Employees() {
   };
 
   useEffect(() => { load(); }, [branchId]);
+  useAutoRefresh(load, [branchId], { enabled: !userModal });
 
   const openCreateUser = () => {
     const defaultRole = Object.keys(roles).find((k) => k !== 'admin') || 'warehouse';

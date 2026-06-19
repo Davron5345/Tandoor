@@ -4,6 +4,7 @@ import Modal, { useToast } from '../components/Modal';
 import { IconButton, IconArrowDown, IconArrowUp, IconEdit, IconPlus, IconTrash } from '../components/ActionIcons';
 import { useAuth } from '../AuthContext';
 import { useBranch } from '../BranchContext';
+import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import { hasPermission } from '../permissions';
 
 const PURCHASE_ARTICLE_CODE = 'exp_purchase';
@@ -125,6 +126,7 @@ export default function CashArticles() {
   }, []);
 
   useEffect(() => { load(); }, [load, branchId]);
+  useAutoRefresh(load, [load, branchId], { enabled: !modal });
 
   const incomeArticles = useMemo(
     () => articles.filter((a) => a.direction === 'income'),

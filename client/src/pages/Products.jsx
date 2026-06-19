@@ -23,6 +23,7 @@ import ProductBranchSettings, {
 } from '../components/ProductBranchSettings';
 import { useAuth } from '../AuthContext';
 import { useBranch } from '../BranchContext';
+import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import { hasPermission } from '../permissions';
 
 const UNITS = ['шт', 'кг', 'г', 'л', 'мл', 'м', 'м²', 'м³', 'уп', 'пач', 'кор'];
@@ -255,6 +256,7 @@ export default function Products() {
   }, [branchId, filterCategory, filterSupplier, search]);
 
   useEffect(() => { load(); }, [load]);
+  useAutoRefresh(load, [load, branchId], { enabled: !modal });
 
   useEffect(() => {
     setHighlightedProductId(null);

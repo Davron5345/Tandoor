@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { api, formatDate } from '../api';
 import Modal, { useToast } from '../components/Modal';
 import { useAuth } from '../AuthContext';
+import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import { hasPermission } from '../permissions';
 
 export default function TelegramPage({ onStatusChange }) {
@@ -45,6 +46,7 @@ export default function TelegramPage({ onStatusChange }) {
   }, [canManageSettings]);
 
   useEffect(() => { load(); }, [load]);
+  useAutoRefresh(load, [load], { enabled: !modal });
 
   const startEdit = () => {
     setEditing(true);

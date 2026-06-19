@@ -5,6 +5,7 @@ import Modal, { useToast } from '../components/Modal';
 import { hasPermission } from '../permissions';
 import { useAuth } from '../AuthContext';
 import { useBranch } from '../BranchContext';
+import { useAutoRefresh } from '../hooks/useAutoRefresh';
 
 const empty = {
   type: 'supplier_payment',
@@ -49,6 +50,7 @@ export default function Payments() {
   }, [show]);
 
   useEffect(() => { load(); }, [load, branchId]);
+  useAutoRefresh(load, [load, branchId], { enabled: !modal });
 
   const openCreate = () => { setForm({ ...empty }); setModal('create'); };
   const openEdit = (p) => {

@@ -5,6 +5,7 @@ import Modal, { useToast } from '../components/Modal';
 import ProductSelect from '../components/ProductSelect';
 import { useAuth } from '../AuthContext';
 import { useBranch } from '../BranchContext';
+import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import { hasPermission } from '../permissions';
 import { AddRowButton } from '../components/ActionIcons';
 import {
@@ -43,6 +44,10 @@ export default function Calculations() {
   useEffect(() => {
     api.getProducts().then(setProducts).catch(console.error);
   }, [branchId]);
+  useAutoRefresh(() => {
+    load();
+    api.getProducts().then(setProducts).catch(console.error);
+  }, [branchId], { enabled: !modal });
 
   const sourceProductKeys = useMemo(
     () => new Set(
