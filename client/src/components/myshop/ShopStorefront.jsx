@@ -114,6 +114,10 @@ function ShopProductCard({ product, onOpen, onAdd, publicMode = false }) {
   const canOrder = publicMode || inStock;
 
   const handleActivate = () => {
+    if (publicMode) {
+      onAdd?.(product);
+      return;
+    }
     if (!canOrder) return;
     onOpen?.(product);
   };
