@@ -612,18 +612,18 @@ export default function ShopStorefront({
   useEffect(() => {
     if (!scrollSpyEnabled || !highlightedCategoryId) return;
     const chip = chipBarRef.current?.querySelector(`[data-category-chip="${highlightedCategoryId}"]`);
-    chip?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+    chip?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'auto' });
   }, [highlightedCategoryId, scrollSpyEnabled]);
 
   const scrollToCategorySection = (categoryId) => {
     const root = scrollBodyRef.current;
     if (!root) return;
     if (!categoryId) {
-      root.scrollTo({ top: 0, behavior: 'smooth' });
+      root.scrollTo({ top: 0, behavior: 'auto' });
       return;
     }
     const section = root.querySelector(`[data-category-section="${categoryId}"]`);
-    section?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    section?.scrollIntoView({ behavior: 'auto', block: 'start' });
   };
 
   const handleCategoryChip = (categoryId) => {

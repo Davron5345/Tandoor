@@ -120,15 +120,14 @@ export function createShopOrder(branchId, payload) {
   const settings = getShopSettings(branchId);
   if (!settings.enabled) throw new Error('Магазин временно недоступен');
 
-  const customerName = String(payload.customer_name || '').trim();
-  const customerPhone = String(payload.customer_phone || '').replace(/\D/g, '');
+  const customerName = String(payload.customer_name || '').trim() || 'Гость';
+  const customerPhoneRaw = String(payload.customer_phone || '').replace(/\D/g, '');
+  const customerPhone = customerPhoneRaw.length >= 9 ? customerPhoneRaw : '—';
   const deliveryType = payload.delivery_type === 'delivery' ? 'delivery' : 'pickup';
   const address = String(payload.address || '').trim();
   const comment = String(payload.comment || '').trim();
   const itemsInput = Array.isArray(payload.items) ? payload.items : [];
 
-  if (!customerName) throw new Error('Укажите имя');
-  if (customerPhone.length < 9) throw new Error('Укажите корректный телефон');
   if (itemsInput.length === 0) throw new Error('Корзина пуста');
   if (deliveryType === 'delivery' && !address) throw new Error('Укажите адрес доставки');
 

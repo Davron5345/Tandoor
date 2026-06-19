@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { api, formatMoney } from '../api';
-import { formatUzPhone } from '../phoneFormat';
 import ShopStorefront from '../components/myshop/ShopStorefront';
+import CartSwipeItem from '../components/myshop/CartSwipeItem';
 import { IconNavShop, IconNavCart } from '../components/NavIcons';
 import {
   addCartItem,
@@ -14,7 +14,7 @@ import {
   updateCartItemQty,
 } from '../utils/publicShopCart';
 
-function CartView({ items, onBack, onCheckout, onClear, onQtyChange, onRemove }) {
+function CartView({ items, onBack, onCheckout, onClear, onQtyChange, onRemove, submitting }) {
   const total = cartTotal(items);
 
   const handleClear = () => {
@@ -42,177 +42,31 @@ function CartView({ items, onBack, onCheckout, onClear, onQtyChange, onRemove })
       ) : (
         <>
           <ul className="public-shop-cart-list">
-            {items.map((item) => {
-              const label = item.variant_name
-                ? `${item.product_name} — ${item.variant_name}`
-                : item.product_name;
-              return (
-                <li key={`${item.product_id}:${item.variant_id || ''}`} className="public-shop-cart-item">
-                  <div className="public-shop-cart-item-main">
-                    <strong>{label}</strong>
-                    <span>{formatMoney(item.price)} × {item.quantity} {item.unit || 'шт'}</span>
-                    <strong>{formatMoney(item.price * item.quantity)}</strong>
-                  </div>
-                  <div className="public-shop-cart-item-actions">
-                    <div className="myshop-qty-controls myshop-qty-controls-sm">
-                      <button
-                        type="button"
-                        onClick={() => onQtyChange(item.product_id, item.variant_id, item.quantity - 1)}
-                        aria-label="Меньше"
-                      >
-                        −
-                      </button>
-                      <span>{item.quantity}</span>
-                      <button
-                        type="button"
-                        onClick={() => onQtyChange(item.product_id, item.variant_id, item.quantity + 1)}
-                        aria-label="Больше"
-                      >
-                        +
-                      </button>
-                    </div>
-                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => onRemove(item.product_id, item.variant_id)}>
-                      Удалить
-                    </button>
-                  </div>
-                </li>
-              );
-            })}
+            {items.map((item) => (
+              <CartSwipeItem
+                key={`${item.product_id}:${item.variant_id || ''}`}
+                item={item}
+                onRemove={onRemove}
+                onQtyChange={onQtyChange}
+              />
+            ))}
           </ul>
           <div className="public-shop-cart-footer">
             <div className="public-shop-cart-total">
               <span>Итого</span>
               <strong>{formatMoney(total)}</strong>
             </div>
-            <button type="button" className="btn btn-primary public-shop-checkout-btn" onClick={onCheckout}>
-              Оформить заказ
+            <button
+              type="button"
+              className="btn btn-primary public-shop-checkout-btn"
+              onClick={onCheckout}
+              disabled={submitting}
+            >
+              {submitting ? 'Отправка...' : 'Оформить заказ'}
             </button>
           </div>
         </>
       )}
-    </div>
-  );
-}
-
-function CheckoutView({ branch, items, onBack, onSubmit, submitting, error }) {
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [deliveryType, setDeliveryType] = useState('pickup');
-  const [address, setAddress] = useState('');
-  const [comment, setComment] = useState('');
-  const total = cartTotal(items);
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    onSubmit({
-      customer_name: name.trim(),
-      customer_phone: phone.replace(/\D/g, ''),
-      delivery_type: deliveryType,
-      address: deliveryType === 'delivery' ? address.trim() : '',
-      comment: comment.trim(),
-      items: items.map((item) => ({
-        product_id: item.product_id,
-        variant_id: item.variant_id,
-        quantity: item.quantity,
-      })),
-    });
-  };
-
-  return (
-    <div className="public-shop-view">
-      <header className="public-shop-subheader">
-        <button type="button" className="myshop-link-btn" onClick={onBack}>← Корзина</button>
-        <h2>Оформление</h2>
-      </header>
-
-      <form className="public-shop-checkout-form" onSubmit={handleSubmit}>
-        <label className="myshop-field">
-          <span>Имя</span>
-          <input value={name} onChange={(e) => setName(e.target.value)} required placeholder="Ваше имя" />
-        </label>
-        <label className="myshop-field">
-          <span>Телефон</span>
-          <input
-            value={phone}
-            onChange={(e) => setPhone(formatUzPhone(e.target.value))}
-            required
-            placeholder="+998-90-123-45-67"
-            inputMode="tel"
-          />
-        </label>
-
-        <fieldset className="public-shop-delivery-type">
-          <legend>Способ получения</legend>
-          <label>
-            <input
-              type="radio"
-              name="delivery"
-              checked={deliveryType === 'pickup'}
-              onChange={() => setDeliveryType('pickup')}
-            />
-            Самовывоз{branch?.address ? ` · ${branch.address}` : ''}
-          </label>
-          <label>
-            <input
-              type="radio"
-              name="delivery"
-              checked={deliveryType === 'delivery'}
-              onChange={() => setDeliveryType('delivery')}
-            />
-            Доставка
-          </label>
-        </fieldset>
-
-        {deliveryType === 'delivery' && (
-          <label className="myshop-field">
-            <span>Адрес доставки</span>
-            <textarea
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              required
-              rows={3}
-              placeholder="Улица, дом, подъезд"
-            />
-          </label>
-        )}
-
-        <label className="myshop-field">
-          <span>Комментарий</span>
-          <textarea
-            value={comment}
-            onChange={(e) => setComment(e.target.value)}
-            rows={2}
-            placeholder="Пожелания к заказу"
-          />
-        </label>
-
-        <div className="public-shop-cart-total">
-          <span>К оплате</span>
-          <strong>{formatMoney(total)}</strong>
-        </div>
-
-        {error && <div className="form-error">{error}</div>}
-
-        <button type="submit" className="btn btn-primary public-shop-checkout-btn" disabled={submitting || items.length === 0}>
-          {submitting ? 'Отправка...' : 'Подтвердить заказ'}
-        </button>
-      </form>
-    </div>
-  );
-}
-
-function SuccessView({ order, branch, onMenu }) {
-  return (
-    <div className="public-shop-view public-shop-success">
-      <div className="public-shop-success-card">
-        <div className="public-shop-success-icon" aria-hidden>✓</div>
-        <h2>Заказ принят</h2>
-        <p>Номер заказа: <strong>№{order.number}</strong></p>
-        <p>{branch?.name}</p>
-        <p className="public-shop-success-sum">{formatMoney(order.total_amount)}</p>
-        <p className="public-shop-success-note">Мы свяжемся с вами по телефону для подтверждения.</p>
-        <button type="button" className="btn btn-primary" onClick={onMenu}>Вернуться в меню</button>
-      </div>
     </div>
   );
 }
@@ -227,8 +81,7 @@ export default function PublicShop() {
   const [activeCategoryId, setActiveCategoryId] = useState('');
   const [cartItems, setCartItems] = useState(() => getCartItems(branchId));
   const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState('');
-  const [completedOrder, setCompletedOrder] = useState(null);
+  const [orderNotice, setOrderNotice] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -256,6 +109,12 @@ export default function PublicShop() {
       document.title = prevTitle;
     };
   }, [catalog?.branch?.name]);
+
+  useEffect(() => {
+    if (!orderNotice) return undefined;
+    const timer = window.setTimeout(() => setOrderNotice(''), 5000);
+    return () => window.clearTimeout(timer);
+  }, [orderNotice]);
 
   const handleProductAdd = (product, quantity = 1) => {
     const next = addCartItem(branchId, {
@@ -290,17 +149,26 @@ export default function PublicShop() {
     setCartItems([]);
   };
 
-  const handleCheckoutSubmit = async (payload) => {
+  const handlePlaceOrder = async () => {
+    if (cartItems.length === 0 || submitting) return;
     setSubmitting(true);
-    setSubmitError('');
     try {
-      const order = await api.createPublicShopOrder(branchId, payload);
+      const order = await api.createPublicShopOrder(branchId, {
+        customer_name: 'Гость',
+        customer_phone: '',
+        delivery_type: 'pickup',
+        items: cartItems.map((item) => ({
+          product_id: item.product_id,
+          variant_id: item.variant_id,
+          quantity: item.quantity,
+        })),
+      });
       clearCart(branchId);
       setCartItems([]);
-      setCompletedOrder(order);
-      setView('success');
+      setOrderNotice(`Заказ №${order.number} принят и отправлен в заявки`);
+      setView('menu');
     } catch (err) {
-      setSubmitError(err.message || 'Не удалось оформить заказ');
+      alert(err.message || 'Не удалось оформить заказ');
     } finally {
       setSubmitting(false);
     }
@@ -317,7 +185,6 @@ export default function PublicShop() {
   const handleNav = (tab) => {
     if (tab === 'menu') {
       setView('menu');
-      setCompletedOrder(null);
     } else if (tab === 'cart') {
       setView('cart');
     }
@@ -327,7 +194,7 @@ export default function PublicShop() {
 
   if (loading) {
     return (
-      <div className="public-shop-shell">
+      <div className="public-shop-shell public-shop-snappy">
         <div className="myshop-page"><div className="myshop-empty">Загрузка...</div></div>
       </div>
     );
@@ -335,7 +202,7 @@ export default function PublicShop() {
 
   if (error || !catalog) {
     return (
-      <div className="public-shop-shell">
+      <div className="public-shop-shell public-shop-snappy">
         <div className="myshop-page">
           <div className="myshop-empty">{error || 'Магазин недоступен'}</div>
         </div>
@@ -347,7 +214,7 @@ export default function PublicShop() {
 
   if (products.length === 0) {
     return (
-      <div className="public-shop-shell">
+      <div className="public-shop-shell public-shop-snappy">
         <div className="myshop-page myshop-page-public">
           <header className="myshop-header">
             <div className="myshop-brand">
@@ -370,7 +237,14 @@ export default function PublicShop() {
   }
 
   return (
-    <div className="public-shop-shell">
+    <div className="public-shop-shell public-shop-snappy">
+      {orderNotice && (
+        <div className="public-shop-order-notice" role="status">
+          <span>{orderNotice}</span>
+          <button type="button" onClick={() => setOrderNotice('')} aria-label="Закрыть">×</button>
+        </div>
+      )}
+
       {view === 'menu' && (
         <ShopStorefront
           layout={layout}
@@ -398,10 +272,11 @@ export default function PublicShop() {
           <CartView
             items={cartItems}
             onBack={() => setView('menu')}
-            onCheckout={() => setView('checkout')}
+            onCheckout={handlePlaceOrder}
             onClear={handleClearCart}
             onQtyChange={handleQtyChange}
             onRemove={handleRemove}
+            submitting={submitting}
           />
           {layout?.settings?.menu !== false && (
             <nav className="myshop-bottom-nav myshop-bottom-nav-public myshop-bottom-nav-icons" aria-label="Меню магазина">
@@ -420,32 +295,6 @@ export default function PublicShop() {
               </button>
             </nav>
           )}
-        </div>
-      )}
-
-      {view === 'checkout' && (
-        <div className="myshop-page myshop-page-public public-shop-page">
-          <CheckoutView
-            branch={branch}
-            items={cartItems}
-            onBack={() => setView('cart')}
-            onSubmit={handleCheckoutSubmit}
-            submitting={submitting}
-            error={submitError}
-          />
-        </div>
-      )}
-
-      {view === 'success' && completedOrder && (
-        <div className="myshop-page myshop-page-public public-shop-page">
-          <SuccessView
-            order={completedOrder}
-            branch={branch}
-            onMenu={() => {
-              setCompletedOrder(null);
-              setView('menu');
-            }}
-          />
         </div>
       )}
     </div>

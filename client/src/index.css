@@ -7370,8 +7370,103 @@ tr.product-row-highlight td:first-child {
   background:
     radial-gradient(circle at top, color-mix(in srgb, var(--primary) 8%, var(--bg)), var(--bg));
   display: flex;
+  flex-direction: column;
   justify-content: center;
   padding: 0;
+}
+
+.public-shop-snappy {
+  scroll-behavior: auto;
+}
+
+.public-shop-snappy .myshop-public-body,
+.public-shop-snappy .public-shop-view {
+  scroll-behavior: auto;
+  -webkit-overflow-scrolling: auto;
+}
+
+.public-shop-snappy .myshop-product-card.is-clickable:not(.is-out-of-stock):active {
+  transform: none;
+}
+
+.public-shop-snappy .myshop-category-chip,
+.public-shop-snappy .myshop-product-card-qty button,
+.public-shop-snappy .myshop-qty-controls button {
+  transition: none;
+}
+
+.public-shop-order-notice {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  width: min(calc(100% - 24px), 440px);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #166534;
+  color: #fff;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
+  font-size: var(--font-sm);
+  font-weight: 600;
+}
+
+.public-shop-order-notice button {
+  margin-left: auto;
+  border: none;
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.public-shop-cart-swipe {
+  position: relative;
+  list-style: none;
+  overflow: hidden;
+  border-radius: 14px;
+}
+
+.public-shop-cart-swipe-delete {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: stretch;
+  justify-content: flex-end;
+  background: #ff3b30;
+}
+
+.public-shop-cart-swipe-delete button {
+  width: 76px;
+  border: none;
+  background: transparent;
+  color: #fff;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.public-shop-cart-swipe-content {
+  position: relative;
+  z-index: 1;
+  touch-action: pan-y;
+  transition: transform 0.18s ease-out;
+  will-change: transform;
+}
+
+.public-shop-cart-swipe-content.is-dragging {
+  transition: none;
+}
+
+.public-shop-cart-swipe .public-shop-cart-item {
+  margin: 0;
 }
 
 .public-shop-shell .myshop-page {
