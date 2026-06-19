@@ -60,6 +60,11 @@ export {
 } from './services/telegram.js';
 
 export {
+  getMyShopLayout,
+  saveMyShopLayout,
+} from './myShop.js';
+
+export {
   getNextDocNumber,
   getDocuments,
   getDocument,

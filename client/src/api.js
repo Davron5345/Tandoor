@@ -112,6 +112,8 @@ export const api = {
     if (params.page || params.limit) return normalizeListResponse(data);
     return Array.isArray(data) ? data : data.items;
   },
+  getMyShopLayout: () => request('/myshop/layout'),
+  saveMyShopLayout: (data) => request('/myshop/layout', { method: 'PUT', body: JSON.stringify(data) }),
   getProductBranchSettings: (id) => request(`/products/${id}/branch-settings`),
   createProduct: (data) => request('/products', { method: 'POST', body: JSON.stringify(data) }),
   updateProduct: (id, data) => request(`/products/${id}`, { method: 'PUT', body: JSON.stringify(data) }),

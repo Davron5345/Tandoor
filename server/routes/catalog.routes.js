@@ -1,6 +1,7 @@
 import * as svc from '../services.js';
 import * as calculations from '../calculations.js';
 import * as productImages from '../productImages.js';
+import { getMyShopLayout, saveMyShopLayout } from '../myShop.js';
 import { requirePermission, requireAdmin, attachBranch } from '../middleware.js';
 
 export function registerCatalogRoutes(app, { productImageUpload }) {
@@ -197,6 +198,18 @@ export function registerCatalogRoutes(app, { productImageUpload }) {
     try {
       calculations.deleteCalculation(req.params.id, req.branchId);
       res.json({ ok: true });
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
+  app.get('/api/myshop/layout', requirePermission('products.view'), attachBranch, (req, res) => {
+    res.json(getMyShopLayout(req.branchId));
+  });
+
+  app.put('/api/myshop/layout', requirePermission('products.edit'), attachBranch, (req, res) => {
+    try {
+      res.json(saveMyShopLayout(req.branchId, req.body));
     } catch (e) {
       res.status(400).json({ error: e.message });
     }

@@ -1,0 +1,353 @@
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { api } from '../api';
+import { useAuth } from '../AuthContext';
+import { useBranch } from '../BranchContext';
+import { hasPermission } from '../permissions';
+import { useToast } from '../components/Modal';
+import ShopStorefront from '../components/myshop/ShopStorefront';
+import BlockAddModal from '../components/myshop/BlockAddModal';
+import { IconImage } from '../components/ActionIcons';
+import {
+  buildCategoryImageMap,
+  canAddCategoryToBlock,
+  createBlock,
+  createEmptyLayout,
+  getBlockMeta,
+} from '../utils/myShopLayout';
+
+function Toggle({ label, checked, onChange }) {
+  return (
+    <label className="myshop-constructor-toggle">
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      <span>{label}</span>
+    </label>
+  );
+}
+
+function BlockEditorCard({
+  block,
+  index,
+  total,
+  selected,
+  onSelect,
+  onChange,
+  onRemove,
+  onMoveUp,
+  onMoveDown,
+  categoriesById,
+}) {
+  const [collapsed, setCollapsed] = useState(false);
+  const meta = getBlockMeta(block.type);
+
+  const removeCategory = (categoryId) => {
+    onChange({
+      ...block,
+      categoryIds: block.categoryIds.filter((id) => id !== categoryId),
+    });
+  };
+
+  return (
+    <div className={`myshop-block-editor${selected ? ' is-selected' : ''}`}>
+      <div className="myshop-block-editor-head">
+        <button type="button" className="myshop-block-editor-select" onClick={onSelect}>
+          <span className="myshop-block-editor-index">#{index + 1}</span>
+          <strong>{meta.shortLabel}</strong>
+          {meta.max != null && <span className="myshop-block-count">{block.categoryIds.length}/{meta.max}</span>}
+        </button>
+        <div className="myshop-block-editor-actions">
+          <button type="button" className="btn btn-ghost btn-sm" disabled={index === 0} onClick={onMoveUp}>↑</button>
+          <button type="button" className="btn btn-ghost btn-sm" disabled={index === total - 1} onClick={onMoveDown}>↓</button>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setCollapsed((v) => !v)}>
+            {collapsed ? '▸' : '▾'}
+          </button>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={onRemove}>🗑</button>
+        </div>
+      </div>
+      {!collapsed && (
+        <div className="myshop-block-editor-body">
+          <label className="myshop-field">
+            <span>Название блока (видно клиенту)</span>
+            <input
+              type="text"
+              value={block.title}
+              placeholder="Например: Личная гигиена"
+              onChange={(e) => onChange({ ...block, title: e.target.value })}
+            />
+          </label>
+          <div className="myshop-block-editor-chips">
+            {block.categoryIds.length === 0 && (
+              <span className="myshop-block-editor-hint">Выберите категории слева</span>
+            )}
+            {block.categoryIds.map((categoryId, chipIndex) => {
+              const category = categoriesById.get(categoryId);
+              return (
+                <span key={categoryId} className="myshop-block-chip">
+                  <span className="myshop-block-chip-num">{chipIndex + 1}</span>
+                  {category?.name || categoryId}
+                  <button type="button" onClick={() => removeCategory(categoryId)} aria-label="Удалить">×</button>
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function MyShopConstructor() {
+  const { user } = useAuth();
+  const { branchId, branchName } = useBranch();
+  const { show, Toast } = useToast();
+  const canEdit = hasPermission(user, 'products.edit');
+
+  const [layout, setLayout] = useState(createEmptyLayout);
+  const [products, setProducts] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [addModalOpen, setAddModalOpen] = useState(false);
+  const [selectedBlockId, setSelectedBlockId] = useState(null);
+  const [categorySearch, setCategorySearch] = useState('');
+  const [previewSearch, setPreviewSearch] = useState('');
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [layoutData, productList, categoryList] = await Promise.all([
+        api.getMyShopLayout(),
+        api.getProducts(),
+        api.getProductCategories(),
+      ]);
+      setLayout(layoutData);
+      setProducts(productList);
+      setCategories(categoryList);
+      setSelectedBlockId((current) => current || layoutData.blocks[0]?.id || null);
+    } catch (err) {
+      console.error(err);
+      show(err.message || 'Не удалось загрузить конструктор', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [branchId, show]);
+
+  useEffect(() => { load(); }, [load, branchId]);
+
+  const categoryImages = useMemo(() => buildCategoryImageMap(products), [products]);
+  const categoriesById = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
+
+  const filteredCategories = useMemo(() => {
+    const q = categorySearch.trim().toLowerCase();
+    return categories
+      .filter((category) => (category.product_count || 0) > 0 || products.some((p) => p.category_id === category.id))
+      .filter((category) => !q || category.name.toLowerCase().includes(q))
+      .sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+  }, [categories, categorySearch, products]);
+
+  const selectedBlock = layout.blocks.find((b) => b.id === selectedBlockId) || null;
+
+  const updateSettings = (patch) => {
+    setLayout((prev) => ({
+      ...prev,
+      settings: { ...prev.settings, ...patch },
+    }));
+  };
+
+  const updateBlock = (blockId, nextBlock) => {
+    setLayout((prev) => ({
+      ...prev,
+      blocks: prev.blocks.map((block) => (block.id === blockId ? nextBlock : block)),
+    }));
+  };
+
+  const addBlock = (type) => {
+    const block = createBlock(type);
+    setLayout((prev) => ({ ...prev, blocks: [...prev.blocks, block] }));
+    setSelectedBlockId(block.id);
+    setAddModalOpen(false);
+  };
+
+  const removeBlock = (blockId) => {
+    setLayout((prev) => {
+      const blocks = prev.blocks.filter((block) => block.id !== blockId);
+      return { ...prev, blocks };
+    });
+    setSelectedBlockId((current) => (current === blockId ? null : current));
+  };
+
+  const moveBlock = (blockId, direction) => {
+    setLayout((prev) => {
+      const index = prev.blocks.findIndex((block) => block.id === blockId);
+      if (index < 0) return prev;
+      const target = index + direction;
+      if (target < 0 || target >= prev.blocks.length) return prev;
+      const blocks = [...prev.blocks];
+      const [item] = blocks.splice(index, 1);
+      blocks.splice(target, 0, item);
+      return { ...prev, blocks };
+    });
+  };
+
+  const addCategoryToSelectedBlock = (categoryId) => {
+    if (!selectedBlock) {
+      show('Сначала выберите блок справа', 'error');
+      return;
+    }
+    if (!canAddCategoryToBlock(selectedBlock, categoryId)) {
+      const limit = getBlockMeta(selectedBlock.type).max;
+      show(limit != null ? `В блоке максимум ${limit} категорий` : 'Категория уже добавлена', 'error');
+      return;
+    }
+    updateBlock(selectedBlock.id, {
+      ...selectedBlock,
+      categoryIds: [...selectedBlock.categoryIds, categoryId],
+    });
+  };
+
+  const save = async () => {
+    if (!canEdit) return;
+    setSaving(true);
+    try {
+      const saved = await api.saveMyShopLayout(layout);
+      setLayout(saved);
+      show('Витрина сохранена');
+    } catch (err) {
+      show(err.message || 'Не удалось сохранить', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!canEdit) {
+    return (
+      <div className="card">
+        <div className="empty">Нет прав на редактирование витрины MyShop</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="myshop-constructor">
+      {Toast}
+      <div className="myshop-constructor-top">
+        <div>
+          <h1>Конструктор MyShop</h1>
+          <p className="page-subtitle">{branchName} · CMS мобильного магазина</p>
+        </div>
+        <div className="myshop-constructor-top-actions">
+          <Link to="/myshop" className="btn btn-ghost">Открыть магазин</Link>
+          <button type="button" className="btn btn-ghost" onClick={() => setAddModalOpen(true)}>+ Добавить блок</button>
+          <button type="button" className="btn btn-primary" onClick={save} disabled={saving || loading}>
+            {saving ? 'Сохранение...' : 'Сохранить'}
+          </button>
+        </div>
+      </div>
+
+      <div className="myshop-constructor-toolbar card">
+        <Toggle label="Витрина" checked={layout.settings.showcase} onChange={(v) => updateSettings({ showcase: v })} />
+        <Toggle label="Меню" checked={layout.settings.menu} onChange={(v) => updateSettings({ menu: v })} />
+        <Toggle label="Скрыть фон" checked={layout.settings.hideBackground} onChange={(v) => updateSettings({ hideBackground: v })} />
+        <Toggle label="Прозрачный фон" checked={layout.settings.transparentBackground} onChange={(v) => updateSettings({ transparentBackground: v })} />
+        <Toggle label="Снаружи фото" checked={layout.settings.photoOutside} onChange={(v) => updateSettings({ photoOutside: v })} />
+      </div>
+
+      {loading ? (
+        <div className="card"><div className="empty">Загрузка...</div></div>
+      ) : (
+        <div className="myshop-constructor-grid">
+          <section className="card myshop-constructor-preview">
+            <div className="card-header">
+              <strong>Предпросмотр магазина</strong>
+            </div>
+            <div className="myshop-constructor-phone">
+              <ShopStorefront
+                preview
+                layout={layout}
+                categories={categories}
+                products={products}
+                branchName={branchName}
+                search={previewSearch}
+                onSearchChange={setPreviewSearch}
+              />
+            </div>
+          </section>
+
+          <section className="card myshop-constructor-categories">
+            <div className="card-header">
+              <strong>Категории</strong>
+            </div>
+            <input
+              type="search"
+              className="myshop-constructor-search"
+              placeholder="Поиск категории..."
+              value={categorySearch}
+              onChange={(e) => setCategorySearch(e.target.value)}
+            />
+            <div className="myshop-constructor-category-list">
+              {filteredCategories.map((category) => {
+                const imageUrl = categoryImages.get(category.id);
+                const count = category.product_count
+                  || products.filter((p) => p.category_id === category.id).length;
+                return (
+                  <button
+                    key={category.id}
+                    type="button"
+                    className="myshop-constructor-category"
+                    onClick={() => addCategoryToSelectedBlock(category.id)}
+                  >
+                    <div className="myshop-constructor-category-thumb">
+                      {imageUrl ? <img src={imageUrl} alt="" /> : <IconImage />}
+                    </div>
+                    <div>
+                      <strong>{category.name}</strong>
+                      <span>{count} товаров</span>
+                    </div>
+                  </button>
+                );
+              })}
+              {filteredCategories.length === 0 && (
+                <div className="empty">Категории не найдены</div>
+              )}
+            </div>
+          </section>
+
+          <section className="card myshop-constructor-blocks">
+            <div className="card-header">
+              <strong>Блоки витрины</strong>
+              <span className="report-meta">{layout.blocks.length}</span>
+            </div>
+            {layout.blocks.length === 0 ? (
+              <div className="empty">Добавьте первый блок меню</div>
+            ) : (
+              <div className="myshop-block-editor-list">
+                {layout.blocks.map((block, index) => (
+                  <BlockEditorCard
+                    key={block.id}
+                    block={block}
+                    index={index}
+                    total={layout.blocks.length}
+                    selected={selectedBlockId === block.id}
+                    onSelect={() => setSelectedBlockId(block.id)}
+                    onChange={(next) => updateBlock(block.id, next)}
+                    onRemove={() => removeBlock(block.id)}
+                    onMoveUp={() => moveBlock(block.id, -1)}
+                    onMoveDown={() => moveBlock(block.id, 1)}
+                    categoriesById={categoriesById}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+        </div>
+      )}
+
+      {addModalOpen && (
+        <BlockAddModal
+          onClose={() => setAddModalOpen(false)}
+          onSelect={addBlock}
+        />
+      )}
+    </div>
+  );
+}

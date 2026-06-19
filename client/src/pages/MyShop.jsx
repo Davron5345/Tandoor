@@ -1,55 +1,18 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api, formatMoney } from '../api';
+import { useAuth } from '../AuthContext';
 import { useBranch } from '../BranchContext';
-import { IconImage } from '../components/ActionIcons';
-import { IconNavShop } from '../components/NavIcons';
+import { hasPermission } from '../permissions';
+import ShopStorefront, { formatShopPrice, ShopMedia } from '../components/myshop/ShopStorefront';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
-
-function formatShopPrice(product) {
-  if (product.has_variants && product.variant_price_min != null) {
-    if (product.variant_price_max != null && product.variant_price_min !== product.variant_price_max) {
-      return `от ${formatMoney(product.variant_price_min)}`;
-    }
-    return formatMoney(product.variant_price_min);
-  }
-  return formatMoney(product.price);
-}
+import { createEmptyLayout } from '../utils/myShopLayout';
 
 function getVariantImage(variant) {
   if (!variant?.images?.length) return null;
   return variant.images.find((i) => i.is_primary && i.media_type === 'photo')
     || variant.images.find((i) => i.media_type === 'photo')
     || variant.images[0];
-}
-
-function ShopMedia({ image, name }) {
-  if (!image) {
-    return (
-      <div className="myshop-media myshop-media-empty" aria-hidden>
-        <IconImage />
-      </div>
-    );
-  }
-
-  return (
-    <div className="myshop-media">
-      <img src={image.url} alt={name} loading="lazy" />
-      {image.media_type === 'gif' && <span className="myshop-media-badge">GIF</span>}
-    </div>
-  );
-}
-
-function ShopProductCard({ product, onOpen }) {
-  return (
-    <button type="button" className="myshop-card" onClick={() => onOpen(product)}>
-      <ShopMedia image={product.primary_image} name={product.name} />
-      <div className="myshop-card-body">
-        <div className="myshop-card-name">{product.name}</div>
-        <div className="myshop-card-price">{formatShopPrice(product)}</div>
-        {product.unit && <div className="myshop-card-meta">{product.unit}</div>}
-      </div>
-    </button>
-  );
 }
 
 function ShopProductSheet({ product, onClose }) {
@@ -121,18 +84,28 @@ function ShopProductSheet({ product, onClose }) {
 }
 
 export default function MyShop() {
+  const { user } = useAuth();
+  const [layout, setLayout] = useState(createEmptyLayout);
   const [products, setProducts] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [categoryId, setCategoryId] = useState('');
+  const [activeCategoryId, setActiveCategoryId] = useState('');
   const [selectedProduct, setSelectedProduct] = useState(null);
   const { branchId, branchName } = useBranch();
+  const canEdit = hasPermission(user, 'products.edit');
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const productList = await api.getProducts();
+      const [layoutData, productList, categoryList] = await Promise.all([
+        api.getMyShopLayout(),
+        api.getProducts(),
+        api.getProductCategories(),
+      ]);
+      setLayout(layoutData);
       setProducts(productList);
+      setCategories(categoryList);
     } catch (err) {
       console.error(err);
       setProducts([]);
@@ -144,101 +117,34 @@ export default function MyShop() {
   useEffect(() => { load(); }, [load, branchId]);
   useAutoRefresh(load, [load, branchId]);
 
-  const categories = useMemo(() => {
-    const map = new Map();
-    for (const product of products) {
-      if (product.category_id && product.category_name) {
-        map.set(product.category_id, product.category_name);
-      }
-    }
-    return [...map.entries()]
-      .map(([id, name]) => ({ id, name }))
-      .sort((a, b) => a.name.localeCompare(b.name, 'ru'));
-  }, [products]);
-
-  const filteredProducts = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return products.filter((product) => {
-      if (categoryId && product.category_id !== categoryId) return false;
-      if (!q) return true;
-      const haystack = [
-        product.name,
-        product.category_name,
-        product.parent_category_name,
-        product.sku,
-      ].filter(Boolean).join(' ').toLowerCase();
-      return haystack.includes(q);
-    });
-  }, [products, search, categoryId]);
+  if (loading) {
+    return <div className="myshop-page"><div className="myshop-empty">Загрузка...</div></div>;
+  }
 
   return (
-    <div className="myshop-page">
-      <header className="myshop-header">
-        <div className="myshop-brand">
-          <span className="myshop-brand-mark" aria-hidden><IconNavShop /></span>
-          <div>
-            <strong>MyShop</strong>
-            <span>{branchName}</span>
-          </div>
-        </div>
-      </header>
-
-      <div className="myshop-search-wrap">
-        <input
-          type="search"
-          className="myshop-search"
-          placeholder="Поиск товаров"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-      </div>
-
-      {categories.length > 0 && (
-        <div className="myshop-categories" role="tablist" aria-label="Категории">
-          <button
-            type="button"
-            className={`myshop-category-chip${categoryId === '' ? ' active' : ''}`}
-            onClick={() => setCategoryId('')}
-          >
-            Все
-          </button>
-          {categories.map((category) => (
-            <button
-              key={category.id}
-              type="button"
-              className={`myshop-category-chip${categoryId === category.id ? ' active' : ''}`}
-              onClick={() => setCategoryId(category.id)}
-            >
-              {category.name}
-            </button>
-          ))}
+    <>
+      {canEdit && (
+        <div className="myshop-admin-bar">
+          <Link to="/myshop/constructor" className="btn btn-ghost btn-sm">Конструктор</Link>
         </div>
       )}
-
-      {loading ? (
-        <div className="myshop-empty">Загрузка...</div>
-      ) : filteredProducts.length === 0 ? (
-        <div className="myshop-empty">
-          {products.length === 0 ? 'Нет товаров для этого филиала' : 'Ничего не найдено'}
-        </div>
-      ) : (
-        <div className="myshop-grid">
-          {filteredProducts.map((product) => (
-            <ShopProductCard
-              key={product.id}
-              product={product}
-              onOpen={setSelectedProduct}
-            />
-          ))}
-        </div>
-      )}
-
+      <ShopStorefront
+        layout={layout}
+        categories={categories}
+        products={products}
+        branchName={branchName}
+        search={search}
+        onSearchChange={setSearch}
+        activeCategoryId={activeCategoryId}
+        onCategoryClick={setActiveCategoryId}
+        onProductOpen={setSelectedProduct}
+      />
       {selectedProduct && (
         <ShopProductSheet
           product={selectedProduct}
           onClose={() => setSelectedProduct(null)}
         />
       )}
-    </div>
+    </>
   );
 }
