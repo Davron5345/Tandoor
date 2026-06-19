@@ -13,6 +13,7 @@ import ProductVariantEditor, {
 } from '../components/ProductVariantEditor';
 import {
   buildProductListRows,
+  buildProductRowNumbers,
   getVariantDisplayName,
   getVariantPrimaryImage,
 } from '../utils/productVariants';
@@ -176,6 +177,7 @@ function ProductTable({ items, renderRow }) {
       <table>
         <thead>
           <tr>
+            <th className="product-list-num-col">№</th>
             <th className="product-list-photo-col">Фото</th>
             <th>Наименование</th>
             <th>Категория</th>
@@ -214,6 +216,8 @@ export default function Products() {
   const [productPage, setProductPage] = useState(1);
   const [productPages, setProductPages] = useState(1);
   const [productTotal, setProductTotal] = useState(0);
+  const [catalogCount, setCatalogCount] = useState(0);
+  const [archiveCount, setArchiveCount] = useState(0);
   const PRODUCT_PAGE_SIZE = 50;
   const { show, Toast } = useToast();
   const { user } = useAuth();
@@ -268,12 +272,18 @@ export default function Products() {
       params.page = productPage;
       params.limit = PRODUCT_PAGE_SIZE;
     }
+    const countParams = { page: 1, limit: 1 };
+    if (filterCategory) countParams.category_id = filterCategory;
+    if (filterSupplier) countParams.supplier_id = filterSupplier;
+
     return Promise.all([
       api.getProducts(params),
+      api.getProducts({ ...countParams, archived: '0' }),
+      api.getProducts({ ...countParams, archived: '1' }),
       api.getProductCategories(),
       api.getCounterparties('supplier'),
     ])
-      .then(([p, c, s]) => {
+      .then(([p, catalogRes, archiveRes, c, s]) => {
         if (searching || Array.isArray(p)) {
           setProducts(Array.isArray(p) ? p : p.items || []);
           setProductPages(1);
@@ -283,6 +293,8 @@ export default function Products() {
           setProductPages(p.pages);
           setProductTotal(p.total);
         }
+        setCatalogCount(Array.isArray(catalogRes) ? catalogRes.length : (catalogRes.total ?? 0));
+        setArchiveCount(Array.isArray(archiveRes) ? archiveRes.length : (archiveRes.total ?? 0));
         setCategories(c);
         setSuppliers(s);
       })
@@ -368,6 +380,11 @@ export default function Products() {
       return expandedProductIds.has(row.product.id);
     });
   }, [displayListRows, expandedProductIds, isSearching]);
+
+  const rowNumbers = useMemo(() => {
+    const startIndex = isSearching ? 0 : (productPage - 1) * PRODUCT_PAGE_SIZE;
+    return buildProductRowNumbers(visibleListRows, startIndex);
+  }, [visibleListRows, isSearching, productPage]);
 
   const toggleProductVariants = (productId) => {
     setExpandedProductIds((prev) => {
@@ -715,6 +732,7 @@ export default function Products() {
   const renderListRow = (row) => {
     const { product: p, variant, kind, rowKey } = row;
     const isVariant = kind === 'variant';
+    const rowNumber = rowNumbers.get(rowKey) || '';
     const highlighted = p.id === highlightedProductId;
     const hasVariants = !isVariant && p.has_variants && (p.variants?.length > 0);
     const isExpanded = hasVariants && expandedProductIds.has(p.id);
@@ -730,6 +748,11 @@ export default function Products() {
           highlighted ? 'product-row-highlight' : '',
         ].filter(Boolean).join(' ')}
       >
+        <td className="product-list-num-col">
+          <span className={`product-list-num${isVariant ? ' product-list-num-variant' : ''}`}>
+            {rowNumber}
+          </span>
+        </td>
         <td className="product-list-photo-col">
           <ProductListPhoto product={p} variant={variant} />
         </td>
@@ -831,6 +854,7 @@ export default function Products() {
           onClick={() => setListView('catalog')}
         >
           Справочник
+          <span className="tab-count">{catalogCount}</span>
         </button>
         <button
           type="button"
@@ -838,6 +862,7 @@ export default function Products() {
           onClick={() => setListView('archive')}
         >
           Архив
+          <span className="tab-count">{archiveCount}</span>
         </button>
       </div>
 

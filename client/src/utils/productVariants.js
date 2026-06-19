@@ -112,6 +112,30 @@ export function buildProductListRows(products) {
   return rows;
 }
 
+/** Нумерация: 1, 2, 2.1, 2.2 … для видимых строк списка */
+export function buildProductRowNumbers(rows, startProductIndex = 0) {
+  const numbers = new Map();
+  let productIndex = startProductIndex;
+  const parentNumByProductId = new Map();
+  const variantCountByProduct = new Map();
+
+  for (const row of rows) {
+    if (row.kind === 'product') {
+      productIndex += 1;
+      parentNumByProductId.set(row.product.id, productIndex);
+      variantCountByProduct.set(row.product.id, 0);
+      numbers.set(row.rowKey, String(productIndex));
+    } else {
+      const parentNum = parentNumByProductId.get(row.product.id);
+      const variantIdx = (variantCountByProduct.get(row.product.id) || 0) + 1;
+      variantCountByProduct.set(row.product.id, variantIdx);
+      numbers.set(row.rowKey, `${parentNum}.${variantIdx}`);
+    }
+  }
+
+  return numbers;
+}
+
 export function productPickMeta(product, variant = null) {
   const parts = [];
   const stock = getPickStock(product, variant);

@@ -3996,6 +3996,57 @@ input[type='number']::-webkit-inner-spin-button {
   margin-bottom: 12px;
 }
 
+.products-list-tabs .tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-muted) 12%, transparent);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.tab.active .tab-count {
+  background: color-mix(in srgb, var(--primary) 18%, transparent);
+  color: var(--primary);
+}
+
+.product-list-num-col {
+  width: 52px;
+  text-align: right;
+  white-space: nowrap;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.product-list-num {
+  display: inline-block;
+  min-width: 2ch;
+}
+
+.product-list-num-variant {
+  padding-left: 4px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.product-list-row-variant .product-list-num-col {
+  font-size: 11px;
+}
+
 .products-archive-hint {
   margin: 0 0 14px;
   color: var(--text-muted);
