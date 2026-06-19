@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { api, formatMoney } from '../api';
 import { formatUzPhone } from '../phoneFormat';
-import ShopStorefront from '../components/myshop/ShopStorefront';
+import ShopStorefront, { ShopMedia } from '../components/myshop/ShopStorefront';
 import { IconNavShop, IconNavCart } from '../components/NavIcons';
 import {
   addCartItem,
@@ -13,6 +13,81 @@ import {
   removeCartItem,
   updateCartItemQty,
 } from '../utils/publicShopCart';
+
+function PublicProductSheet({ product, onClose, onAdd }) {
+  const [qty, setQty] = useState(1);
+  const stock = product?.stock ?? 0;
+  const price = product?.price ?? 0;
+
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onKey = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [onClose]);
+
+  useEffect(() => {
+    setQty(1);
+  }, [product?.catalog_key, product?.id]);
+
+  if (!product) return null;
+
+  const handleAdd = () => {
+    if (stock <= 0) return;
+    onAdd(product, Math.min(qty, stock));
+    onClose();
+  };
+
+  return (
+    <div className="myshop-sheet-overlay" onClick={onClose}>
+      <div className="myshop-sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="myshop-sheet-handle" aria-hidden />
+        <button type="button" className="myshop-sheet-close" onClick={onClose} aria-label="Закрыть">
+          ✕
+        </button>
+        <ShopMedia image={product.primary_image} name={product.name} />
+        <div className="myshop-sheet-body">
+          <h2 className="myshop-sheet-title">{product.name}</h2>
+          {product.category_name && (
+            <div className="myshop-sheet-category">{product.category_name}</div>
+          )}
+          <div className="myshop-sheet-price">{formatMoney(price)}</div>
+          <div className="myshop-sheet-meta">
+            {stock > 0
+              ? `В наличии: ${Number(stock).toLocaleString('ru-RU')} ${product.unit || 'шт.'}`
+              : 'Нет в наличии'}
+          </div>
+
+          <div className="myshop-qty-row">
+            <span>Количество</span>
+            <div className="myshop-qty-controls">
+              <button type="button" onClick={() => setQty((v) => Math.max(1, v - 1))} aria-label="Меньше">−</button>
+              <span>{qty}</span>
+              <button
+                type="button"
+                onClick={() => setQty((v) => Math.min(stock || v + 1, v + 1))}
+                aria-label="Больше"
+                disabled={qty >= stock}
+              >
+                +
+              </button>
+            </div>
+          </div>
+
+          <button type="button" className="btn btn-primary myshop-add-btn" onClick={handleAdd} disabled={stock <= 0}>
+            В корзину
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function CartView({ items, onBack, onCheckout, onQtyChange, onRemove }) {
   const total = cartTotal(items);
@@ -76,6 +151,14 @@ function CartView({ items, onBack, onCheckout, onQtyChange, onRemove }) {
             </button>
           </div>
         </>
+      )}
+
+      {selectedProduct && view === 'menu' && (
+        <PublicProductSheet
+          product={selectedProduct}
+          onClose={() => setSelectedProduct(null)}
+          onAdd={handleProductAdd}
+        />
       )}
     </div>
   );
@@ -212,6 +295,7 @@ export default function PublicShop() {
   const [view, setView] = useState('menu');
   const [search, setSearch] = useState('');
   const [activeCategoryId, setActiveCategoryId] = useState('');
+  const [selectedProduct, setSelectedProduct] = useState(null);
   const [cartItems, setCartItems] = useState(() => getCartItems(branchId));
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
@@ -244,14 +328,14 @@ export default function PublicShop() {
     };
   }, [catalog?.branch?.name]);
 
-  const handleProductAdd = (product) => {
+  const handleProductAdd = (product, quantity = 1) => {
     if ((product.stock || 0) <= 0) return;
     const next = addCartItem(branchId, {
       product_id: product.id,
       variant_id: product.variant_id || null,
       product_name: product.name,
       variant_name: null,
-      quantity: 1,
+      quantity,
       price: product.price ?? 0,
       unit: product.unit || 'шт',
     });
@@ -361,6 +445,7 @@ export default function PublicShop() {
           activeCategoryId={activeCategoryId}
           onCategoryClick={handleCategorySelect}
           onCategoryClear={handleCategoryClear}
+          onProductOpen={setSelectedProduct}
           onProductAdd={handleProductAdd}
           publicMode
           activeNav="menu"
@@ -424,6 +509,13 @@ export default function PublicShop() {
         </div>
       )}
 
+      {selectedProduct && view === 'menu' && (
+        <PublicProductSheet
+          product={selectedProduct}
+          onClose={() => setSelectedProduct(null)}
+          onAdd={handleProductAdd}
+        />
+      )}
     </div>
   );
 }

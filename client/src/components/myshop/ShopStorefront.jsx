@@ -24,6 +24,19 @@ function buildCategoryImageMap(products) {
   return map;
 }
 
+function buildDirectCategoryProductMap(products) {
+  const map = new Map();
+  for (const product of products) {
+    if (!product.category_id) continue;
+    if (!map.has(product.category_id)) map.set(product.category_id, []);
+    const productKey = product.catalog_key || product.id;
+    if (!map.get(product.category_id).some((p) => (p.catalog_key || p.id) === productKey)) {
+      map.get(product.category_id).push(product);
+    }
+  }
+  return map;
+}
+
 function buildCategoryProductMap(products) {
   const map = new Map();
   for (const product of products) {
@@ -100,9 +113,9 @@ function ShopProductCard({ product, onOpen, onAdd, publicMode = false }) {
   const inStock = (product.stock || 0) > 0;
 
   const handleActivate = () => {
+    if (!inStock) return;
     if (publicMode) {
-      if (!inStock || !onAdd) return;
-      onAdd(product);
+      onOpen?.(product);
       return;
     }
     onOpen?.(product);
@@ -245,10 +258,15 @@ function CategoryGridBlock({
 
 function PublicCategoryCatalog({
   categories,
-  productsByCategory,
+  products,
   onProductOpen,
   onProductAdd,
 }) {
+  const productsByCategory = useMemo(
+    () => buildDirectCategoryProductMap(products),
+    [products],
+  );
+
   return (
     <div className="myshop-public-category-catalog">
       {categories.map((category) => {
@@ -610,9 +628,23 @@ export default function ShopStorefront({
     </>
   );
 
-  const mainContent = (
-    <>
-      {publicMode && !showCategoryView && !activeCategoryId && search.trim() && filteredProducts.length > 0 && (
+  const mainContent = (() => {
+    if (showCategoryView) {
+      return (
+        <CategoryCatalogView
+          category={activeCategory}
+          products={filteredProducts}
+          search={search}
+          onBack={() => onCategoryClear?.()}
+          onProductOpen={onProductOpen}
+          onProductAdd={onProductAdd}
+          publicMode
+        />
+      );
+    }
+
+    if (publicMode && !activeCategoryId && search.trim() && filteredProducts.length > 0) {
+      return (
         <section className="myshop-public-catalog myshop-public-catalog-primary">
           <div className="myshop-block-section-head">
             <h3>Результаты поиска</h3>
@@ -625,15 +657,15 @@ export default function ShopStorefront({
             publicMode
           />
         </section>
-      )}
+      );
+    }
 
-      {publicMode && !showCategoryView && !activeCategoryId && !search.trim() && branchCategories.length > 0 && (
+    if (publicMode && !activeCategoryId && !search.trim() && branchCategories.length > 0) {
+      return (
         <>
           {hasBlocks && (
             <div className="myshop-blocks">
-              {publicMode && (
-                <div className="myshop-public-blocks-label">Категории</div>
-              )}
+              <div className="myshop-public-blocks-label">Категории</div>
               {blocks.map((block) => (
                 <ShopBlock
                   key={block.id}
@@ -654,24 +686,16 @@ export default function ShopStorefront({
           )}
           <PublicCategoryCatalog
             categories={branchCategories}
-            productsByCategory={productsByCategory}
+            products={products}
             onProductOpen={onProductOpen}
             onProductAdd={onProductAdd}
           />
         </>
-      )}
+      );
+    }
 
-      {showCategoryView ? (
-        <CategoryCatalogView
-          category={activeCategory}
-          products={filteredProducts}
-          search={search}
-          onBack={() => onCategoryClear?.()}
-          onProductOpen={onProductOpen}
-          onProductAdd={onProductAdd}
-          publicMode
-        />
-      ) : hasBlocks && !(publicMode && !activeCategoryId && !search.trim()) ? (
+    if (hasBlocks) {
+      return (
         <div className="myshop-blocks">
           {publicMode && !activeCategoryId && (
             <div className="myshop-public-blocks-label">Категории</div>
@@ -706,29 +730,35 @@ export default function ShopStorefront({
             </section>
           )}
         </div>
-      ) : preview ? (
+      );
+    }
+
+    if (preview) {
+      return (
         <div className="myshop-preview-placeholder">
           <div className="myshop-preview-skeleton-grid">
             <span /><span /><span /><span /><span />
           </div>
           <p>Добавьте блоки витрины справа</p>
         </div>
-      ) : (
-        <div className="myshop-fallback-grid">
-          {filteredProducts.length === 0 ? (
-            <div className="myshop-empty">Нет товаров в этом филиале</div>
-          ) : (
-            <ProductGrid
-              products={filteredProducts}
-              onProductOpen={onProductOpen}
-              onProductAdd={onProductAdd}
-              publicMode={publicMode}
-            />
-          )}
-        </div>
-      )}
-    </>
-  );
+      );
+    }
+
+    return (
+      <div className="myshop-fallback-grid">
+        {filteredProducts.length === 0 ? (
+          <div className="myshop-empty">Нет товаров в этом филиале</div>
+        ) : (
+          <ProductGrid
+            products={filteredProducts}
+            onProductOpen={onProductOpen}
+            onProductAdd={onProductAdd}
+            publicMode={publicMode}
+          />
+        )}
+      </div>
+    );
+  })();
 
   const bottomNav = settings.menu !== false ? (
     <nav
