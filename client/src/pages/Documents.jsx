@@ -35,7 +35,6 @@ import {
   readFormDraft,
   clearFormDraft,
   promptRestoreDraft,
-  writeFormDraft,
 } from '../hooks/useFormDraft';
 import { useFormDirty } from '../hooks/useFormDirty';
 
@@ -1005,13 +1004,8 @@ export default function Documents({ defaultType }) {
           className="modal-doc"
           title={modalTitle}
           dirty={isFormDirty}
-          draftSaved
-          onClose={({ discardDraft } = {}) => {
-            if (discardDraft === false) {
-              writeFormDraft(draftKey, draftPayload);
-            } else {
-              clearFormDraft(draftKey);
-            }
+          onClose={() => {
+            clearFormDraft(draftKey);
             setModal(null);
           }}
           footer={

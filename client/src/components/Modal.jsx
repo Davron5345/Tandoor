@@ -29,39 +29,29 @@ export default function Modal({
   wide,
   className = '',
   dirty = false,
-  draftSaved = false,
 }) {
-  const [closePrompt, setClosePrompt] = useState(null);
+  const [closePrompt, setClosePrompt] = useState(false);
   const sizeClass = wide ? ' modal-wide' : '';
   const extraClass = className ? ` ${className}` : '';
 
-  const intentionalClose = useCallback(() => {
+  const requestClose = useCallback(() => {
     if (dirty) {
-      setClosePrompt('intentional');
+      setClosePrompt(true);
       return;
     }
-    onClose({ discardDraft: true });
-  }, [dirty, onClose]);
-
-  const accidentalClose = useCallback(() => {
-    if (dirty) {
-      setClosePrompt('accidental');
-      return;
-    }
-    onClose({ discardDraft: true });
+    onClose();
   }, [dirty, onClose]);
 
   const confirmClose = useCallback(() => {
-    const mode = closePrompt;
-    setClosePrompt(null);
-    onClose({ discardDraft: mode === 'intentional' });
-  }, [closePrompt, onClose]);
+    setClosePrompt(false);
+    onClose();
+  }, [onClose]);
 
   useEffect(() => {
     const onKey = (e) => {
       if (e.key === 'Escape') {
         e.preventDefault();
-        accidentalClose();
+        requestClose();
       }
     };
     document.addEventListener('keydown', onKey);
@@ -71,23 +61,21 @@ export default function Modal({
       document.removeEventListener('keydown', onKey);
       document.body.style.overflow = prevOverflow;
     };
-  }, [accidentalClose]);
+  }, [requestClose]);
 
   return (
-    <ModalCloseContext.Provider value={{ intentionalClose }}>
-      <div className="modal-overlay" onClick={accidentalClose}>
+    <ModalCloseContext.Provider value={{ intentionalClose: requestClose }}>
+      <div className="modal-overlay" onClick={requestClose}>
         <div className={`modal${sizeClass}${extraClass}`} onClick={(e) => e.stopPropagation()}>
           {closePrompt && (
             <div className="modal-close-guard" role="dialog" aria-modal="true">
               <div className="modal-close-guard-card">
                 <p className="modal-close-guard-title">Закрыть без сохранения?</p>
                 <p className="modal-close-guard-text">
-                  {closePrompt === 'accidental' && draftSaved
-                    ? 'Несохранённые данные сохранятся как черновик — при следующем открытии можно восстановить.'
-                    : 'Все несохранённые изменения будут потеряны.'}
+                  Все несохранённые изменения будут потеряны.
                 </p>
                 <div className="modal-close-guard-actions">
-                  <button type="button" className="btn btn-primary" onClick={() => setClosePrompt(null)}>
+                  <button type="button" className="btn btn-primary" onClick={() => setClosePrompt(false)}>
                     Продолжить редактирование
                   </button>
                   <button type="button" className="btn btn-ghost" onClick={confirmClose}>

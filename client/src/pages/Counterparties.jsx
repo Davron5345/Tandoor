@@ -12,7 +12,6 @@ import {
   readFormDraft,
   clearFormDraft,
   promptRestoreDraft,
-  writeFormDraft,
 } from '../hooks/useFormDraft';
 import { useFormDirty } from '../hooks/useFormDirty';
 import { hasPermission } from '../permissions';
@@ -204,13 +203,8 @@ export default function Counterparties() {
         <Modal
           title={modal === 'create' ? 'Новый контрагент' : 'Редактировать контрагента'}
           dirty={isFormDirty}
-          draftSaved
-          onClose={({ discardDraft } = {}) => {
-            if (discardDraft === false) {
-              writeFormDraft(draftKey, draftPayload);
-            } else {
-              clearFormDraft(draftKey);
-            }
+          onClose={() => {
+            clearFormDraft(draftKey);
             setModal(null);
           }}
           footer={
