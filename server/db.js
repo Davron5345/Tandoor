@@ -1161,45 +1161,46 @@ function migrateCashArticlesBranch() {
     run('ALTER TABLE cash_articles ADD COLUMN code TEXT');
   }
 
-  for (const [legacyId, code] of Object.entries(LEGACY_ARTICLE_CODES)) {
-    run("UPDATE cash_articles SET branch_id = 'main', code = ? WHERE id = ?", [code, legacyId]);
-  }
-  run("UPDATE cash_articles SET branch_id = 'main' WHERE branch_id IS NULL OR branch_id = ''");
-
-  for (const [legacyId, code] of Object.entries(LEGACY_ARTICLE_CODES)) {
-    run(
-      `UPDATE payments
-       SET article_id = COALESCE(NULLIF(branch_id, ''), 'main') || '__' || ?
-       WHERE article_id = ?`,
-      [code, legacyId],
-    );
-  }
-
-  for (const [legacyId, code] of Object.entries(LEGACY_ARTICLE_CODES)) {
-    const newId = cashArticleId('main', code);
-    const target = queryOne('SELECT id FROM cash_articles WHERE id = ?', [newId]);
-    if (!target) {
-      run('UPDATE cash_articles SET id = ? WHERE id = ?', [newId, legacyId]);
-    } else {
-      run('DELETE FROM cash_articles WHERE id = ?', [legacyId]);
+  db.run('PRAGMA foreign_keys = OFF');
+  try {
+    for (const [legacyId, code] of Object.entries(LEGACY_ARTICLE_CODES)) {
+      run("UPDATE cash_articles SET branch_id = 'main', code = ? WHERE id = ?", [code, legacyId]);
     }
-  }
+    run("UPDATE cash_articles SET branch_id = 'main' WHERE branch_id IS NULL OR branch_id = ''");
 
-  const branches = queryAll('SELECT id FROM branches');
-  for (const branch of branches) {
-    for (const article of DEFAULT_CASH_ARTICLES) {
-      const id = cashArticleId(branch.id, article.code);
+    const branches = queryAll('SELECT id FROM branches');
+    for (const branch of branches) {
+      for (const article of DEFAULT_CASH_ARTICLES) {
+        const id = cashArticleId(branch.id, article.code);
+        run(
+          `INSERT OR IGNORE INTO cash_articles
+            (id, name, direction, sort_order, active, branch_id, code)
+           VALUES (?, ?, ?, ?, 1, ?, ?)`,
+          [id, article.name, article.direction, article.sort_order, branch.id, article.code],
+        );
+      }
+    }
+
+    for (const [legacyId, code] of Object.entries(LEGACY_ARTICLE_CODES)) {
       run(
-        `INSERT OR IGNORE INTO cash_articles
-          (id, name, direction, sort_order, active, branch_id, code)
-         VALUES (?, ?, ?, ?, 1, ?, ?)`,
-        [id, article.name, article.direction, article.sort_order, branch.id, article.code],
+        `UPDATE payments
+         SET article_id = COALESCE(NULLIF(branch_id, ''), 'main') || '__' || ?
+         WHERE article_id = ?`,
+        [code, legacyId],
       );
     }
-  }
 
-  run("INSERT OR REPLACE INTO settings (key, value) VALUES ('cash_articles_branch_v1', '1')");
-  saveDb();
+    for (const [legacyId] of Object.entries(LEGACY_ARTICLE_CODES)) {
+      const refs = queryOne('SELECT COUNT(*) as c FROM payments WHERE article_id = ?', [legacyId])?.c ?? 0;
+      if (refs === 0) {
+        run('DELETE FROM cash_articles WHERE id = ?', [legacyId]);
+      }
+    }
+
+    run("INSERT OR REPLACE INTO settings (key, value) VALUES ('cash_articles_branch_v1', '1')");
+  } finally {
+    db.run('PRAGMA foreign_keys = ON');
+  }
 }
 
 function uuidv4() {

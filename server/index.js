@@ -10,22 +10,30 @@ import { createApp } from './app.js';
 
 dotenv.config();
 
-const PORT = process.env.PORT || 3001;
+const PORT = Number(process.env.PORT) || 3001;
 const app = createApp();
 
 async function start() {
-  await db.initDb();
-  departments.migrateDepartmentStockSync();
-  initPermissions(db);
-  seedDefaultUsers();
-
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Сервер: http://localhost:${PORT}`);
-    console.log(`📁 База данных: ${dbPath}`);
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('👤 Логины: admin/admin123, sklad/sklad123, kassir/kassir123');
-    }
+  const server = app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 Сервер слушает порт ${PORT}`);
   });
+
+  try {
+    console.log('⏳ Инициализация базы данных...');
+    await db.initDb();
+    departments.migrateDepartmentStockSync();
+    initPermissions(db);
+    seedDefaultUsers();
+    console.log(`✅ База готова: ${dbPath}`);
+  } catch (err) {
+    console.error('❌ Ошибка инициализации БД:', err);
+    server.close();
+    process.exit(1);
+  }
+
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('👤 Логины: admin/admin123, sklad/sklad123, kassir/kassir123');
+  }
 
   if (process.env.TELEGRAM_ENABLED !== 'false') {
     const dbToken = svc.getSetting('telegram_bot_token');

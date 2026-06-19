@@ -52,3 +52,24 @@ test('cash articles are isolated per branch', async () => {
     /другому филиалу|не найдена/,
   );
 });
+
+test('migration remaps legacy article ids for non-main branch payments', async () => {
+  const { default: db, initDb, reloadDb } = await import('../db.js');
+  const { v4: uuidv4 } = await import('uuid');
+  const { cashArticleId, PURCHASE_ARTICLE_CODE } = await import('../cashArticleDefaults.js');
+
+  await initDb();
+  db.run("DELETE FROM settings WHERE key = 'cash_articles_branch_v1'");
+  db.run("INSERT OR IGNORE INTO branches (id, name, active) VALUES ('tnd', 'Tandoor', 1)");
+  const paymentId = uuidv4();
+  db.run(
+    `INSERT INTO payments (id, number, type, amount, date, branch_id, article_id)
+     VALUES (?, '99', 'supplier_payment', 1000, '2026-06-19', 'tnd', 'ca_exp_purchase')`,
+    [paymentId],
+  );
+
+  await reloadDb();
+
+  const payment = db.queryOne('SELECT article_id FROM payments WHERE id = ?', [paymentId]);
+  assert.equal(payment.article_id, cashArticleId('tnd', PURCHASE_ARTICLE_CODE));
+});

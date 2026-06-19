@@ -5,7 +5,7 @@ buildCommand = "npm install && npm install --prefix client --include=dev && npm 
 [deploy]
 startCommand = "npm start"
 healthcheckPath = "/api/health"
-healthcheckTimeout = 120
+healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"
 
 # Постоянные данные: в Railway → Service → Settings → Volume
