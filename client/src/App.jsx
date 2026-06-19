@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, NavLink, useLocation, Navigate } from 'react-router-dom';
+import { Routes, Route, NavLink, useLocation, Navigate } from 'react-router-dom';
 import { useEffect, useState, useCallback, useRef } from 'react';
 import Dashboard from './pages/Dashboard';
 import Products from './pages/Products';
@@ -19,7 +19,6 @@ import Calculations from './pages/Calculations';
 import Reports from './pages/Reports';
 import MyShop from './pages/MyShop';
 import MyShopConstructor from './pages/MyShopConstructor';
-import PublicShop from './pages/PublicShop';
 import ShopOrders from './pages/ShopOrders';
 import Login from './pages/Login';
 import ChangePassword from './pages/ChangePassword';
@@ -715,14 +714,7 @@ function AppContent() {
 }
 
 function App() {
-  return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/shop/:branchId" element={<PublicShop />} />
-        <Route path="*" element={<AppContent />} />
-      </Routes>
-    </BrowserRouter>
-  );
+  return <AppContent />;
 }
 
 export default App;

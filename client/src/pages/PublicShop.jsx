@@ -355,6 +355,16 @@ export default function PublicShop() {
   useEffect(() => { load(); }, [load]);
   useEffect(() => { setCartItems(getCartItems(branchId)); }, [branchId]);
 
+  useEffect(() => {
+    const prevTitle = document.title;
+    if (catalog?.branch?.name) {
+      document.title = `${catalog.branch.name} — магазин`;
+    }
+    return () => {
+      document.title = prevTitle;
+    };
+  }, [catalog?.branch?.name]);
+
   const productsById = useMemo(
     () => new Map((catalog?.products || []).map((p) => [p.id, p])),
     [catalog?.products],
