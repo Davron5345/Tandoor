@@ -265,6 +265,11 @@ export default function PublicShop() {
     setCartItems(next);
   };
 
+  const handleProductQtyChange = (product, quantity) => {
+    const next = updateCartItemQty(branchId, product.id, product.variant_id || null, quantity);
+    setCartItems(next);
+  };
+
   const handleQtyChange = (productId, variantId, quantity) => {
     const next = updateCartItemQty(branchId, productId, variantId, quantity);
     setCartItems(next);
@@ -369,6 +374,8 @@ export default function PublicShop() {
           onCategoryClick={handleCategorySelect}
           onCategoryClear={handleCategoryClear}
           onProductAdd={handleProductAdd}
+          onProductQtyChange={handleProductQtyChange}
+          cartItems={cartItems}
           publicMode
           activeNav="menu"
           cartCount={count}

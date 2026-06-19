@@ -109,12 +109,25 @@ function CategoryTile({ category, imageUrl, photoOutside, onClick, active = fals
   );
 }
 
-function ShopProductCard({ product, onOpen, onAdd, publicMode = false }) {
+function productCartKey(product) {
+  return `${product.id}:${product.variant_id || ''}`;
+}
+
+function ShopProductCard({
+  product,
+  onOpen,
+  onAdd,
+  onQtyChange,
+  cartQty = 0,
+  publicMode = false,
+}) {
   const inStock = (product.stock || 0) > 0;
   const canOrder = publicMode || inStock;
+  const inCart = publicMode && cartQty > 0;
 
   const handleActivate = () => {
     if (publicMode) {
+      if (inCart) return;
       onAdd?.(product);
       return;
     }
@@ -123,23 +136,51 @@ function ShopProductCard({ product, onOpen, onAdd, publicMode = false }) {
   };
 
   return (
-    <article className={`myshop-product-card${!canOrder ? ' is-out-of-stock' : ''}${publicMode ? ' is-clickable' : ''}`}>
-      <button
-        type="button"
-        className="myshop-product-card-media-btn"
-        onClick={handleActivate}
-        aria-label={product.name}
-        disabled={!canOrder}
-      >
-        <ShopMedia image={product.primary_image} name={product.name} />
-        {!publicMode && !inStock && <span className="myshop-product-badge">Нет в наличии</span>}
-      </button>
+    <article
+      className={[
+        'myshop-product-card',
+        !canOrder ? ' is-out-of-stock' : '',
+        publicMode ? ' is-clickable' : '',
+        inCart ? ' is-in-cart' : '',
+      ].join('')}
+    >
+      <div className="myshop-product-card-media-wrap">
+        <button
+          type="button"
+          className="myshop-product-card-media-btn"
+          onClick={handleActivate}
+          aria-label={product.name}
+          disabled={!canOrder || inCart}
+        >
+          <ShopMedia image={product.primary_image} name={product.name} />
+          {!publicMode && !inStock && <span className="myshop-product-badge">Нет в наличии</span>}
+        </button>
+        {inCart && (
+          <div className="myshop-product-card-qty">
+            <button
+              type="button"
+              onClick={() => onQtyChange?.(product, cartQty - 1)}
+              aria-label="Меньше"
+            >
+              −
+            </button>
+            <span>{cartQty}</span>
+            <button
+              type="button"
+              onClick={() => onQtyChange?.(product, cartQty + 1)}
+              aria-label="Больше"
+            >
+              +
+            </button>
+          </div>
+        )}
+      </div>
       <div className="myshop-product-card-body">
         <button
           type="button"
           className="myshop-product-card-name"
           onClick={handleActivate}
-          disabled={!canOrder}
+          disabled={!canOrder || inCart}
         >
           {product.name}
         </button>
@@ -161,7 +202,15 @@ function ShopProductCard({ product, onOpen, onAdd, publicMode = false }) {
   );
 }
 
-function ProductGrid({ products, onProductOpen, onProductAdd, publicMode = false, emptyText = 'Нет товаров' }) {
+function ProductGrid({
+  products,
+  onProductOpen,
+  onProductAdd,
+  onProductQtyChange,
+  cartQtyByKey,
+  publicMode = false,
+  emptyText = 'Нет товаров',
+}) {
   if (!products.length) {
     return <div className="myshop-empty">{emptyText}</div>;
   }
@@ -174,6 +223,8 @@ function ProductGrid({ products, onProductOpen, onProductAdd, publicMode = false
           product={product}
           onOpen={onProductOpen}
           onAdd={onProductAdd}
+          onQtyChange={onProductQtyChange}
+          cartQty={cartQtyByKey?.get(productCartKey(product)) || 0}
           publicMode={publicMode}
         />
       ))}
@@ -188,6 +239,8 @@ function CategoryCatalogView({
   onBack,
   onProductOpen,
   onProductAdd,
+  onProductQtyChange,
+  cartQtyByKey,
   publicMode,
 }) {
   const title = category?.name || 'Каталог';
@@ -210,6 +263,8 @@ function CategoryCatalogView({
         products={products}
         onProductOpen={onProductOpen}
         onProductAdd={onProductAdd}
+        onProductQtyChange={onProductQtyChange}
+        cartQtyByKey={cartQtyByKey}
         publicMode={publicMode}
         emptyText="В этой категории пока нет товаров"
       />
@@ -262,6 +317,8 @@ function PublicCategoryCatalog({
   products,
   onProductOpen,
   onProductAdd,
+  onProductQtyChange,
+  cartQtyByKey,
 }) {
   const productsByCategory = useMemo(
     () => buildDirectCategoryProductMap(products),
@@ -287,6 +344,8 @@ function PublicCategoryCatalog({
               products={categoryProducts}
               onProductOpen={onProductOpen}
               onProductAdd={onProductAdd}
+              onProductQtyChange={onProductQtyChange}
+              cartQtyByKey={cartQtyByKey}
               publicMode
             />
           </section>
@@ -304,6 +363,8 @@ function SliderBlock({
   settings,
   onProductOpen,
   onProductAdd,
+  onProductQtyChange,
+  cartQtyByKey,
   onCategoryClick,
   catalogBrowseMode = false,
 }) {
@@ -345,6 +406,8 @@ function SliderBlock({
                     product={product}
                     onOpen={onProductOpen}
                     onAdd={onProductAdd}
+                    onQtyChange={onProductQtyChange}
+                    cartQty={cartQtyByKey?.get(productCartKey(product)) || 0}
                     publicMode
                   />
                 ))}
@@ -365,6 +428,8 @@ function ShopBlock({
   settings,
   onProductOpen,
   onProductAdd,
+  onProductQtyChange,
+  cartQtyByKey,
   onCategoryClick,
   publicMode = false,
   activeCategoryId = '',
@@ -389,6 +454,8 @@ function ShopBlock({
           settings={settings}
           onProductOpen={onProductOpen}
           onProductAdd={onProductAdd}
+          onProductQtyChange={onProductQtyChange}
+          cartQtyByKey={cartQtyByKey}
           onCategoryClick={onCategoryClick}
           catalogBrowseMode={catalogBrowseMode}
         />
@@ -429,6 +496,8 @@ export default function ShopStorefront({
   onCategoryClear,
   onProductOpen,
   onProductAdd,
+  onProductQtyChange,
+  cartItems = [],
   preview = false,
   publicMode = false,
   branchPhone = '',
@@ -448,6 +517,13 @@ export default function ShopStorefront({
   const categoriesById = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
   const categoryImages = useMemo(() => buildCategoryImageMap(products), [products]);
   const productsByCategory = useMemo(() => buildCategoryProductMap(products), [products]);
+  const cartQtyByKey = useMemo(() => {
+    const map = new Map();
+    for (const item of cartItems) {
+      map.set(`${item.product_id}:${item.variant_id || ''}`, item.quantity);
+    }
+    return map;
+  }, [cartItems]);
 
   const filteredProducts = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -639,6 +715,8 @@ export default function ShopStorefront({
           onBack={() => onCategoryClear?.()}
           onProductOpen={onProductOpen}
           onProductAdd={onProductAdd}
+          onProductQtyChange={onProductQtyChange}
+          cartQtyByKey={cartQtyByKey}
           publicMode
         />
       );
@@ -655,6 +733,8 @@ export default function ShopStorefront({
             products={filteredProducts}
             onProductOpen={onProductOpen}
             onProductAdd={onProductAdd}
+            onProductQtyChange={onProductQtyChange}
+            cartQtyByKey={cartQtyByKey}
             publicMode
           />
         </section>
@@ -677,6 +757,8 @@ export default function ShopStorefront({
                   settings={settings}
                   onProductOpen={onProductOpen}
                   onProductAdd={onProductAdd}
+                  onProductQtyChange={onProductQtyChange}
+                  cartQtyByKey={cartQtyByKey}
                   onCategoryClick={scrollSpyEnabled ? scrollToCategorySection : onCategoryClick}
                   publicMode={publicMode}
                   activeCategoryId={activeCategoryId}
@@ -690,6 +772,8 @@ export default function ShopStorefront({
             products={products}
             onProductOpen={onProductOpen}
             onProductAdd={onProductAdd}
+            onProductQtyChange={onProductQtyChange}
+            cartQtyByKey={cartQtyByKey}
           />
         </>
       );
@@ -711,6 +795,8 @@ export default function ShopStorefront({
               settings={settings}
               onProductOpen={onProductOpen}
               onProductAdd={onProductAdd}
+              onProductQtyChange={onProductQtyChange}
+              cartQtyByKey={cartQtyByKey}
               onCategoryClick={onCategoryClick}
               publicMode={publicMode}
               activeCategoryId={activeCategoryId}
@@ -726,6 +812,8 @@ export default function ShopStorefront({
                 products={filteredProducts}
                 onProductOpen={onProductOpen}
                 onProductAdd={onProductAdd}
+                onProductQtyChange={onProductQtyChange}
+                cartQtyByKey={cartQtyByKey}
                 publicMode
               />
             </section>
@@ -754,6 +842,8 @@ export default function ShopStorefront({
             products={filteredProducts}
             onProductOpen={onProductOpen}
             onProductAdd={onProductAdd}
+            onProductQtyChange={onProductQtyChange}
+            cartQtyByKey={cartQtyByKey}
             publicMode={publicMode}
           />
         )}
