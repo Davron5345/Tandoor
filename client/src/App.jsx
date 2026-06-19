@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, NavLink, useLocation, Navigate } from 'react-router-dom';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import Dashboard from './pages/Dashboard';
 import Products from './pages/Products';
 import ProductCategories from './pages/ProductCategories';
@@ -39,26 +39,72 @@ function pathInGroup(pathname, paths) {
   return paths.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 
-function NavGroup({ groupId, label, children, paths, isOpen, onToggle }) {
+function NavItemContent({ icon, label }) {
+  return (
+    <>
+      <span className="nav-icon" aria-hidden="true">{icon}</span>
+      <span className="nav-label">{label}</span>
+    </>
+  );
+}
+
+function NavGroup({ groupId, icon, label, children, paths, isOpen, onToggle, sidebarCollapsed }) {
   const location = useLocation();
   const isActive = pathInGroup(location.pathname, paths);
+  const [flyoutOpen, setFlyoutOpen] = useState(false);
+  const groupRef = useRef(null);
+  const itemsVisible = sidebarCollapsed ? flyoutOpen : isOpen;
+
+  useEffect(() => {
+    if (!sidebarCollapsed) setFlyoutOpen(false);
+  }, [sidebarCollapsed]);
+
+  useEffect(() => {
+    if (!flyoutOpen) return undefined;
+    const closeFlyout = (event) => {
+      if (groupRef.current && !groupRef.current.contains(event.target)) {
+        setFlyoutOpen(false);
+      }
+    };
+    document.addEventListener('click', closeFlyout);
+    return () => document.removeEventListener('click', closeFlyout);
+  }, [flyoutOpen]);
+
+  const handleToggle = () => {
+    if (sidebarCollapsed) {
+      setFlyoutOpen((open) => !open);
+      return;
+    }
+    onToggle(groupId);
+  };
 
   return (
-    <div className={`nav-group${isActive ? ' nav-group-active' : ''}${isOpen ? ' nav-group-open' : ''}`}>
+    <div
+      ref={groupRef}
+      className={[
+        'nav-group',
+        isActive ? 'nav-group-active' : '',
+        isOpen ? 'nav-group-open' : '',
+        flyoutOpen ? 'nav-group-flyout-open' : '',
+      ].filter(Boolean).join(' ')}
+    >
       <button
         type="button"
         className="nav-group-toggle"
-        onClick={() => onToggle(groupId)}
-        aria-expanded={isOpen}
+        onClick={handleToggle}
+        aria-expanded={itemsVisible}
+        title={sidebarCollapsed ? label : undefined}
       >
-        <span>{label}</span>
-        <span className="nav-group-chevron">{isOpen ? '▾' : '▸'}</span>
+        <span className="nav-group-toggle-main">
+          <span className="nav-icon" aria-hidden="true">{icon}</span>
+          <span className="nav-label">{label}</span>
+        </span>
+        <span className="nav-group-chevron" aria-hidden="true">{isOpen ? '▾' : '▸'}</span>
       </button>
-      {isOpen && (
-        <div className="nav-group-items">
-          {children}
-        </div>
-      )}
+      <div className={`nav-group-items${itemsVisible ? ' is-visible' : ''}`}>
+        {sidebarCollapsed && <div className="nav-flyout-title">{label}</div>}
+        {children}
+      </div>
     </div>
   );
 }
@@ -210,7 +256,7 @@ function AppContent() {
 
   return (
     <div className={`app${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
-      <aside className="sidebar" aria-hidden={sidebarCollapsed}>
+      <aside className="sidebar">
         <div className="sidebar-panel">
         <div className="sidebar-header">
           <div className="logo">
@@ -225,10 +271,10 @@ function AppContent() {
               type="button"
               className="sidebar-toggle"
               onClick={toggleSidebar}
-              title="Скрыть меню"
-              aria-label="Скрыть меню"
+              title={sidebarCollapsed ? 'Развернуть меню' : 'Свернуть меню'}
+              aria-label={sidebarCollapsed ? 'Развернуть меню' : 'Свернуть меню'}
             >
-              ◀
+              {sidebarCollapsed ? '▶' : '◀'}
             </button>
             <button
               type="button"
@@ -247,18 +293,21 @@ function AppContent() {
                 to="/"
                 end
                 className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
+                title={sidebarCollapsed ? 'Главная' : undefined}
               >
-                🏠 Главная
+                <NavItemContent icon="🏠" label="Главная" />
               </NavLink>
             )}
 
             {showDocumentsGroup && (
               <NavGroup
                 groupId="documents"
-                label="📋 Документы"
+                icon="📋"
+                label="Документы"
                 paths={docPaths}
                 isOpen={openNavGroup === 'documents'}
                 onToggle={toggleNavGroup}
+                sidebarCollapsed={sidebarCollapsed}
               >
                 {docNav.map((item) => (
                   <NavLink
@@ -275,10 +324,12 @@ function AppContent() {
             {catalogPaths.length > 0 && (
               <NavGroup
                 groupId="catalog"
-                label="🏷️ Справочники"
+                icon="🏷️"
+                label="Справочники"
                 paths={catalogPaths}
                 isOpen={openNavGroup === 'catalog'}
                 onToggle={toggleNavGroup}
+                sidebarCollapsed={sidebarCollapsed}
               >
                 {canViewProducts && (
                   <>
@@ -310,10 +361,12 @@ function AppContent() {
             {reportNav.length > 0 && (
               <NavGroup
                 groupId="reports"
-                label="📊 Отчёты"
+                icon="📊"
+                label="Отчёты"
                 paths={reportPaths}
                 isOpen={openNavGroup === 'reports'}
                 onToggle={toggleNavGroup}
+                sidebarCollapsed={sidebarCollapsed}
               >
                 {reportNav.map((item) => (
                   <NavLink
@@ -335,8 +388,9 @@ function AppContent() {
               <NavLink
                 to="/cashier"
                 className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
+                title={sidebarCollapsed ? 'Касса' : undefined}
               >
-                💵 Касса
+                <NavItemContent icon="💵" label="Касса" />
               </NavLink>
             )}
 
@@ -344,8 +398,9 @@ function AppContent() {
               <NavLink
                 to="/payments"
                 className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
+                title={sidebarCollapsed ? 'Оплаты' : undefined}
               >
-                💰 Оплаты
+                <NavItemContent icon="💰" label="Оплаты" />
               </NavLink>
             )}
 
@@ -353,8 +408,9 @@ function AppContent() {
               <NavLink
                 to="/cash-articles"
                 className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
+                title={sidebarCollapsed ? 'Статьи кассы' : undefined}
               >
-                📑 Статьи кассы
+                <NavItemContent icon="📑" label="Статьи кассы" />
               </NavLink>
             )}
 
@@ -362,18 +418,21 @@ function AppContent() {
               <NavLink
                 to="/telegram"
                 className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
+                title={sidebarCollapsed ? 'Telegram' : undefined}
               >
-                ✈️ Telegram
+                <NavItemContent icon="✈️" label="Telegram" />
               </NavLink>
             )}
 
             {showStaffGroup && (
               <NavGroup
                 groupId="admin"
-                label="👤 Администрирование"
+                icon="👤"
+                label="Администрирование"
                 paths={staffPaths}
                 isOpen={openNavGroup === 'admin'}
                 onToggle={toggleNavGroup}
+                sidebarCollapsed={sidebarCollapsed}
               >
                 {canViewUsers && (
                   <NavLink
@@ -476,7 +535,7 @@ function AppContent() {
             aria-label={sidebarCollapsed ? 'Показать меню' : 'Скрыть меню'}
             aria-expanded={!sidebarCollapsed}
           >
-            {sidebarCollapsed ? '☰ Меню' : '◀ Меню'}
+            {sidebarCollapsed ? '☰ Меню' : '◀ Свернуть'}
           </button>
         </div>
         <div className="main-content">
