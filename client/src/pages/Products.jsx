@@ -171,7 +171,7 @@ function ProductListPhoto({ product, variant = null }) {
   );
 }
 
-function ProductTable({ items, renderRow }) {
+function ProductTable({ items, renderRow, showShopColumn = false }) {
   if (items.length === 0) return null;
   return (
     <div className="table-wrap">
@@ -189,6 +189,7 @@ function ProductTable({ items, renderRow }) {
             <th>Цена</th>
             <th>Остаток</th>
             <th>Поставщики</th>
+            {showShopColumn && <th className="product-list-shop-col">Магазин</th>}
             <th></th>
           </tr>
         </thead>
@@ -227,6 +228,8 @@ export default function Products() {
   const [branchSettings, setBranchSettings] = useState([]);
   const [listView, setListView] = useState('catalog');
   const [archivedVariants, setArchivedVariants] = useState([]);
+  const [togglingShopVisible, setTogglingShopVisible] = useState(null);
+  const showShopColumn = canEdit && listView === 'catalog';
 
   const productId = modal && modal !== 'create' ? modal : null;
   const draftKey = formDraftKey('products', modal);
@@ -265,7 +268,7 @@ export default function Products() {
   );
 
   const load = useCallback(() => {
-    const params = { archived: listView === 'archive' ? '1' : '0' };
+    const params = { archived: listView === 'archive' ? '1' : '0', admin_list: '1' };
     if (filterCategory) params.category_id = filterCategory;
     if (filterSupplier) params.supplier_id = filterSupplier;
     const searching = search.trim().length > 0;
@@ -273,7 +276,7 @@ export default function Products() {
       params.page = productPage;
       params.limit = PRODUCT_PAGE_SIZE;
     }
-    const countParams = { page: 1, limit: 1 };
+    const countParams = { page: 1, limit: 1, admin_list: '1' };
     if (filterCategory) countParams.category_id = filterCategory;
     if (filterSupplier) countParams.supplier_id = filterSupplier;
 
@@ -730,6 +733,24 @@ export default function Products() {
     }
   };
 
+  const toggleShopVisible = async (product, visible) => {
+    setTogglingShopVisible(product.id);
+    setProducts((prev) => prev.map((row) => (
+      row.id === product.id ? { ...row, shop_visible: visible } : row
+    )));
+    try {
+      await api.setProductShopVisible(product.id, visible);
+      show(visible ? 'Товар показан в магазине' : 'Товар скрыт из магазина');
+    } catch (e) {
+      setProducts((prev) => prev.map((row) => (
+        row.id === product.id ? { ...row, shop_visible: !visible } : row
+      )));
+      show(e.message, 'error');
+    } finally {
+      setTogglingShopVisible(null);
+    }
+  };
+
   const renderListRow = (row) => {
     const { product: p, variant, kind, rowKey } = row;
     const isVariant = kind === 'variant';
@@ -799,6 +820,26 @@ export default function Products() {
             <span className="product-meta">—</span>
           )}
         </td>
+        {showShopColumn && (
+          <td className="product-list-shop-col">
+            {!isVariant && canEdit ? (
+              <label
+                className="shop-visible-toggle"
+                title={p.shop_visible ? 'Показывается в магазине' : 'Скрыт из магазина'}
+              >
+                <input
+                  type="checkbox"
+                  checked={!!p.shop_visible}
+                  disabled={togglingShopVisible === p.id}
+                  onChange={(e) => toggleShopVisible(p, e.target.checked)}
+                />
+                <span className="shop-visible-toggle-ui" aria-hidden />
+              </label>
+            ) : (
+              <span className="product-meta">—</span>
+            )}
+          </td>
+        )}
         <td>
           {canEdit && isVariant && listView === 'catalog' ? (
             <div className="btn-group btn-group-icons">
@@ -910,7 +951,7 @@ export default function Products() {
         </div>
       ) : (
         <div className="card">
-          <ProductTable items={visibleListRows} renderRow={renderListRow} />
+          <ProductTable items={visibleListRows} renderRow={renderListRow} showShopColumn={showShopColumn} />
           {!isSearching && productPages > 1 && (
             <div className="table-pagination" style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '12px 16px', justifyContent: 'flex-end' }}>
               <span style={{ color: 'var(--text-muted)', fontSize: 14 }}>

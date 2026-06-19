@@ -89,9 +89,11 @@ export function getProducts(filters = {}) {
   const branchId = filters.branch_id || DEFAULT_BRANCH_ID;
   const departmentId = filters.department_id || null;
   const archivedOnly = filters.archived === '1' || filters.archived === 1 ? 1 : 0;
+  const adminList = filters.admin_list === '1' || filters.admin_list === 1 || filters.admin_list === true;
 
   let stockSelect;
   let stockJoin;
+  let shopVisibleSelect = '';
   let params;
 
   if (departmentId) {
@@ -136,8 +138,14 @@ export function getProducts(filters = {}) {
           OR COALESCE(p.has_variants, 0) = 1 AND pds3.variant_id IS NOT NULL AND pds3.variant_id != ''
         )
     ), COALESCE(pb.price, p.price)) as avg_cost`;
-    stockJoin = `INNER JOIN product_branches pb ON pb.product_id = p.id AND pb.branch_id = ? AND pb.visible = 1
-      LEFT JOIN product_branch_stock pbs ON pbs.product_id = p.id AND pbs.branch_id = ?`;
+    if (adminList) {
+      stockJoin = `LEFT JOIN product_branches pb ON pb.product_id = p.id AND pb.branch_id = ?
+        LEFT JOIN product_branch_stock pbs ON pbs.product_id = p.id AND pbs.branch_id = ?`;
+      shopVisibleSelect = ', COALESCE(pb.visible, 0) as shop_visible';
+    } else {
+      stockJoin = `INNER JOIN product_branches pb ON pb.product_id = p.id AND pb.branch_id = ? AND pb.visible = 1
+        LEFT JOIN product_branch_stock pbs ON pbs.product_id = p.id AND pbs.branch_id = ?`;
+    }
     params = [branchId, branchId, branchId, branchId];
   }
 
@@ -145,7 +153,7 @@ export function getProducts(filters = {}) {
     SELECT p.*,
            p.price as base_price,
            COALESCE(pb.price, p.price) as price,
-           ${stockSelect},
+           ${stockSelect}${shopVisibleSelect},
            pc.name as category_name, pc.parent_id as category_parent_id,
            ppc.name as parent_category_name,
            COALESCE(ppc.sort_order, pc.sort_order, 999) as category_sort,

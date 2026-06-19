@@ -95,6 +95,29 @@ export function upsertVariantBranchPrice(variantId, branchId, price = null) {
   );
 }
 
+export function setProductShopVisible(productId, branchId, visible) {
+  const product = queryOne('SELECT id FROM products WHERE id = ?', [productId]);
+  if (!product) throw new Error('Товар не найден');
+
+  const existing = queryOne(
+    'SELECT id, price FROM product_branches WHERE product_id = ? AND branch_id = ?',
+    [productId, branchId],
+  );
+
+  if (existing) {
+    run(
+      `UPDATE product_branches
+       SET visible = ?, updated_at = datetime('now')
+       WHERE id = ?`,
+      [visible ? 1 : 0, existing.id],
+    );
+  } else {
+    upsertProductBranch(productId, branchId, { visible: !!visible, price: null });
+  }
+
+  return { id: productId, shop_visible: !!visible };
+}
+
 export function ensureProductBranchOnCreate(productId, branchId = DEFAULT_BRANCH_ID) {
   upsertProductBranch(productId, branchId, { visible: true, price: null });
 }

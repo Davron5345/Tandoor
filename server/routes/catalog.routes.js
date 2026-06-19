@@ -4,6 +4,8 @@ import * as productImages from '../productImages.js';
 import { getMyShopLayout, saveMyShopLayout } from '../myShop.js';
 import { requirePermission, requireAdmin, attachBranch } from '../middleware.js';
 
+import { setProductShopVisible } from '../productBranches.js';
+
 export function registerCatalogRoutes(app, { productImageUpload }) {
   app.get('/api/product-categories', requirePermission('products.view'), (_, res) => {
     res.json(svc.getProductCategories());
@@ -58,6 +60,15 @@ export function registerCatalogRoutes(app, { productImageUpload }) {
     try {
       const isAdmin = req.user.role === 'admin';
       res.json(svc.updateProduct(req.params.id, req.body, req.branchId, { isAdmin }));
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
+  app.patch('/api/products/:id/shop-visible', requirePermission('products.edit'), attachBranch, (req, res) => {
+    try {
+      const visible = req.body?.visible !== false && req.body?.visible !== 0 && req.body?.visible !== '0';
+      res.json(setProductShopVisible(req.params.id, req.branchId, visible));
     } catch (e) {
       res.status(400).json({ error: e.message });
     }

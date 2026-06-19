@@ -144,6 +144,10 @@ export const api = {
   getProductBranchSettings: (id) => request(`/products/${id}/branch-settings`),
   createProduct: (data) => request('/products', { method: 'POST', body: JSON.stringify(data) }),
   updateProduct: (id, data) => request(`/products/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  setProductShopVisible: (id, visible) => request(`/products/${id}/shop-visible`, {
+    method: 'PATCH',
+    body: JSON.stringify({ visible }),
+  }),
   deleteProduct: (id) => request(`/products/${id}`, { method: 'DELETE' }),
   archiveProduct: (id) => request(`/products/${id}/archive`, { method: 'POST' }),
   restoreProduct: (id) => request(`/products/${id}/restore`, { method: 'POST' }),

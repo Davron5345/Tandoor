@@ -1648,6 +1648,63 @@ textarea::placeholder {
   letter-spacing: normal;
 }
 
+.product-list-shop-col {
+  width: 88px;
+  text-align: center;
+}
+
+.shop-visible-toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 24px;
+  cursor: pointer;
+}
+
+.shop-visible-toggle input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.shop-visible-toggle-ui {
+  position: relative;
+  display: block;
+  width: 44px;
+  height: 24px;
+  border-radius: 999px;
+  background: var(--control-border);
+  transition: background 0.15s ease;
+}
+
+.shop-visible-toggle-ui::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.18);
+  transition: transform 0.15s ease;
+}
+
+.shop-visible-toggle input:checked + .shop-visible-toggle-ui {
+  background: var(--primary);
+}
+
+.shop-visible-toggle input:checked + .shop-visible-toggle-ui::after {
+  transform: translateX(20px);
+}
+
+.shop-visible-toggle input:disabled + .shop-visible-toggle-ui {
+  opacity: 0.55;
+}
+
 .stock-filter-toggle {
   display: inline-flex;
   align-items: center;
