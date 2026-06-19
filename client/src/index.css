@@ -8635,6 +8635,13 @@ html.public-shop-lock #root {
 .warehouse-orders-mobile-detail-header h2 {
   margin: 0;
   font-size: 18px;
+  flex: 1;
+  min-width: 0;
+}
+
+.warehouse-orders-mobile-detail-theme {
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 .warehouse-orders-mobile-back {

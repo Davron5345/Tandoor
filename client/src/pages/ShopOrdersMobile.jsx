@@ -3,11 +3,12 @@ import { Navigate } from 'react-router-dom';
 import { api, formatDateTime, formatMoney } from '../api';
 import { useAuth } from '../AuthContext';
 import { useBranch } from '../BranchContext';
+import { useTheme } from '../ThemeContext';
 import { hasPermission } from '../permissions';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import Login from './Login';
 import ChangePassword from './ChangePassword';
-import { IconNavWarehouse, IconNavLogout } from '../components/NavIcons';
+import { IconNavWarehouse, IconNavLogout, IconNavSun, IconNavMoon } from '../components/NavIcons';
 
 const STATUS_FILTERS = [
   { value: '', label: 'Все' },
@@ -34,6 +35,7 @@ const STATUS_CLASS = {
 export default function ShopOrdersMobile() {
   const { user, loading: authLoading, logout } = useAuth();
   const { branchName, branchId } = useBranch();
+  const { theme, toggleTheme } = useTheme();
   const canView = hasPermission(user, 'shop_orders.view');
   const canEdit = hasPermission(user, 'shop_orders.edit');
 
@@ -174,10 +176,19 @@ export default function ShopOrdersMobile() {
               </div>
             </div>
             <div className="warehouse-orders-mobile-header-actions">
-              <button type="button" className="warehouse-orders-mobile-icon-btn" onClick={() => load()} aria-label="Обновить">
+              <button
+                type="button"
+                className="warehouse-orders-mobile-icon-btn"
+                onClick={toggleTheme}
+                aria-label={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
+                title={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
+              >
+                {theme === 'dark' ? <IconNavSun /> : <IconNavMoon />}
+              </button>
+              <button type="button" className="warehouse-orders-mobile-icon-btn" onClick={() => load()} aria-label="Обновить" title="Обновить">
                 ↻
               </button>
-              <button type="button" className="warehouse-orders-mobile-icon-btn" onClick={logout} aria-label="Выйти">
+              <button type="button" className="warehouse-orders-mobile-icon-btn" onClick={logout} aria-label="Выйти" title="Выйти">
                 <IconNavLogout />
               </button>
             </div>
@@ -240,6 +251,15 @@ export default function ShopOrdersMobile() {
               ← Назад
             </button>
             <h2>Заказ №{selected.number}</h2>
+            <button
+              type="button"
+              className="warehouse-orders-mobile-icon-btn warehouse-orders-mobile-detail-theme"
+              onClick={toggleTheme}
+              aria-label={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
+              title={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
+            >
+              {theme === 'dark' ? <IconNavSun /> : <IconNavMoon />}
+            </button>
           </header>
 
           <div className="warehouse-orders-mobile-detail-body">
