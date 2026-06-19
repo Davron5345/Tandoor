@@ -4630,7 +4630,7 @@ tr.product-row-highlight td:first-child {
   white-space: nowrap;
 }
 
-.cashier-table col.col-actions { width: 72px; }
+.cashier-table col.col-actions { width: 104px; }
 
 .cashier-table .sortable-th-btn {
   padding: 6px 8px;
@@ -4638,8 +4638,13 @@ tr.product-row-highlight td:first-child {
 
 .cashier-table th.col-actions,
 .cashier-table td.cashier-row-actions {
+  width: 104px;
+  min-width: 104px;
+  max-width: 104px;
   text-align: right;
-  padding-inline: 6px;
+  padding-inline: 8px;
+  white-space: nowrap;
+  overflow: visible;
 }
 
 .cashier-edit-grid .cashier-article-select-visible {
