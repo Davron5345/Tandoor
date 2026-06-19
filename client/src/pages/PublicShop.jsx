@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { api, formatMoney } from '../api';
 import { formatUzPhone } from '../phoneFormat';
 import ShopStorefront, { ShopMedia } from '../components/myshop/ShopStorefront';
+import { IconNavShop, IconNavCart } from '../components/NavIcons';
 import {
   addCartItem,
   cartCount,
@@ -499,10 +500,19 @@ export default function PublicShop() {
             onRemove={handleRemove}
           />
           {layout?.settings?.menu !== false && (
-            <nav className="myshop-bottom-nav" aria-label="Меню магазина">
-              <button type="button" className="myshop-bottom-nav-item" onClick={() => handleNav('menu')}>Меню</button>
-              <button type="button" className="myshop-bottom-nav-item active" onClick={() => handleNav('cart')}>
-                Корзина{count > 0 ? ` (${count})` : ''}
+            <nav className="myshop-bottom-nav myshop-bottom-nav-public myshop-bottom-nav-icons" aria-label="Меню магазина">
+              <button type="button" className="myshop-bottom-nav-item" onClick={() => handleNav('menu')} aria-label="Меню" title="Меню">
+                <IconNavShop />
+              </button>
+              <button
+                type="button"
+                className={`myshop-bottom-nav-item active${count > 0 ? ' has-badge' : ''}`}
+                onClick={() => handleNav('cart')}
+                aria-label={count > 0 ? `Корзина, ${count}` : 'Корзина'}
+                title={count > 0 ? `Корзина (${count})` : 'Корзина'}
+              >
+                <IconNavCart />
+                {count > 0 && <span className="myshop-bottom-nav-badge">{count}</span>}
               </button>
             </nav>
           )}

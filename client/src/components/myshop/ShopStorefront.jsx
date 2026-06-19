@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { formatMoney } from '../../api';
 import { IconImage } from '../ActionIcons';
-import { IconNavShop } from '../NavIcons';
+import { IconNavShop, IconNavCart } from '../NavIcons';
 import { getBlockMeta } from '../../utils/myShopLayout';
 
 export function formatShopPrice(product) {
@@ -567,13 +567,18 @@ export default function ShopStorefront({
   );
 
   const bottomNav = settings.menu !== false ? (
-    <nav className={`myshop-bottom-nav${publicMode ? ' myshop-bottom-nav-public' : ''}`} aria-label="Меню магазина">
+    <nav
+      className={`myshop-bottom-nav${publicMode ? ' myshop-bottom-nav-public myshop-bottom-nav-icons' : ''}`}
+      aria-label="Меню магазина"
+    >
       <button
         type="button"
         className={`myshop-bottom-nav-item${activeNav === 'menu' ? ' active' : ''}`}
         onClick={() => (publicMode ? onNavChange?.('menu') : undefined)}
+        aria-label="Меню"
+        title="Меню"
       >
-        Меню
+        {publicMode ? <IconNavShop /> : 'Меню'}
       </button>
       {!publicMode && (
         <button type="button" className="myshop-bottom-nav-item">Избранные</button>
@@ -582,8 +587,17 @@ export default function ShopStorefront({
         type="button"
         className={`myshop-bottom-nav-item${activeNav === 'cart' ? ' active' : ''}${publicMode && cartCount > 0 ? ' has-badge' : ''}`}
         onClick={() => (publicMode ? onNavChange?.('cart') : undefined)}
+        aria-label={cartCount > 0 ? `Корзина, ${cartCount}` : 'Корзина'}
+        title={cartCount > 0 ? `Корзина (${cartCount})` : 'Корзина'}
       >
-        Корзина{publicMode && cartCount > 0 ? ` (${cartCount})` : ''}
+        {publicMode ? (
+          <>
+            <IconNavCart />
+            {cartCount > 0 && <span className="myshop-bottom-nav-badge">{cartCount}</span>}
+          </>
+        ) : (
+          `Корзина${publicMode && cartCount > 0 ? ` (${cartCount})` : ''}`
+        )}
       </button>
     </nav>
   ) : null;

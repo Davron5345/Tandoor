@@ -45,6 +45,17 @@ export function IconNavShop() {
   );
 }
 
+export function IconNavCart() {
+  return (
+    <NavSvg>
+      <path d="M6 6h15l-1.4 8H7.4L6 6z" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinejoin="round" />
+      <path d="M6 6 5 3H2" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="9" cy="19" r="1.5" fill="currentColor" />
+      <circle cx="17" cy="19" r="1.5" fill="currentColor" />
+    </NavSvg>
+  );
+}
+
 export function IconNavReports() {
   return (
     <NavSvg>
