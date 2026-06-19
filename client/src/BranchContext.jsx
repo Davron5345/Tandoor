@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react';
+import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useState, useCallback } from 'react';
 import { api, setActiveBranchId as setApiBranchId } from './api';
 import { useAuth } from './AuthContext';
 
@@ -32,21 +32,25 @@ export function BranchProvider({ children }) {
         const saved = localStorage.getItem(STORAGE_KEY);
         const mainId = list.find((b) => b.id === 'main')?.id || list[0]?.id;
         if (saved && list.some((b) => b.id === saved)) {
+          setApiBranchId(saved);
           setActiveBranchIdState(saved);
         } else if (mainId) {
+          setApiBranchId(mainId);
           setActiveBranchIdState(mainId);
           localStorage.setItem(STORAGE_KEY, mainId);
         }
       } else if (user.branch_id) {
+        setApiBranchId(user.branch_id);
         setActiveBranchIdState(user.branch_id);
       }
     });
   }, [user, isAdmin, loadBranches]);
 
-  const setActiveBranchId = (id) => {
+  const setActiveBranchId = useCallback((id) => {
+    setApiBranchId(id || null);
     setActiveBranchIdState(id);
     if (isAdmin) localStorage.setItem(STORAGE_KEY, id);
-  };
+  }, [isAdmin]);
 
   const activeBranch = useMemo(
     () => branches.find((b) => b.id === activeBranchId) || null,
@@ -58,7 +62,7 @@ export function BranchProvider({ children }) {
     ? (activeBranch?.name || 'Филиал')
     : (user?.branch_name || 'Филиал');
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     setApiBranchId(branchId || null);
   }, [branchId]);
 

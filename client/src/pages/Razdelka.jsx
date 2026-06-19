@@ -179,10 +179,10 @@ export default function Razdelka() {
     const params = { type: 'razdelka' };
     if (filterStatus) params.status = filterStatus;
     api.getDocuments(params).then(setDocs).catch(console.error);
-  }, [filterStatus]);
+  }, [filterStatus, branchId]);
 
-  useEffect(() => { load(); }, [load]);
-  useAutoRefresh(load, [load], { enabled: !modal });
+  useEffect(() => { load(); }, [load, branchId]);
+  useAutoRefresh(load, [load, branchId], { enabled: !modal });
 
   useEffect(() => {
     Promise.all([

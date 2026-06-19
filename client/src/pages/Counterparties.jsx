@@ -38,9 +38,9 @@ export default function Counterparties() {
 
   const load = useCallback(
     () => api.getCounterparties(filter || undefined).then(setItems).catch(console.error),
-    [filter],
+    [filter, branchId],
   );
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); }, [load, branchId]);
   useAutoRefresh(load, [load, branchId], { enabled: !modal });
 
   const loadContracts = (counterpartyId) => {

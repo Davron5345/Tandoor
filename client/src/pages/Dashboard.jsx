@@ -93,7 +93,7 @@ export default function Dashboard() {
     api.getStats().then(setStats).catch(console.error);
   }, [branchId]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); }, [load, branchId]);
   useAutoRefresh(load, [load, branchId]);
 
   const monthly = useMemo(

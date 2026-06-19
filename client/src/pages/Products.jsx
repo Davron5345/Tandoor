@@ -300,13 +300,13 @@ export default function Products() {
         setSuppliers(s);
       })
       .catch(console.error);
-  }, [filterCategory, filterSupplier, productPage, search, listView]);
+  }, [filterCategory, filterSupplier, productPage, search, listView, branchId]);
 
   useEffect(() => {
     setProductPage(1);
   }, [branchId, filterCategory, filterSupplier, search, listView]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); }, [load, branchId]);
   useAutoRefresh(load, [load, branchId], { enabled: !modal });
 
   useEffect(() => {

@@ -264,7 +264,7 @@ export default function Documents({ defaultType }) {
       setDocPages(data.pages);
       setDocTotal(data.total);
     }).catch(console.error);
-  }, [defaultType, filterType, filterStatus, docPage]);
+  }, [defaultType, filterType, filterStatus, docPage, branchId]);
 
   useEffect(() => {
     Promise.all([
@@ -290,7 +290,7 @@ export default function Documents({ defaultType }) {
     setDocPage(1);
   }, [filterType, filterStatus, branchId]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); }, [load, branchId]);
   useAutoRefresh(load, [load, branchId], { enabled: !modal && !paymentModal });
 
   useEffect(() => {
