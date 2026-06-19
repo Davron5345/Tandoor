@@ -439,7 +439,7 @@ export default function ShopStorefront({
       )}
 
       {publicMode && branchCategories.length > 0 && !showCategoryView && (
-        <div className="myshop-categories">
+        <div className="myshop-categories myshop-categories-sticky">
           <button
             type="button"
             className={`myshop-category-chip${!activeCategoryId ? ' active' : ''}`}
