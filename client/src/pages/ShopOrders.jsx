@@ -142,59 +142,64 @@ export default function ShopOrders() {
       </div>
 
       {selected && (
-        <Modal title={`Заказ №${selected.number}`} onClose={() => setSelected(null)} wide>
+        <Modal title={`Заказ №${selected.number}`} onClose={() => setSelected(null)} wide className="modal-shop-order">
           <div className="shop-order-detail">
-            <div className="shop-order-detail-grid">
-              <div><span>Клиент</span><strong>{selected.customer_name}</strong></div>
-              <div><span>Телефон</span><strong>{selected.customer_phone}</strong></div>
-              <div><span>Способ</span><strong>{selected.delivery_type === 'delivery' ? 'Доставка' : 'Самовывоз'}</strong></div>
-              <div><span>Дата</span><strong>{formatDate(selected.created_at)}</strong></div>
-              {selected.address && (
-                <div className="shop-order-detail-wide"><span>Адрес</span><strong>{selected.address}</strong></div>
-              )}
-              {selected.comment && (
-                <div className="shop-order-detail-wide"><span>Комментарий</span><strong>{selected.comment}</strong></div>
-              )}
-            </div>
-
-            <div className="shop-order-items">
-              <h3>Товары</h3>
-              <ul>
-                {(selected.items || []).map((item) => (
-                  <li key={item.id}>
-                    <span>
-                      {item.variant_name ? `${item.product_name} — ${item.variant_name}` : item.product_name}
-                      {' · '}
-                      {item.quantity} {item.unit || 'шт'} × {formatMoney(item.price)}
-                    </span>
-                    <strong>{formatMoney(item.line_total)}</strong>
-                  </li>
-                ))}
-              </ul>
+            <div className="shop-order-detail-sticky">
               <div className="shop-order-total">
                 <span>Итого</span>
                 <strong>{formatMoney(selected.total_amount)}</strong>
               </div>
+
+              {canEdit && (
+                <div className="shop-order-status-actions">
+                  <span>Статус заказа</span>
+                  <div className="shop-order-status-buttons">
+                    {STATUS_OPTIONS.filter((o) => o.value).map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        className={`btn btn-sm${selected.status === opt.value ? ' btn-primary' : ' btn-ghost'}`}
+                        disabled={updating || selected.status === opt.value}
+                        onClick={() => changeStatus(opt.value)}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
-            {canEdit && (
-              <div className="shop-order-status-actions">
-                <span>Статус заказа</span>
-                <div className="shop-order-status-buttons">
-                  {STATUS_OPTIONS.filter((o) => o.value).map((opt) => (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      className={`btn btn-sm${selected.status === opt.value ? ' btn-primary' : ' btn-ghost'}`}
-                      disabled={updating || selected.status === opt.value}
-                      onClick={() => changeStatus(opt.value)}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
+            <div className="shop-order-detail-scroll">
+              <div className="shop-order-detail-grid">
+                <div><span>Клиент</span><strong>{selected.customer_name}</strong></div>
+                <div><span>Телефон</span><strong>{selected.customer_phone}</strong></div>
+                <div><span>Способ</span><strong>{selected.delivery_type === 'delivery' ? 'Доставка' : 'Самовывоз'}</strong></div>
+                <div><span>Дата</span><strong>{formatDate(selected.created_at)}</strong></div>
+                {selected.address && (
+                  <div className="shop-order-detail-wide"><span>Адрес</span><strong>{selected.address}</strong></div>
+                )}
+                {selected.comment && (
+                  <div className="shop-order-detail-wide"><span>Комментарий</span><strong>{selected.comment}</strong></div>
+                )}
               </div>
-            )}
+
+              <div className="shop-order-items">
+                <h3>Товары</h3>
+                <ul>
+                  {(selected.items || []).map((item) => (
+                    <li key={item.id}>
+                      <span>
+                        {item.variant_name ? `${item.product_name} — ${item.variant_name}` : item.product_name}
+                        {' · '}
+                        {item.quantity} {item.unit || 'шт'} × {formatMoney(item.price)}
+                      </span>
+                      <strong>{formatMoney(item.line_total)}</strong>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
           </div>
         </Modal>
       )}

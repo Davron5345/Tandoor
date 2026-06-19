@@ -8210,6 +8210,37 @@ html.public-shop-lock #root {
   margin-bottom: 20px;
 }
 
+.modal-shop-order .modal-body {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.shop-order-detail {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+
+.shop-order-detail-sticky {
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 16px 24px;
+  background: var(--surface);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 32%, transparent);
+}
+
+.shop-order-detail-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px 24px 20px;
+}
+
 .shop-order-detail-grid span {
   display: block;
   font-size: var(--font-xs);
@@ -8235,18 +8266,30 @@ html.public-shop-lock #root {
   justify-content: space-between;
   gap: 12px;
   padding: 10px 0;
-  border-bottom: 1px solid var(--control-border);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 32%, transparent);
+}
+
+.shop-order-items li strong {
+  font-weight: 700;
 }
 
 .shop-order-total {
   display: flex;
   justify-content: space-between;
-  margin-top: 12px;
+  align-items: center;
+  gap: 12px;
   font-size: var(--font-lg);
+  font-weight: 700;
+}
+
+.shop-order-total span,
+.shop-order-total strong {
+  font-weight: 700;
+  color: var(--text);
 }
 
 .shop-order-status-actions {
-  margin-top: 20px;
+  margin-top: 14px;
   display: flex;
   flex-direction: column;
   gap: 10px;
