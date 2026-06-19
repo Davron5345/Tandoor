@@ -38,11 +38,6 @@ function buildCategoryProductMap(products) {
   return map;
 }
 
-function productMatchesCategory(product, categoryId) {
-  if (!categoryId) return true;
-  return product.category_id === categoryId;
-}
-
 function getCategoriesWithDirectProducts(categories, products) {
   const parentIds = new Set(
     categories.filter((category) => category.parent_id).map((category) => category.parent_id),
@@ -389,7 +384,11 @@ export default function ShopStorefront({
   const filteredProducts = useMemo(() => {
     const q = search.trim().toLowerCase();
     return products.filter((product) => {
-      if (activeCategoryId && !productMatchesCategory(product, activeCategoryId)) return false;
+      if (activeCategoryId) {
+        const inCategory = product.category_id === activeCategoryId
+          || product.category_parent_id === activeCategoryId;
+        if (!inCategory) return false;
+      }
       if (!q) return true;
       const haystack = [
         product.name,
