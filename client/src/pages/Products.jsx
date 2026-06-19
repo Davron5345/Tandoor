@@ -24,7 +24,7 @@ import ProductBranchSettings, {
 import { useAuth } from '../AuthContext';
 import { useBranch } from '../BranchContext';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
-import { useFormDraft, formDraftKey, readFormDraft, clearFormDraft, promptRestoreDraft } from '../hooks/useFormDraft';
+import { useFormDraft, formDraftKey, readFormDraft, clearFormDraft, promptRestoreDraft, writeFormDraft } from '../hooks/useFormDraft';
 import { useFormDirty } from '../hooks/useFormDirty';
 import { hasPermission } from '../permissions';
 
@@ -898,7 +898,18 @@ export default function Products() {
           title={modal === 'create' ? 'Новый товар' : 'Карточка товара'}
           dirty={isFormDirty}
           draftSaved
-          onClose={() => { clearImages(); setHighlightedProductId(null); setFocusedVariantId(null); setModal(null); load(); }}
+          onClose={({ discardDraft } = {}) => {
+            if (discardDraft === false) {
+              writeFormDraft(draftKey, draftPayload);
+            } else {
+              clearFormDraft(draftKey);
+            }
+            clearImages();
+            setHighlightedProductId(null);
+            setFocusedVariantId(null);
+            setModal(null);
+            load();
+          }}
           footer={
             <>
               <ModalCancelButton />

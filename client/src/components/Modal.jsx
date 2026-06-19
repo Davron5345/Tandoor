@@ -1,10 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 
-const ModalCloseContext = createContext(null);
+const ModalCloseContext = createContext({
+  intentionalClose: () => {},
+});
 
 export function useModalClose() {
-  const requestClose = useContext(ModalCloseContext);
-  return requestClose || (() => {});
+  return useContext(ModalCloseContext).intentionalClose;
 }
 
 export function ModalCancelButton({
@@ -12,9 +13,9 @@ export function ModalCancelButton({
   className = 'btn btn-ghost',
   ...props
 }) {
-  const requestClose = useModalClose();
+  const { intentionalClose } = useContext(ModalCloseContext);
   return (
-    <button type="button" className={className} onClick={requestClose} {...props}>
+    <button type="button" className={className} onClick={intentionalClose} {...props}>
       {children}
     </button>
   );
@@ -30,28 +31,37 @@ export default function Modal({
   dirty = false,
   draftSaved = false,
 }) {
-  const [closePrompt, setClosePrompt] = useState(false);
+  const [closePrompt, setClosePrompt] = useState(null);
   const sizeClass = wide ? ' modal-wide' : '';
   const extraClass = className ? ` ${className}` : '';
 
-  const requestClose = useCallback(() => {
+  const intentionalClose = useCallback(() => {
     if (dirty) {
-      setClosePrompt(true);
+      setClosePrompt('intentional');
       return;
     }
-    onClose();
+    onClose({ discardDraft: true });
+  }, [dirty, onClose]);
+
+  const accidentalClose = useCallback(() => {
+    if (dirty) {
+      setClosePrompt('accidental');
+      return;
+    }
+    onClose({ discardDraft: true });
   }, [dirty, onClose]);
 
   const confirmClose = useCallback(() => {
-    setClosePrompt(false);
-    onClose();
-  }, [onClose]);
+    const mode = closePrompt;
+    setClosePrompt(null);
+    onClose({ discardDraft: mode === 'intentional' });
+  }, [closePrompt, onClose]);
 
   useEffect(() => {
     const onKey = (e) => {
       if (e.key === 'Escape') {
         e.preventDefault();
-        requestClose();
+        accidentalClose();
       }
     };
     document.addEventListener('keydown', onKey);
@@ -61,23 +71,23 @@ export default function Modal({
       document.removeEventListener('keydown', onKey);
       document.body.style.overflow = prevOverflow;
     };
-  }, [requestClose]);
+  }, [accidentalClose]);
 
   return (
-    <ModalCloseContext.Provider value={requestClose}>
-      <div className="modal-overlay" onClick={requestClose}>
+    <ModalCloseContext.Provider value={{ intentionalClose }}>
+      <div className="modal-overlay" onClick={accidentalClose}>
         <div className={`modal${sizeClass}${extraClass}`} onClick={(e) => e.stopPropagation()}>
           {closePrompt && (
             <div className="modal-close-guard" role="dialog" aria-modal="true">
               <div className="modal-close-guard-card">
                 <p className="modal-close-guard-title">Закрыть без сохранения?</p>
                 <p className="modal-close-guard-text">
-                  {draftSaved
-                    ? 'Несохранённые данные останутся в черновике до конца сессии браузера — при следующем открытии можно восстановить.'
-                    : 'Несохранённые изменения будут потеряны.'}
+                  {closePrompt === 'accidental' && draftSaved
+                    ? 'Несохранённые данные сохранятся как черновик — при следующем открытии можно восстановить.'
+                    : 'Все несохранённые изменения будут потеряны.'}
                 </p>
                 <div className="modal-close-guard-actions">
-                  <button type="button" className="btn btn-primary" onClick={() => setClosePrompt(false)}>
+                  <button type="button" className="btn btn-primary" onClick={() => setClosePrompt(null)}>
                     Продолжить редактирование
                   </button>
                   <button type="button" className="btn btn-ghost" onClick={confirmClose}>
@@ -89,17 +99,11 @@ export default function Modal({
           )}
           <div className="modal-header">
             <h2>{title}</h2>
-            <div className="modal-header-actions">
-              {footer && <div className="modal-footer-actions">{footer}</div>}
-              <button
-                type="button"
-                className="btn btn-icon btn-ghost btn-sm modal-close-btn"
-                onClick={requestClose}
-                aria-label="Закрыть"
-              >
-                ×
-              </button>
-            </div>
+            {footer && (
+              <div className="modal-header-actions">
+                <div className="modal-footer-actions">{footer}</div>
+              </div>
+            )}
           </div>
           <div className="modal-body">{children}</div>
         </div>
