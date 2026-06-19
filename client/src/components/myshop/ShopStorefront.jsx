@@ -402,8 +402,8 @@ export default function ShopStorefront({
     }
   };
 
-  return (
-    <div className={pageClass}>
+  const topBar = (
+    <>
       <header className="myshop-header">
         <div className="myshop-brand">
           <span className="myshop-brand-mark" aria-hidden><IconNavShop /></span>
@@ -459,7 +459,11 @@ export default function ShopStorefront({
           ))}
         </div>
       )}
+    </>
+  );
 
+  const mainContent = (
+    <>
       {publicMode && !showCategoryView && !activeCategoryId && filteredProducts.length > 0 && (
         <section className="myshop-public-catalog myshop-public-catalog-primary">
           <div className="myshop-block-section-head">
@@ -536,28 +540,46 @@ export default function ShopStorefront({
           )}
         </div>
       )}
+    </>
+  );
 
-      {settings.menu !== false && (
-        <nav className={`myshop-bottom-nav${publicMode ? ' myshop-bottom-nav-public' : ''}`} aria-label="Меню магазина">
-          <button
-            type="button"
-            className={`myshop-bottom-nav-item${activeNav === 'menu' ? ' active' : ''}`}
-            onClick={() => (publicMode ? onNavChange?.('menu') : undefined)}
-          >
-            Меню
-          </button>
-          {!publicMode && (
-            <button type="button" className="myshop-bottom-nav-item">Избранные</button>
-          )}
-          <button
-            type="button"
-            className={`myshop-bottom-nav-item${activeNav === 'cart' ? ' active' : ''}${publicMode && cartCount > 0 ? ' has-badge' : ''}`}
-            onClick={() => (publicMode ? onNavChange?.('cart') : undefined)}
-          >
-            Корзина{publicMode && cartCount > 0 ? ` (${cartCount})` : ''}
-          </button>
-        </nav>
+  const bottomNav = settings.menu !== false ? (
+    <nav className={`myshop-bottom-nav${publicMode ? ' myshop-bottom-nav-public' : ''}`} aria-label="Меню магазина">
+      <button
+        type="button"
+        className={`myshop-bottom-nav-item${activeNav === 'menu' ? ' active' : ''}`}
+        onClick={() => (publicMode ? onNavChange?.('menu') : undefined)}
+      >
+        Меню
+      </button>
+      {!publicMode && (
+        <button type="button" className="myshop-bottom-nav-item">Избранные</button>
       )}
+      <button
+        type="button"
+        className={`myshop-bottom-nav-item${activeNav === 'cart' ? ' active' : ''}${publicMode && cartCount > 0 ? ' has-badge' : ''}`}
+        onClick={() => (publicMode ? onNavChange?.('cart') : undefined)}
+      >
+        Корзина{publicMode && cartCount > 0 ? ` (${cartCount})` : ''}
+      </button>
+    </nav>
+  ) : null;
+
+  if (publicMode) {
+    return (
+      <div className={pageClass}>
+        <div className="myshop-public-topbar">{topBar}</div>
+        <div className="myshop-public-body">{mainContent}</div>
+        {bottomNav}
+      </div>
+    );
+  }
+
+  return (
+    <div className={pageClass}>
+      {topBar}
+      {mainContent}
+      {bottomNav}
     </div>
   );
 }
