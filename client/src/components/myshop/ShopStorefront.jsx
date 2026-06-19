@@ -169,7 +169,11 @@ function ShopProductCard({
 
   const handleActivate = () => {
     if (publicMode) {
-      if (inCart) return;
+      if (!canOrder) return;
+      if (inCart) {
+        onQtyChange?.(product, cartQty + 1);
+        return;
+      }
       onAdd?.(product);
       return;
     }
@@ -192,16 +196,19 @@ function ShopProductCard({
           className="myshop-product-card-media-btn"
           onClick={handleActivate}
           aria-label={product.name}
-          disabled={!canOrder || inCart}
+          disabled={!canOrder}
         >
           <ShopMedia image={product.primary_image} name={product.name} />
           {!publicMode && !inStock && <span className="myshop-product-badge">Нет в наличии</span>}
         </button>
         {inCart && (
-          <div className="myshop-product-card-qty">
+          <div className="myshop-product-card-qty" onClick={(e) => e.stopPropagation()}>
             <button
               type="button"
-              onClick={() => onQtyChange?.(product, cartQty - 1)}
+              onClick={(e) => {
+                e.stopPropagation();
+                onQtyChange?.(product, cartQty - 1);
+              }}
               aria-label="Меньше"
             >
               −
@@ -209,7 +216,10 @@ function ShopProductCard({
             <span>{cartQty}</span>
             <button
               type="button"
-              onClick={() => onQtyChange?.(product, cartQty + 1)}
+              onClick={(e) => {
+                e.stopPropagation();
+                onQtyChange?.(product, cartQty + 1);
+              }}
               aria-label="Больше"
             >
               +
@@ -222,7 +232,7 @@ function ShopProductCard({
           type="button"
           className="myshop-product-card-name"
           onClick={handleActivate}
-          disabled={!canOrder || inCart}
+          disabled={!canOrder}
         >
           {product.name}
         </button>

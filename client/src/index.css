@@ -7738,7 +7738,7 @@ html.public-shop-lock #root {
 }
 
 .myshop-product-card.is-in-cart .myshop-product-card-media-btn {
-  cursor: default;
+  cursor: pointer;
 }
 
 .myshop-product-card-qty {
