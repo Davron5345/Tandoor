@@ -7475,10 +7475,11 @@ html.public-shop-lock #root {
   position: relative;
   list-style: none;
   overflow: hidden;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 32%, transparent);
 }
 
-.public-shop-cart-swipe + .public-shop-cart-swipe {
-  border-top: 1px solid var(--control-border);
+.public-shop-cart-swipe:last-child {
+  border-bottom: none;
 }
 
 .public-shop-cart-swipe-delete {
@@ -7907,14 +7908,15 @@ html.public-shop-lock #root {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 0;
+  border-top: 1px solid color-mix(in srgb, var(--border) 32%, transparent);
 }
 
 .public-shop-cart-item {
-  padding: 10px 12px;
-  border: 1px solid var(--control-border);
-  border-radius: 14px;
-  background: var(--surface);
+  padding: 14px 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
 }
 
 .public-shop-cart-row {
@@ -7966,6 +7968,18 @@ html.public-shop-lock #root {
 
 .public-shop-cart-qty {
   flex-shrink: 0;
+}
+
+.public-shop-cart-qty.myshop-qty-controls {
+  border: none;
+  background: transparent;
+  padding: 0;
+  gap: 10px;
+}
+
+.public-shop-cart-qty.myshop-qty-controls button {
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
 }
 
 .public-shop-cart-footer {
