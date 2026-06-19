@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../api';
 import Modal, { useToast } from '../components/Modal';
 import { IconButton, IconArrowDown, IconArrowUp, IconEdit, IconPlus, IconTrash } from '../components/ActionIcons';
 import { useAuth } from '../AuthContext';
+import { useBranch } from '../BranchContext';
 import { hasPermission } from '../permissions';
 
-const PURCHASE_ARTICLE_ID = 'ca_exp_purchase';
+const PURCHASE_ARTICLE_CODE = 'exp_purchase';
 
 const emptyForm = {
   name: '',
@@ -52,7 +53,7 @@ function ArticleSection({
           </thead>
           <tbody>
             {rows.map((article, index) => {
-              const isSystem = article.id === PURCHASE_ARTICLE_ID;
+              const isSystem = article.code === PURCHASE_ARTICLE_CODE;
               return (
                 <tr key={article.id} className={!article.active ? 'cash-article-inactive' : ''}>
                   <td className="muted col-order">{article.sort_order ?? index + 1}</td>
@@ -116,13 +117,14 @@ export default function CashArticles() {
   const [form, setForm] = useState(emptyForm);
   const { show, Toast } = useToast();
   const { user } = useAuth();
+  const { branchName, branchId } = useBranch();
   const canEdit = hasPermission(user, 'cash_articles.edit');
 
-  const load = () => {
+  const load = useCallback(() => {
     api.getCashArticlesAll().then(setArticles).catch(console.error);
-  };
+  }, []);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load, branchId]);
 
   const incomeArticles = useMemo(
     () => articles.filter((a) => a.direction === 'income'),
@@ -208,7 +210,7 @@ export default function CashArticles() {
   };
 
   const editingArticle = modal && modal !== 'create' ? articles.find((a) => a.id === modal) : null;
-  const isSystemEdit = editingArticle?.id === PURCHASE_ARTICLE_ID;
+  const isSystemEdit = editingArticle?.code === PURCHASE_ARTICLE_CODE;
 
   return (
     <div className="cash-articles-page">
@@ -217,7 +219,9 @@ export default function CashArticles() {
       <div className="page-header">
         <div>
           <h1>Статьи кассы</h1>
-          <p className="page-subtitle-plain">Справочник статей прихода и расхода для страницы «Касса»</p>
+          <p className="page-subtitle-plain">
+            Справочник статей прихода и расхода для филиала «{branchName}»
+          </p>
         </div>
       </div>
 

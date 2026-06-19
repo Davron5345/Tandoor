@@ -107,14 +107,26 @@ export function changePassword(userId, currentPassword, newPassword, keepToken =
   return getUserPayload(updated);
 }
 
-export function getUsers() {
-  return queryAll(`
+export function getUsers(requester, branchId = null) {
+  let sql = `
     SELECT u.id, u.username, u.name, u.role, u.active, u.created_at, u.branch_id,
            b.name as branch_name
     FROM users u
     LEFT JOIN branches b ON b.id = u.branch_id
-    ORDER BY u.name
-  `).map((u) => ({
+  `;
+  const params = [];
+  if (requester?.role === 'admin') {
+    if (branchId) {
+      sql += ' WHERE u.branch_id = ? OR u.role = ?';
+      params.push(branchId, 'admin');
+    }
+  } else if (requester?.branch_id) {
+    sql += ' WHERE u.branch_id = ?';
+    params.push(requester.branch_id);
+  }
+  sql += ' ORDER BY u.name';
+
+  return queryAll(sql, params).map((u) => ({
     ...u,
     roleLabel: getUserPayload(u).roleLabel,
     active: !!u.active,

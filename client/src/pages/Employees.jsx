@@ -9,7 +9,7 @@ const emptyUser = { username: '', password: '', name: '', role: 'warehouse', bra
 
 export default function Employees() {
   const { user } = useAuth();
-  const { branches } = useBranch();
+  const { branches, branchId } = useBranch();
   const canEdit = hasPermission(user, 'users.edit');
 
   const [users, setUsers] = useState([]);
@@ -25,7 +25,7 @@ export default function Employees() {
     api.getRoles().then(setRoles).catch(console.error);
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [branchId]);
 
   const openCreateUser = () => {
     const defaultRole = Object.keys(roles).find((k) => k !== 'admin') || 'warehouse';

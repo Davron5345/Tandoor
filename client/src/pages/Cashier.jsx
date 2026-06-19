@@ -7,7 +7,6 @@ import { useAuth } from '../AuthContext';
 import { useBranch } from '../BranchContext';
 import { todayLocalIso } from '../utils/date';
 
-const PURCHASE_ARTICLE_ID = 'ca_exp_purchase';
 const emptySideForm = {
   amountInput: '',
   article_id: '',
@@ -119,8 +118,9 @@ function CashierSideForm({
   onSubmit,
   amountRef,
   supplierSearchRef,
+  purchaseArticleId,
 }) {
-  const needsSupplier = side === 'expense' && form.article_id === PURCHASE_ARTICLE_ID;
+  const needsSupplier = side === 'expense' && purchaseArticleId && form.article_id === purchaseArticleId;
   const [supplierSearch, setSupplierSearch] = useState('');
   const [showComment, setShowComment] = useState(Boolean(form.comment));
 
@@ -148,12 +148,12 @@ function CashierSideForm({
     const next = {
       ...form,
       article_id,
-      counterparty_id: article_id === PURCHASE_ARTICLE_ID ? form.counterparty_id : '',
+      counterparty_id: article_id === purchaseArticleId ? form.counterparty_id : '',
     };
     setForm(next);
 
     window.requestAnimationFrame(() => {
-      if (article_id === PURCHASE_ARTICLE_ID && !next.counterparty_id) {
+      if (article_id === purchaseArticleId && !next.counterparty_id) {
         supplierSearchRef?.current?.focus();
       }
     });
@@ -327,9 +327,9 @@ function paymentSide(payment) {
   return isIncomeType(payment.type) ? 'income' : 'expense';
 }
 
-function buildPaymentPayload(side, form) {
+function buildPaymentPayload(side, form, purchaseArticleId) {
   const amount = parsePriceInput(form.amountInput);
-  const isPurchase = side === 'expense' && form.article_id === PURCHASE_ARTICLE_ID;
+  const isPurchase = side === 'expense' && purchaseArticleId && form.article_id === purchaseArticleId;
   return {
     type: side === 'income'
       ? 'other_income'
@@ -350,6 +350,7 @@ function CashierEditModal({
   canEditPast,
   onClose,
   onSave,
+  purchaseArticleId,
 }) {
   const side = paymentSide(payment);
   const articles = side === 'income' ? incomeArticles : expenseArticles;
@@ -360,14 +361,14 @@ function CashierEditModal({
     comment: payment.comment || '',
     date: payment.date,
   });
-  const needsSupplier = side === 'expense' && form.article_id === PURCHASE_ARTICLE_ID;
+  const needsSupplier = side === 'expense' && purchaseArticleId && form.article_id === purchaseArticleId;
 
   const save = () => {
     const amount = parsePriceInput(form.amountInput);
     if (!amount || amount <= 0) return { error: 'Укажите сумму больше нуля' };
     if (!form.article_id) return { error: 'Выберите статью' };
     if (needsSupplier && !form.counterparty_id) return { error: 'Выберите поставщика' };
-    return { payload: buildPaymentPayload(side, form) };
+    return { payload: buildPaymentPayload(side, form, purchaseArticleId) };
   };
 
   return (
@@ -414,7 +415,7 @@ function CashierEditModal({
             onChange={(article_id) => setForm({
               ...form,
               article_id,
-              counterparty_id: article_id === PURCHASE_ARTICLE_ID ? form.counterparty_id : '',
+              counterparty_id: article_id === purchaseArticleId ? form.counterparty_id : '',
             })}
             disabled={false}
           />
@@ -424,7 +425,7 @@ function CashierEditModal({
             onChange={(e) => setForm({
               ...form,
               article_id: e.target.value,
-              counterparty_id: e.target.value === PURCHASE_ARTICLE_ID ? form.counterparty_id : '',
+              counterparty_id: e.target.value === purchaseArticleId ? form.counterparty_id : '',
             })}
           >
             <option value="">— выберите —</option>
@@ -577,6 +578,11 @@ export default function Cashier() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
+  const purchaseArticleId = useMemo(
+    () => expenseArticles.find((a) => a.code === 'exp_purchase')?.id ?? null,
+    [expenseArticles],
+  );
+
   const todayPayments = useMemo(
     () => payments.filter((p) => p.date === shiftDate),
     [payments, shiftDate],
@@ -662,7 +668,7 @@ export default function Cashier() {
       show(side === 'income' ? 'Выберите статью прихода' : 'Выберите статью расхода', 'error');
       return;
     }
-    const isPurchase = side === 'expense' && form.article_id === PURCHASE_ARTICLE_ID;
+    const isPurchase = side === 'expense' && purchaseArticleId && form.article_id === purchaseArticleId;
     if (isPurchase && !form.counterparty_id) {
       show('Выберите поставщика', 'error');
       expenseSupplierSearchRef.current?.focus();
@@ -812,6 +818,7 @@ export default function Cashier() {
             onSubmit={submitSide('expense')}
             amountRef={expenseAmountRef}
             supplierSearchRef={expenseSupplierSearchRef}
+            purchaseArticleId={purchaseArticleId}
           />
         </div>
         ) : (
@@ -986,6 +993,7 @@ export default function Cashier() {
           canEditPast={canEditPast}
           onClose={() => setEditingPayment(null)}
           onSave={saveEditedPayment}
+          purchaseArticleId={purchaseArticleId}
         />
       )}
     </div>

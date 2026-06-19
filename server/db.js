@@ -1,4 +1,9 @@
 import initSqlJs from 'sql.js';
+import {
+  LEGACY_ARTICLE_CODES,
+  DEFAULT_CASH_ARTICLES,
+  cashArticleId,
+} from './cashArticleDefaults.js';
 import { existsSync, readFileSync, statSync, mkdirSync } from 'fs';
 import {
   dbPath, dataDir, backupDatabaseFile, writeDatabaseAtomic, listBackups,
@@ -331,6 +336,7 @@ function migrateSchema() {
   migrateVariantDepartmentStock();
   migrateVariantDepartmentStockV2();
   migrateCashArticles();
+  migrateCashArticlesBranch();
   migrateDocumentHistoryRetention();
   migrateMustChangePassword();
   migrateAuditLog();
@@ -1140,6 +1146,59 @@ function migrateCashArticles() {
   }
 
   run("INSERT OR REPLACE INTO settings (key, value) VALUES ('cash_articles_v1', '1')");
+  saveDb();
+}
+
+function migrateCashArticlesBranch() {
+  const done = queryOne("SELECT value FROM settings WHERE key = 'cash_articles_branch_v1'");
+  if (done) return;
+
+  const cols = queryAll('PRAGMA table_info(cash_articles)').map((c) => c.name);
+  if (!cols.includes('branch_id')) {
+    run('ALTER TABLE cash_articles ADD COLUMN branch_id TEXT REFERENCES branches(id)');
+  }
+  if (!cols.includes('code')) {
+    run('ALTER TABLE cash_articles ADD COLUMN code TEXT');
+  }
+
+  for (const [legacyId, code] of Object.entries(LEGACY_ARTICLE_CODES)) {
+    run("UPDATE cash_articles SET branch_id = 'main', code = ? WHERE id = ?", [code, legacyId]);
+  }
+  run("UPDATE cash_articles SET branch_id = 'main' WHERE branch_id IS NULL OR branch_id = ''");
+
+  for (const [legacyId, code] of Object.entries(LEGACY_ARTICLE_CODES)) {
+    run(
+      `UPDATE payments
+       SET article_id = COALESCE(NULLIF(branch_id, ''), 'main') || '__' || ?
+       WHERE article_id = ?`,
+      [code, legacyId],
+    );
+  }
+
+  for (const [legacyId, code] of Object.entries(LEGACY_ARTICLE_CODES)) {
+    const newId = cashArticleId('main', code);
+    const target = queryOne('SELECT id FROM cash_articles WHERE id = ?', [newId]);
+    if (!target) {
+      run('UPDATE cash_articles SET id = ? WHERE id = ?', [newId, legacyId]);
+    } else {
+      run('DELETE FROM cash_articles WHERE id = ?', [legacyId]);
+    }
+  }
+
+  const branches = queryAll('SELECT id FROM branches');
+  for (const branch of branches) {
+    for (const article of DEFAULT_CASH_ARTICLES) {
+      const id = cashArticleId(branch.id, article.code);
+      run(
+        `INSERT OR IGNORE INTO cash_articles
+          (id, name, direction, sort_order, active, branch_id, code)
+         VALUES (?, ?, ?, ?, 1, ?, ?)`,
+        [id, article.name, article.direction, article.sort_order, branch.id, article.code],
+      );
+    }
+  }
+
+  run("INSERT OR REPLACE INTO settings (key, value) VALUES ('cash_articles_branch_v1', '1')");
   saveDb();
 }
 

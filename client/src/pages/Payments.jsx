@@ -4,6 +4,7 @@ import { PAYMENT_TYPES } from '../permissions';
 import Modal, { useToast } from '../components/Modal';
 import { hasPermission } from '../permissions';
 import { useAuth } from '../AuthContext';
+import { useBranch } from '../BranchContext';
 
 const empty = {
   type: 'supplier_payment',
@@ -22,6 +23,7 @@ export default function Payments() {
   const [form, setForm] = useState(empty);
   const { show, Toast } = useToast();
   const { user } = useAuth();
+  const { branchName, branchId } = useBranch();
   const canEdit = hasPermission(user, 'payments.edit');
   const canDelete = hasPermission(user, 'payments.delete');
 
@@ -46,7 +48,7 @@ export default function Payments() {
     }
   }, [show]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); }, [load, branchId]);
 
   const openCreate = () => { setForm({ ...empty }); setModal('create'); };
   const openEdit = (p) => {

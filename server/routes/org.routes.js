@@ -96,8 +96,8 @@ export function registerOrgRoutes(app) {
     }
   });
 
-  app.get('/api/users', requirePermission('users.view'), (_, res) => {
-    res.json(getUsers());
+  app.get('/api/users', requirePermission('users.view'), attachBranch, (req, res) => {
+    res.json(getUsers(req.user, req.branchId));
   });
 
   app.post('/api/users', requirePermission('users.edit'), (req, res) => {

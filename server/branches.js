@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import db from './db.js';
+import { seedCashArticlesForBranch } from './cashArticles.js';
 
 const { queryAll, queryOne, run } = db;
 
@@ -28,6 +29,7 @@ export function createBranch(data) {
     'INSERT INTO branches (id, name, address, phone, active) VALUES (?, ?, ?, ?, ?)',
     [id, name, (data.address || '').trim(), (data.phone || '').trim(), data.active !== false ? 1 : 0],
   );
+  seedCashArticlesForBranch(id);
   return getBranch(id);
 }
 

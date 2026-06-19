@@ -3,6 +3,23 @@ import db from '../db.js';
 import { DEFAULT_BRANCH_ID } from '../branches.js';
 import { hasPermission } from '../permissions.js';
 import { assertCounterpartyBranch } from './counterparties.js';
+import {
+  getCashArticles,
+  getCashArticlesAll,
+  createCashArticle,
+  updateCashArticle,
+  deleteCashArticle,
+  assertCashArticleForPayment,
+  isPurchaseArticleId,
+} from '../cashArticles.js';
+
+export {
+  getCashArticles,
+  getCashArticlesAll,
+  createCashArticle,
+  updateCashArticle,
+  deleteCashArticle,
+};
 
 const { queryAll, queryOne, run } = db;
 
@@ -37,98 +54,6 @@ export function getPayments(branchId = null) {
   return queryAll(sql, params);
 }
 
-export function getCashArticles(direction = null) {
-  let sql = 'SELECT id, name, direction, sort_order FROM cash_articles WHERE active = 1';
-  const params = [];
-  if (direction) {
-    sql += ' AND direction = ?';
-    params.push(direction);
-  }
-  sql += ' ORDER BY sort_order, name';
-  return queryAll(sql, params);
-}
-
-const PURCHASE_ARTICLE_ID = 'ca_exp_purchase';
-
-export function getCashArticlesAll() {
-  return queryAll(`
-    SELECT ca.*,
-      (SELECT COUNT(*) FROM payments p WHERE p.article_id = ca.id) AS usage_count
-    FROM cash_articles ca
-    ORDER BY ca.direction, ca.sort_order, ca.name
-  `);
-}
-
-export function createCashArticle(data) {
-  const name = (data.name || '').trim();
-  if (!name) throw new Error('Укажите название статьи');
-  if (!['income', 'expense'].includes(data.direction)) {
-    throw new Error('Укажите направление: приход или расход');
-  }
-  const id = uuidv4();
-  const sortOrder = Number.isFinite(Number(data.sort_order)) ? Number(data.sort_order) : 0;
-  const active = data.active === false ? 0 : 1;
-  run(
-    'INSERT INTO cash_articles (id, name, direction, sort_order, active) VALUES (?, ?, ?, ?, ?)',
-    [id, name, data.direction, sortOrder, active],
-  );
-  return queryOne('SELECT *, 0 AS usage_count FROM cash_articles WHERE id = ?', [id]);
-}
-
-export function updateCashArticle(id, data) {
-  const existing = queryOne('SELECT * FROM cash_articles WHERE id = ?', [id]);
-  if (!existing) throw new Error('Статья не найдена');
-
-  const name = data.name !== undefined ? String(data.name).trim() : existing.name;
-  if (!name) throw new Error('Укажите название статьи');
-
-  let direction = data.direction ?? existing.direction;
-  if (id === PURCHASE_ARTICLE_ID && direction !== 'expense') {
-    throw new Error('Статья «Закуп» должна оставаться расходом');
-  }
-  if (!['income', 'expense'].includes(direction)) {
-    throw new Error('Неверное направление');
-  }
-
-  const sortOrder = data.sort_order !== undefined
-    ? Number(data.sort_order)
-    : existing.sort_order;
-  const active = data.active !== undefined ? (data.active ? 1 : 0) : existing.active;
-
-  if (id === PURCHASE_ARTICLE_ID && !active) {
-    throw new Error('Статью «Закуп» нельзя отключить');
-  }
-
-  run(
-    'UPDATE cash_articles SET name = ?, direction = ?, sort_order = ?, active = ? WHERE id = ?',
-    [name, direction, sortOrder, active, id],
-  );
-
-  return queryOne(`
-    SELECT ca.*,
-      (SELECT COUNT(*) FROM payments p WHERE p.article_id = ca.id) AS usage_count
-    FROM cash_articles ca
-    WHERE ca.id = ?
-  `, [id]);
-}
-
-export function deleteCashArticle(id) {
-  if (id === PURCHASE_ARTICLE_ID) {
-    throw new Error('Системную статью «Закуп» нельзя удалить');
-  }
-  const existing = queryOne('SELECT * FROM cash_articles WHERE id = ?', [id]);
-  if (!existing) throw new Error('Статья не найдена');
-
-  const usage = queryOne('SELECT COUNT(*) AS c FROM payments WHERE article_id = ?', [id]).c;
-  if (usage > 0) {
-    run('UPDATE cash_articles SET active = 0 WHERE id = ?', [id]);
-    return { deactivated: true };
-  }
-
-  run('DELETE FROM cash_articles WHERE id = ?', [id]);
-  return { deactivated: false };
-}
-
 function paymentTodayIso() {
   const d = new Date();
   const y = d.getFullYear();
@@ -147,18 +72,8 @@ function assertPaymentShiftAccess(userRole, ...dates) {
   }
 }
 
-function assertCashArticle(articleId, paymentType) {
-  if (!articleId) return null;
-  const article = queryOne('SELECT * FROM cash_articles WHERE id = ? AND active = 1', [articleId]);
-  if (!article) throw new Error('Статья не найдена');
-  const isIncome = paymentType === 'other_income' || paymentType === 'customer_income';
-  if (isIncome && article.direction !== 'income') throw new Error('Статья не подходит для прихода');
-  if (!isIncome && article.direction !== 'expense') throw new Error('Статья не подходит для расхода');
-  return article;
-}
-
 function assertPurchasePayment(data, payBranchId) {
-  if (data.article_id !== PURCHASE_ARTICLE_ID) return;
+  if (!isPurchaseArticleId(data.article_id)) return;
   if (!data.counterparty_id) throw new Error('Выберите поставщика');
   if (data.type !== 'supplier_payment') throw new Error('Для статьи «Закуп» нужна оплата поставщику');
   assertCounterpartyBranch(data.counterparty_id, payBranchId, 'prihod');
@@ -211,7 +126,7 @@ export function createPayment(data, userId = null, branchId = DEFAULT_BRANCH_ID,
   const number = data.number || generatePaymentNumber(payBranchId);
   if (!data.amount || data.amount <= 0) throw new Error('Укажите сумму больше нуля');
   assertPaymentShiftAccess(userRole, data.date);
-  assertCashArticle(data.article_id, data.type);
+  assertCashArticleForPayment(data.article_id, data.type, payBranchId);
   assertPurchasePayment(data, payBranchId);
   assertPaymentDocumentLink(data.document_id || null, data.type, payBranchId, data.counterparty_id || null);
 
@@ -258,7 +173,7 @@ export function updatePayment(id, data, branchId = DEFAULT_BRANCH_ID, userRole =
   const payType = data.type || existing.type;
   const articleId = data.article_id ?? existing.article_id;
   const documentId = data.document_id !== undefined ? data.document_id : existing.document_id;
-  assertCashArticle(articleId, payType);
+  assertCashArticleForPayment(articleId, payType, payBranchId);
   assertPurchasePayment({ ...data, article_id: articleId, type: payType, counterparty_id: counterpartyId }, payBranchId);
   assertPaymentDocumentLink(documentId, payType, payBranchId, counterpartyId);
   if (counterpartyId) {
