@@ -7239,3 +7239,358 @@ tr.product-row-highlight td:first-child {
     grid-template-columns: 1fr;
   }
 }
+
+/* Public shop + orders */
+.public-shop-shell {
+  min-height: 100vh;
+  background: var(--bg);
+  display: flex;
+  justify-content: center;
+  padding: 16px 12px 24px;
+}
+
+.public-shop-shell .myshop-page {
+  width: min(100%, 420px);
+  margin: 0 auto;
+}
+
+.public-shop-page {
+  min-height: calc(100vh - 32px);
+  display: flex;
+  flex-direction: column;
+}
+
+.public-shop-view {
+  flex: 1;
+  padding: 16px 16px 88px;
+}
+
+.public-shop-subheader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.public-shop-subheader h2 {
+  margin: 0;
+  font-size: var(--font-lg);
+}
+
+.public-shop-cart-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.public-shop-cart-item {
+  padding: 12px;
+  border: 1px solid var(--control-border);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.public-shop-cart-item-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.public-shop-cart-item-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.public-shop-cart-footer {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.public-shop-cart-total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: var(--font-lg);
+}
+
+.public-shop-checkout-btn {
+  width: 100%;
+}
+
+.public-shop-checkout-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.public-shop-delivery-type {
+  border: 1px solid var(--control-border);
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.public-shop-delivery-type legend {
+  padding: 0 4px;
+  font-size: var(--font-sm);
+  color: var(--text-muted);
+}
+
+.public-shop-delivery-type label {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: var(--font-sm);
+}
+
+.public-shop-success {
+  display: grid;
+  place-items: center;
+  padding-top: 48px;
+}
+
+.public-shop-success-card {
+  text-align: center;
+  padding: 28px 20px;
+  border-radius: 18px;
+  border: 1px solid var(--control-border);
+  background: var(--surface);
+  max-width: 360px;
+}
+
+.public-shop-success-icon {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 16px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--success) 18%, var(--surface));
+  color: var(--success);
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.public-shop-success-sum {
+  font-size: var(--font-xl);
+  font-weight: 700;
+  margin: 12px 0;
+}
+
+.public-shop-success-note {
+  color: var(--text-muted);
+  font-size: var(--font-sm);
+  margin-bottom: 16px;
+}
+
+.myshop-variant-pick {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--control-border);
+  border-radius: 10px;
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.myshop-variant-pick.active {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 8%, var(--surface));
+}
+
+.myshop-variant-pick:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.myshop-qty-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 16px 0;
+}
+
+.myshop-qty-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--control-border);
+  background: var(--control-bg);
+}
+
+.myshop-qty-controls-sm {
+  gap: 8px;
+  padding: 2px 6px;
+}
+
+.myshop-qty-controls button {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 999px;
+  background: var(--surface);
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.myshop-add-btn {
+  width: 100%;
+  margin-top: 8px;
+}
+
+.myshop-public-settings {
+  margin-bottom: 16px;
+}
+
+.myshop-public-settings-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.myshop-public-settings-head h2 {
+  margin: 0 0 4px;
+  font-size: var(--font-lg);
+}
+
+.myshop-public-settings-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.myshop-public-link {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: var(--font-sm);
+  color: var(--text-muted);
+}
+
+.myshop-public-link-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.myshop-public-link-row input {
+  flex: 1 1 240px;
+}
+
+.shop-orders-toolbar {
+  margin-bottom: 16px;
+}
+
+.shop-orders-filter {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: var(--font-sm);
+}
+
+.shop-order-status {
+  display: inline-flex;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: var(--font-xs);
+  font-weight: 600;
+}
+
+.shop-order-status-new {
+  background: color-mix(in srgb, #3b82f6 16%, var(--surface));
+  color: #2563eb;
+}
+
+.shop-order-status-processing {
+  background: color-mix(in srgb, #f59e0b 18%, var(--surface));
+  color: #d97706;
+}
+
+.shop-order-status-done {
+  background: color-mix(in srgb, var(--success) 18%, var(--surface));
+  color: var(--success);
+}
+
+.shop-order-status-cancelled {
+  background: color-mix(in srgb, var(--danger) 14%, var(--surface));
+  color: var(--danger);
+}
+
+.shop-order-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 16px;
+  margin-bottom: 20px;
+}
+
+.shop-order-detail-grid span {
+  display: block;
+  font-size: var(--font-xs);
+  color: var(--text-muted);
+  margin-bottom: 2px;
+}
+
+.shop-order-detail-wide {
+  grid-column: 1 / -1;
+}
+
+.shop-order-items ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.shop-order-items li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--control-border);
+}
+
+.shop-order-total {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 12px;
+  font-size: var(--font-lg);
+}
+
+.shop-order-status-actions {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.shop-order-status-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+@media (max-width: 900px) {
+  .myshop-public-settings-grid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -35,6 +35,16 @@ async function request(path, options = {}) {
   return data;
 }
 
+async function publicRequest(path, options = {}) {
+  const headers = { 'Content-Type': 'application/json', ...options.headers };
+  const res = await fetch(`${API}${path}`, { ...options, headers }).catch(() => {
+    throw new Error('Сервер недоступен. Проверьте подключение к интернету.');
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Ошибка запроса');
+  return data;
+}
+
 export const api = {
   login: async (username, password) => {
     let res;
@@ -114,6 +124,23 @@ export const api = {
   },
   getMyShopLayout: () => request('/myshop/layout'),
   saveMyShopLayout: (data) => request('/myshop/layout', { method: 'PUT', body: JSON.stringify(data) }),
+  getShopSettings: () => request('/shop/settings'),
+  saveShopSettings: (data) => request('/shop/settings', { method: 'PUT', body: JSON.stringify(data) }),
+  getShopOrders: (params = {}) => {
+    const q = new URLSearchParams(params).toString();
+    return request(`/shop-orders${q ? `?${q}` : ''}`);
+  },
+  getShopOrder: (id) => request(`/shop-orders/${id}`),
+  updateShopOrderStatus: (id, status) => request(`/shop-orders/${id}/status`, {
+    method: 'PUT',
+    body: JSON.stringify({ status }),
+  }),
+  getPublicShopBranches: () => publicRequest('/public/shop/branches'),
+  getPublicShopCatalog: (branchId) => publicRequest(`/public/shop/${encodeURIComponent(branchId)}/catalog`),
+  createPublicShopOrder: (branchId, data) => publicRequest(`/public/shop/${encodeURIComponent(branchId)}/orders`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
   getProductBranchSettings: (id) => request(`/products/${id}/branch-settings`),
   createProduct: (data) => request('/products', { method: 'POST', body: JSON.stringify(data) }),
   updateProduct: (id, data) => request(`/products/${id}`, { method: 'PUT', body: JSON.stringify(data) }),

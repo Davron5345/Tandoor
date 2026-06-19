@@ -216,6 +216,10 @@ export default function ShopStorefront({
   onCategoryClick,
   onProductOpen,
   preview = false,
+  publicMode = false,
+  activeNav = 'menu',
+  cartCount = 0,
+  onNavChange,
 }) {
   const settings = layout?.settings || {};
   const blocks = layout?.blocks || [];
@@ -321,9 +325,23 @@ export default function ShopStorefront({
 
       {settings.menu !== false && (
         <nav className="myshop-bottom-nav" aria-label="Меню магазина">
-          <button type="button" className="myshop-bottom-nav-item active">Меню</button>
-          <button type="button" className="myshop-bottom-nav-item">Избранные</button>
-          <button type="button" className="myshop-bottom-nav-item">Корзина</button>
+          <button
+            type="button"
+            className={`myshop-bottom-nav-item${activeNav === 'menu' ? ' active' : ''}`}
+            onClick={publicMode && onNavChange ? () => onNavChange('menu') : undefined}
+          >
+            Меню
+          </button>
+          {!publicMode && (
+            <button type="button" className="myshop-bottom-nav-item">Избранные</button>
+          )}
+          <button
+            type="button"
+            className={`myshop-bottom-nav-item${activeNav === 'cart' ? ' active' : ''}${publicMode && cartCount > 0 ? ' has-badge' : ''}`}
+            onClick={publicMode && onNavChange ? () => onNavChange('cart') : undefined}
+          >
+            Корзина{publicMode && cartCount > 0 ? ` (${cartCount})` : ''}
+          </button>
         </nav>
       )}
     </div>

@@ -7,6 +7,7 @@ import { hasPermission } from '../permissions';
 import ShopStorefront, { formatShopPrice, ShopMedia } from '../components/myshop/ShopStorefront';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import { createEmptyLayout } from '../utils/myShopLayout';
+import { useToast } from '../components/Modal';
 
 function getVariantImage(variant) {
   if (!variant?.images?.length) return null;
@@ -94,6 +95,18 @@ export default function MyShop() {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const { branchId, branchName } = useBranch();
   const canEdit = hasPermission(user, 'products.edit');
+  const { show, Toast } = useToast();
+  const publicShopUrl = branchId ? `${window.location.origin}/shop/${branchId}` : '';
+
+  const copyPublicLink = async () => {
+    if (!publicShopUrl) return;
+    try {
+      await navigator.clipboard.writeText(publicShopUrl);
+      show('Ссылка скопирована');
+    } catch {
+      show('Не удалось скопировать ссылку', 'error');
+    }
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -123,9 +136,14 @@ export default function MyShop() {
 
   return (
     <>
+      {Toast}
       {canEdit && (
         <div className="myshop-admin-bar">
           <Link to="/myshop/constructor" className="btn btn-ghost btn-sm">Конструктор</Link>
+          <Link to="/shop-orders" className="btn btn-ghost btn-sm">Заказы</Link>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={copyPublicLink}>
+            Ссылка для клиентов
+          </button>
         </div>
       )}
       <ShopStorefront

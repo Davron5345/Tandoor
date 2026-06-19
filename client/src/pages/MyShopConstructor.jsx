@@ -115,18 +115,34 @@ export default function MyShopConstructor() {
   const [selectedBlockId, setSelectedBlockId] = useState(null);
   const [categorySearch, setCategorySearch] = useState('');
   const [previewSearch, setPreviewSearch] = useState('');
+  const [shopSettings, setShopSettings] = useState({ enabled: true, notifyChatId: '' });
+  const [savingShopSettings, setSavingShopSettings] = useState(false);
+
+  const publicShopUrl = branchId ? `${window.location.origin}/shop/${branchId}` : '';
+
+  const copyPublicLink = async () => {
+    if (!publicShopUrl) return;
+    try {
+      await navigator.clipboard.writeText(publicShopUrl);
+      show('Ссылка скопирована');
+    } catch {
+      show('Не удалось скопировать ссылку', 'error');
+    }
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [layoutData, productList, categoryList] = await Promise.all([
+      const [layoutData, productList, categoryList, settingsData] = await Promise.all([
         api.getMyShopLayout(),
         api.getProducts(),
         api.getProductCategories(),
+        api.getShopSettings(),
       ]);
       setLayout(layoutData);
       setProducts(productList);
       setCategories(categoryList);
+      setShopSettings(settingsData);
       setSelectedBlockId((current) => current || layoutData.blocks[0]?.id || null);
     } catch (err) {
       console.error(err);
@@ -209,6 +225,19 @@ export default function MyShopConstructor() {
     });
   };
 
+  const saveShopSettings = async () => {
+    setSavingShopSettings(true);
+    try {
+      const saved = await api.saveShopSettings(shopSettings);
+      setShopSettings(saved);
+      show('Настройки заказов сохранены');
+    } catch (err) {
+      show(err.message || 'Не удалось сохранить настройки', 'error');
+    } finally {
+      setSavingShopSettings(false);
+    }
+  };
+
   const save = async () => {
     if (!canEdit) return;
     setSaving(true);
@@ -257,6 +286,41 @@ export default function MyShopConstructor() {
         <Toggle label="Скрыть фон" checked={layout.settings.hideBackground} onChange={(v) => updateSettings({ hideBackground: v })} />
         <Toggle label="Прозрачный фон" checked={layout.settings.transparentBackground} onChange={(v) => updateSettings({ transparentBackground: v })} />
         <Toggle label="Снаружи фото" checked={layout.settings.photoOutside} onChange={(v) => updateSettings({ photoOutside: v })} />
+      </div>
+
+      <div className="card myshop-public-settings">
+        <div className="myshop-public-settings-head">
+          <div>
+            <h2>Публичный магазин и заказы</h2>
+            <p className="page-subtitle">Ссылка для клиентов и уведомления в Telegram</p>
+          </div>
+          <button type="button" className="btn btn-primary btn-sm" onClick={saveShopSettings} disabled={savingShopSettings}>
+            {savingShopSettings ? 'Сохранение...' : 'Сохранить настройки'}
+          </button>
+        </div>
+        <div className="myshop-public-settings-grid">
+          <Toggle
+            label="Приём заказов"
+            checked={shopSettings.enabled !== false}
+            onChange={(v) => setShopSettings((prev) => ({ ...prev, enabled: v }))}
+          />
+          <label className="myshop-field">
+            <span>Telegram Chat ID для заказов</span>
+            <input
+              value={shopSettings.notifyChatId || ''}
+              onChange={(e) => setShopSettings((prev) => ({ ...prev, notifyChatId: e.target.value }))}
+              placeholder="Получите через /start у бота"
+            />
+          </label>
+          <div className="myshop-public-link">
+            <span>Публичная ссылка</span>
+            <div className="myshop-public-link-row">
+              <input value={publicShopUrl} readOnly />
+              <button type="button" className="btn btn-ghost btn-sm" onClick={copyPublicLink}>Копировать</button>
+              <a href={publicShopUrl} target="_blank" rel="noreferrer" className="btn btn-ghost btn-sm">Открыть</a>
+            </div>
+          </div>
+        </div>
       </div>
 
       {loading ? (

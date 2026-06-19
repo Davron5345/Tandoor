@@ -343,6 +343,48 @@ function migrateSchema() {
   migrateMustChangePassword();
   migrateAuditLog();
   migrateProductBranches();
+  migrateShopOrders();
+}
+
+function migrateShopOrders() {
+  const done = queryOne("SELECT value FROM settings WHERE key = 'shop_orders_v1'");
+  if (done) return;
+
+  run(`
+    CREATE TABLE IF NOT EXISTS shop_orders (
+      id TEXT PRIMARY KEY,
+      branch_id TEXT NOT NULL,
+      number INTEGER NOT NULL,
+      customer_name TEXT NOT NULL,
+      customer_phone TEXT NOT NULL,
+      delivery_type TEXT NOT NULL DEFAULT 'pickup' CHECK(delivery_type IN ('pickup', 'delivery')),
+      address TEXT,
+      comment TEXT,
+      status TEXT NOT NULL DEFAULT 'new' CHECK(status IN ('new', 'processing', 'done', 'cancelled')),
+      total_amount REAL NOT NULL DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (branch_id) REFERENCES branches(id)
+    )
+  `);
+
+  run(`
+    CREATE TABLE IF NOT EXISTS shop_order_items (
+      id TEXT PRIMARY KEY,
+      order_id TEXT NOT NULL,
+      product_id TEXT NOT NULL,
+      variant_id TEXT,
+      product_name TEXT NOT NULL,
+      variant_name TEXT,
+      quantity REAL NOT NULL,
+      price REAL NOT NULL,
+      unit TEXT,
+      line_total REAL NOT NULL,
+      FOREIGN KEY (order_id) REFERENCES shop_orders(id) ON DELETE CASCADE
+    )
+  `);
+
+  run("INSERT OR REPLACE INTO settings (key, value) VALUES ('shop_orders_v1', '1')");
 }
 
 function migrateProductBranches() {

@@ -6,15 +6,19 @@ import { registerCounterpartyRoutes } from './counterparties.routes.js';
 import { registerDocumentRoutes } from './documents.routes.js';
 import { registerFinanceRoutes } from './finance.routes.js';
 import { registerTelegramRoutes } from './telegram.routes.js';
+import { registerPublicShopRoutes } from './publicShop.routes.js';
+import { registerShopOrdersRoutes } from './shopOrders.routes.js';
 
 export function registerApiRoutes(app, deps = {}) {
   registerAuthRoutes(app, deps);
+  registerPublicShopRoutes(app);
   registerAdminRoutes(app);
   registerOrgRoutes(app);
   registerCatalogRoutes(app, deps);
   registerCounterpartyRoutes(app);
   registerDocumentRoutes(app);
   registerFinanceRoutes(app);
+  registerShopOrdersRoutes(app);
   registerTelegramRoutes(app);
 }
 

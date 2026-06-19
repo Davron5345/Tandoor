@@ -19,6 +19,8 @@ import Calculations from './pages/Calculations';
 import Reports from './pages/Reports';
 import MyShop from './pages/MyShop';
 import MyShopConstructor from './pages/MyShopConstructor';
+import PublicShop from './pages/PublicShop';
+import ShopOrders from './pages/ShopOrders';
 import Login from './pages/Login';
 import ChangePassword from './pages/ChangePassword';
 import { api } from './api';
@@ -225,7 +227,7 @@ function AppContent() {
     ].filter((item) => hasPermission(user, item.perm));
 
     const catalogPathsLocal = [
-      ...(canViewProductsLocal ? ['/products', '/product-categories'] : []),
+      ...(canViewProductsLocal ? ['/products', '/product-categories', '/shop-orders'] : []),
       ...(hasPermission(user, 'counterparties.view') ? ['/counterparties'] : []),
     ];
 
@@ -293,7 +295,7 @@ function AppContent() {
   ].filter((item) => hasPermission(user, item.perm));
 
   const catalogPaths = [
-    ...(canViewProducts ? ['/products', '/product-categories'] : []),
+    ...(canViewProducts ? ['/products', '/product-categories', '/shop-orders'] : []),
     ...(canViewCounterparties ? ['/counterparties'] : []),
   ];
 
@@ -417,6 +419,16 @@ function AppContent() {
                 title={sidebarCollapsed ? 'Конструктор MyShop' : undefined}
               >
                 <NavItemContent icon={IconNavCatalog} label="Конструктор MyShop" />
+              </NavLink>
+            )}
+
+            {canViewProducts && (
+              <NavLink
+                to="/shop-orders"
+                className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
+                title={sidebarCollapsed ? 'Заказы MyShop' : undefined}
+              >
+                <NavItemContent icon={IconNavDocuments} label="Заказы MyShop" />
               </NavLink>
             )}
 
@@ -684,6 +696,7 @@ function AppContent() {
           <Route path="/cash-articles" element={canViewCashArticles ? <CashArticles /> : <Navigate to={firstNavPath} />} />
           <Route path="/myshop/constructor" element={canEditProducts ? <MyShopConstructor /> : <Navigate to="/myshop" />} />
           <Route path="/myshop" element={canViewProducts ? <MyShop /> : <Navigate to="/" />} />
+          <Route path="/shop-orders" element={canViewProducts ? <ShopOrders /> : <Navigate to="/" />} />
           <Route path="/products" element={canViewProducts ? <Products /> : <Navigate to="/" />} />
           <Route path="/product-categories" element={canViewProducts ? <ProductCategories /> : <Navigate to="/" />} />
           <Route path="/counterparties" element={hasPermission(user, 'counterparties.view') ? <Counterparties /> : <Navigate to="/" />} />
@@ -704,7 +717,10 @@ function AppContent() {
 function App() {
   return (
     <BrowserRouter>
-      <AppContent />
+      <Routes>
+        <Route path="/shop/:branchId" element={<PublicShop />} />
+        <Route path="*" element={<AppContent />} />
+      </Routes>
     </BrowserRouter>
   );
 }

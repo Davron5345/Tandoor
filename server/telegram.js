@@ -1,5 +1,6 @@
 import TelegramBot from 'node-telegram-bot-api';
 import { logTelegramMessage } from './services.js';
+import { getSetting } from './services/telegram.js';
 
 let bot = null;
 let enabled = false;
@@ -160,6 +161,47 @@ export async function sendCustomMessage(counterparty, text, documentId = null) {
       status: 'error',
       error: err.message,
     });
+    return { success: false, error: err.message };
+  }
+}
+
+export async function sendShopOrderNotification(order, branch) {
+  if (!isTelegramEnabled()) {
+    return { success: false, error: 'Telegram бот не настроен' };
+  }
+
+  const branchSettingsRaw = getSetting(`shop_settings:${order.branch_id}`);
+  let branchNotifyChatId = '';
+  if (branchSettingsRaw) {
+    try {
+      branchNotifyChatId = JSON.parse(branchSettingsRaw).notifyChatId || '';
+    } catch { /* ignore */ }
+  }
+  const targetChatId = branchNotifyChatId || getSetting('shop_notify_chat_id');
+
+  if (!targetChatId) {
+    return { success: false, error: 'Не указан Chat ID для уведомлений о заказах' };
+  }
+
+  const deliveryLabel = order.delivery_type === 'delivery' ? '🚚 Доставка' : '🏪 Самовывоз';
+  let text = `🛒 *Новый заказ №${order.number}*\n\n`;
+  text += `🏢 Филиал: ${branch?.name || order.branch_id}\n`;
+  text += `👤 ${order.customer_name}\n`;
+  text += `📞 ${order.customer_phone}\n`;
+  text += `${deliveryLabel}\n`;
+  if (order.address) text += `📍 ${order.address}\n`;
+  if (order.comment) text += `📝 ${order.comment}\n`;
+  text += `\n💰 *Итого:* ${formatMoney(order.total_amount)}\n\n`;
+  text += `📦 *Товары:*\n`;
+  for (const item of order.items || []) {
+    const name = item.variant_name ? `${item.product_name} — ${item.variant_name}` : item.product_name;
+    text += `• ${name} — ${item.quantity} ${item.unit || 'шт'} × ${formatMoney(item.price)}\n`;
+  }
+
+  try {
+    await bot.sendMessage(targetChatId, text, { parse_mode: 'Markdown' });
+    return { success: true };
+  } catch (err) {
     return { success: false, error: err.message };
   }
 }
