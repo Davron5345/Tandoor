@@ -181,7 +181,7 @@ export default function Products() {
   const [uploading, setUploading] = useState(false);
   const [productCardTab, setProductCardTab] = useState('main');
   const [highlightedProductId, setHighlightedProductId] = useState(null);
-  const [collapsedProductIds, setCollapsedProductIds] = useState(() => new Set());
+  const [expandedProductIds, setExpandedProductIds] = useState(() => new Set());
   const [productPage, setProductPage] = useState(1);
   const [productPages, setProductPages] = useState(1);
   const [productTotal, setProductTotal] = useState(0);
@@ -322,12 +322,12 @@ export default function Products() {
     if (isSearching) return displayListRows;
     return displayListRows.filter((row) => {
       if (row.kind !== 'variant') return true;
-      return !collapsedProductIds.has(row.product.id);
+      return expandedProductIds.has(row.product.id);
     });
-  }, [displayListRows, collapsedProductIds, isSearching]);
+  }, [displayListRows, expandedProductIds, isSearching]);
 
   const toggleProductVariants = (productId) => {
-    setCollapsedProductIds((prev) => {
+    setExpandedProductIds((prev) => {
       const next = new Set(prev);
       if (next.has(productId)) next.delete(productId);
       else next.add(productId);
@@ -337,10 +337,10 @@ export default function Products() {
 
   useEffect(() => {
     if (!highlightedProductId) return;
-    setCollapsedProductIds((prev) => {
-      if (!prev.has(highlightedProductId)) return prev;
+    setExpandedProductIds((prev) => {
+      if (prev.has(highlightedProductId)) return prev;
       const next = new Set(prev);
-      next.delete(highlightedProductId);
+      next.add(highlightedProductId);
       return next;
     });
   }, [highlightedProductId]);
@@ -576,7 +576,7 @@ export default function Products() {
     const isVariant = kind === 'variant';
     const highlighted = p.id === highlightedProductId;
     const hasVariants = !isVariant && p.has_variants && (p.variants?.length > 0);
-    const isCollapsed = hasVariants && collapsedProductIds.has(p.id);
+    const isExpanded = hasVariants && expandedProductIds.has(p.id);
 
     return (
       <tr
@@ -585,7 +585,7 @@ export default function Products() {
         className={[
           isVariant ? 'product-list-row-variant' : 'product-list-row-parent',
           hasVariants ? 'has-variants' : '',
-          hasVariants && isCollapsed ? 'is-collapsed' : '',
+          hasVariants && !isExpanded ? 'is-collapsed' : '',
           highlighted ? 'product-row-highlight' : '',
         ].filter(Boolean).join(' ')}
       >
@@ -599,12 +599,12 @@ export default function Products() {
                 type="button"
                 className="product-list-name-toggle"
                 onClick={() => toggleProductVariants(p.id)}
-                aria-expanded={!isCollapsed}
-                title={isCollapsed ? 'Показать варианты' : 'Скрыть варианты'}
+                aria-expanded={isExpanded}
+                title={isExpanded ? 'Скрыть варианты' : 'Показать варианты'}
               >
-                <span className="product-list-chevron" aria-hidden>{isCollapsed ? '▸' : '▾'}</span>
+                <span className="product-list-chevron" aria-hidden>{isExpanded ? '▾' : '▸'}</span>
                 <strong>{p.name}</strong>
-                {isCollapsed && (
+                {!isExpanded && (
                   <span className="product-list-variant-count">{p.variants.length}</span>
                 )}
               </button>
