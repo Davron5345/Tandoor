@@ -1,0 +1,16 @@
+---
+description: Auto commit and push after completing code changes
+alwaysApply: true
+---
+
+# Auto commit and push
+
+After completing any code update in this project:
+
+1. Commit all relevant changes with a concise message (focus on why, not what).
+2. Push to `origin` on the current branch without waiting for the user to ask.
+3. Briefly confirm commit hash and that push succeeded in the final reply.
+
+Do not commit files with secrets (`.env`, credentials). Do not force-push to main.
+
+If there are no changes to commit, skip commit/push and say so.
