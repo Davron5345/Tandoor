@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { formatMoney } from '../../api';
 import { IconImage } from '../ActionIcons';
+import { IconNavShop } from '../NavIcons';
 import { getBlockMeta } from '../../utils/myShopLayout';
 
 export function formatShopPrice(product) {
@@ -250,7 +251,7 @@ export default function ShopStorefront({
     <div className={pageClass}>
       <header className="myshop-header">
         <div className="myshop-brand">
-          <span className="myshop-brand-mark" aria-hidden>MS</span>
+          <span className="myshop-brand-mark" aria-hidden><IconNavShop /></span>
           <div>
             <strong>MyShop</strong>
             <span>{branchName}</span>
@@ -286,10 +287,17 @@ export default function ShopStorefront({
             />
           ))}
         </div>
+      ) : preview ? (
+        <div className="myshop-preview-placeholder">
+          <div className="myshop-preview-skeleton-grid">
+            <span /><span /><span /><span /><span />
+          </div>
+          <p>Добавьте блоки витрины справа</p>
+        </div>
       ) : (
         <div className="myshop-fallback-grid">
           {filteredProducts.length === 0 ? (
-            <div className="myshop-empty">Нет товаров</div>
+            <div className="myshop-empty">Нет товаров в этом филиале</div>
           ) : (
             <div className="myshop-grid">
               {filteredProducts.map((product) => (

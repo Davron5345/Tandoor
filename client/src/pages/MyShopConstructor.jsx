@@ -7,7 +7,8 @@ import { hasPermission } from '../permissions';
 import { useToast } from '../components/Modal';
 import ShopStorefront from '../components/myshop/ShopStorefront';
 import BlockAddModal from '../components/myshop/BlockAddModal';
-import { IconImage } from '../components/ActionIcons';
+import { IconImage, IconTrash } from '../components/ActionIcons';
+import { IconNavShop } from '../components/NavIcons';
 import {
   buildCategoryImageMap,
   canAddCategoryToBlock,
@@ -18,9 +19,10 @@ import {
 
 function Toggle({ label, checked, onChange }) {
   return (
-    <label className="myshop-constructor-toggle">
+    <label className="myshop-switch">
       <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
-      <span>{label}</span>
+      <span className="myshop-switch-track" aria-hidden />
+      <span className="myshop-switch-label">{label}</span>
     </label>
   );
 }
@@ -61,7 +63,9 @@ function BlockEditorCard({
           <button type="button" className="btn btn-ghost btn-sm" onClick={() => setCollapsed((v) => !v)}>
             {collapsed ? '▸' : '▾'}
           </button>
-          <button type="button" className="btn btn-ghost btn-sm" onClick={onRemove}>🗑</button>
+          <button type="button" className="btn btn-ghost btn-sm myshop-block-editor-remove" onClick={onRemove} title="Удалить блок">
+            <IconTrash />
+          </button>
         </div>
       </div>
       {!collapsed && (
@@ -77,7 +81,7 @@ function BlockEditorCard({
           </label>
           <div className="myshop-block-editor-chips">
             {block.categoryIds.length === 0 && (
-              <span className="myshop-block-editor-hint">Выберите категории слева</span>
+              <span className="myshop-block-editor-hint">Нажмите категорию в центральной колонке</span>
             )}
             {block.categoryIds.map((categoryId, chipIndex) => {
               const category = categoriesById.get(categoryId);
@@ -230,10 +234,13 @@ export default function MyShopConstructor() {
   return (
     <div className="myshop-constructor">
       {Toast}
-      <div className="myshop-constructor-top">
-        <div>
-          <h1>Конструктор MyShop</h1>
-          <p className="page-subtitle">{branchName} · CMS мобильного магазина</p>
+      <div className="myshop-constructor-top card">
+        <div className="myshop-constructor-title">
+          <span className="myshop-constructor-title-icon" aria-hidden><IconNavShop /></span>
+          <div>
+            <h1>Конструктор MyShop</h1>
+            <p className="page-subtitle">{branchName} · CMS мобильного магазина</p>
+          </div>
         </div>
         <div className="myshop-constructor-top-actions">
           <Link to="/myshop" className="btn btn-ghost">Открыть магазин</Link>
@@ -256,26 +263,39 @@ export default function MyShopConstructor() {
         <div className="card"><div className="empty">Загрузка...</div></div>
       ) : (
         <div className="myshop-constructor-grid">
-          <section className="card myshop-constructor-preview">
-            <div className="card-header">
+          <section className="card myshop-constructor-panel myshop-constructor-preview">
+            <div className="myshop-constructor-panel-head">
               <strong>Предпросмотр магазина</strong>
+              <span className="myshop-panel-badge">Live</span>
             </div>
-            <div className="myshop-constructor-phone">
-              <ShopStorefront
-                preview
-                layout={layout}
-                categories={categories}
-                products={products}
-                branchName={branchName}
-                search={previewSearch}
-                onSearchChange={setPreviewSearch}
-              />
+            <div className="myshop-constructor-phone-wrap">
+              <div className="myshop-device-frame">
+                <div className="myshop-device-notch" aria-hidden />
+                <div className="myshop-constructor-phone">
+                  <ShopStorefront
+                    preview
+                    layout={layout}
+                    categories={categories}
+                    products={products}
+                    branchName={branchName}
+                    search={previewSearch}
+                    onSearchChange={setPreviewSearch}
+                  />
+                </div>
+              </div>
             </div>
           </section>
 
-          <section className="card myshop-constructor-categories">
-            <div className="card-header">
-              <strong>Категории</strong>
+          <section className="card myshop-constructor-panel myshop-constructor-categories">
+            <div className="myshop-constructor-panel-head">
+              <div className="myshop-constructor-tabs">
+                <button type="button" className="myshop-constructor-tab active">Категории</button>
+              </div>
+              {selectedBlock && (
+                <span className="myshop-panel-target">
+                  в блок «{getBlockMeta(selectedBlock.type).shortLabel}»
+                </span>
+              )}
             </div>
             <input
               type="search"
@@ -285,40 +305,59 @@ export default function MyShopConstructor() {
               onChange={(e) => setCategorySearch(e.target.value)}
             />
             <div className="myshop-constructor-category-list">
+              {!selectedBlock && layout.blocks.length > 0 && (
+                <div className="myshop-constructor-empty myshop-constructor-empty-inline">
+                  Выберите блок справа, затем нажмите категорию
+                </div>
+              )}
+              {!selectedBlock && layout.blocks.length === 0 && (
+                <div className="myshop-constructor-empty myshop-constructor-empty-inline">
+                  Сначала добавьте блок витрины справа
+                </div>
+              )}
               {filteredCategories.map((category) => {
                 const imageUrl = categoryImages.get(category.id);
                 const count = category.product_count
                   || products.filter((p) => p.category_id === category.id).length;
+                const inSelected = selectedBlock?.categoryIds.includes(category.id);
                 return (
                   <button
                     key={category.id}
                     type="button"
-                    className="myshop-constructor-category"
+                    className={`myshop-constructor-category${inSelected ? ' is-added' : ''}${!selectedBlock ? ' is-disabled' : ''}`}
                     onClick={() => addCategoryToSelectedBlock(category.id)}
+                    disabled={!selectedBlock}
                   >
                     <div className="myshop-constructor-category-thumb">
                       {imageUrl ? <img src={imageUrl} alt="" /> : <IconImage />}
                     </div>
-                    <div>
+                    <div className="myshop-constructor-category-meta">
                       <strong>{category.name}</strong>
                       <span>{count} товаров</span>
                     </div>
+                    {inSelected && <span className="myshop-constructor-category-check">✓</span>}
                   </button>
                 );
               })}
               {filteredCategories.length === 0 && (
-                <div className="empty">Категории не найдены</div>
+                <div className="myshop-constructor-empty">Категории не найдены</div>
               )}
             </div>
           </section>
 
-          <section className="card myshop-constructor-blocks">
-            <div className="card-header">
+          <section className="card myshop-constructor-panel myshop-constructor-blocks">
+            <div className="myshop-constructor-panel-head">
               <strong>Блоки витрины</strong>
-              <span className="report-meta">{layout.blocks.length}</span>
+              <span className="myshop-panel-badge">{layout.blocks.length}</span>
             </div>
             {layout.blocks.length === 0 ? (
-              <div className="empty">Добавьте первый блок меню</div>
+              <div className="myshop-constructor-empty myshop-constructor-empty-blocks">
+                <div className="myshop-constructor-empty-art" aria-hidden />
+                <p>Добавьте первый блок меню</p>
+                <button type="button" className="btn btn-primary" onClick={() => setAddModalOpen(true)}>
+                  + Добавить блок
+                </button>
+              </div>
             ) : (
               <div className="myshop-block-editor-list">
                 {layout.blocks.map((block, index) => (
