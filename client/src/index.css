@@ -6791,38 +6791,35 @@ tr.product-row-highlight td:first-child {
   align-items: center;
   justify-content: center;
   padding: 20px 16px 24px;
-  background:
-    radial-gradient(circle at 50% 0%, rgba(59, 130, 246, 0.12), transparent 55%),
-    linear-gradient(180deg, #0f172a 0%, #111827 100%);
+  background: color-mix(in srgb, var(--surface2) 70%, var(--surface));
 }
 
 .myshop-device-frame {
   position: relative;
   width: min(100%, 300px);
-  padding: 12px 10px 14px;
-  border-radius: 34px;
-  background: linear-gradient(145deg, #1f2937, #0b1220);
-  box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.08),
-    0 24px 60px rgba(0, 0, 0, 0.45),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  padding: 10px;
+  border-radius: 28px;
+  background: var(--surface);
+  border: 1px solid var(--control-border);
+  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.08);
 }
 
 .myshop-device-notch {
-  width: 92px;
-  height: 22px;
-  margin: 0 auto 8px;
-  border-radius: 0 0 14px 14px;
-  background: #0b1220;
+  width: 72px;
+  height: 6px;
+  margin: 0 auto 10px;
+  border-radius: 999px;
+  background: var(--control-border);
 }
 
 .myshop-constructor-phone {
-  border-radius: 24px;
+  border-radius: 20px;
   overflow: hidden;
   background: var(--surface);
   min-height: 560px;
   max-height: 68vh;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--control-border);
+  box-shadow: none;
 }
 
 .myshop-constructor-phone .myshop-page {
