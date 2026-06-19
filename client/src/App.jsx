@@ -100,11 +100,11 @@ function AppContent() {
     ];
 
     const reportPathsLocal = [
+      ...(canViewDocumentsLocal ? ['/documents'] : []),
       ...(hasPermission(user, 'reports.view') ? ['/reports/stock', '/reports/documents', '/reports/debts', '/reports/reconciliation', '/reports/returns'] : []),
     ];
 
     const docPathsLocal = [
-      ...(canViewDocumentsLocal ? ['/documents'] : []),
       ...docNavLocal.map((item) => item.to),
     ];
 
@@ -165,6 +165,7 @@ function AppContent() {
   ];
 
   const reportNav = [
+    ...(canViewDocuments ? [{ to: '/documents', label: 'Журнал документов', perm: 'documents.view' }] : []),
     { to: '/reports/stock', label: 'Остатки на складе', perm: 'reports.view' },
     { to: '/reports/documents', label: 'Документы за период', perm: 'reports.view' },
     { to: '/reports/debts/debtors', label: 'Задолженности', perm: 'reports.view' },
@@ -174,10 +175,7 @@ function AppContent() {
 
   const reportPaths = reportNav.map((item) => item.to);
 
-  const docPaths = [
-    ...(canViewDocuments ? ['/documents'] : []),
-    ...docNav.map((item) => item.to),
-  ];
+  const docPaths = docNav.map((item) => item.to);
 
   const showDocumentsGroup = docPaths.length > 0;
 
@@ -259,14 +257,6 @@ function AppContent() {
                 isOpen={openNavGroup === 'documents'}
                 onToggle={toggleNavGroup}
               >
-                {canViewDocuments && (
-                  <NavLink
-                    to="/documents"
-                    className={({ isActive }) => `nav-link nav-link-sub${isActive ? ' active' : ''}`}
-                  >
-                    Все документы
-                  </NavLink>
-                )}
                 {docNav.map((item) => (
                   <NavLink
                     key={item.to}

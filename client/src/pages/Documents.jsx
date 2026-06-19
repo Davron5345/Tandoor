@@ -833,7 +833,7 @@ export default function Documents({ defaultType }) {
     : defaultType === 'rashod' ? 'Расход'
     : defaultType === RETURN_SUPPLIER_TYPE ? 'Возврат поставщику'
     : defaultType === 'peremeshchenie' ? 'Перемещение'
-    : 'Документы';
+    : 'Журнал документов';
 
   const typeLabel = (type) => DOC_TYPE_LABELS[type] || type;
 
