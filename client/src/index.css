@@ -6196,9 +6196,11 @@ tr.product-row-highlight td:first-child {
 }
 
 .myshop-category-chip.active {
-  background: color-mix(in srgb, var(--primary) 14%, var(--surface));
-  border-color: color-mix(in srgb, var(--primary) 35%, var(--control-border));
+  background: color-mix(in srgb, var(--primary) 20%, var(--surface));
+  border-color: color-mix(in srgb, var(--primary) 55%, var(--control-border));
   color: var(--primary);
+  font-weight: 700;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 22%, transparent);
 }
 
 .myshop-grid {
@@ -7433,7 +7435,10 @@ html.public-shop-lock #root {
   max-width: 100%;
 }
 
-.public-shop-snappy .myshop-category-chip,
+.public-shop-snappy .myshop-category-chip {
+  transition: background 0.15s, color 0.15s, border-color 0.15s, box-shadow 0.15s, font-weight 0.1s;
+}
+
 .public-shop-snappy .myshop-product-card-qty button,
 .public-shop-snappy .myshop-qty-controls button {
   transition: none;

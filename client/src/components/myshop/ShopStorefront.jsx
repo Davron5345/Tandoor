@@ -53,6 +53,37 @@ function buildCategoryProductMap(products) {
   return map;
 }
 
+function easeInOutQuad(t) {
+  return t < 0.5 ? 2 * t * t : 1 - ((-2 * t + 2) ** 2) / 2;
+}
+
+function getSectionScrollTop(root, section, offset = 8) {
+  return root.scrollTop + section.getBoundingClientRect().top - root.getBoundingClientRect().top - offset;
+}
+
+function smoothScrollElement(root, targetTop, duration = 480) {
+  const start = root.scrollTop;
+  const change = targetTop - start;
+  if (Math.abs(change) < 2) {
+    root.scrollTop = targetTop;
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve) => {
+    const startTime = performance.now();
+    const step = (now) => {
+      const progress = Math.min(1, (now - startTime) / duration);
+      root.scrollTop = start + change * easeInOutQuad(progress);
+      if (progress < 1) requestAnimationFrame(step);
+      else {
+        root.scrollTop = targetTop;
+        resolve();
+      }
+    };
+    requestAnimationFrame(step);
+  });
+}
+
 function getCategoriesWithDirectProducts(categories, products) {
   const parentIds = new Set(
     categories.filter((category) => category.parent_id).map((category) => category.parent_id),
@@ -510,6 +541,8 @@ export default function ShopStorefront({
   const scrollBodyRef = useRef(null);
   const chipBarRef = useRef(null);
   const scrollSpyFrameRef = useRef(null);
+  const scrollLockRef = useRef(false);
+  const scrollAnimRef = useRef(0);
   const [highlightedCategoryId, setHighlightedCategoryId] = useState('');
 
   const settings = layout?.settings || {};
@@ -572,22 +605,41 @@ export default function ShopStorefront({
 
   const updateScrollSpy = useCallback(() => {
     const root = scrollBodyRef.current;
-    if (!root || !scrollSpyEnabled) return;
+    if (!root || !scrollSpyEnabled || scrollLockRef.current) return;
 
-    const scrollTop = root.scrollTop;
-    const offset = 16;
+    const anchor = root.scrollTop + 12;
     let current = '';
 
     for (const category of branchCategories) {
       const section = root.querySelector(`[data-category-section="${category.id}"]`);
       if (!section) continue;
-      if (section.offsetTop - offset <= scrollTop) {
+      if (getSectionScrollTop(root, section, 0) <= anchor) {
         current = category.id;
       }
     }
 
     setHighlightedCategoryId((prev) => (prev === current ? prev : current));
   }, [branchCategories, scrollSpyEnabled]);
+
+  const scrollToCategorySection = useCallback((categoryId) => {
+    const root = scrollBodyRef.current;
+    if (!root || !categoryId) return;
+
+    const section = root.querySelector(`[data-category-section="${categoryId}"]`);
+    if (!section) return;
+
+    setHighlightedCategoryId(categoryId);
+    scrollLockRef.current = true;
+    scrollAnimRef.current += 1;
+    const animId = scrollAnimRef.current;
+
+    const targetTop = Math.max(0, getSectionScrollTop(root, section, 8));
+    smoothScrollElement(root, targetTop).then(() => {
+      if (scrollAnimRef.current !== animId) return;
+      scrollLockRef.current = false;
+      setHighlightedCategoryId(categoryId);
+    });
+  }, []);
 
   useEffect(() => {
     if (!scrollSpyEnabled) {
@@ -616,18 +668,6 @@ export default function ShopStorefront({
     const chip = chipBarRef.current?.querySelector(`[data-category-chip="${highlightedCategoryId}"]`);
     chip?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'auto' });
   }, [highlightedCategoryId, scrollSpyEnabled]);
-
-  const scrollToCategorySection = (categoryId) => {
-    const root = scrollBodyRef.current;
-    if (!root || !categoryId) return;
-
-    const section = root.querySelector(`[data-category-section="${categoryId}"]`);
-    if (!section) return;
-
-    const top = root.scrollTop + section.getBoundingClientRect().top - root.getBoundingClientRect().top - 8;
-    root.scrollTo({ top: Math.max(0, top), behavior: 'auto' });
-    setHighlightedCategoryId(categoryId);
-  };
 
   const handleCategoryChip = (categoryId) => {
     if (scrollSpyEnabled) {
