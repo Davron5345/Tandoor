@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { api, formatDate, formatMoney } from '../api';
+import { api, formatDateTime, formatMoney } from '../api';
 import Modal, { useToast } from '../components/Modal';
 import { hasPermission } from '../permissions';
 import { useAuth } from '../AuthContext';
@@ -105,7 +105,7 @@ export default function ShopOrders() {
               <thead>
                 <tr>
                   <th>№</th>
-                  <th>Дата</th>
+                  <th>Дата и время</th>
                   <th>Клиент</th>
                   <th>Отдел</th>
                   <th>Телефон</th>
@@ -119,7 +119,7 @@ export default function ShopOrders() {
                 {orders.map((order) => (
                   <tr key={order.id}>
                     <td>{order.number}</td>
-                    <td>{formatDate(order.created_at)}</td>
+                    <td>{formatDateTime(order.created_at)}</td>
                     <td>{order.customer_name}</td>
                     <td>{order.department_name || '—'}</td>
                     <td>{order.customer_phone}</td>
@@ -180,7 +180,7 @@ export default function ShopOrders() {
                 )}
                 <div><span>Телефон</span><strong>{selected.customer_phone}</strong></div>
                 <div><span>Способ</span><strong>{selected.delivery_type === 'delivery' ? 'Доставка' : 'Самовывоз'}</strong></div>
-                <div><span>Дата</span><strong>{formatDate(selected.created_at)}</strong></div>
+                <div><span>Дата и время</span><strong>{formatDateTime(selected.created_at)}</strong></div>
                 {selected.address && (
                   <div className="shop-order-detail-wide"><span>Адрес</span><strong>{selected.address}</strong></div>
                 )}

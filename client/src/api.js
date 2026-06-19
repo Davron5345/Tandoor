@@ -297,6 +297,24 @@ export function formatDate(d) {
   return `${dd}.${mm}.${yyyy}`;
 }
 
+export function formatDateTime(value) {
+  if (!value) return '—';
+  const str = String(value);
+  const match = str.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2}))?/);
+  if (match) {
+    const [, y, m, d, hh = '00', mm = '00'] = match;
+    return `${d}.${m}.${y} ${hh}:${mm}`;
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  const dd = String(date.getDate()).padStart(2, '0');
+  const mo = String(date.getMonth() + 1).padStart(2, '0');
+  const yyyy = date.getFullYear();
+  const hh = String(date.getHours()).padStart(2, '0');
+  const mm = String(date.getMinutes()).padStart(2, '0');
+  return `${dd}.${mo}.${yyyy} ${hh}:${mm}`;
+}
+
 export const STATUS_LABELS = {
   draft: 'Черновик',
   confirmed: 'Проведён',
