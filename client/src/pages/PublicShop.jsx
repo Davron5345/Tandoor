@@ -101,6 +101,29 @@ export default function PublicShop() {
   useEffect(() => { setCartItems(getCartItems(branchId)); }, [branchId]);
 
   useEffect(() => {
+    const html = document.documentElement;
+    const body = document.body;
+    const root = document.getElementById('root');
+    html.classList.add('public-shop-lock');
+    body.classList.add('public-shop-lock');
+    root?.classList.add('public-shop-lock');
+
+    const viewport = document.querySelector('meta[name="viewport"]');
+    const prevViewport = viewport?.getAttribute('content') || '';
+    viewport?.setAttribute(
+      'content',
+      'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover',
+    );
+
+    return () => {
+      html.classList.remove('public-shop-lock');
+      body.classList.remove('public-shop-lock');
+      root?.classList.remove('public-shop-lock');
+      if (viewport && prevViewport) viewport.setAttribute('content', prevViewport);
+    };
+  }, []);
+
+  useEffect(() => {
     const prevTitle = document.title;
     if (catalog?.branch?.name) {
       document.title = `${catalog.branch.name} — магазин`;
