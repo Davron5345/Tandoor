@@ -3266,6 +3266,16 @@ input[type='number']::-webkit-inner-spin-button {
   cursor: pointer;
 }
 
+.category-select-option-filter {
+  font-style: italic;
+  color: var(--text-muted);
+}
+
+.category-select-option-filter.active {
+  color: var(--primary);
+  font-style: normal;
+}
+
 .category-select-option-sub {
   padding-left: 18px;
 }

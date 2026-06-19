@@ -185,13 +185,17 @@ export function getProducts(filters = {}) {
     last_price: lastMap ? lastPriceForItem(lastMap, p.id) : null,
   }));
 
-  if (filters.category_id) {
+  if (filters.category_id === '__no_category__') {
+    products = products.filter((p) => !p.category_id || p.category_id === 'other');
+  } else if (filters.category_id) {
     products = products.filter((p) => p.category_id === filters.category_id);
   }
 
   let result = products.map((p) => enrichProduct(p, branchId, departmentId, lastMap));
 
-  if (filters.supplier_id) {
+  if (filters.supplier_id === '__no_supplier__') {
+    result = result.filter((p) => !p.suppliers?.length);
+  } else if (filters.supplier_id) {
     result = result.filter((p) =>
       p.suppliers.some((s) => s.id === filters.supplier_id)
     );

@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-function getSelectedLabel(categories, value, emptyLabel, placeholder, tree) {
+function getSelectedLabel(categories, value, emptyLabel, placeholder, tree, extraOptions = []) {
   if (!value) return emptyLabel || placeholder;
+
+  const extra = extraOptions.find((o) => o.id === value);
+  if (extra) return extra.label;
 
   const cat = categories.find((c) => c.id === value);
   if (!cat) return placeholder;
@@ -59,6 +62,7 @@ export default function CategorySelect({
   placeholder = 'Выберите категорию',
   searchPlaceholder = 'Поиск категории...',
   className = '',
+  extraOptions = [],
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -84,6 +88,7 @@ export default function CategorySelect({
     includeEmpty ? emptyLabel : '',
     placeholder,
     tree,
+    extraOptions,
   );
 
   const flatItems = useMemo(() => {
@@ -98,8 +103,15 @@ export default function CategorySelect({
     [categories, excludeIds, selectedId, value, search],
   );
 
-  const hasResults = tree ? treeSections.length > 0 : flatItems.length > 0;
+  const hasResults = tree
+    ? treeSections.length > 0
+    : flatItems.length > 0 || extraOptions.some((o) => o.label.toLowerCase().includes(search.trim().toLowerCase()));
   const showEmptyOption = includeEmpty || !tree;
+  const visibleExtraOptions = extraOptions.filter((o) => {
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    return o.label.toLowerCase().includes(q);
+  });
 
   const close = () => {
     setOpen(false);
@@ -189,6 +201,20 @@ export default function CategorySelect({
               </li>
             )}
 
+            {visibleExtraOptions.map((option) => (
+              <li key={option.id}>
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={value === option.id}
+                  className={`category-select-option category-select-option-filter${value === option.id ? ' active' : ''}`}
+                  onClick={() => pick(option.id)}
+                >
+                  {option.label}
+                </button>
+              </li>
+            ))}
+
             {tree ? (
               treeSections.map(({ root, subs, showRootAsOption }) => (
                 <li key={root.id} className="category-select-group">
@@ -246,7 +272,7 @@ export default function CategorySelect({
               ))
             )}
 
-            {!hasResults && !(showEmptyOption && !search.trim()) && (
+            {!hasResults && visibleExtraOptions.length === 0 && !(showEmptyOption && !search.trim()) && (
               <li className="category-select-empty">Ничего не найдено</li>
             )}
           </ul>

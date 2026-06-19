@@ -30,6 +30,12 @@ import { hasPermission } from '../permissions';
 
 const UNITS = ['шт', 'кг', 'г', 'л', 'мл', 'м', 'м²', 'м³', 'уп', 'пач', 'кор'];
 
+export const FILTER_NO_CATEGORY = '__no_category__';
+export const FILTER_NO_SUPPLIER = '__no_supplier__';
+
+const categoryFilterExtras = [{ id: FILTER_NO_CATEGORY, label: 'Без категории' }];
+const supplierFilterExtras = [{ id: FILTER_NO_SUPPLIER, label: 'Без поставщиков' }];
+
 const emptyProduct = {
   name: '',
   category_id: 'other',
@@ -427,7 +433,9 @@ export default function Products() {
     const draft = readFormDraft(key);
     let nextForm = {
       ...emptyProduct,
-      category_id: filterCategory || categories[0]?.id || 'other',
+      category_id: (filterCategory && filterCategory !== FILTER_NO_CATEGORY)
+        ? filterCategory
+        : (categories[0]?.id || 'other'),
       supplier_ids: [],
       variants: [],
     };
@@ -852,6 +860,7 @@ export default function Products() {
           onChange={setFilterCategory}
           includeEmpty
           emptyLabel="Все категории"
+          extraOptions={categoryFilterExtras}
           className="category-select-filter"
         />
         <CategorySelect
@@ -861,6 +870,7 @@ export default function Products() {
           tree={false}
           includeEmpty
           emptyLabel="Все поставщики"
+          extraOptions={supplierFilterExtras}
           searchPlaceholder="Поиск поставщика..."
           className="category-select-filter"
         />
