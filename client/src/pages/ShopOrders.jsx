@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, formatDateTime, formatMoney } from '../api';
 import Modal, { useToast } from '../components/Modal';
+import ShopOrderItem from '../components/ShopOrderItem';
 import { hasPermission } from '../permissions';
 import { useAuth } from '../AuthContext';
 import { useBranch } from '../BranchContext';
@@ -204,14 +205,7 @@ export default function ShopOrders() {
                 <h3>Товары</h3>
                 <ul>
                   {(selected.items || []).map((item) => (
-                    <li key={item.id}>
-                      <span>
-                        {item.variant_name ? `${item.product_name} — ${item.variant_name}` : item.product_name}
-                        {' · '}
-                        {item.quantity} {item.unit || 'шт'} × {formatMoney(item.price)}
-                      </span>
-                      <strong>{formatMoney(item.line_total)}</strong>
-                    </li>
+                    <ShopOrderItem key={item.id} item={item} />
                   ))}
                 </ul>
               </div>

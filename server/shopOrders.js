@@ -72,6 +72,37 @@ function buildProductMaps(branchId) {
   return { byId, variantById, products };
 }
 
+function resolveItemImageUrl(productId, variantId) {
+  if (variantId) {
+    const variantImage = queryOne(`
+      SELECT file_name FROM product_images
+      WHERE product_id = ? AND variant_id = ?
+      ORDER BY is_primary DESC, sort_order ASC, created_at ASC
+      LIMIT 1
+    `, [productId, variantId]);
+    if (variantImage?.file_name) {
+      return `/uploads/products/${productId}/${variantImage.file_name}`;
+    }
+  }
+
+  const image = queryOne(`
+    SELECT file_name FROM product_images
+    WHERE product_id = ?
+    ORDER BY is_primary DESC, sort_order ASC, created_at ASC
+    LIMIT 1
+  `, [productId]);
+
+  if (!image?.file_name) return null;
+  return `/uploads/products/${productId}/${image.file_name}`;
+}
+
+function enrichOrderItems(items) {
+  return items.map((item) => ({
+    ...item,
+    image_url: resolveItemImageUrl(item.product_id, item.variant_id),
+  }));
+}
+
 function resolveLineItem(maps, item) {
   const productId = String(item.product_id || '');
   const variantId = item.variant_id ? String(item.variant_id) : null;
@@ -189,7 +220,9 @@ export function getShopOrder(id) {
     WHERE so.id = ?
   `, [id]);
   if (!order) return null;
-  const items = queryAll('SELECT * FROM shop_order_items WHERE order_id = ? ORDER BY product_name', [id]);
+  const items = enrichOrderItems(
+    queryAll('SELECT * FROM shop_order_items WHERE order_id = ? ORDER BY product_name', [id]),
+  );
   return {
     ...order,
     status_label: ORDER_STATUS_LABELS[order.status] || order.status,

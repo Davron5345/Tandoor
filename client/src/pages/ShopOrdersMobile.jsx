@@ -8,6 +8,7 @@ import { hasPermission } from '../permissions';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import Login from './Login';
 import ChangePassword from './ChangePassword';
+import ShopOrderItem from '../components/ShopOrderItem';
 import { IconNavWarehouse, IconNavLogout, IconNavSun, IconNavMoon, IconNavRefresh } from '../components/NavIcons';
 
 const STATUS_FILTERS = [
@@ -307,14 +308,7 @@ export default function ShopOrdersMobile() {
               <h3>Товары</h3>
               <ul>
                 {(selected.items || []).map((item) => (
-                  <li key={item.id}>
-                    <span>
-                      {item.variant_name ? `${item.product_name} — ${item.variant_name}` : item.product_name}
-                      {' · '}
-                      {item.quantity} {item.unit || 'шт'} × {formatMoney(item.price)}
-                    </span>
-                    <strong>{formatMoney(item.line_total)}</strong>
-                  </li>
+                  <ShopOrderItem key={item.id} item={item} />
                 ))}
               </ul>
             </div>
