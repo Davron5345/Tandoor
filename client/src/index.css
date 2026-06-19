@@ -7432,6 +7432,19 @@ tr.product-row-highlight td:first-child {
   opacity: 0.72;
 }
 
+.myshop-product-card.is-clickable:not(.is-out-of-stock) {
+  cursor: pointer;
+}
+
+.myshop-product-card.is-clickable:not(.is-out-of-stock):active {
+  transform: scale(0.98);
+}
+
+.myshop-product-card.is-clickable:not(.is-out-of-stock) .myshop-product-card-media-btn:not(:disabled),
+.myshop-product-card.is-clickable:not(.is-out-of-stock) .myshop-product-card-name:not(:disabled) {
+  cursor: pointer;
+}
+
 .myshop-product-card-media-btn {
   position: relative;
   display: block;

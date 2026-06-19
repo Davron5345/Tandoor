@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { api, formatMoney } from '../api';
 import { formatUzPhone } from '../phoneFormat';
-import ShopStorefront, { ShopMedia } from '../components/myshop/ShopStorefront';
+import ShopStorefront from '../components/myshop/ShopStorefront';
 import { IconNavShop, IconNavCart } from '../components/NavIcons';
 import {
   addCartItem,
@@ -13,127 +13,6 @@ import {
   removeCartItem,
   updateCartItemQty,
 } from '../utils/publicShopCart';
-
-function getVariantImage(variant) {
-  if (!variant?.images?.length) return null;
-  return variant.images.find((i) => i.is_primary && i.media_type === 'photo')
-    || variant.images.find((i) => i.media_type === 'photo')
-    || variant.images[0];
-}
-
-function PublicProductSheet({ product, onClose, onAdd }) {
-  const variants = product?.variants || [];
-  const needsVariant = product?.has_variants && variants.length > 0;
-  const [variantId, setVariantId] = useState(variants[0]?.id || null);
-  const [qty, setQty] = useState(1);
-
-  useEffect(() => {
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    const onKey = (e) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => {
-      document.body.style.overflow = prev;
-      window.removeEventListener('keydown', onKey);
-    };
-  }, [onClose]);
-
-  useEffect(() => {
-    setVariantId(variants[0]?.id || null);
-    setQty(1);
-  }, [product?.id, variants]);
-
-  if (!product) return null;
-
-  const selectedVariant = variants.find((v) => v.id === variantId);
-  const price = selectedVariant?.price ?? product.price ?? 0;
-  const stock = selectedVariant?.stock ?? product.stock ?? 0;
-  const displayImage = selectedVariant ? getVariantImage(selectedVariant) : product.primary_image;
-  const canAdd = stock > 0 && (!needsVariant || selectedVariant);
-
-  const handleAdd = () => {
-    if (!canAdd) return;
-    onAdd({
-      product_id: product.id,
-      variant_id: selectedVariant?.id || null,
-      product_name: product.name,
-      variant_name: selectedVariant?.name || null,
-      quantity: qty,
-      price,
-      unit: product.unit || 'шт',
-    });
-    onClose();
-  };
-
-  return (
-    <div className="myshop-sheet-overlay" onClick={onClose}>
-      <div className="myshop-sheet" onClick={(e) => e.stopPropagation()}>
-        <div className="myshop-sheet-handle" aria-hidden />
-        <button type="button" className="myshop-sheet-close" onClick={onClose} aria-label="Закрыть">
-          ✕
-        </button>
-        <ShopMedia image={displayImage || product.primary_image} name={product.name} />
-        <div className="myshop-sheet-body">
-          <h2 className="myshop-sheet-title">{product.name}</h2>
-          {product.category_name && (
-            <div className="myshop-sheet-category">{product.category_name}</div>
-          )}
-          <div className="myshop-sheet-price">{formatMoney(price)}</div>
-          {product.unit && (
-            <div className="myshop-sheet-meta">Единица: {product.unit}</div>
-          )}
-          <div className="myshop-sheet-meta">
-            {stock > 0
-              ? `В наличии: ${Number(stock).toLocaleString('ru-RU')} ${product.unit || 'шт.'}`
-              : 'Нет в наличии'}
-          </div>
-
-          {needsVariant && (
-            <div className="myshop-variants">
-              <div className="myshop-variants-title">Выберите вариант</div>
-              <div className="myshop-variants-list">
-                {variants.map((variant) => (
-                  <button
-                    key={variant.id}
-                    type="button"
-                    className={`myshop-variant-pick${variantId === variant.id ? ' active' : ''}`}
-                    onClick={() => setVariantId(variant.id)}
-                    disabled={(variant.stock || 0) <= 0}
-                  >
-                    <span>{variant.name}</span>
-                    <span>{formatMoney(variant.price)}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="myshop-qty-row">
-            <span>Количество</span>
-            <div className="myshop-qty-controls">
-              <button type="button" onClick={() => setQty((v) => Math.max(1, v - 1))} aria-label="Меньше">−</button>
-              <span>{qty}</span>
-              <button
-                type="button"
-                onClick={() => setQty((v) => Math.min(stock || v + 1, v + 1))}
-                aria-label="Больше"
-                disabled={qty >= stock}
-              >
-                +
-              </button>
-            </div>
-          </div>
-
-          <button type="button" className="btn btn-primary myshop-add-btn" onClick={handleAdd} disabled={!canAdd}>
-            В корзину
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function CartView({ items, onBack, onCheckout, onQtyChange, onRemove }) {
   const total = cartTotal(items);
@@ -333,7 +212,6 @@ export default function PublicShop() {
   const [view, setView] = useState('menu');
   const [search, setSearch] = useState('');
   const [activeCategoryId, setActiveCategoryId] = useState('');
-  const [selectedProduct, setSelectedProduct] = useState(null);
   const [cartItems, setCartItems] = useState(() => getCartItems(branchId));
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
@@ -366,15 +244,18 @@ export default function PublicShop() {
     };
   }, [catalog?.branch?.name]);
 
-  const productsById = useMemo(
-    () => new Map((catalog?.products || []).map((p) => [p.id, p])),
-    [catalog?.products],
-  );
-
-  const handleAddToCart = (item) => {
-    const next = addCartItem(branchId, item);
+  const handleProductAdd = (product) => {
+    if ((product.stock || 0) <= 0) return;
+    const next = addCartItem(branchId, {
+      product_id: product.id,
+      variant_id: product.variant_id || null,
+      product_name: product.name,
+      variant_name: null,
+      quantity: 1,
+      price: product.price ?? 0,
+      unit: product.unit || 'шт',
+    });
     setCartItems(next);
-    setView('cart');
   };
 
   const handleQtyChange = (productId, variantId, quantity) => {
@@ -482,7 +363,7 @@ export default function PublicShop() {
           activeCategoryId={activeCategoryId}
           onCategoryClick={handleCategorySelect}
           onCategoryClear={handleCategoryClear}
-          onProductOpen={setSelectedProduct}
+          onProductAdd={handleProductAdd}
           publicMode
           activeNav="menu"
           cartCount={count}
@@ -545,13 +426,6 @@ export default function PublicShop() {
         </div>
       )}
 
-      {selectedProduct && view === 'menu' && (
-        <PublicProductSheet
-          product={productsById.get(selectedProduct.id) || selectedProduct}
-          onClose={() => setSelectedProduct(null)}
-          onAdd={handleAddToCart}
-        />
-      )}
     </div>
   );
 }

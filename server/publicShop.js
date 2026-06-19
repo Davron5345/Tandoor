@@ -20,6 +20,50 @@ function rewriteImageUrl(branchId, productId, url) {
   return publicMediaUrl(branchId, productId, fileName);
 }
 
+function getVariantPrimaryImage(variant, product) {
+  const images = variant.images || [];
+  const image = images.find((i) => i.is_primary && i.media_type === 'photo')
+    || images.find((i) => i.media_type === 'photo')
+    || images[0];
+  if (image) return image;
+  return product.primary_image;
+}
+
+function flattenPublicCatalogProducts(products) {
+  const items = [];
+
+  for (const product of products) {
+    if (product.has_variants && product.variants?.length) {
+      for (const variant of product.variants) {
+        items.push({
+          ...product,
+          catalog_key: `${product.id}:${variant.id}`,
+          variant_id: variant.id,
+          name: `${product.name} — ${variant.name}`,
+          price: variant.price ?? product.price ?? 0,
+          stock: variant.stock ?? 0,
+          has_variants: false,
+          variants: [],
+          variant_price_min: null,
+          variant_price_max: null,
+          primary_image: getVariantPrimaryImage(variant, product),
+        });
+      }
+      continue;
+    }
+
+    items.push({
+      ...product,
+      catalog_key: product.id,
+      variant_id: null,
+      has_variants: false,
+      variants: [],
+    });
+  }
+
+  return items;
+}
+
 function mapPublicProduct(product, branchId) {
   return {
     id: product.id,
@@ -79,7 +123,8 @@ export function getPublicCatalog(branchId) {
   if (!settings.enabled) throw new Error('Магазин временно недоступен');
 
   const layout = getMyShopLayout(branchId);
-  const products = getProducts({ branch_id: branchId, archived: '0' }).map((p) => mapPublicProduct(p, branchId));
+  const rawProducts = getProducts({ branch_id: branchId, archived: '0' }).map((p) => mapPublicProduct(p, branchId));
+  const products = flattenPublicCatalogProducts(rawProducts);
   const categories = getBranchCategories(products, getProductCategories());
 
   return {

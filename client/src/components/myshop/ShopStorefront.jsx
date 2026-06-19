@@ -30,7 +30,8 @@ function buildCategoryProductMap(products) {
     const categoryIds = [product.category_id, product.category_parent_id].filter(Boolean);
     for (const categoryId of categoryIds) {
       if (!map.has(categoryId)) map.set(categoryId, []);
-      if (!map.get(categoryId).some((p) => p.id === product.id)) {
+      const productKey = product.catalog_key || product.id;
+      if (!map.get(categoryId).some((p) => (p.catalog_key || p.id) === productKey)) {
         map.get(categoryId).push(product);
       }
     }
@@ -95,34 +96,47 @@ function CategoryTile({ category, imageUrl, photoOutside, onClick, active = fals
   );
 }
 
-function ShopProductCard({ product, onOpen, publicMode = false }) {
-  const inStock = product.has_variants
-    ? (product.variants || []).some((v) => (v.stock || 0) > 0)
-    : (product.stock || 0) > 0;
+function ShopProductCard({ product, onOpen, onAdd, publicMode = false }) {
+  const inStock = (product.stock || 0) > 0;
+
+  const handleActivate = () => {
+    if (publicMode) {
+      if (!inStock || !onAdd) return;
+      onAdd(product);
+      return;
+    }
+    onOpen?.(product);
+  };
 
   return (
-    <article className={`myshop-product-card${!inStock ? ' is-out-of-stock' : ''}`}>
+    <article className={`myshop-product-card${!inStock ? ' is-out-of-stock' : ''}${publicMode ? ' is-clickable' : ''}`}>
       <button
         type="button"
         className="myshop-product-card-media-btn"
-        onClick={() => onOpen?.(product)}
+        onClick={handleActivate}
         aria-label={product.name}
+        disabled={publicMode && !inStock}
       >
         <ShopMedia image={product.primary_image} name={product.name} />
         {!inStock && <span className="myshop-product-badge">Нет в наличии</span>}
       </button>
       <div className="myshop-product-card-body">
-        <button type="button" className="myshop-product-card-name" onClick={() => onOpen?.(product)}>
+        <button
+          type="button"
+          className="myshop-product-card-name"
+          onClick={handleActivate}
+          disabled={publicMode && !inStock}
+        >
           {product.name}
         </button>
         <div className="myshop-product-card-footer">
           <span className="myshop-product-card-price">{formatShopPrice(product)}</span>
-          {publicMode && inStock && (
+          {!publicMode && inStock && (
             <button
               type="button"
               className="myshop-product-add-btn"
               onClick={() => onOpen?.(product)}
-              aria-label={`Добавить ${product.name}`}
+              aria-label={`Открыть ${product.name}`}
             >
               +
             </button>
@@ -133,7 +147,7 @@ function ShopProductCard({ product, onOpen, publicMode = false }) {
   );
 }
 
-function ProductGrid({ products, onProductOpen, publicMode = false, emptyText = 'Нет товаров' }) {
+function ProductGrid({ products, onProductOpen, onProductAdd, publicMode = false, emptyText = 'Нет товаров' }) {
   if (!products.length) {
     return <div className="myshop-empty">{emptyText}</div>;
   }
@@ -142,9 +156,10 @@ function ProductGrid({ products, onProductOpen, publicMode = false, emptyText = 
     <div className="myshop-grid">
       {products.map((product) => (
         <ShopProductCard
-          key={product.id}
+          key={product.catalog_key || `${product.id}:${product.variant_id || ''}`}
           product={product}
           onOpen={onProductOpen}
+          onAdd={onProductAdd}
           publicMode={publicMode}
         />
       ))}
@@ -158,6 +173,7 @@ function CategoryCatalogView({
   search,
   onBack,
   onProductOpen,
+  onProductAdd,
   publicMode,
 }) {
   const title = category?.name || 'Каталог';
@@ -179,6 +195,7 @@ function CategoryCatalogView({
       <ProductGrid
         products={products}
         onProductOpen={onProductOpen}
+        onProductAdd={onProductAdd}
         publicMode={publicMode}
         emptyText="В этой категории пока нет товаров"
       />
@@ -195,6 +212,7 @@ function CategoryGridBlock({
   publicMode = false,
   productsByCategory,
   onProductOpen,
+  onProductAdd,
   activeCategoryId = '',
 }) {
   const meta = getBlockMeta(block.type);
@@ -234,6 +252,7 @@ function CategoryGridBlock({
             <ProductGrid
               products={categoryProducts}
               onProductOpen={onProductOpen}
+              onProductAdd={onProductAdd}
               publicMode
             />
           </div>
@@ -250,6 +269,7 @@ function SliderBlock({
   productsByCategory,
   settings,
   onProductOpen,
+  onProductAdd,
   onCategoryClick,
 }) {
   const sections = block.categoryIds
@@ -286,9 +306,10 @@ function SliderBlock({
               <div className="myshop-grid myshop-grid-compact">
                 {products.map((product) => (
                   <ShopProductCard
-                    key={product.id}
+                    key={product.catalog_key || `${product.id}:${product.variant_id || ''}`}
                     product={product}
                     onOpen={onProductOpen}
+                    onAdd={onProductAdd}
                     publicMode
                   />
                 ))}
@@ -308,6 +329,7 @@ function ShopBlock({
   productsByCategory,
   settings,
   onProductOpen,
+  onProductAdd,
   onCategoryClick,
   publicMode = false,
   activeCategoryId = '',
@@ -330,6 +352,7 @@ function ShopBlock({
           productsByCategory={productsByCategory}
           settings={settings}
           onProductOpen={onProductOpen}
+          onProductAdd={onProductAdd}
           onCategoryClick={onCategoryClick}
         />
       ) : (
@@ -342,6 +365,7 @@ function ShopBlock({
           publicMode={publicMode}
           productsByCategory={productsByCategory}
           onProductOpen={onProductOpen}
+          onProductAdd={onProductAdd}
           activeCategoryId={activeCategoryId}
         />
       )}
@@ -366,6 +390,7 @@ export default function ShopStorefront({
   onCategoryClick,
   onCategoryClear,
   onProductOpen,
+  onProductAdd,
   preview = false,
   publicMode = false,
   branchPhone = '',
@@ -496,6 +521,7 @@ export default function ShopStorefront({
           <ProductGrid
             products={filteredProducts}
             onProductOpen={onProductOpen}
+            onProductAdd={onProductAdd}
             publicMode
           />
         </section>
@@ -508,6 +534,7 @@ export default function ShopStorefront({
           search={search}
           onBack={() => onCategoryClear?.()}
           onProductOpen={onProductOpen}
+          onProductAdd={onProductAdd}
           publicMode
         />
       ) : hasBlocks ? (
@@ -524,6 +551,7 @@ export default function ShopStorefront({
               productsByCategory={productsByCategory}
               settings={settings}
               onProductOpen={onProductOpen}
+              onProductAdd={onProductAdd}
               onCategoryClick={onCategoryClick}
               publicMode={publicMode}
               activeCategoryId={activeCategoryId}
@@ -538,6 +566,7 @@ export default function ShopStorefront({
               <ProductGrid
                 products={filteredProducts}
                 onProductOpen={onProductOpen}
+                onProductAdd={onProductAdd}
                 publicMode
               />
             </section>
@@ -558,6 +587,7 @@ export default function ShopStorefront({
             <ProductGrid
               products={filteredProducts}
               onProductOpen={onProductOpen}
+              onProductAdd={onProductAdd}
               publicMode={publicMode}
             />
           )}
