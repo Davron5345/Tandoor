@@ -31,6 +31,8 @@ function mapPublicProduct(product, branchId) {
     has_variants: !!product.has_variants,
     category_id: product.category_id,
     category_name: product.category_name,
+    category_parent_id: product.category_parent_id,
+    parent_category_name: product.parent_category_name,
     variant_price_min: product.variant_price_min,
     variant_price_max: product.variant_price_max,
     primary_image: product.primary_image
@@ -47,6 +49,15 @@ function mapPublicProduct(product, branchId) {
       })),
     })),
   };
+}
+
+function getBranchCategories(products, allCategories) {
+  const ids = new Set();
+  for (const product of products) {
+    if (product.category_id) ids.add(product.category_id);
+    if (product.category_parent_id) ids.add(product.category_parent_id);
+  }
+  return allCategories.filter((category) => ids.has(category.id));
 }
 
 export function getPublicBranches() {
@@ -69,7 +80,7 @@ export function getPublicCatalog(branchId) {
 
   const layout = getMyShopLayout(branchId);
   const products = getProducts({ branch_id: branchId, archived: '0' }).map((p) => mapPublicProduct(p, branchId));
-  const categories = getProductCategories();
+  const categories = getBranchCategories(products, getProductCategories());
 
   return {
     branch: {

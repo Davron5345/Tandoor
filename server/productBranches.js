@@ -33,6 +33,18 @@ export function getEffectiveProductPrice(productId, branchId, variantId = null) 
   return row?.price ?? 0;
 }
 
+export function linkAllProductsToBranch(branchId, { visible = true } = {}) {
+  const products = queryAll('SELECT id FROM products WHERE COALESCE(archived, 0) = 0');
+  for (const product of products) {
+    const existing = queryOne(
+      'SELECT id FROM product_branches WHERE product_id = ? AND branch_id = ?',
+      [product.id, branchId],
+    );
+    if (existing) continue;
+    upsertProductBranch(product.id, branchId, { visible, price: null });
+  }
+}
+
 export function upsertProductBranch(productId, branchId, { visible = true, price = null } = {}) {
   const normalizedPrice = price === '' || price == null || Number.isNaN(Number(price))
     ? null

@@ -343,7 +343,33 @@ function migrateSchema() {
   migrateMustChangePassword();
   migrateAuditLog();
   migrateProductBranches();
+  migrateProductBranchesBackfill();
   migrateShopOrders();
+}
+
+function migrateProductBranchesBackfill() {
+  const done = queryOne("SELECT value FROM settings WHERE key = 'product_branches_backfill_v1'");
+  if (done) return;
+
+  const products = queryAll('SELECT id FROM products');
+  const branches = queryAll('SELECT id FROM branches');
+
+  for (const branch of branches) {
+    for (const product of products) {
+      const existing = queryOne(
+        'SELECT id FROM product_branches WHERE product_id = ? AND branch_id = ?',
+        [product.id, branch.id],
+      );
+      if (existing) continue;
+      run(
+        `INSERT INTO product_branches (id, product_id, branch_id, visible, price)
+         VALUES (?, ?, ?, 1, NULL)`,
+        [uuidv4(), product.id, branch.id],
+      );
+    }
+  }
+
+  run("INSERT OR REPLACE INTO settings (key, value) VALUES ('product_branches_backfill_v1', '1')");
 }
 
 function migrateShopOrders() {

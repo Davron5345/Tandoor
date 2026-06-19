@@ -27,11 +27,20 @@ function buildCategoryImageMap(products) {
 function buildCategoryProductMap(products) {
   const map = new Map();
   for (const product of products) {
-    if (!product.category_id) continue;
-    if (!map.has(product.category_id)) map.set(product.category_id, []);
-    map.get(product.category_id).push(product);
+    const categoryIds = [product.category_id, product.category_parent_id].filter(Boolean);
+    for (const categoryId of categoryIds) {
+      if (!map.has(categoryId)) map.set(categoryId, []);
+      if (!map.get(categoryId).some((p) => p.id === product.id)) {
+        map.get(categoryId).push(product);
+      }
+    }
   }
   return map;
+}
+
+function productMatchesCategory(product, categoryId) {
+  if (!categoryId) return true;
+  return product.category_id === categoryId || product.category_parent_id === categoryId;
 }
 
 export function ShopMedia({ image, name, outside = false, emptyClassName = '' }) {
@@ -357,7 +366,7 @@ export default function ShopStorefront({
   const filteredProducts = useMemo(() => {
     const q = search.trim().toLowerCase();
     return products.filter((product) => {
-      if (activeCategoryId && product.category_id !== activeCategoryId) return false;
+      if (activeCategoryId && !productMatchesCategory(product, activeCategoryId)) return false;
       if (!q) return true;
       const haystack = [
         product.name,
@@ -368,6 +377,10 @@ export default function ShopStorefront({
       return haystack.includes(q);
     });
   }, [products, search, activeCategoryId]);
+
+  const branchCategories = useMemo(() => (
+    categories.filter((category) => products.some((product) => productMatchesCategory(product, category.id)))
+  ), [categories, products]);
 
   const pageClass = [
     'myshop-page',
@@ -425,7 +438,7 @@ export default function ShopStorefront({
         </div>
       )}
 
-      {publicMode && categories.length > 0 && !showCategoryView && (
+      {publicMode && branchCategories.length > 0 && !showCategoryView && (
         <div className="myshop-categories">
           <button
             type="button"
@@ -434,19 +447,31 @@ export default function ShopStorefront({
           >
             Все
           </button>
-          {categories
-            .filter((c) => products.some((p) => p.category_id === c.id))
-            .map((category) => (
-              <button
-                key={category.id}
-                type="button"
-                className={`myshop-category-chip${activeCategoryId === category.id ? ' active' : ''}`}
-                onClick={() => handleCategoryChip(category.id)}
-              >
-                {category.name}
-              </button>
-            ))}
+          {branchCategories.map((category) => (
+            <button
+              key={category.id}
+              type="button"
+              className={`myshop-category-chip${activeCategoryId === category.id ? ' active' : ''}`}
+              onClick={() => handleCategoryChip(category.id)}
+            >
+              {category.name}
+            </button>
+          ))}
         </div>
+      )}
+
+      {publicMode && !showCategoryView && !activeCategoryId && filteredProducts.length > 0 && (
+        <section className="myshop-public-catalog myshop-public-catalog-primary">
+          <div className="myshop-block-section-head">
+            <h3>{search.trim() ? 'Результаты поиска' : 'Каталог'}</h3>
+            <span className="myshop-public-catalog-count">{filteredProducts.length}</span>
+          </div>
+          <ProductGrid
+            products={filteredProducts}
+            onProductOpen={onProductOpen}
+            publicMode
+          />
+        </section>
       )}
 
       {showCategoryView ? (
@@ -460,6 +485,9 @@ export default function ShopStorefront({
         />
       ) : hasBlocks ? (
         <div className="myshop-blocks">
+          {publicMode && !activeCategoryId && (
+            <div className="myshop-public-blocks-label">Категории</div>
+          )}
           {blocks.map((block) => (
             <ShopBlock
               key={block.id}
@@ -474,10 +502,10 @@ export default function ShopStorefront({
               activeCategoryId={activeCategoryId}
             />
           ))}
-          {publicMode && !activeCategoryId && filteredProducts.length > 0 && (
+          {publicMode && activeCategoryId && filteredProducts.length > 0 && (
             <section className="myshop-public-catalog">
               <div className="myshop-block-section-head">
-                <h3>{search.trim() ? 'Результаты поиска' : 'Все товары'}</h3>
+                <h3>Товары категории</h3>
                 <span className="myshop-public-catalog-count">{filteredProducts.length}</span>
               </div>
               <ProductGrid

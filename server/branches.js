@@ -29,6 +29,22 @@ export function getBranch(id) {
   return queryOne('SELECT * FROM branches WHERE id = ?', [id]);
 }
 
+function linkAllProductsToBranchLocal(branchId) {
+  const products = queryAll('SELECT id FROM products WHERE COALESCE(archived, 0) = 0');
+  for (const product of products) {
+    const existing = queryOne(
+      'SELECT id FROM product_branches WHERE product_id = ? AND branch_id = ?',
+      [product.id, branchId],
+    );
+    if (existing) continue;
+    run(
+      `INSERT INTO product_branches (id, product_id, branch_id, visible, price)
+       VALUES (?, ?, ?, 1, NULL)`,
+      [uuidv4(), product.id, branchId],
+    );
+  }
+}
+
 export function createBranch(data) {
   const id = (data.id || uuidv4()).trim();
   const name = (data.name || '').trim();
@@ -42,6 +58,7 @@ export function createBranch(data) {
     [id, name, (data.address || '').trim(), (data.phone || '').trim(), data.active !== false ? 1 : 0],
   );
   seedCashArticlesForBranch(id);
+  linkAllProductsToBranchLocal(id);
   return getBranch(id);
 }
 

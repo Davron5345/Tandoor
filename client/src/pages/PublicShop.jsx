@@ -433,6 +433,30 @@ export default function PublicShop() {
 
   const { branch, layout, products, categories } = catalog;
 
+  if (products.length === 0) {
+    return (
+      <div className="public-shop-shell">
+        <div className="myshop-page myshop-page-public">
+          <header className="myshop-header">
+            <div className="myshop-brand">
+              <span className="myshop-brand-mark" aria-hidden>🛒</span>
+              <div>
+                <strong>{branch.name}</strong>
+                <span>Онлайн-магазин</span>
+              </div>
+            </div>
+          </header>
+          <div className="myshop-empty public-shop-empty-catalog">
+            <p>В этом филиале пока нет товаров для витрины.</p>
+            <p className="public-shop-empty-hint">
+              В справочнике «Товары» включите отображение для филиала «{branch.name}» на вкладке «Филиалы».
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="public-shop-shell">
       {view === 'menu' && (

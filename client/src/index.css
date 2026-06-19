@@ -7414,9 +7414,30 @@ tr.product-row-highlight td:first-child {
   transform: scale(0.94);
 }
 
+.public-shop-empty-hint {
+  margin-top: 8px;
+  font-size: var(--font-sm);
+  color: var(--text-muted);
+  max-width: 320px;
+  line-height: 1.45;
+}
+
 .myshop-public-category-section,
 .myshop-public-catalog {
   padding-top: 8px;
+}
+
+.myshop-public-catalog-primary {
+  padding-top: 4px;
+}
+
+.myshop-public-blocks-label {
+  padding: 4px 16px 0;
+  font-size: var(--font-xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
 }
 
 .myshop-public-catalog-count {
