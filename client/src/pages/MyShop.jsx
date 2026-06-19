@@ -94,7 +94,8 @@ export default function MyShop() {
   const [activeCategoryId, setActiveCategoryId] = useState('');
   const [selectedProduct, setSelectedProduct] = useState(null);
   const { branchId, branchName } = useBranch();
-  const canEdit = hasPermission(user, 'products.edit');
+  const canEditMyShop = hasPermission(user, 'myshop.edit');
+  const canViewShopOrders = hasPermission(user, 'shop_orders.view');
   const { show, Toast } = useToast();
   const publicShopUrl = branchId ? `${window.location.origin}/shop/${branchId}` : '';
 
@@ -137,10 +138,12 @@ export default function MyShop() {
   return (
     <>
       {Toast}
-      {canEdit && (
+      {canEditMyShop && (
         <div className="myshop-admin-bar">
           <Link to="/myshop/constructor" className="btn btn-ghost btn-sm">Конструктор</Link>
-          <Link to="/shop-orders" className="btn btn-ghost btn-sm">Заказы</Link>
+          {canViewShopOrders && (
+            <Link to="/shop-orders" className="btn btn-ghost btn-sm">Заказы</Link>
+          )}
           <button type="button" className="btn btn-ghost btn-sm" onClick={copyPublicLink}>
             Ссылка для клиентов
           </button>

@@ -48,6 +48,7 @@ export const PERMISSION_ACTION_ORDER = ['view', 'write', 'send', 'confirm', 'del
 export const PERMISSION_CATEGORIES = [
   { id: 'main', label: 'Основное' },
   { id: 'catalog', label: 'Справочники' },
+  { id: 'myshop', label: 'MyShop' },
   { id: 'documents', label: 'Складские документы' },
   { id: 'finance', label: 'Касса и финансы' },
   { id: 'admin', label: 'Администрирование' },
@@ -56,6 +57,8 @@ export const PERMISSION_CATEGORIES = [
 export const PERMISSION_GROUPS = [
   { id: 'dashboard', label: 'Главная', category: 'main', icon: '🏠', hint: 'Сводка на стартовой странице', actions: { view: 'dashboard.view' } },
   { id: 'products', label: 'Товары', category: 'catalog', icon: '📦', hint: 'Справочник номенклатуры', actions: { view: 'products.view', write: 'products.edit' } },
+  { id: 'myshop', label: 'Витрина MyShop', category: 'myshop', icon: '🛍️', hint: 'Просмотр онлайн-магазина филиала', actions: { view: 'myshop.view', write: 'myshop.edit' } },
+  { id: 'shop_orders', label: 'Заказы MyShop', category: 'myshop', icon: '🧾', hint: 'Онлайн-заказы клиентов: просмотр и смена статуса', actions: { view: 'shop_orders.view', write: 'shop_orders.edit' } },
   { id: 'calculations', label: 'Калькуляции', category: 'catalog', icon: '🧮', hint: 'Рецептуры и калькуляции', actions: { view: 'calculations.view', write: 'calculations.edit' } },
   { id: 'counterparties', label: 'Контрагенты', category: 'catalog', icon: '🤝', hint: 'Нужно кассиру: «Смотреть» — выбор поставщика при расходе «Закуп»', actions: { view: 'counterparties.view', write: 'counterparties.edit' } },
   { id: 'prihod', label: 'Приход', category: 'documents', icon: '📥', hint: 'Складской приход товаров', actions: { view: 'documents.prihod', write: 'documents.edit', confirm: 'documents.confirm', delete: 'documents.delete' } },
@@ -116,6 +119,14 @@ export const PERMISSION_PRESETS = [
       reports: { view: true },
     },
   },
+  {
+    id: 'myshop_orders',
+    label: 'MyShop: заказы',
+    description: 'Просмотр и обработка онлайн-заказов без доступа к товарам',
+    groups: {
+      shop_orders: { view: true, write: true },
+    },
+  },
 ];
 
 const CASHIER_MINIMUM_PERMS = [
@@ -131,7 +142,9 @@ const CASHIER_MINIMUM_PERMS = [
 const DEFAULT_ROLE_PERMISSIONS = {
   admin: ['*'],
   warehouse: [
-    'dashboard.view', 'products.view', 'products.edit', 'calculations.view', 'calculations.edit', 'counterparties.view',
+    'dashboard.view', 'products.view', 'products.edit', 'myshop.view', 'myshop.edit',
+    'shop_orders.view', 'shop_orders.edit',
+    'calculations.view', 'calculations.edit', 'counterparties.view',
     'documents.prihod', 'documents.rashod', 'documents.transfer', 'documents.razdelka',
     'documents.view', 'documents.edit', 'documents.confirm', 'documents.delete',
     'reports.view',
@@ -336,6 +349,7 @@ export function initPermissions(db) {
   migrateCashierCounterpartiesAccess(db);
   migrateCashierBundleSync(db);
   migrateTelegramSendPermission(db);
+  migrateMyShopPermissions(db);
   permissionsCache = loadRolePermissionsFromDb(db) || { ...DEFAULT_ROLE_PERMISSIONS };
 }
 
@@ -361,8 +375,55 @@ export function normalizePermissionBundle(permissions) {
   if (set.has('telegram.settings') || set.has('telegram.send')) {
     set.add('telegram.view');
   }
+  if (set.has('myshop.edit')) {
+    set.add('myshop.view');
+  }
+  if (set.has('shop_orders.edit')) {
+    set.add('shop_orders.view');
+  }
 
   return [...set];
+}
+
+function migrateMyShopPermissions(db) {
+  const done = db.queryOne("SELECT value FROM settings WHERE key = 'myshop_perm_v1'");
+  if (done) return;
+
+  const roleRows = db.queryAll('SELECT DISTINCT role FROM role_permissions');
+  for (const { role } of roleRows) {
+    if (role === SYSTEM_ADMIN) continue;
+
+    const perms = db.queryAll(
+      'SELECT permission FROM role_permissions WHERE role = ?',
+      [role],
+    ).map((r) => r.permission);
+
+    const toAdd = [];
+    if (perms.includes('products.view')) {
+      toAdd.push('myshop.view', 'shop_orders.view');
+    }
+    if (perms.includes('products.edit')) {
+      toAdd.push('myshop.edit', 'shop_orders.edit');
+    }
+
+    for (const perm of normalizePermissionBundle(toAdd)) {
+      if (!perms.includes(perm)) {
+        db.run('INSERT INTO role_permissions (role, permission) VALUES (?, ?)', [role, perm]);
+      }
+    }
+  }
+
+  for (const perm of ['myshop.view', 'myshop.edit', 'shop_orders.view', 'shop_orders.edit']) {
+    const exists = db.queryOne(
+      'SELECT 1 as ok FROM role_permissions WHERE role = ? AND permission = ? LIMIT 1',
+      ['warehouse', perm],
+    );
+    if (!exists) {
+      db.run('INSERT INTO role_permissions (role, permission) VALUES (?, ?)', ['warehouse', perm]);
+    }
+  }
+
+  db.run("INSERT OR REPLACE INTO settings (key, value) VALUES ('myshop_perm_v1', '1')");
 }
 
 function migrateTelegramSendPermission(db) {

@@ -104,7 +104,7 @@ export default function MyShopConstructor() {
   const { user } = useAuth();
   const { branchId, branchName } = useBranch();
   const { show, Toast } = useToast();
-  const canEdit = hasPermission(user, 'products.edit');
+  const canEdit = hasPermission(user, 'myshop.edit');
 
   const [layout, setLayout] = useState(createEmptyLayout);
   const [products, setProducts] = useState([]);

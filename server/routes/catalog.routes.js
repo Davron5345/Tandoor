@@ -2,12 +2,12 @@ import * as svc from '../services.js';
 import * as calculations from '../calculations.js';
 import * as productImages from '../productImages.js';
 import { getMyShopLayout, saveMyShopLayout } from '../myShop.js';
-import { requirePermission, requireAdmin, attachBranch } from '../middleware.js';
+import { requirePermission, requireAnyPermission, requireAdmin, attachBranch } from '../middleware.js';
 
 import { setProductShopVisible } from '../productBranches.js';
 
 export function registerCatalogRoutes(app, { productImageUpload }) {
-  app.get('/api/product-categories', requirePermission('products.view'), (_, res) => {
+  app.get('/api/product-categories', requireAnyPermission('products.view', 'myshop.view', 'myshop.edit'), (_, res) => {
     res.json(svc.getProductCategories());
   });
 
@@ -36,7 +36,7 @@ export function registerCatalogRoutes(app, { productImageUpload }) {
     }
   });
 
-  app.get('/api/products', requirePermission('products.view'), attachBranch, (req, res) => {
+  app.get('/api/products', requireAnyPermission('products.view', 'myshop.view', 'myshop.edit'), attachBranch, (req, res) => {
     res.json(svc.getProducts({ ...req.query, branch_id: req.branchId }));
   });
 
@@ -214,11 +214,11 @@ export function registerCatalogRoutes(app, { productImageUpload }) {
     }
   });
 
-  app.get('/api/myshop/layout', requirePermission('products.view'), attachBranch, (req, res) => {
+  app.get('/api/myshop/layout', requirePermission('myshop.view'), attachBranch, (req, res) => {
     res.json(getMyShopLayout(req.branchId));
   });
 
-  app.put('/api/myshop/layout', requirePermission('products.edit'), attachBranch, (req, res) => {
+  app.put('/api/myshop/layout', requirePermission('myshop.edit'), attachBranch, (req, res) => {
     try {
       res.json(saveMyShopLayout(req.branchId, req.body));
     } catch (e) {

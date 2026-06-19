@@ -25,7 +25,7 @@ export default function ShopOrders() {
   const { user } = useAuth();
   const { branchId, branchName } = useBranch();
   const { show, Toast } = useToast();
-  const canEdit = hasPermission(user, 'products.edit');
+  const canEdit = hasPermission(user, 'shop_orders.edit');
 
   const [orders, setOrders] = useState([]);
   const [statusFilter, setStatusFilter] = useState('');

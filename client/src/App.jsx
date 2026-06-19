@@ -231,8 +231,9 @@ function AppContent() {
     ];
 
     const myshopPathsLocal = [
-      ...(canViewProductsLocal ? ['/myshop', '/shop-orders'] : []),
-      ...(hasPermission(user, 'products.edit') ? ['/myshop/constructor'] : []),
+      ...(hasPermission(user, 'myshop.view') ? ['/myshop'] : []),
+      ...(hasPermission(user, 'shop_orders.view') ? ['/shop-orders'] : []),
+      ...(hasPermission(user, 'myshop.edit') ? ['/myshop/constructor'] : []),
     ];
 
     const reportPathsLocal = [
@@ -289,6 +290,10 @@ function AppContent() {
   const canViewTelegram = hasPermission(user, 'telegram.view');
   const canViewDashboard = hasPermission(user, 'dashboard.view');
   const canEditProducts = hasPermission(user, 'products.edit');
+  const canViewMyShop = hasPermission(user, 'myshop.view');
+  const canEditMyShop = hasPermission(user, 'myshop.edit');
+  const canViewShopOrders = hasPermission(user, 'shop_orders.view');
+  const canEditShopOrders = hasPermission(user, 'shop_orders.edit');
   const isMyShopStore = location.pathname === '/myshop';
   const isMyShopConstructor = location.pathname === '/myshop/constructor';
 
@@ -306,11 +311,12 @@ function AppContent() {
   ];
 
   const myshopPaths = [
-    ...(canViewProducts ? ['/myshop', '/shop-orders'] : []),
-    ...(canEditProducts ? ['/myshop/constructor'] : []),
+    ...(canViewMyShop ? ['/myshop'] : []),
+    ...(canViewShopOrders ? ['/shop-orders'] : []),
+    ...(canEditMyShop ? ['/myshop/constructor'] : []),
   ];
 
-  const showMyShopGroup = canViewProducts || canEditProducts;
+  const showMyShopGroup = canViewMyShop || canEditMyShop || canViewShopOrders || canEditShopOrders;
 
   const reportNav = [
     ...(canViewDocuments ? [{ to: '/documents', label: 'Журнал документов', perm: 'documents.view' }] : []),
@@ -426,7 +432,7 @@ function AppContent() {
                 sidebarCollapsed={sidebarCollapsed}
                 {...navGroupFlyoutProps('myshop')}
               >
-                {canViewProducts && (
+                {canViewMyShop && (
                   <NavLink
                     to="/myshop"
                     end
@@ -435,7 +441,7 @@ function AppContent() {
                     Витрина
                   </NavLink>
                 )}
-                {canEditProducts && (
+                {canEditMyShop && (
                   <NavLink
                     to="/myshop/constructor"
                     className={({ isActive }) => `nav-link nav-link-sub${isActive ? ' active' : ''}`}
@@ -443,7 +449,7 @@ function AppContent() {
                     Конструктор
                   </NavLink>
                 )}
-                {canViewProducts && (
+                {canViewShopOrders && (
                   <NavLink
                     to="/shop-orders"
                     className={({ isActive }) => `nav-link nav-link-sub${isActive ? ' active' : ''}`}
@@ -716,9 +722,9 @@ function AppContent() {
           <Route path="/cashier" element={canViewCashier ? <Cashier /> : <Navigate to={firstNavPath} />} />
           <Route path="/payments" element={canViewPayments ? <Payments /> : <Navigate to="/" />} />
           <Route path="/cash-articles" element={canViewCashArticles ? <CashArticles /> : <Navigate to={firstNavPath} />} />
-          <Route path="/myshop/constructor" element={canEditProducts ? <MyShopConstructor /> : <Navigate to="/myshop" />} />
-          <Route path="/myshop" element={canViewProducts ? <MyShop /> : <Navigate to="/" />} />
-          <Route path="/shop-orders" element={canViewProducts ? <ShopOrders /> : <Navigate to="/" />} />
+          <Route path="/myshop/constructor" element={canEditMyShop ? <MyShopConstructor /> : <Navigate to="/myshop" />} />
+          <Route path="/myshop" element={canViewMyShop ? <MyShop /> : <Navigate to="/" />} />
+          <Route path="/shop-orders" element={canViewShopOrders ? <ShopOrders /> : <Navigate to="/" />} />
           <Route path="/products" element={canViewProducts ? <Products /> : <Navigate to="/" />} />
           <Route path="/product-categories" element={canViewProducts ? <ProductCategories /> : <Navigate to="/" />} />
           <Route path="/counterparties" element={hasPermission(user, 'counterparties.view') ? <Counterparties /> : <Navigate to="/" />} />
