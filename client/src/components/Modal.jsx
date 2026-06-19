@@ -103,10 +103,10 @@ export default function Modal({
 export function useToast() {
   const [toast, setToast] = useState(null);
 
-  const show = (message, type = 'success') => {
+  const show = useCallback((message, type = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
-  };
+  }, []);
 
   const Toast = toast ? (
     <div className={`alert alert-${toast.type === 'error' ? 'error' : 'success'}`}

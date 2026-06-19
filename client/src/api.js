@@ -27,7 +27,9 @@ async function request(path, options = {}) {
     url += `${sep}branch_id=${encodeURIComponent(activeBranchId)}`;
   }
 
-  const res = await fetch(url, { credentials: 'include', ...options, headers });
+  const res = await fetch(url, { credentials: 'include', ...options, headers }).catch(() => {
+    throw new Error('Сервер недоступен. Проверьте подключение к интернету.');
+  });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || 'Ошибка запроса');
   return data;

@@ -511,7 +511,11 @@ export default function Cashier() {
     }));
   }, [branchId]);
 
-  const loadPayments = async () => {
+  const loadPayments = useCallback(async (options = {}) => {
+    const { silent = false } = options;
+    if (!silent) {
+      setPaymentsLoaded(false);
+    }
     try {
       const p = await api.getPayments();
       setPayments(p);
@@ -519,18 +523,19 @@ export default function Cashier() {
       setPaymentsLoaded(true);
       return p;
     } catch (err) {
-      setPayments([]);
-      setPaymentsLoadError(err.message || 'Не удалось загрузить операции');
+      if (!silent) {
+        setPayments([]);
+        setPaymentsLoadError(err.message || 'Не удалось загрузить операции');
+      }
       setPaymentsLoaded(true);
       throw err;
     }
-  };
+  }, [branchId]);
 
-  const load = useCallback(async () => {
-    setPaymentsLoaded(false);
-    loadPayments().catch((err) => {
-      console.error(err);
-      show(err.message || 'Не удалось загрузить операции', 'error');
+  const load = useCallback(async (options = {}) => {
+    const { silent = false } = options;
+    loadPayments({ silent }).catch((err) => {
+      if (!silent) console.error(err);
     });
 
     try {
@@ -542,7 +547,7 @@ export default function Cashier() {
       setExpenseArticles(expense);
     } catch (err) {
       console.error(err);
-      show(err.message || 'Не удалось загрузить статьи кассы', 'error');
+      if (!silent) show(err.message || 'Не удалось загрузить статьи кассы', 'error');
     }
 
     try {
@@ -552,10 +557,10 @@ export default function Cashier() {
       console.error(err);
       setSuppliers([]);
     }
-  }, [show]);
+  }, [branchId, loadPayments, show]);
 
   useEffect(() => { load(); }, [load, branchId]);
-  useAutoRefresh(load, [load, branchId], { enabled: !editingPayment });
+  useAutoRefresh(() => load({ silent: true }), [load, branchId], { enabled: !editingPayment });
 
   useEffect(() => {
     applySavedPrefs();
