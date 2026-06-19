@@ -72,9 +72,23 @@ export function getProductLastPrice(productId, branchId, docType, counterpartyId
   return map[productId] ?? null;
 }
 
+function isProductUsed(productId) {
+  if (queryOne('SELECT 1 as ok FROM document_items WHERE product_id = ? LIMIT 1', [productId])) {
+    return true;
+  }
+  if (queryOne('SELECT 1 as ok FROM calculation_items WHERE product_id = ? LIMIT 1', [productId])) {
+    return true;
+  }
+  if (queryOne('SELECT 1 as ok FROM calculation_sources WHERE product_id = ? LIMIT 1', [productId])) {
+    return true;
+  }
+  return false;
+}
+
 export function getProducts(filters = {}) {
   const branchId = filters.branch_id || DEFAULT_BRANCH_ID;
   const departmentId = filters.department_id || null;
+  const archivedOnly = filters.archived === '1' || filters.archived === 1 ? 1 : 0;
 
   let stockSelect;
   let stockJoin;
@@ -154,6 +168,7 @@ export function getProducts(filters = {}) {
       ORDER BY is_primary DESC, sort_order, created_at
       LIMIT 1
     )
+    WHERE COALESCE(p.archived, 0) = ${archivedOnly}
     ORDER BY COALESCE(ppc.sort_order, pc.sort_order, 999), ppc.name, pc.parent_id IS NOT NULL, pc.sort_order, pc.name, p.name
   `, params);
 
@@ -194,7 +209,7 @@ export function getProductCategories() {
            COUNT(DISTINCT p.id) as product_count,
            (SELECT COUNT(*) FROM product_categories ch WHERE ch.parent_id = pc.id) as subcategory_count
     FROM product_categories pc
-    LEFT JOIN products p ON p.category_id = pc.id
+    LEFT JOIN products p ON p.category_id = pc.id AND COALESCE(p.archived, 0) = 0
     LEFT JOIN product_categories parent ON parent.id = pc.parent_id
     GROUP BY pc.id
     ORDER BY COALESCE(parent.sort_order, pc.sort_order), parent.name, pc.parent_id IS NOT NULL, pc.sort_order, pc.name
@@ -545,6 +560,8 @@ function enrichProduct(product, branchId = DEFAULT_BRANCH_ID, departmentId = nul
     ...rest,
     has_variants: hasVariants,
     variants,
+    is_used: isProductUsed(product.id),
+    archived: !!rest.archived,
     variant_price_min: variantPrices.length ? Math.min(...variantPrices) : null,
     variant_price_max: variantPrices.length ? Math.max(...variantPrices) : null,
     suppliers: getSuppliersForProduct(product.id, branchId),
@@ -669,6 +686,21 @@ export function updateProduct(id, data, branchId = DEFAULT_BRANCH_ID, options = 
   return enrichProduct(fetchProductRow(id, branchId), branchId);
 }
 
+export function getArchivedProductVariants(productId, branchId = DEFAULT_BRANCH_ID) {
+  const variants = queryAll(`
+    SELECT id, product_id, name, price, stock, sort_order
+    FROM product_variants
+    WHERE product_id = ? AND COALESCE(archived, 0) = 1
+    ORDER BY sort_order, name
+  `, [productId]);
+
+  return variants.map((variant) => ({
+    ...variant,
+    base_price: variant.price,
+    price: getVariantEffectivePrice(variant.id, branchId, variant.price),
+  }));
+}
+
 export function archiveProductVariant(productId, variantId, branchId = DEFAULT_BRANCH_ID) {
   const row = queryOne(
     'SELECT id FROM product_variants WHERE id = ? AND product_id = ? AND COALESCE(archived, 0) = 0',
@@ -697,9 +729,49 @@ export function archiveProductVariant(productId, variantId, branchId = DEFAULT_B
   return enrichProduct(fetchProductRow(productId, branchId), branchId);
 }
 
+export function restoreProductVariant(productId, variantId, branchId = DEFAULT_BRANCH_ID) {
+  const row = queryOne(
+    'SELECT id FROM product_variants WHERE id = ? AND product_id = ? AND COALESCE(archived, 0) = 1',
+    [variantId, productId],
+  );
+  if (!row) throw new Error('Вариант не найден в архиве');
+
+  const product = queryOne('SELECT id FROM products WHERE id = ? AND COALESCE(archived, 0) = 0', [productId]);
+  if (!product) throw new Error('Сначала верните товар из архива');
+
+  run('UPDATE product_variants SET archived = 0 WHERE id = ?', [variantId]);
+
+  const remaining = queryAll(
+    'SELECT price FROM product_variants WHERE product_id = ? AND COALESCE(archived, 0) = 0',
+    [productId],
+  );
+  if (remaining.length) {
+    const minPrice = Math.min(...remaining.map((v) => v.price));
+    run('UPDATE products SET price = ? WHERE id = ?', [minPrice, productId]);
+  }
+
+  syncProductStockFromVariants(productId, branchId);
+  return enrichProduct(fetchProductRow(productId, branchId), branchId);
+}
+
+export function archiveProduct(id) {
+  const product = queryOne('SELECT id FROM products WHERE id = ? AND COALESCE(archived, 0) = 0', [id]);
+  if (!product) throw new Error('Товар не найден');
+  run("UPDATE products SET archived = 1, updated_at = datetime('now') WHERE id = ?", [id]);
+  return { ok: true, id };
+}
+
+export function restoreProduct(id, branchId = DEFAULT_BRANCH_ID) {
+  const product = queryOne('SELECT id FROM products WHERE id = ? AND COALESCE(archived, 0) = 1', [id]);
+  if (!product) throw new Error('Товар не найден в архиве');
+  run("UPDATE products SET archived = 0, updated_at = datetime('now') WHERE id = ?", [id]);
+  return enrichProduct(fetchProductRow(id, branchId), branchId);
+}
+
 export function deleteProduct(id) {
-  const used = queryOne('SELECT COUNT(*) as c FROM document_items WHERE product_id = ?', [id]).c;
-  if (used > 0) throw new Error('Товар используется в документах');
+  if (isProductUsed(id)) {
+    throw new Error('Товар использовался в операциях. Его можно только отправить в архив.');
+  }
   const variants = queryAll('SELECT id FROM product_variants WHERE product_id = ?', [id]);
   for (const variant of variants) {
     deleteVariantImages(variant.id);

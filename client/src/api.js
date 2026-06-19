@@ -114,10 +114,17 @@ export const api = {
   createProduct: (data) => request('/products', { method: 'POST', body: JSON.stringify(data) }),
   updateProduct: (id, data) => request(`/products/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteProduct: (id) => request(`/products/${id}`, { method: 'DELETE' }),
+  archiveProduct: (id) => request(`/products/${id}/archive`, { method: 'POST' }),
+  restoreProduct: (id) => request(`/products/${id}/restore`, { method: 'POST' }),
   archiveProductVariant: (productId, variantId) => request(
     `/products/${productId}/variants/${variantId}/archive`,
     { method: 'POST' },
   ),
+  restoreProductVariant: (productId, variantId) => request(
+    `/products/${productId}/variants/${variantId}/restore`,
+    { method: 'POST' },
+  ),
+  getArchivedProductVariants: (productId) => request(`/products/${productId}/archived-variants`),
 
   getCalculations: (params = {}) => {
     const q = new URLSearchParams(params).toString();

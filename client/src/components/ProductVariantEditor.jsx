@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import ProductMediaCubes, { revokePendingImages } from './ProductMediaCubes';
-import { formatPriceInput, parsePriceInput } from '../api';
+import { formatMoney, formatPriceInput, parsePriceInput } from '../api';
 
 export function emptyVariant() {
   return {
@@ -39,6 +39,8 @@ export default function ProductVariantEditor({
   uploading,
   setUploading,
   focusVariantId = null,
+  archivedVariants = [],
+  onRestoreVariant,
 }) {
   const focusedRef = useRef(false);
 
@@ -162,6 +164,29 @@ export default function ProductVariantEditor({
         </div>
         ))}
       </div>
+
+      {archivedVariants.length > 0 && (
+        <div className="product-variants-archived">
+          <h4 className="product-variants-archived-title">Архивные варианты</h4>
+          <ul className="product-variants-archived-list">
+            {archivedVariants.map((variant) => (
+              <li key={variant.id} className="product-variants-archived-item">
+                <span>{variant.name}</span>
+                <span className="product-meta">{variant.price != null ? formatMoney(variant.price) : ''}</span>
+                {canEdit && onRestoreVariant && (
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => onRestoreVariant(variant)}
+                  >
+                    Вернуть
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }

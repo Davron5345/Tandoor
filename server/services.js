@@ -26,7 +26,11 @@ export {
   createProduct,
   updateProduct,
   deleteProduct,
+  archiveProduct,
+  restoreProduct,
   archiveProductVariant,
+  restoreProductVariant,
+  getArchivedProductVariants,
   getProductLastPrice,
   getProductBranchSettings,
 } from './services/products.js';

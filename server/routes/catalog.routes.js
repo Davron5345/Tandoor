@@ -79,6 +79,38 @@ export function registerCatalogRoutes(app, { productImageUpload }) {
     }
   });
 
+  app.post('/api/products/:productId/variants/:variantId/restore', requirePermission('products.edit'), attachBranch, (req, res) => {
+    try {
+      res.json(svc.restoreProductVariant(req.params.productId, req.params.variantId, req.branchId));
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
+  app.post('/api/products/:id/archive', requirePermission('products.edit'), (req, res) => {
+    try {
+      res.json(svc.archiveProduct(req.params.id));
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
+  app.post('/api/products/:id/restore', requirePermission('products.edit'), attachBranch, (req, res) => {
+    try {
+      res.json(svc.restoreProduct(req.params.id, req.branchId));
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
+  app.get('/api/products/:id/archived-variants', requirePermission('products.view'), attachBranch, (req, res) => {
+    try {
+      res.json(svc.getArchivedProductVariants(req.params.id, req.branchId));
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
   app.get('/api/products/:id/images', requirePermission('products.view'), (req, res) => {
     try {
       const variantId = req.query.variant_id || null;

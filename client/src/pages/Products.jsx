@@ -42,11 +42,11 @@ const emptyProduct = {
   variants: [],
 };
 
-function IconButton({ title, onClick, children, danger = false }) {
+function IconButton({ title, onClick, children, danger = false, success = false }) {
   return (
     <button
       type="button"
-      className={`btn btn-icon btn-ghost btn-sm${danger ? ' btn-icon-danger' : ''}`}
+      className={`btn btn-icon btn-ghost btn-sm${danger ? ' btn-icon-danger' : ''}${success ? ' btn-icon-success' : ''}`}
       title={title}
       aria-label={title}
       onClick={onClick}
@@ -90,6 +90,15 @@ function IconArchive() {
       <rect x="3" y="4" width="18" height="4" rx="1" fill="none" stroke="currentColor" strokeWidth="1.8" />
       <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
       <path d="M10 12h4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconRestore() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M3 7v6h6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M21 17a9 9 0 0 0-15.8-6.3L3 13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -203,6 +212,8 @@ export default function Products() {
   const { branchId, branches, isAdmin } = useBranch();
   const canEdit = hasPermission(user, 'products.edit');
   const [branchSettings, setBranchSettings] = useState([]);
+  const [listView, setListView] = useState('catalog');
+  const [archivedVariants, setArchivedVariants] = useState([]);
 
   const productId = modal && modal !== 'create' ? modal : null;
 
@@ -233,7 +244,7 @@ export default function Products() {
   );
 
   const load = useCallback(() => {
-    const params = {};
+    const params = { archived: listView === 'archive' ? '1' : '0' };
     if (filterCategory) params.category_id = filterCategory;
     if (filterSupplier) params.supplier_id = filterSupplier;
     const searching = search.trim().length > 0;
@@ -260,11 +271,11 @@ export default function Products() {
         setSuppliers(s);
       })
       .catch(console.error);
-  }, [filterCategory, filterSupplier, productPage, search]);
+  }, [filterCategory, filterSupplier, productPage, search, listView]);
 
   useEffect(() => {
     setProductPage(1);
-  }, [branchId, filterCategory, filterSupplier, search]);
+  }, [branchId, filterCategory, filterSupplier, search, listView]);
 
   useEffect(() => { load(); }, [load]);
   useAutoRefresh(load, [load, branchId], { enabled: !modal });
@@ -317,7 +328,10 @@ export default function Products() {
   }, [products, search]);
 
   const displayListRows = useMemo(() => {
-    const rows = buildProductListRows(filteredProducts);
+    let rows = buildProductListRows(filteredProducts);
+    if (listView === 'archive') {
+      rows = rows.filter((row) => row.kind === 'product');
+    }
     if (!highlightedProductId) return rows;
     const highlightedIndex = rows.findIndex(
       (row) => row.product.id === highlightedProductId && row.kind === 'product',
@@ -327,7 +341,7 @@ export default function Products() {
     const related = rows.filter((row) => row.product.id === highlighted.product.id);
     const rest = rows.filter((row) => row.product.id !== highlighted.product.id);
     return [...related, ...rest];
-  }, [filteredProducts, highlightedProductId]);
+  }, [filteredProducts, highlightedProductId, listView]);
 
   const isSearching = search.trim().length > 0;
 
@@ -408,6 +422,7 @@ export default function Products() {
     setBranchSettings(isAdmin ? buildDefaultBranchSettings() : []);
     setProductCardTab('main');
     setFocusedVariantId(null);
+    setArchivedVariants([]);
     setModal('create');
   };
 
@@ -421,6 +436,7 @@ export default function Products() {
     });
     setProductCardTab('main');
     setFocusedVariantId(null);
+    setArchivedVariants([]);
     setModal('create');
     show('Скопированы категория, ед. изм. и поставщики');
   };
@@ -443,7 +459,13 @@ export default function Products() {
     });
     setProductCardTab(variantId ? 'variants' : 'main');
     setFocusedVariantId(variantId);
+    setArchivedVariants([]);
     setModal(p.id);
+    if (p.has_variants) {
+      api.getArchivedProductVariants(p.id)
+        .then(setArchivedVariants)
+        .catch(() => setArchivedVariants([]));
+    }
     if (isAdmin) {
       try {
         const settings = await api.getProductBranchSettings(p.id);
@@ -495,6 +517,7 @@ export default function Products() {
     clearImages();
     setModal(null);
     setFocusedVariantId(null);
+    setArchivedVariants([]);
     setHighlightedProductId(savedId);
     await load();
   };
@@ -579,10 +602,55 @@ export default function Products() {
   };
 
   const remove = async (id) => {
-    if (!confirm('Удалить товар?')) return;
+    if (!confirm('Удалить товар безвозвратно?')) return;
     try {
       await api.deleteProduct(id);
       show('Товар удалён');
+      load();
+    } catch (e) {
+      show(e.message, 'error');
+    }
+  };
+
+  const archiveProduct = async (product) => {
+    const label = product.name;
+    const msg = product.is_used
+      ? `Отправить товар «${label}» в архив? Он скроется из справочника, но останется в истории документов.`
+      : `Отправить товар «${label}» в архив?`;
+    if (!confirm(msg)) return;
+    try {
+      await api.archiveProduct(product.id);
+      show('Товар отправлен в архив');
+      load();
+    } catch (e) {
+      show(e.message, 'error');
+    }
+  };
+
+  const restoreProduct = async (product) => {
+    if (!confirm(`Вернуть товар «${product.name}» в основной справочник?`)) return;
+    try {
+      await api.restoreProduct(product.id);
+      show('Товар восстановлен');
+      load();
+    } catch (e) {
+      show(e.message, 'error');
+    }
+  };
+
+  const restoreVariant = async (product, variant) => {
+    const label = getVariantDisplayName(product, variant);
+    if (!confirm(`Вернуть вариант «${label}» в справочник?`)) return;
+    try {
+      const updated = await api.restoreProductVariant(product.id, variant.id);
+      show('Вариант восстановлен');
+      setArchivedVariants(await api.getArchivedProductVariants(product.id));
+      if (modal === product.id) {
+        setForm((prev) => ({
+          ...prev,
+          variants: mapProductVariants(updated.variants || []),
+        }));
+      }
       load();
     } catch (e) {
       show(e.message, 'error');
@@ -665,7 +733,7 @@ export default function Products() {
           )}
         </td>
         <td>
-          {canEdit && isVariant ? (
+          {canEdit && isVariant && listView === 'catalog' ? (
             <div className="btn-group btn-group-icons">
               <IconButton title="Изменить" onClick={() => openEdit(p, { variantId: variant.id })}>
                 <IconEdit />
@@ -674,7 +742,13 @@ export default function Products() {
                 <IconArchive />
               </IconButton>
             </div>
-          ) : !isVariant && canEdit ? (
+          ) : canEdit && !isVariant && listView === 'archive' ? (
+            <div className="btn-group btn-group-icons">
+              <IconButton title="Вернуть в справочник" success onClick={() => restoreProduct(p)}>
+                <IconRestore />
+              </IconButton>
+            </div>
+          ) : !isVariant && canEdit && listView === 'catalog' ? (
             <div className="btn-group btn-group-icons">
               <IconButton title="Изменить" onClick={() => openEdit(p)}>
                 <IconEdit />
@@ -682,9 +756,14 @@ export default function Products() {
               <IconButton title="Копировать категорию, ед. изм. и поставщиков" onClick={() => copyFromProduct(p)}>
                 <IconCopy />
               </IconButton>
-              <IconButton title="Удалить" danger onClick={() => remove(p.id)}>
-                <IconTrash />
+              <IconButton title="Архивировать" onClick={() => archiveProduct(p)}>
+                <IconArchive />
               </IconButton>
+              {!p.is_used && (
+                <IconButton title="Удалить безвозвратно" danger onClick={() => remove(p.id)}>
+                  <IconTrash />
+                </IconButton>
+              )}
             </div>
           ) : '—'}
         </td>
@@ -697,10 +776,33 @@ export default function Products() {
       {Toast}
       <div className="page-header">
         <h1>Товары</h1>
-        {canEdit && (
+        {canEdit && listView === 'catalog' && (
           <button type="button" className="btn btn-primary" onClick={openCreate}>+ Добавить товар</button>
         )}
       </div>
+
+      <div className="tabs products-list-tabs">
+        <button
+          type="button"
+          className={`tab${listView === 'catalog' ? ' active' : ''}`}
+          onClick={() => setListView('catalog')}
+        >
+          Справочник
+        </button>
+        <button
+          type="button"
+          className={`tab${listView === 'archive' ? ' active' : ''}`}
+          onClick={() => setListView('archive')}
+        >
+          Архив
+        </button>
+      </div>
+
+      {listView === 'archive' && (
+        <p className="products-archive-hint">
+          Здесь товары, которые убрали из справочника. Их можно вернуть обратно. Товары из документов удалить нельзя — только архивировать.
+        </p>
+      )}
 
       <div className="filters">
         <input
@@ -730,7 +832,11 @@ export default function Products() {
       </div>
 
       {visibleListRows.length === 0 ? (
-        <div className="card"><div className="empty">Товары не найдены</div></div>
+        <div className="card">
+          <div className="empty">
+            {listView === 'archive' ? 'В архиве пока нет товаров' : 'Товары не найдены'}
+          </div>
+        </div>
       ) : (
         <div className="card">
           <ProductTable items={visibleListRows} renderRow={renderListRow} />
@@ -955,6 +1061,8 @@ export default function Products() {
                       uploading={uploading}
                       setUploading={setUploading}
                       focusVariantId={focusedVariantId}
+                      archivedVariants={archivedVariants}
+                      onRestoreVariant={(variant) => restoreVariant({ id: productId, name: form.name }, variant)}
                     />
                   ) : (
                     <div className="product-variants-empty">

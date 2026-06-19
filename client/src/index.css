@@ -3853,6 +3853,53 @@ input[type='number']::-webkit-inner-spin-button {
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary, #2563eb) 20%, transparent);
 }
 
+.products-list-tabs {
+  margin-bottom: 12px;
+}
+
+.products-archive-hint {
+  margin: 0 0 14px;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.product-variants-archived {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px dashed var(--border);
+}
+
+.product-variants-archived-title {
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.product-variants-archived-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.product-variants-archived-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-soft, #fafafa);
+}
+
+.product-variants-archived-item > span:first-child {
+  flex: 1;
+  font-weight: 500;
+}
+
 .product-variant-fields {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
