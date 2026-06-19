@@ -619,30 +619,27 @@ export default function ShopStorefront({
 
   const scrollToCategorySection = (categoryId) => {
     const root = scrollBodyRef.current;
-    if (!root) return;
-    if (!categoryId) {
-      root.scrollTo({ top: 0, behavior: 'auto' });
-      return;
-    }
+    if (!root || !categoryId) return;
+
     const section = root.querySelector(`[data-category-section="${categoryId}"]`);
-    section?.scrollIntoView({ behavior: 'auto', block: 'start' });
+    if (!section) return;
+
+    const top = root.scrollTop + section.getBoundingClientRect().top - root.getBoundingClientRect().top - 8;
+    root.scrollTo({ top: Math.max(0, top), behavior: 'auto' });
+    setHighlightedCategoryId(categoryId);
   };
 
   const handleCategoryChip = (categoryId) => {
+    if (scrollSpyEnabled) {
+      scrollToCategorySection(categoryId);
+      return;
+    }
     if (activeCategoryId) {
       if (activeCategoryId === categoryId) onCategoryClear?.();
       else onCategoryClick?.(categoryId);
       return;
     }
     scrollToCategorySection(categoryId);
-  };
-
-  const handleAllChip = () => {
-    if (activeCategoryId) {
-      onCategoryClear?.();
-      return;
-    }
-    scrollToCategorySection('');
   };
 
   const topBar = (
@@ -685,14 +682,6 @@ export default function ShopStorefront({
 
       {publicMode && branchCategories.length > 0 && !showCategoryView && (
         <div ref={chipBarRef} className="myshop-categories myshop-categories-sticky">
-          <button
-            type="button"
-            className={`myshop-category-chip${!chipActiveId ? ' active' : ''}`}
-            data-category-chip=""
-            onClick={handleAllChip}
-          >
-            Все
-          </button>
           {branchCategories.map((category) => (
             <button
               key={category.id}
