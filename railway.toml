@@ -7,3 +7,7 @@ startCommand = "npm start"
 healthcheckPath = "/api/health"
 healthcheckTimeout = 120
 restartPolicyType = "ON_FAILURE"
+
+# Постоянные данные: в Railway → Service → Settings → Volume
+# Mount Path: /app/data  (приложение в /app, иначе БД сбросится при деплое)
+# Переменная DATA_DIR=/app/data — опционально, если том смонтирован, подхватится RAILWAY_VOLUME_MOUNT_PATH

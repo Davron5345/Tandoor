@@ -15,6 +15,9 @@ function resolveDataDir() {
       ? fromEnv
       : join(process.cwd(), fromEnv);
   }
+  if (process.env.RAILWAY_VOLUME_MOUNT_PATH) {
+    return process.env.RAILWAY_VOLUME_MOUNT_PATH;
+  }
   return join(__dirname, '..', 'data');
 }
 

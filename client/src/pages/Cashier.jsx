@@ -524,6 +524,7 @@ export default function Cashier() {
   };
 
   const load = useCallback(async () => {
+    setPaymentsLoaded(false);
     loadPayments().catch((err) => {
       console.error(err);
       show(err.message || 'Не удалось загрузить операции', 'error');
@@ -550,7 +551,7 @@ export default function Cashier() {
     }
   }, [show]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); }, [load, branchId]);
 
   useEffect(() => {
     applySavedPrefs();
@@ -953,7 +954,7 @@ export default function Cashier() {
                     {paymentsLoadError
                       ? 'Операции не загружены'
                       : paymentsLoaded && payments.length === 0
-                        ? 'В этом филиале ещё нет кассовых операций — проведите первую операцию выше'
+                        ? `В филиале «${branchName}» ещё нет кассовых операций — проведите первую операцию выше или выберите другой филиал в меню`
                         : 'Операций за выбранную дату нет'}
                   </td>
                 </tr>

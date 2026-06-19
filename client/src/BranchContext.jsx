@@ -30,11 +30,12 @@ export function BranchProvider({ children }) {
     loadBranches().then((list) => {
       if (isAdmin) {
         const saved = localStorage.getItem(STORAGE_KEY);
+        const mainId = list.find((b) => b.id === 'main')?.id || list[0]?.id;
         if (saved && list.some((b) => b.id === saved)) {
           setActiveBranchIdState(saved);
-        } else if (list[0]) {
-          setActiveBranchIdState(list[0].id);
-          localStorage.setItem(STORAGE_KEY, list[0].id);
+        } else if (mainId) {
+          setActiveBranchIdState(mainId);
+          localStorage.setItem(STORAGE_KEY, mainId);
         }
       } else if (user.branch_id) {
         setActiveBranchIdState(user.branch_id);

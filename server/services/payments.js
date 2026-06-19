@@ -30,8 +30,8 @@ export function getPayments(branchId = null) {
   `;
   const params = [];
   if (branchId) {
-    sql += ' WHERE p.branch_id = ?';
-    params.push(branchId);
+    sql += ' WHERE (p.branch_id = ? OR (p.branch_id IS NULL AND ? = ?))';
+    params.push(branchId, branchId, DEFAULT_BRANCH_ID);
   }
   sql += ' ORDER BY p.date DESC, p.created_at DESC';
   return queryAll(sql, params);
