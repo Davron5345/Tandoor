@@ -10,7 +10,12 @@ import {
   syncVariantCatalogStock,
 } from '../inventoryCost.js';
 import { deleteAllProductImages, deleteVariantImages } from '../productImages.js';
-import { parsePagination, paginateList } from '../pagination.js';
+import {
+  normalizeProductKind,
+  parseProductKindFilter,
+  productKindLabel,
+  PRODUCT_KIND_GOODS,
+} from '../productKinds.js';
 import {
   ensureProductBranchOnCreate,
   getProductBranchSettings,
@@ -18,6 +23,7 @@ import {
   saveProductBranchSettings,
   setBranchProductPrice,
 } from '../productBranches.js';
+import { parsePagination, paginateList } from '../pagination.js';
 
 const { queryAll, queryOne, run } = db;
 
@@ -209,6 +215,11 @@ export function getProducts(filters = {}) {
     );
   }
 
+  const kindFilter = parseProductKindFilter(filters.product_kind);
+  if (kindFilter) {
+    result = result.filter((p) => kindFilter.includes(normalizeProductKind(p.product_kind)));
+  }
+
   const pagination = parsePagination(filters);
   if (!pagination) return result;
   return paginateList(result, pagination);
@@ -383,6 +394,7 @@ function normalizeProductPayload(data) {
     price,
     has_variants: hasVariants ? 1 : 0,
     category_id: categoryId,
+    product_kind: normalizeProductKind(data.product_kind),
     barcode: (data.barcode || '').trim(),
     net_weight: netWeight,
     gross_weight: grossWeight,
@@ -570,6 +582,8 @@ function enrichProduct(product, branchId = DEFAULT_BRANCH_ID, departmentId = nul
 
   return {
     ...rest,
+    product_kind: normalizeProductKind(rest.product_kind),
+    product_kind_label: productKindLabel(rest.product_kind),
     has_variants: hasVariants,
     variants,
     is_used: isProductUsed(product.id),
@@ -634,11 +648,11 @@ export function createProduct(data) {
 
   const id = uuidv4();
   run(`
-    INSERT INTO products (id, name, sku, unit, price, stock, category_id, barcode, net_weight, gross_weight, has_variants)
-    VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)
+    INSERT INTO products (id, name, sku, unit, price, stock, category_id, product_kind, barcode, net_weight, gross_weight, has_variants)
+    VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)
   `, [
     id, payload.name, payload.sku, payload.unit, payload.price,
-    payload.category_id, payload.barcode || null,
+    payload.category_id, payload.product_kind, payload.barcode || null,
     payload.net_weight, payload.gross_weight,
     payload.has_variants,
   ]);
@@ -677,12 +691,12 @@ export function updateProduct(id, data, branchId = DEFAULT_BRANCH_ID, options = 
 
   run(`
     UPDATE products
-    SET name=?, sku=?, unit=?, price=?, category_id=?, barcode=?, net_weight=?, gross_weight=?,
+    SET name=?, sku=?, unit=?, price=?, category_id=?, product_kind=?, barcode=?, net_weight=?, gross_weight=?,
         has_variants=?, updated_at=datetime('now')
     WHERE id=?
   `, [
     payload.name, payload.sku, payload.unit, payload.price,
-    payload.category_id, payload.barcode || null,
+    payload.category_id, payload.product_kind, payload.barcode || null,
     payload.net_weight, payload.gross_weight,
     payload.has_variants, id,
   ]);

@@ -39,6 +39,7 @@ test('dish_sale writes revenue to P&L and consumes ingredients', async () => {
     sku: 'POT-001',
     unit: 'кг',
     price: 0,
+    product_kind: 'raw',
     branch_id: 'main',
   });
   const dish = svc.createProduct({
@@ -46,6 +47,7 @@ test('dish_sale writes revenue to P&L and consumes ingredients', async () => {
     sku: 'DISH-001',
     unit: 'порц',
     price: 5000,
+    product_kind: 'dish',
     branch_id: 'main',
   });
 

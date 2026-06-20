@@ -130,7 +130,11 @@ export function getPublicCatalog(branchId, departmentId = null) {
   }
 
   const layout = getMyShopLayout(branchId);
-  const rawProducts = getProducts({ branch_id: branchId, archived: '0' }).map((p) => mapPublicProduct(p, branchId));
+  const rawProducts = getProducts({
+    branch_id: branchId,
+    archived: '0',
+    product_kind: 'raw,semi_finished',
+  }).map((p) => mapPublicProduct(p, branchId));
   const products = flattenPublicCatalogProducts(rawProducts);
   const categories = getBranchCategories(products, getProductCategories());
 

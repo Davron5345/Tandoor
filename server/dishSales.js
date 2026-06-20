@@ -17,12 +17,14 @@ export function findRecipeForDish(productId, variantId = null, branchId = DEFAUL
     SELECT c.id
     FROM calculations c
     JOIN calculation_items ci ON ci.calculation_id = c.id
+    JOIN products p ON p.id = ci.product_id
     WHERE c.branch_id = ?
       AND c.active = 1
       AND c.kind = 'recipe'
       AND ci.product_id = ?
       AND IFNULL(ci.variant_id, '') = IFNULL(?, '')
       AND COALESCE(ci.is_waste, 0) = 0
+      AND p.product_kind = 'dish'
     ORDER BY c.name
     LIMIT 1
   `, [branchId, productId, variantId || null]);
@@ -40,11 +42,12 @@ export function getDishRecipes(branchId = DEFAULT_BRANCH_ID) {
   return calcs.map((calc) => {
     const dishes = queryAll(`
       SELECT ci.product_id, ci.variant_id, ci.quantity, p.name as product_name, p.unit, p.price,
-             pv.name as variant_name
+             p.product_kind, pv.name as variant_name
       FROM calculation_items ci
       JOIN products p ON p.id = ci.product_id
       LEFT JOIN product_variants pv ON pv.id = ci.variant_id
       WHERE ci.calculation_id = ? AND COALESCE(ci.is_waste, 0) = 0
+        AND p.product_kind = 'dish'
       ORDER BY ci.sort_order, p.name
     `, [calc.id]).map((row) => ({
       ...row,

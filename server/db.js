@@ -351,6 +351,7 @@ function migrateSchema() {
   migrateDocumentItemCost();
   migrateShopOrderDocument();
   migrateCalculationKind();
+  migrateProductKind();
 }
 
 function migrateCalculationKind() {
@@ -362,6 +363,19 @@ function migrateCalculationKind() {
   const done = queryOne("SELECT value FROM settings WHERE key = 'calculations_kind_v1'");
   if (!done) {
     run("INSERT OR REPLACE INTO settings (key, value) VALUES ('calculations_kind_v1', '1')");
+    saveDb();
+  }
+}
+
+function migrateProductKind() {
+  const cols = queryAll('PRAGMA table_info(products)').map((c) => c.name);
+  if (!cols.includes('product_kind')) {
+    run("ALTER TABLE products ADD COLUMN product_kind TEXT NOT NULL DEFAULT 'goods'");
+    run("UPDATE products SET product_kind = 'goods' WHERE product_kind IS NULL OR product_kind = ''");
+  }
+  const done = queryOne("SELECT value FROM settings WHERE key = 'product_kind_v1'");
+  if (!done) {
+    run("INSERT OR REPLACE INTO settings (key, value) VALUES ('product_kind_v1', '1')");
     saveDb();
   }
 }

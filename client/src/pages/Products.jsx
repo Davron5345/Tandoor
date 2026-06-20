@@ -29,6 +29,13 @@ import { useFormDraft, formDraftKey, readFormDraft, clearFormDraft, promptRestor
 import { useFormDirty } from '../hooks/useFormDirty';
 import { hasPermission } from '../permissions';
 import { IconImage } from '../components/ActionIcons';
+import {
+  PRODUCT_KIND_GOODS,
+  PRODUCT_KIND_LABELS,
+  PRODUCT_KIND_LABELS_PLURAL,
+  PRODUCT_KINDS,
+  productKindLabel,
+} from '../productKinds';
 
 const UNITS = ['шт', 'кг', 'г', 'л', 'мл', 'м', 'м²', 'м³', 'уп', 'пач', 'кор'];
 
@@ -40,6 +47,7 @@ const supplierFilterExtras = [{ id: FILTER_NO_SUPPLIER, label: 'Без пост�
 
 const emptyProduct = {
   name: '',
+  product_kind: PRODUCT_KIND_GOODS,
   category_id: 'other',
   unit: 'шт',
   barcode: '',
@@ -181,6 +189,7 @@ function ProductTable({ items, renderRow, showShopColumn = false }) {
             <th className="product-list-num-col">№</th>
             <th className="product-list-photo-col">Фото</th>
             <th>Наименование</th>
+            <th>Вид</th>
             <th>Категория</th>
             <th>Артикул</th>
             <th>Ед.</th>
@@ -243,6 +252,16 @@ export default function Products() {
 
   const filterCategory = searchParams.get('category') || '';
   const filterSupplier = searchParams.get('supplier') || '';
+  const filterKind = searchParams.get('kind') || '';
+
+  const setFilterKind = (value) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (value) next.set('kind', value);
+      else next.delete('kind');
+      return next;
+    });
+  };
 
   const setFilterCategory = (value) => {
     setSearchParams((prev) => {
@@ -271,6 +290,7 @@ export default function Products() {
     const params = { archived: listView === 'archive' ? '1' : '0', admin_list: '1' };
     if (filterCategory) params.category_id = filterCategory;
     if (filterSupplier) params.supplier_id = filterSupplier;
+    if (filterKind) params.product_kind = filterKind;
     const searching = search.trim().length > 0;
     if (!searching) {
       params.page = productPage;
@@ -303,11 +323,11 @@ export default function Products() {
         setSuppliers(s);
       })
       .catch(console.error);
-  }, [filterCategory, filterSupplier, productPage, search, listView, branchId]);
+  }, [filterCategory, filterSupplier, filterKind, productPage, search, listView, branchId]);
 
   useEffect(() => {
     setProductPage(1);
-  }, [branchId, filterCategory, filterSupplier, search, listView]);
+  }, [branchId, filterCategory, filterSupplier, filterKind, search, listView]);
 
   useEffect(() => { load(); }, [load, branchId]);
   useAutoRefresh(load, [load, branchId], { enabled: !modal });
@@ -454,6 +474,7 @@ export default function Products() {
     const draft = readFormDraft(key);
     let nextForm = {
       ...emptyProduct,
+      product_kind: filterKind || PRODUCT_KIND_GOODS,
       category_id: (filterCategory && filterCategory !== FILTER_NO_CATEGORY)
         ? filterCategory
         : (categories[0]?.id || 'other'),
@@ -497,6 +518,7 @@ export default function Products() {
     const priceSource = isAdmin ? (p.base_price ?? p.price) : p.price;
     const baseForm = {
       name: p.name,
+      product_kind: p.product_kind || PRODUCT_KIND_GOODS,
       category_id: p.category_id || 'other',
       unit: p.unit || 'шт',
       barcode: p.barcode || '',
@@ -619,6 +641,7 @@ export default function Products() {
     try {
       const payload = {
         name: form.name,
+        product_kind: form.product_kind || PRODUCT_KIND_GOODS,
         category_id: form.category_id,
         unit: form.unit,
         barcode: form.barcode,
@@ -800,6 +823,7 @@ export default function Products() {
           </div>
           {!isVariant && p.barcode && <div className="product-meta">Штрих-код: {p.barcode}</div>}
         </td>
+        <td>{isVariant ? '—' : (p.product_kind_label || productKindLabel(p.product_kind))}</td>
         <td>{isVariant ? '—' : formatCategory(p)}</td>
         <td>{isVariant ? '—' : (p.sku || '—')}</td>
         <td>{p.unit}</td>
@@ -883,10 +907,33 @@ export default function Products() {
     <div>
       {Toast}
       <div className="page-header">
-        <h1>Товары</h1>
+        <div>
+          <h1>Номенклатура</h1>
+          <p className="page-subtitle">Товары, сырьё, полуфабрикаты и готовые блюда</p>
+        </div>
         {canEdit && listView === 'catalog' && (
-          <button type="button" className="btn btn-primary" onClick={openCreate}>+ Добавить товар</button>
+          <button type="button" className="btn btn-primary" onClick={openCreate}>+ Добавить</button>
         )}
+      </div>
+
+      <div className="tabs products-kind-tabs">
+        <button
+          type="button"
+          className={`tab${!filterKind ? ' active' : ''}`}
+          onClick={() => setFilterKind('')}
+        >
+          Все
+        </button>
+        {PRODUCT_KINDS.map((kindId) => (
+          <button
+            key={kindId}
+            type="button"
+            className={`tab${filterKind === kindId ? ' active' : ''}`}
+            onClick={() => setFilterKind(kindId)}
+          >
+            {PRODUCT_KIND_LABELS_PLURAL[kindId]}
+          </button>
+        ))}
       </div>
 
       <div className="tabs products-list-tabs">
@@ -1039,6 +1086,17 @@ export default function Products() {
                     <div className="form-group full">
                       <label>Наименование *</label>
                       <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                    </div>
+                    <div className="form-group">
+                      <label>Вид номенклатуры *</label>
+                      <select
+                        value={form.product_kind || PRODUCT_KIND_GOODS}
+                        onChange={(e) => setForm({ ...form, product_kind: e.target.value })}
+                      >
+                        {PRODUCT_KINDS.map((kindId) => (
+                          <option key={kindId} value={kindId}>{PRODUCT_KIND_LABELS[kindId]}</option>
+                        ))}
+                      </select>
                     </div>
                     <div className="form-group">
                       <label>Категория *</label>

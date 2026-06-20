@@ -47,6 +47,7 @@ function OptionMeta({ product, variant = null }) {
 }
 
 export default function ProductSelect({
+  kinds = null,
   products,
   allProducts = [],
   value,
@@ -65,7 +66,11 @@ export default function ProductSelect({
   const searchRef = useRef(null);
 
   const catalog = allProducts.length ? allProducts : products;
-  const groups = useMemo(() => buildProductPickGroups(products), [products]);
+  const visibleProducts = useMemo(() => {
+    if (!kinds?.length) return products;
+    return products.filter((p) => kinds.includes(p.product_kind || 'goods'));
+  }, [products, kinds]);
+  const groups = useMemo(() => buildProductPickGroups(visibleProducts), [visibleProducts]);
   const filteredGroups = useMemo(
     () => filterProductPickGroups(groups, search),
     [groups, search],

@@ -509,7 +509,7 @@ function AppContent() {
                       to="/products"
                       className={({ isActive }) => `nav-link nav-link-sub${isActive ? ' active' : ''}`}
                     >
-                      Товары
+                      Номенклатура
                     </NavLink>
                     <NavLink
                       to="/product-categories"

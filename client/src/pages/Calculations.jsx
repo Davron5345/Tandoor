@@ -9,6 +9,15 @@ import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import { hasPermission } from '../permissions';
 import { AddRowButton } from '../components/ActionIcons';
 import {
+  filterProductsByKinds,
+  DISH_OUTPUT_KINDS,
+  INGREDIENT_KINDS,
+  PRODUCT_KIND_LABELS,
+  PRODUCT_KIND_LABELS_PLURAL,
+  PRODUCT_KINDS,
+  RAZDELKA_OUTPUT_KINDS,
+} from '../productKinds';
+import {
   encodeProductPick,
   resolvePickFromProducts,
 } from '../utils/productVariants';
@@ -60,12 +69,12 @@ export default function Calculations() {
   );
 
   const outputProducts = useMemo(
-    () => products,
-    [products],
+    () => filterProductsByKinds(products, isRecipe ? DISH_OUTPUT_KINDS : RAZDELKA_OUTPUT_KINDS),
+    [products, isRecipe],
   );
 
   const inputProductsForCalc = useMemo(
-    () => products,
+    () => filterProductsByKinds(products, INGREDIENT_KINDS),
     [products],
   );
 
@@ -415,6 +424,8 @@ export default function Calculations() {
                           <td>
                             <ProductSelect
                               products={inputProductsForCalc}
+                              allProducts={products}
+                              kinds={INGREDIENT_KINDS}
                               value={encodeProductPick(source.product_id, source.variant_id)}
                               onChange={(pickValue) => updateSourcePick(idx, pickValue)}
                               disabled={!canEdit}
@@ -475,6 +486,7 @@ export default function Calculations() {
                             <ProductSelect
                               products={outputProducts}
                               allProducts={products}
+                              kinds={isRecipe ? DISH_OUTPUT_KINDS : RAZDELKA_OUTPUT_KINDS}
                               value={encodeProductPick(item.product_id, item.variant_id)}
                               onChange={(pickValue) => updateItemPick(idx, pickValue)}
                               disabled={!canEdit}

@@ -135,7 +135,7 @@ export default function MyShopConstructor() {
     try {
       const [layoutData, productList, categoryList, settingsData] = await Promise.all([
         api.getMyShopLayout(),
-        api.getProducts(),
+        api.getProducts({ product_kind: 'raw,semi_finished' }),
         api.getProductCategories(),
         api.getShopSettings(),
       ]);

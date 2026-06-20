@@ -1,6 +1,12 @@
 import { v4 as uuidv4 } from 'uuid';
 import db from './db.js';
 import { DEFAULT_BRANCH_ID } from './branches.js';
+import {
+  assertProductKindById,
+  DISH_OUTPUT_KINDS,
+  INGREDIENT_KINDS,
+  RAZDELKA_OUTPUT_KINDS,
+} from './productKinds.js';
 
 export const CALC_KIND_RAZDELKA = 'razdelka';
 export const CALC_KIND_RECIPE = 'recipe';
@@ -329,6 +335,17 @@ export function createCalculation(data, branchId = DEFAULT_BRANCH_ID) {
     is_waste: !!item.is_waste,
   }));
   items.forEach(assertCalcLine);
+  if (kind === CALC_KIND_RECIPE) {
+    sources.forEach((s) => assertProductKindById(s.product_id, INGREDIENT_KINDS, 'ингредиент'));
+    items.filter((item) => !item.is_waste).forEach((item) => {
+      assertProductKindById(item.product_id, DISH_OUTPUT_KINDS, 'готовое блюдо');
+    });
+  } else {
+    sources.forEach((s) => assertProductKindById(s.product_id, INGREDIENT_KINDS, 'сырьё или полуфабрикат'));
+    items.filter((item) => !item.is_waste).forEach((item) => {
+      assertProductKindById(item.product_id, RAZDELKA_OUTPUT_KINDS, 'полуфабрикат или товар');
+    });
+  }
   if (kind === CALC_KIND_RECIPE && !items.some((item) => !item.is_waste)) {
     throw new Error('Добавьте блюдо (выход рецепта) без отметки «Отход»');
   }
@@ -379,8 +396,19 @@ export function updateCalculation(id, data, branchId = DEFAULT_BRANCH_ID) {
     sort_order: item.sort_order ?? idx,
     is_waste: !!item.is_waste,
   }));
-  sources.forEach(assertCalcLine);
+  sources.forEach((s) => assertCalcLine(s));
   items.forEach(assertCalcLine);
+  if (kind === CALC_KIND_RECIPE) {
+    sources.forEach((s) => assertProductKindById(s.product_id, INGREDIENT_KINDS, 'ингредиент'));
+    items.filter((item) => !item.is_waste).forEach((item) => {
+      assertProductKindById(item.product_id, DISH_OUTPUT_KINDS, 'готовое блюдо');
+    });
+  } else {
+    sources.forEach((s) => assertProductKindById(s.product_id, INGREDIENT_KINDS, 'сырьё или полуфабрикат'));
+    items.filter((item) => !item.is_waste).forEach((item) => {
+      assertProductKindById(item.product_id, RAZDELKA_OUTPUT_KINDS, 'полуфабрикат или товар');
+    });
+  }
   if (kind === CALC_KIND_RECIPE && !items.some((item) => !item.is_waste)) {
     throw new Error('Добавьте блюдо (выход рецепта) без отметки «Отход»');
   }
