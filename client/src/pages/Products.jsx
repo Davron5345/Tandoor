@@ -64,19 +64,36 @@ function SortHeader({ label, sortKey, activeKey, direction, onSort, className = 
       className={`sortable-th ${className}${active ? ' is-sorted' : ''}`}
       aria-sort={active ? (direction === 'asc' ? 'ascending' : 'descending') : 'none'}
     >
-      <button
-        type="button"
-        className="sortable-th-btn"
-        onClick={() => onSort(sortKey)}
-      >
-        <span>{label}</span>
+      <div className="sortable-th-inner">
+        <span className="sortable-th-label">{label}</span>
         <span className="sortable-th-icons" aria-hidden="true">
-          <span className={`sort-arrow up${active && direction === 'asc' ? ' active' : ''}`}>▲</span>
-          <span className={`sort-arrow down${active && direction === 'desc' ? ' active' : ''}`}>▼</span>
+          <button
+            type="button"
+            className={`sort-arrow-btn up${active && direction === 'asc' ? ' active' : ''}`}
+            aria-label={`${label}: по возрастанию`}
+            onClick={() => onSort(sortKey, 'asc')}
+          >
+            ▲
+          </button>
+          <button
+            type="button"
+            className={`sort-arrow-btn down${active && direction === 'desc' ? ' active' : ''}`}
+            aria-label={`${label}: по убыванию`}
+            onClick={() => onSort(sortKey, 'desc')}
+          >
+            ▼
+          </button>
         </span>
-      </button>
+      </div>
     </th>
   );
+}
+
+function productPriceValue(product) {
+  if (product.has_variants && product.variant_price_min != null) {
+    return Number(product.variant_price_min);
+  }
+  return product.price != null && product.price !== '' ? Number(product.price) : null;
 }
 
 function compareProducts(a, b, sortKey, sortDir) {
@@ -101,11 +118,25 @@ function compareProducts(a, b, sortKey, sortDir) {
     case 'unit':
       return dir * text(a.unit).localeCompare(text(b.unit), 'ru');
     case 'net_weight':
-    case 'gross_weight':
-    case 'price':
-    case 'stock': {
+    case 'gross_weight': {
       const av = number(a[sortKey]);
       const bv = number(b[sortKey]);
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      return dir * (av - bv);
+    }
+    case 'price': {
+      const av = productPriceValue(a);
+      const bv = productPriceValue(b);
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      return dir * (av - bv);
+    }
+    case 'stock': {
+      const av = number(a.stock);
+      const bv = number(b.stock);
       if (av == null && bv == null) return 0;
       if (av == null) return 1;
       if (bv == null) return -1;
@@ -428,7 +459,7 @@ export default function Products() {
 
   useEffect(() => {
     setProductPage(1);
-  }, [branchId, filterCategory, filterSupplier, filterKind, search, listView, sortKey, sortDir, productPageSize]);
+  }, [branchId, filterCategory, filterSupplier, filterKind, search, listView, productPageSize]);
 
   useEffect(() => { load(); }, [load, branchId]);
   useAutoRefresh(load, [load, branchId], { enabled: !modal });
@@ -483,18 +514,18 @@ export default function Products() {
   const isSearching = search.trim().length > 0;
 
   const sortedProducts = useMemo(() => {
-    if (!isSearching) return filteredProducts;
+    if (!sortKey) return filteredProducts;
     const list = [...filteredProducts];
     list.sort((a, b) => compareProducts(a, b, sortKey, sortDir));
     return list;
-  }, [filteredProducts, isSearching, sortKey, sortDir]);
+  }, [filteredProducts, sortKey, sortDir]);
 
   const displayListRows = useMemo(() => {
     let rows = buildProductListRows(sortedProducts);
     if (listView === 'archive') {
       rows = rows.filter((row) => row.kind === 'product');
     }
-    if (!highlightedProductId) return rows;
+    if (!highlightedProductId || sortKey) return rows;
     const highlightedIndex = rows.findIndex(
       (row) => row.product.id === highlightedProductId && row.kind === 'product',
     );
@@ -503,7 +534,7 @@ export default function Products() {
     const related = rows.filter((row) => row.product.id === highlighted.product.id);
     const rest = rows.filter((row) => row.product.id !== highlighted.product.id);
     return [...related, ...rest];
-  }, [sortedProducts, highlightedProductId, listView]);
+  }, [sortedProducts, highlightedProductId, listView, sortKey]);
 
   const visibleListRows = useMemo(() => {
     if (isSearching) return displayListRows;
@@ -518,13 +549,10 @@ export default function Products() {
     return buildProductRowNumbers(visibleListRows, startIndex);
   }, [visibleListRows, isSearching, productPage, productPageSize]);
 
-  const handleSort = (key) => {
-    if (sortKey === key) {
-      setSortDir((prevDir) => (prevDir === 'asc' ? 'desc' : 'asc'));
-      return;
-    }
+  const handleSort = (key, direction) => {
     setSortKey(key);
-    setSortDir('asc');
+    setSortDir(direction);
+    setProductPage(1);
   };
 
   const handlePageSizeChange = (event) => {

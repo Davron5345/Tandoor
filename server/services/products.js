@@ -24,31 +24,16 @@ import {
   setBranchProductPrice,
 } from '../productBranches.js';
 import { parsePagination, paginateList } from '../pagination.js';
+import { sortProductList } from '../productSort.js';
 
 const { queryAll, queryOne, run } = db;
 
 function buildProductsOrderBy(filters = {}) {
-  const dir = String(filters.sort_dir || '').toLowerCase() === 'desc' ? 'DESC' : 'ASC';
-  const columns = {
-    name: 'p.name',
-    product_kind: 'p.product_kind',
-    category_name: 'pc.name',
-    sku: 'p.sku',
-    unit: 'p.unit',
-    net_weight: 'p.net_weight',
-    gross_weight: 'p.gross_weight',
-    price: 'price',
-    stock: 'stock',
-  };
   const sortBy = String(filters.sort_by || '').trim();
-  const column = columns[sortBy];
-  if (!column) {
-    return 'COALESCE(ppc.sort_order, pc.sort_order, 999), ppc.name, pc.parent_id IS NOT NULL, pc.sort_order, pc.name, p.name';
+  if (sortBy) {
+    return 'p.name ASC';
   }
-  if (['net_weight', 'gross_weight', 'price', 'stock'].includes(sortBy)) {
-    return `${column} IS NULL, ${column} ${dir}, p.name ASC`;
-  }
-  return `${column} ${dir} COLLATE NOCASE, p.name ASC`;
+  return 'COALESCE(ppc.sort_order, pc.sort_order, 999), ppc.name, pc.parent_id IS NOT NULL, pc.sort_order, pc.name, p.name';
 }
 
 function getLastPricesMap(branchId, docType, counterpartyId = null) {
@@ -242,6 +227,10 @@ export function getProducts(filters = {}) {
   const kindFilter = parseProductKindFilter(filters.product_kind);
   if (kindFilter) {
     result = result.filter((p) => kindFilter.includes(normalizeProductKind(p.product_kind)));
+  }
+
+  if (filters.sort_by) {
+    result = sortProductList(result, filters.sort_by, filters.sort_dir);
   }
 
   const pagination = parsePagination(filters);
