@@ -764,7 +764,9 @@ export function getUserPayload(user) {
 
 export function canAccessDocumentType(role, type) {
   if (type === 'prihod') return hasPermission(role, 'documents.prihod');
-  if (type === 'rashod' || type === 'return_supplier') return hasPermission(role, 'documents.rashod');
+  if (type === 'rashod' || type === 'return_supplier' || type === 'return_customer') {
+    return hasPermission(role, 'documents.rashod');
+  }
   if (type === 'peremeshchenie') return hasPermission(role, 'documents.transfer');
   if (type === 'razdelka') return hasPermission(role, 'documents.razdelka');
   return hasPermission(role, 'documents.view');

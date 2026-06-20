@@ -343,16 +343,35 @@ export function getPnLReport(branchId = DEFAULT_BRANCH_ID, dateFrom = null, date
   const docParams = [branchId];
   const docDateFilter = buildDateFilter('d.date', dateFrom, dateTo, docParams);
 
-  const revenueRow = queryOne(`
+  const salesRow = queryOne(`
     SELECT COALESCE(SUM(d.total_amount), 0) as total, COUNT(*) as doc_count
     FROM documents d
     WHERE d.type = 'rashod' AND d.status = 'confirmed' AND d.branch_id = ?
     ${docDateFilter}
   `, docParams);
 
+  const returnParams = [branchId];
+  const returnDateFilter = buildDateFilter('d.date', dateFrom, dateTo, returnParams);
+  const returnsRow = queryOne(`
+    SELECT COALESCE(SUM(d.total_amount), 0) as total, COUNT(*) as doc_count
+    FROM documents d
+    WHERE d.type = 'return_customer' AND d.status = 'confirmed' AND d.branch_id = ?
+    ${returnDateFilter}
+  `, returnParams);
+
+  const myshopParams = [branchId];
+  const myshopDateFilter = buildDateFilter('d.date', dateFrom, dateTo, myshopParams);
+  const myshopRow = queryOne(`
+    SELECT COALESCE(SUM(d.total_amount), 0) as total, COUNT(*) as doc_count
+    FROM documents d
+    JOIN shop_orders so ON so.document_id = d.id
+    WHERE d.type = 'rashod' AND d.status = 'confirmed' AND d.branch_id = ?
+    ${myshopDateFilter}
+  `, myshopParams);
+
   const cogsParams = [branchId];
   const cogsDateFilter = buildDateFilter('d.date', dateFrom, dateTo, cogsParams);
-  const cogsRow = queryOne(`
+  const cogsSalesRow = queryOne(`
     SELECT COALESCE(SUM(di.cost_amount), 0) as total,
       SUM(CASE WHEN COALESCE(di.cost_amount, 0) = 0 AND di.amount > 0 THEN 1 ELSE 0 END) as missing_cost_lines
     FROM document_items di
@@ -360,6 +379,58 @@ export function getPnLReport(branchId = DEFAULT_BRANCH_ID, dateFrom = null, date
     WHERE d.type = 'rashod' AND d.status = 'confirmed' AND d.branch_id = ?
     ${cogsDateFilter}
   `, cogsParams);
+
+  const cogsReturnParams = [branchId];
+  const cogsReturnDateFilter = buildDateFilter('d.date', dateFrom, dateTo, cogsReturnParams);
+  const cogsReturnsRow = queryOne(`
+    SELECT COALESCE(SUM(di.cost_amount), 0) as total
+    FROM document_items di
+    JOIN documents d ON d.id = di.document_id
+    WHERE d.type = 'return_customer' AND d.status = 'confirmed' AND d.branch_id = ?
+    ${cogsReturnDateFilter}
+  `, cogsReturnParams);
+
+  const categoryParams = [branchId];
+  const categoryDateFilter = buildDateFilter('d.date', dateFrom, dateTo, categoryParams);
+  const categoryRows = queryAll(`
+    SELECT
+      COALESCE(pc.id, '') as category_id,
+      COALESCE(pc.name, 'Без категории') as category_name,
+      COALESCE(SUM(CASE WHEN d.type = 'rashod' THEN di.amount ELSE 0 END), 0)
+        - COALESCE(SUM(CASE WHEN d.type = 'return_customer' THEN di.amount ELSE 0 END), 0) as revenue,
+      COALESCE(SUM(CASE WHEN d.type = 'rashod' THEN di.cost_amount ELSE 0 END), 0)
+        - COALESCE(SUM(CASE WHEN d.type = 'return_customer' THEN di.cost_amount ELSE 0 END), 0) as cogs
+    FROM document_items di
+    JOIN documents d ON d.id = di.document_id
+    JOIN products p ON p.id = di.product_id
+    LEFT JOIN product_categories pc ON pc.id = p.category_id
+    WHERE d.status = 'confirmed'
+      AND d.branch_id = ?
+      AND d.type IN ('rashod', 'return_customer')
+    ${categoryDateFilter}
+    GROUP BY pc.id, pc.name
+    HAVING ABS(revenue) > 0.005 OR ABS(cogs) > 0.005
+    ORDER BY revenue DESC, category_name ASC
+  `, categoryParams);
+
+  const monthParams = [branchId];
+  const monthDateFilter = buildDateFilter('d.date', dateFrom, dateTo, monthParams);
+  const monthRows = queryAll(`
+    SELECT
+      strftime('%Y-%m', d.date) as month,
+      COALESCE(SUM(CASE WHEN d.type = 'rashod' THEN d.total_amount ELSE 0 END), 0)
+        - COALESCE(SUM(CASE WHEN d.type = 'return_customer' THEN d.total_amount ELSE 0 END), 0) as revenue,
+      COALESCE(SUM(CASE WHEN d.type = 'rashod' THEN di.cost_amount ELSE 0 END), 0)
+        - COALESCE(SUM(CASE WHEN d.type = 'return_customer' THEN di.cost_amount ELSE 0 END), 0) as cogs
+    FROM documents d
+    LEFT JOIN document_items di ON di.document_id = d.id
+    WHERE d.status = 'confirmed'
+      AND d.branch_id = ?
+      AND d.type IN ('rashod', 'return_customer')
+    ${monthDateFilter}
+    GROUP BY month
+    ORDER BY month ASC
+  `, monthParams);
 
   const payParams = [branchId];
   const payDateFilter = buildDateFilter('p.date', dateFrom, dateTo, payParams);
@@ -385,21 +456,27 @@ export function getPnLReport(branchId = DEFAULT_BRANCH_ID, dateFrom = null, date
     ORDER BY amount DESC, ca.name ASC
   `, payParams);
 
-  const revenue = revenueRow?.total || 0;
-  const cogs = cogsRow?.total || 0;
+  const sales = salesRow?.total || 0;
+  const returns = returnsRow?.total || 0;
+  const revenue = sales - returns;
+  const cogs = (cogsSalesRow?.total || 0) - (cogsReturnsRow?.total || 0);
   const grossProfit = revenue - cogs;
   const grossMarginPct = revenue > 0 ? Math.round((grossProfit / revenue) * 10000) / 100 : 0;
   const operatingExpenses = expenseRows.reduce((s, r) => s + (r.amount || 0), 0);
   const otherIncome = incomeRows.reduce((s, r) => s + (r.amount || 0), 0);
   const netProfit = grossProfit - operatingExpenses + otherIncome;
-  const missingCostLines = cogsRow?.missing_cost_lines || 0;
+  const missingCostLines = cogsSalesRow?.missing_cost_lines || 0;
 
   return {
     period: { date_from: dateFrom, date_to: dateTo },
     method: 'accrual',
     revenue: {
-      sales: revenue,
-      doc_count: revenueRow?.doc_count || 0,
+      sales,
+      returns,
+      myshop: myshopRow?.total || 0,
+      myshop_doc_count: myshopRow?.doc_count || 0,
+      doc_count: salesRow?.doc_count || 0,
+      return_doc_count: returnsRow?.doc_count || 0,
       total: revenue,
     },
     cogs: {
@@ -424,6 +501,19 @@ export function getPnLReport(branchId = DEFAULT_BRANCH_ID, dateFrom = null, date
         amount: r.amount || 0,
       })),
     },
+    by_category: categoryRows.map((row) => ({
+      category_id: row.category_id || null,
+      category_name: row.category_name,
+      revenue: row.revenue || 0,
+      cogs: row.cogs || 0,
+      gross_profit: (row.revenue || 0) - (row.cogs || 0),
+    })),
+    by_month: monthRows.map((row) => ({
+      month: row.month,
+      revenue: row.revenue || 0,
+      cogs: row.cogs || 0,
+      gross_profit: (row.revenue || 0) - (row.cogs || 0),
+    })),
     net_profit: netProfit,
     net_margin_pct: revenue > 0 ? Math.round((netProfit / revenue) * 10000) / 100 : 0,
     notes: missingCostLines > 0

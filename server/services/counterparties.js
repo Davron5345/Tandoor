@@ -37,6 +37,7 @@ export function assertCounterpartyBranch(counterpartyId, branchId, docType = nul
     throw new Error('Для прихода/возврата нужен поставщик');
   }
   if (docType === 'rashod' && cp.type !== 'client') throw new Error('Для расхода нужен клиент');
+  if (docType === 'return_customer' && cp.type !== 'client') throw new Error('Для возврата нужен клиент');
 }
 
 export function createCounterparty(data, branchId = DEFAULT_BRANCH_ID) {

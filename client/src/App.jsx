@@ -303,6 +303,7 @@ function AppContent() {
   const docNav = [
     { to: '/prihod', label: 'Приход', perm: 'documents.prihod' },
     { to: '/return-supplier', label: 'Возврат поставщику', perm: 'documents.rashod' },
+    { to: '/return-customer', label: 'Возврат от клиента', perm: 'documents.rashod' },
     { to: '/transfer', label: 'Перемещение', perm: 'documents.transfer' },
     { to: '/razdelka', label: 'Разделка', perm: 'documents.razdelka' },
     { to: '/calculations', label: 'Калькуляции', perm: 'calculations.view' },
@@ -719,6 +720,7 @@ function AppContent() {
           <Route path="/prihod" element={hasPermission(user, 'documents.prihod') ? <Documents key="prihod" defaultType="prihod" /> : <Navigate to="/" />} />
           <Route path="/rashod" element={hasPermission(user, 'documents.rashod') ? <Documents key="rashod" defaultType="rashod" /> : <Navigate to="/" />} />
           <Route path="/return-supplier" element={hasPermission(user, 'documents.rashod') ? <Documents key="return-supplier" defaultType="return_supplier" /> : <Navigate to="/" />} />
+          <Route path="/return-customer" element={hasPermission(user, 'documents.rashod') ? <Documents key="return-customer" defaultType="return_customer" /> : <Navigate to="/" />} />
           <Route path="/transfer" element={hasPermission(user, 'documents.transfer') ? <Documents key="transfer" defaultType="peremeshchenie" /> : <Navigate to="/" />} />
           <Route path="/razdelka" element={hasPermission(user, 'documents.razdelka') ? <Razdelka /> : <Navigate to="/" />} />
           <Route path="/calculations" element={hasPermission(user, 'calculations.view') ? <Calculations /> : <Navigate to="/" />} />

@@ -1177,7 +1177,10 @@ function PnlReport() {
             <div className="stat-card">
               <span className="label">Выручка</span>
               <span className="value">{formatMoney(report.revenue.total)}</span>
-              <span className="stock-kpi-hint">{report.revenue.doc_count} док.</span>
+              <span className="stock-kpi-hint">
+                {report.revenue.doc_count} продаж
+                {report.revenue.myshop > 0 ? ` · MyShop ${formatMoney(report.revenue.myshop)}` : ''}
+              </span>
             </div>
             <div className="stat-card">
               <span className="label">Себестоимость</span>
@@ -1216,6 +1219,18 @@ function PnlReport() {
                     <td>Продажи клиентам (расходные документы)</td>
                     <td className="col-num">{formatMoney(report.revenue.sales)}</td>
                   </tr>
+                  {(report.revenue.returns || 0) > 0 && (
+                    <tr>
+                      <td>Возвраты от клиентов</td>
+                      <td className="col-num">− {formatMoney(report.revenue.returns)}</td>
+                    </tr>
+                  )}
+                  {(report.revenue.myshop || 0) > 0 && (
+                    <tr>
+                      <td>в т.ч. MyShop ({report.revenue.myshop_doc_count || 0} зак.)</td>
+                      <td className="col-num">{formatMoney(report.revenue.myshop)}</td>
+                    </tr>
+                  )}
                   <tr className="pnl-subtotal-row">
                     <td><strong>Итого выручка</strong></td>
                     <td className="col-num"><strong>{formatMoney(report.revenue.total)}</strong></td>
@@ -1283,6 +1298,65 @@ function PnlReport() {
               Операционные расходы берутся из кассы (статьи кроме «Закуп»).
             </p>
           </div>
+
+          {(report.by_category?.length > 0 || report.by_month?.length > 0) && (
+            <div className="pnl-report-breakdown">
+              {report.by_category?.length > 0 && (
+                <div className="card pnl-report-table-card">
+                  <div className="card-header"><strong>По категориям</strong></div>
+                  <div className="table-wrap">
+                    <table className="pnl-report-table">
+                      <thead>
+                        <tr>
+                          <th>Категория</th>
+                          <th className="col-num">Выручка</th>
+                          <th className="col-num">COGS</th>
+                          <th className="col-num">Валовая</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {report.by_category.map((row) => (
+                          <tr key={row.category_id || row.category_name}>
+                            <td>{row.category_name}</td>
+                            <td className="col-num">{formatMoney(row.revenue)}</td>
+                            <td className="col-num">{formatMoney(row.cogs)}</td>
+                            <td className="col-num"><strong>{formatMoney(row.gross_profit)}</strong></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+              {report.by_month?.length > 0 && (
+                <div className="card pnl-report-table-card">
+                  <div className="card-header"><strong>По месяцам</strong></div>
+                  <div className="table-wrap">
+                    <table className="pnl-report-table">
+                      <thead>
+                        <tr>
+                          <th>Месяц</th>
+                          <th className="col-num">Выручка</th>
+                          <th className="col-num">COGS</th>
+                          <th className="col-num">Валовая</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {report.by_month.map((row) => (
+                          <tr key={row.month}>
+                            <td>{row.month}</td>
+                            <td className="col-num">{formatMoney(row.revenue)}</td>
+                            <td className="col-num">{formatMoney(row.cogs)}</td>
+                            <td className="col-num"><strong>{formatMoney(row.gross_profit)}</strong></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </>
       )}
     </div>

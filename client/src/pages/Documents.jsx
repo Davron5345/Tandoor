@@ -40,6 +40,19 @@ import { useFormDirty } from '../hooks/useFormDirty';
 
 const DEFAULT_CONTRACT_ID = '__default__';
 const RETURN_SUPPLIER_TYPE = 'return_supplier';
+const RETURN_CUSTOMER_TYPE = 'return_customer';
+
+function isSupplierReturnType(type) {
+  return type === RETURN_SUPPLIER_TYPE;
+}
+
+function isCustomerReturnType(type) {
+  return type === RETURN_CUSTOMER_TYPE;
+}
+
+function isAnyReturnType(type) {
+  return isSupplierReturnType(type) || isCustomerReturnType(type);
+}
 
 function isOutgoingDocType(type) {
   return type === 'rashod' || type === RETURN_SUPPLIER_TYPE;
@@ -191,11 +204,12 @@ export default function Documents({ defaultType }) {
   }, [supplierContracts, modal, form.type]);
 
   useEffect(() => {
-    if (!modal || form.type !== RETURN_SUPPLIER_TYPE || !form.counterparty_id) {
+    if (!modal || !isAnyReturnType(form.type) || !form.counterparty_id) {
       setReturnSourceDocs([]);
       return;
     }
-    api.getDocuments({ type: 'prihod', status: 'confirmed' })
+    const sourceType = isCustomerReturnType(form.type) ? 'rashod' : 'prihod';
+    api.getDocuments({ type: sourceType, status: 'confirmed' })
       .then((list) => {
         const options = list
           .filter((d) => d.counterparty_id === form.counterparty_id)
@@ -206,7 +220,7 @@ export default function Documents({ defaultType }) {
   }, [modal, form.type, form.counterparty_id, branchId]);
 
   useEffect(() => {
-    if (!modal || form.type !== RETURN_SUPPLIER_TYPE || !form.source_document_id) {
+    if (!modal || !isAnyReturnType(form.type) || !form.source_document_id) {
       setReturnSourceProductMap({});
       setReturnSourceProductOptions([]);
       return;
@@ -377,29 +391,32 @@ export default function Documents({ defaultType }) {
     : null;
 
   const filteredCp = counterparties.filter((c) => {
-    if (form.type === 'prihod' || form.type === RETURN_SUPPLIER_TYPE) return c.type === 'supplier';
-    if (form.type === 'rashod') return c.type === 'client';
+    if (form.type === 'prihod' || isSupplierReturnType(form.type)) return c.type === 'supplier';
+    if (form.type === 'rashod' || isCustomerReturnType(form.type)) return c.type === 'client';
     return true;
   });
 
   const prihodNeedsSupplier = form.type === 'prihod' && !form.counterparty_id;
-  const returnNeedsSupplier = form.type === RETURN_SUPPLIER_TYPE && !form.counterparty_id;
-  const prihodNeedsDepartment = form.type === 'prihod' && !form.to_department_id;
+  const returnNeedsSupplier = isSupplierReturnType(form.type) && !form.counterparty_id;
+  const returnNeedsClient = isCustomerReturnType(form.type) && !form.counterparty_id;
+  const returnSourceDocBlocked = isAnyReturnType(form.type) && !form.source_document_id;
+  const prihodNeedsDepartment = (form.type === 'prihod' || isCustomerReturnType(form.type)) && !form.to_department_id;
   const rashodNeedsDepartment = isOutgoingDocType(form.type) && !form.from_department_id;
-  const prihodBlocked = prihodNeedsSupplier || prihodNeedsDepartment;
-  const rashodBlocked = returnNeedsSupplier || rashodNeedsDepartment;
-  const itemsBlocked = prihodBlocked || rashodBlocked;
-  const returnSourceDocBlocked = form.type === RETURN_SUPPLIER_TYPE && !form.source_document_id;
-  const selectedReturnSourceDoc = form.type === RETURN_SUPPLIER_TYPE
+  const prihodBlocked = prihodNeedsSupplier || (form.type === 'prihod' && prihodNeedsDepartment);
+  const customerReturnBlocked = returnNeedsClient || (isCustomerReturnType(form.type) && prihodNeedsDepartment);
+  const rashodBlocked = returnNeedsSupplier || rashodNeedsDepartment || returnSourceDocBlocked;
+  const itemsBlocked = prihodBlocked || rashodBlocked || customerReturnBlocked;
+  const selectedReturnSourceDoc = isAnyReturnType(form.type)
     ? (returnSourceDocs.find((d) => d.id === form.source_document_id) || null)
     : null;
   const returnDateTooEarly = !!(
-    selectedReturnSourceDoc?.date
+    isAnyReturnType(form.type)
+    && selectedReturnSourceDoc?.date
     && form.date
-    && form.date < selectedReturnSourceDoc.date
+    && form.date < selectedReturnSourceDoc.date.slice(0, 10)
   );
   const selectableProducts = useMemo(
-    () => (form.type === RETURN_SUPPLIER_TYPE
+    () => (isAnyReturnType(form.type)
       ? (returnSourceDocBlocked ? [] : returnSourceProductOptions)
       : docProducts),
     [form.type, returnSourceDocBlocked, returnSourceProductOptions, docProducts],
@@ -686,20 +703,30 @@ export default function Documents({ defaultType }) {
         show('Выберите поставщика', 'error');
         return;
       }
-      if (form.type === RETURN_SUPPLIER_TYPE && !form.counterparty_id) {
+      if (isSupplierReturnType(form.type) && !form.counterparty_id) {
         show('Выберите поставщика для возврата', 'error');
         return;
       }
-      if (form.type === RETURN_SUPPLIER_TYPE && !form.source_document_id) {
-        show('Выберите приходный документ', 'error');
+      if (isCustomerReturnType(form.type) && !form.counterparty_id) {
+        show('Выберите клиента для возврата', 'error');
+        return;
+      }
+      if (isAnyReturnType(form.type) && !form.source_document_id) {
+        show(isCustomerReturnType(form.type) ? 'Выберите расходный документ' : 'Выберите приходный документ', 'error');
         return;
       }
       if (returnDateTooEarly) {
-        show('Дата возврата не может быть раньше даты приходного документа', 'error');
+        show(isCustomerReturnType(form.type)
+          ? 'Дата возврата не может быть раньше даты расходного документа'
+          : 'Дата возврата не может быть раньше даты приходного документа', 'error');
         return;
       }
       if (form.type === 'prihod' && !form.to_department_id) {
         show('Выберите отдел', 'error');
+        return;
+      }
+      if (isCustomerReturnType(form.type) && !form.to_department_id) {
+        show('Выберите отдел для оприходования возврата', 'error');
         return;
       }
       if (isOutgoingDocType(form.type) && !form.from_department_id) {
@@ -738,7 +765,7 @@ export default function Documents({ defaultType }) {
       const data = {
         type: form.type,
         counterparty_id: form.type === 'peremeshchenie' ? null : (form.counterparty_id || null),
-        source_document_id: form.type === RETURN_SUPPLIER_TYPE ? (form.source_document_id || null) : null,
+        source_document_id: isAnyReturnType(form.type) ? (form.source_document_id || null) : null,
         from_branch_id: null,
         to_branch_id: null,
         from_department_id: null,
@@ -764,9 +791,11 @@ export default function Documents({ defaultType }) {
           data.from_branch_id = form.from_branch_id;
           data.to_branch_id = form.to_branch_id;
         }
-      } else if (form.type === 'prihod') {
+      } else if (form.type === 'prihod' || isCustomerReturnType(form.type)) {
         data.to_department_id = form.to_department_id;
-        data.contract_id = form.contract_id || DEFAULT_CONTRACT_ID;
+        if (form.type === 'prihod') {
+          data.contract_id = form.contract_id || DEFAULT_CONTRACT_ID;
+        }
       } else if (isOutgoingDocType(form.type)) {
         data.from_department_id = form.from_department_id;
       }
@@ -831,6 +860,7 @@ export default function Documents({ defaultType }) {
   const title = defaultType === 'prihod' ? 'Приход'
     : defaultType === 'rashod' ? 'Расход'
     : defaultType === RETURN_SUPPLIER_TYPE ? 'Возврат поставщику'
+    : defaultType === RETURN_CUSTOMER_TYPE ? 'Возврат от клиента'
     : defaultType === 'peremeshchenie' ? 'Перемещение'
     : 'Журнал документов';
 
@@ -850,6 +880,9 @@ export default function Documents({ defaultType }) {
     if (d.type === 'prihod' && d.to_department_name) {
       return `${d.branch_name || '—'} · ${d.to_department_name}`;
     }
+    if (isCustomerReturnType(d.type) && d.to_department_name) {
+      return `${d.branch_name || '—'} · ${d.to_department_name}`;
+    }
     if (isOutgoingDocType(d.type) && d.from_department_name) {
       return `${d.branch_name || '—'} · ${d.from_department_name}`;
     }
@@ -865,6 +898,7 @@ export default function Documents({ defaultType }) {
     prihod: 'Новый приходный документ',
     rashod: 'Новый расходный документ',
     return_supplier: 'Новый возврат поставщику',
+    return_customer: 'Новый возврат от клиента',
     peremeshchenie: 'Новое перемещение',
   };
 
@@ -889,6 +923,7 @@ export default function Documents({ defaultType }) {
               <button type="button" className="btn btn-prihod" onClick={() => openCreate('prihod')}>+ Приход</button>
               <button type="button" className="btn btn-rashod" onClick={() => openCreate('rashod')}>+ Расход</button>
               <button type="button" className="btn btn-rashod" onClick={() => openCreate(RETURN_SUPPLIER_TYPE)}>+ Возврат поставщику</button>
+              <button type="button" className="btn btn-rashod" onClick={() => openCreate(RETURN_CUSTOMER_TYPE)}>+ Возврат от клиента</button>
             </>
           )}
           {defaultType && canEdit && (
@@ -906,6 +941,7 @@ export default function Documents({ defaultType }) {
             <option value="prihod">Приход</option>
             <option value="rashod">Расход</option>
             <option value="return_supplier">Возврат поставщику</option>
+            <option value="return_customer">Возврат от клиента</option>
             <option value="peremeshchenie">Перемещение</option>
             <option value="razdelka">Разделка</option>
           </select>
@@ -938,7 +974,7 @@ export default function Documents({ defaultType }) {
                   <td>{d.number}</td>
                   <td>{formatDate(d.date)}</td>
                   <td>
-                    <span className={`badge badge-${d.type === 'peremeshchenie' ? 'supplier' : (d.type === RETURN_SUPPLIER_TYPE ? 'rashod' : d.type)}`}>
+                    <span className={`badge badge-${d.type === 'peremeshchenie' ? 'supplier' : ((d.type === RETURN_SUPPLIER_TYPE || d.type === RETURN_CUSTOMER_TYPE) ? 'rashod' : d.type)}`}>
                       {typeLabel(d.type)}
                     </span>
                   </td>
@@ -1039,14 +1075,28 @@ export default function Documents({ defaultType }) {
                   Для этого поставщика нет проведённых приходов в текущем филиале.
                 </div>
               )}
-              {form.type === RETURN_SUPPLIER_TYPE && form.source_document_id && returnSourceProductOptions.length === 0 && (
+              {isCustomerReturnType(form.type) && !form.counterparty_id && !isReadOnly && (
                 <div className="alert alert-error" style={{ marginBottom: 12 }}>
-                  В выбранном приходном документе нет товарных позиций для возврата.
+                  Для возврата сначала выберите клиента.
                 </div>
               )}
-              {form.type === RETURN_SUPPLIER_TYPE && returnDateTooEarly && (
+              {isCustomerReturnType(form.type) && form.counterparty_id && returnSourceDocs.length === 0 && (
                 <div className="alert alert-error" style={{ marginBottom: 12 }}>
-                  Дата возврата не может быть раньше даты приходного документа.
+                  Для этого клиента нет проведённых расходов в текущем филиале.
+                </div>
+              )}
+              {isAnyReturnType(form.type) && form.source_document_id && returnSourceProductOptions.length === 0 && (
+                <div className="alert alert-error" style={{ marginBottom: 12 }}>
+                  {isCustomerReturnType(form.type)
+                    ? 'В выбранном расходном документе нет товарных позиций для возврата.'
+                    : 'В выбранном приходном документе нет товарных позиций для возврата.'}
+                </div>
+              )}
+              {isAnyReturnType(form.type) && returnDateTooEarly && (
+                <div className="alert alert-error" style={{ marginBottom: 12 }}>
+                  {isCustomerReturnType(form.type)
+                    ? 'Дата возврата не может быть раньше даты расходного документа.'
+                    : 'Дата возврата не может быть раньше даты приходного документа.'}
                 </div>
               )}
               {form.type === 'prihod' && form.counterparty_id && docProducts.length === 0 && (
@@ -1054,9 +1104,11 @@ export default function Documents({ defaultType }) {
                   У выбранного поставщика нет привязанных товаров. Назначьте поставщиков в карточке товара.
                 </div>
               )}
-              {form.type === 'prihod' && !form.to_department_id && !isReadOnly && (
+              {(form.type === 'prihod' || isCustomerReturnType(form.type)) && !form.to_department_id && !isReadOnly && (
                 <div className="alert alert-error" style={{ marginBottom: 12 }}>
-                  Выберите отдел — товар будет оприходован в этот отдел.
+                  {isCustomerReturnType(form.type)
+                    ? 'Выберите отдел — возвращённый товар будет оприходован в этот отдел.'
+                    : 'Выберите отдел — товар будет оприходован в этот отдел.'}
                 </div>
               )}
               {isOutgoingDocType(form.type) && !form.from_department_id && !isReadOnly && (
@@ -1076,18 +1128,19 @@ export default function Documents({ defaultType }) {
                       <option value="prihod">Приход</option>
                       <option value="rashod">Расход</option>
                       <option value="return_supplier">Возврат поставщику</option>
+            <option value="return_customer">Возврат от клиента</option>
                       <option value="peremeshchenie">Перемещение</option>
                     </select>
                   </div>
                 )}
-                {form.type === 'prihod' ? (
+                {form.type === 'prihod' || isCustomerReturnType(form.type) ? (
                   <>
                     <div className="form-group">
                       <label>Дата</label>
                       <input
                         type="date"
                         value={form.date}
-                        min={form.type === RETURN_SUPPLIER_TYPE ? (selectedReturnSourceDoc?.date || undefined) : undefined}
+                        min={isAnyReturnType(form.type) ? (selectedReturnSourceDoc?.date?.slice(0, 10) || undefined) : undefined}
                         onChange={(e) => setForm({ ...form, date: e.target.value })}
                         disabled={isReadOnly}
                       />
@@ -1097,7 +1150,7 @@ export default function Documents({ defaultType }) {
                       <input value={form.number || previewDocNumber || '—'} disabled />
                     </div>
                     <div className="form-group">
-                      <label>Поставщик</label>
+                      <label>{isCustomerReturnType(form.type) ? 'Клиент' : 'Поставщик'}</label>
                       <CategorySelect
                         categories={filteredCp}
                         value={form.counterparty_id}
@@ -1106,22 +1159,52 @@ export default function Documents({ defaultType }) {
                         includeEmpty
                         emptyLabel="— не выбран —"
                         placeholder="— не выбран —"
-                        searchPlaceholder="Поиск поставщика..."
+                        searchPlaceholder={isCustomerReturnType(form.type) ? 'Поиск клиента...' : 'Поиск поставщика...'}
                         disabled={isReadOnly}
                       />
                     </div>
-                    <div className="form-group">
-                      <label>Договор</label>
-                      <select
-                        value={form.contract_id || DEFAULT_CONTRACT_ID}
-                        onChange={(e) => setForm({ ...form, contract_id: e.target.value })}
-                        disabled={isReadOnly || !form.counterparty_id}
-                      >
-                        {supplierContracts.map((c) => (
-                          <option key={c.id} value={c.id}>{formatContractLabel(c)}</option>
-                        ))}
-                      </select>
-                    </div>
+                    {form.type === 'prihod' && (
+                      <div className="form-group">
+                        <label>Договор</label>
+                        <select
+                          value={form.contract_id || DEFAULT_CONTRACT_ID}
+                          onChange={(e) => setForm({ ...form, contract_id: e.target.value })}
+                          disabled={isReadOnly || !form.counterparty_id}
+                        >
+                          {supplierContracts.map((c) => (
+                            <option key={c.id} value={c.id}>{formatContractLabel(c)}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                    {isCustomerReturnType(form.type) && (
+                      <div className="form-group">
+                        <label>Расходный документ *</label>
+                        <select
+                          value={form.source_document_id || ''}
+                          onChange={(e) => setForm({
+                            ...form,
+                            source_document_id: e.target.value,
+                            date: (() => {
+                              const picked = returnSourceDocs.find((d) => d.id === e.target.value);
+                              if (!picked?.date) return form.date;
+                              const pickedDate = picked.date.slice(0, 10);
+                              return form.date && form.date >= pickedDate ? form.date : pickedDate;
+                            })(),
+                            items: form.items.map((it) => ({ ...it, product_id: '', variant_id: null })),
+                          })}
+                          disabled={isReadOnly || !form.counterparty_id}
+                          required
+                        >
+                          <option value="">— выберите —</option>
+                          {returnSourceDocs.map((d) => (
+                            <option key={d.id} value={d.id}>
+                              №{d.number} от {formatDate(d.date)} · {formatMoney(d.total_amount)}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
                     <div className="form-group">
                       <label>Отдел *</label>
                       <select
@@ -1245,7 +1328,7 @@ export default function Documents({ defaultType }) {
                       <input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} disabled={isReadOnly} />
                     </div>
                     <div className="form-group">
-                      <label>{form.type === RETURN_SUPPLIER_TYPE ? 'Поставщик' : 'Клиент'}</label>
+                      <label>{isSupplierReturnType(form.type) ? 'Поставщик' : 'Клиент'}</label>
                       <CategorySelect
                         categories={filteredCp}
                         value={form.counterparty_id}
@@ -1254,11 +1337,11 @@ export default function Documents({ defaultType }) {
                         includeEmpty
                         emptyLabel="— не выбран —"
                         placeholder="— не выбран —"
-                        searchPlaceholder={form.type === RETURN_SUPPLIER_TYPE ? 'Поиск поставщика...' : 'Поиск клиента...'}
+                        searchPlaceholder={isSupplierReturnType(form.type) ? 'Поиск поставщика...' : 'Поиск клиента...'}
                         disabled={isReadOnly}
                       />
                     </div>
-                    {form.type === RETURN_SUPPLIER_TYPE && (
+                    {isSupplierReturnType(form.type) && (
                       <div className="form-group">
                         <label>Приходный документ *</label>
                         <select
@@ -1336,7 +1419,7 @@ export default function Documents({ defaultType }) {
                         <td>
                           <ProductSelect
                             products={selectableProducts}
-                            allProducts={form.type === RETURN_SUPPLIER_TYPE
+                            allProducts={isAnyReturnType(form.type)
                               ? (selectableProducts.length ? selectableProducts : products)
                               : products}
                             value={encodeProductPick(item.product_id, item.variant_id)}
@@ -1356,7 +1439,7 @@ export default function Documents({ defaultType }) {
                                   : 'Выберите товар...'
                             }
                           />
-                          {form.type === RETURN_SUPPLIER_TYPE && item.product_id && (
+                          {isAnyReturnType(form.type) && item.product_id && (
                             <div className="razdelka-stock-row-warning" style={{ marginTop: 4 }}>
                               по приходу:{' '}
                               {returnSourceProductMap[encodeProductPick(item.product_id, item.variant_id || null)] || 0}

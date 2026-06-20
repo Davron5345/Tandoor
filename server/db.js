@@ -349,6 +349,20 @@ function migrateSchema() {
   migrateOpeningBalance();
   migrateOpeningBalanceDocuments();
   migrateDocumentItemCost();
+  migrateShopOrderDocument();
+}
+
+function migrateShopOrderDocument() {
+  const cols = queryAll('PRAGMA table_info(shop_orders)').map((c) => c.name);
+  if (!cols.includes('document_id')) {
+    run('ALTER TABLE shop_orders ADD COLUMN document_id TEXT REFERENCES documents(id)');
+  }
+  run('CREATE INDEX IF NOT EXISTS idx_shop_orders_document ON shop_orders(document_id)');
+  const done = queryOne("SELECT value FROM settings WHERE key = 'shop_order_document_v1'");
+  if (!done) {
+    run("INSERT OR REPLACE INTO settings (key, value) VALUES ('shop_order_document_v1', '1')");
+    saveDb();
+  }
 }
 
 function migrateOpeningBalance() {

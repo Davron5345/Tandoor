@@ -66,10 +66,67 @@ test('rashod confirm saves cost_amount on document items', async () => {
   assert.equal(item.cost_amount, 4000);
 
   const pnl = svc.getPnLReport('main', '2026-06-01', '2026-06-30');
+  assert.equal(pnl.revenue.sales, 6000);
   assert.equal(pnl.revenue.total, 6000);
   assert.equal(pnl.cogs.total, 4000);
   assert.equal(pnl.gross_profit, 2000);
   assert.equal(pnl.gross_margin_pct, 33.33);
+});
+
+test('return_customer reduces revenue and cogs in P&L', async () => {
+  const { initDb } = await import('../db.js');
+  const { initPermissions } = await import('../permissions.js');
+  const { seedDefaultUsers } = await import('../auth.js');
+  const svc = await import('../services.js');
+  const { getDefaultDepartmentId } = await import('../departments.js');
+
+  await initDb();
+  initPermissions((await import('../db.js')).default);
+  seedDefaultUsers();
+
+  const deptId = getDefaultDepartmentId('main');
+  const client = svc.createCounterparty({ name: 'Клиент P&L', type: 'client' }, 'main');
+  const product = svc.createProduct({
+    name: 'Return товар',
+    sku: 'RET-001',
+    unit: 'шт',
+    price: 2000,
+    branch_id: 'main',
+  });
+
+  svc.createDocument({
+    type: 'prihod',
+    date: '2026-07-01',
+    to_department_id: deptId,
+    items: [{ product_id: product.id, quantity: 10, price: 1000 }],
+    status: 'confirmed',
+  }, 'test-user', 'main');
+
+  const rashod = svc.createDocument({
+    type: 'rashod',
+    date: '2026-07-10',
+    from_department_id: deptId,
+    counterparty_id: client.id,
+    items: [{ product_id: product.id, quantity: 5, price: 2000 }],
+    status: 'confirmed',
+  }, 'test-user', 'main');
+
+  svc.createDocument({
+    type: 'return_customer',
+    date: '2026-07-12',
+    to_department_id: deptId,
+    counterparty_id: client.id,
+    source_document_id: rashod.id,
+    items: [{ product_id: product.id, quantity: 1, price: 2000 }],
+    status: 'confirmed',
+  }, 'test-user', 'main');
+
+  const pnl = svc.getPnLReport('main', '2026-07-01', '2026-07-31');
+  assert.equal(pnl.revenue.sales, 10000);
+  assert.equal(pnl.revenue.returns, 2000);
+  assert.equal(pnl.revenue.total, 8000);
+  assert.equal(pnl.cogs.total, 4000);
+  assert.equal(pnl.gross_profit, 4000);
 });
 
 test('P&L excludes purchase cash article from operating expenses', async () => {

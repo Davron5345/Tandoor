@@ -33,6 +33,7 @@ export const DOC_TYPE_LABELS = {
   prihod: 'Приход',
   rashod: 'Расход',
   return_supplier: 'Возврат поставщику',
+  return_customer: 'Возврат от клиента',
   peremeshchenie: 'Перемещение',
   razdelka: 'Разделка',
   opening_balance: 'Начальное сальдо',

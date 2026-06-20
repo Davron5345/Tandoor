@@ -1,10 +1,11 @@
 import { v4 as uuidv4 } from 'uuid';
 import db from './db.js';
 import { getBranch } from './branches.js';
-import { assertDepartmentInBranch } from './departments.js';
+import { assertDepartmentInBranch, getDefaultDepartmentId } from './departments.js';
 import { getProducts } from './services/products.js';
 import { getSetting, setSetting } from './services/telegram.js';
 import { sendShopOrderNotification } from './telegram.js';
+import { createDocument } from './services/documents.js';
 
 const { queryAll, queryOne, run } = db;
 
@@ -214,9 +215,10 @@ export function createShopOrder(branchId, payload, departmentId = null) {
 
 export function getShopOrder(id) {
   const order = queryOne(`
-    SELECT so.*, d.name as department_name
+    SELECT so.*, d.name as department_name, doc.number as document_number
     FROM shop_orders so
     LEFT JOIN departments d ON d.id = so.department_id
+    LEFT JOIN documents doc ON doc.id = so.document_id
     WHERE so.id = ?
   `, [id]);
   if (!order) return null;
@@ -253,7 +255,36 @@ export function getShopOrders(branchId, filters = {}) {
   }));
 }
 
-export function updateShopOrderStatus(id, status, branchId) {
+function fulfillShopOrder(order, userId = 'system') {
+  if (order.document_id) return order.document_id;
+  if (order.status !== 'done') return null;
+
+  const branchId = order.branch_id;
+  const fromDepartmentId = order.department_id || getDefaultDepartmentId(branchId);
+  if (!fromDepartmentId) throw new Error('Не найден склад для проведения заказа MyShop');
+
+  const items = queryAll('SELECT * FROM shop_order_items WHERE order_id = ?', [order.id]);
+  if (items.length === 0) throw new Error('В заказе нет позиций');
+
+  const doc = createDocument({
+    type: 'rashod',
+    date: new Date().toISOString().slice(0, 10),
+    comment: `MyShop заказ №${order.number}${order.customer_name ? ` · ${order.customer_name}` : ''}`,
+    from_department_id: fromDepartmentId,
+    items: items.map((item) => ({
+      product_id: item.product_id,
+      variant_id: item.variant_id || null,
+      quantity: item.quantity,
+      price: item.price,
+    })),
+    status: 'confirmed',
+  }, userId, branchId);
+
+  run('UPDATE shop_orders SET document_id = ?, updated_at = datetime(\'now\') WHERE id = ?', [doc.id, order.id]);
+  return doc.id;
+}
+
+export function updateShopOrderStatus(id, status, branchId, userId = 'system') {
   if (!ORDER_STATUSES.has(status)) throw new Error('Некорректный статус');
   const order = getShopOrder(id);
   if (!order) throw new Error('Заказ не найден');
@@ -263,6 +294,16 @@ export function updateShopOrderStatus(id, status, branchId) {
     'UPDATE shop_orders SET status = ?, updated_at = datetime(\'now\') WHERE id = ?',
     [status, id],
   );
+
+  const updated = getShopOrder(id);
+  if (status === 'done') {
+    try {
+      fulfillShopOrder(updated, userId);
+    } catch (err) {
+      run('UPDATE shop_orders SET status = ?, updated_at = datetime(\'now\') WHERE id = ?', [order.status, id]);
+      throw err;
+    }
+  }
 
   return getShopOrder(id);
 }

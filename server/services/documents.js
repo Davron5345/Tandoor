@@ -90,6 +90,62 @@ function assertReturnSupplierSourceDocument(sourceDocumentId, branchId, supplier
   return doc;
 }
 
+function assertReturnCustomerSourceDocument(sourceDocumentId, branchId, clientId, returnDate = null) {
+  if (!sourceDocumentId) throw new Error('Выберите расходный документ для возврата');
+  const doc = queryOne(
+    'SELECT id, type, status, branch_id, counterparty_id FROM documents WHERE id = ?',
+    [sourceDocumentId],
+  );
+  if (!doc) throw new Error('Расходный документ не найден');
+  if (doc.type !== 'rashod') throw new Error('Для возврата можно выбрать только расходный документ');
+  if (doc.status !== 'confirmed') throw new Error('Возврат привязывается только к проведённому расходу');
+  if ((doc.branch_id || DEFAULT_BRANCH_ID) !== (branchId || DEFAULT_BRANCH_ID)) {
+    throw new Error('Расходный документ относится к другому филиалу');
+  }
+  if (!doc.counterparty_id || doc.counterparty_id !== clientId) {
+    throw new Error('Расходный документ не относится к выбранному клиенту');
+  }
+  const sourceDate = normalizeIsoDate(doc.date);
+  const targetDate = normalizeIsoDate(returnDate);
+  if (sourceDate && targetDate && targetDate < sourceDate) {
+    throw new Error('Дата возврата не может быть раньше даты расходного документа');
+  }
+  return doc;
+}
+
+function findSourceLineMetrics(sourceItems, productId, variantId) {
+  const matches = sourceItems.filter(
+    (item) => item.product_id === productId
+      && (item.variant_id || null) === (variantId || null),
+  );
+  if (matches.length === 0) return { unitCost: 0, salePrice: 0 };
+  const totalQty = matches.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
+  const totalCost = matches.reduce(
+    (sum, item) => sum + (Number(item.cost_amount) || (Number(item.unit_cost) || 0) * (Number(item.quantity) || 0)),
+    0,
+  );
+  const totalAmount = matches.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+  return {
+    unitCost: totalQty > 0 ? totalCost / totalQty : 0,
+    salePrice: totalQty > 0 ? totalAmount / totalQty : 0,
+  };
+}
+
+function applyReturnCustomerLineCosts(documentId) {
+  const doc = queryOne('SELECT * FROM documents WHERE id = ?', [documentId]);
+  if (!doc || doc.type !== 'return_customer' || !doc.source_document_id) return;
+  const items = queryAll('SELECT * FROM document_items WHERE document_id = ?', [documentId]);
+  const sourceItems = queryAll('SELECT * FROM document_items WHERE document_id = ?', [doc.source_document_id]);
+  for (const item of items) {
+    const { unitCost } = findSourceLineMetrics(sourceItems, item.product_id, item.variant_id || null);
+    const qty = Number(item.quantity) || 0;
+    run(
+      'UPDATE document_items SET unit_cost = ?, cost_amount = ? WHERE id = ?',
+      [unitCost, unitCost * qty, item.id],
+    );
+  }
+}
+
 export function snapshotDocument(docId) {
   const doc = queryOne('SELECT * FROM documents WHERE id = ?', [docId]);
   const items = queryAll(`
@@ -211,6 +267,15 @@ function updateStock(documentId, reverse = false) {
         receiveDepartmentStock(doc.to_department_id, item.product_id, qty, item.price || 0, vid);
       } else {
         reverseReceiveDepartmentStock(doc.to_department_id, item.product_id, qty, item.price || 0, vid);
+      }
+      afterVariantStockChange(vid, item.product_id, branchId);
+      syncBranchStockFromDepartments(branchId, item.product_id);
+    } else if (doc.type === 'return_customer' && doc.to_department_id) {
+      const unitCost = Number(item.unit_cost) || 0;
+      if (multiplier > 0) {
+        receiveDepartmentStock(doc.to_department_id, item.product_id, qty, unitCost, vid);
+      } else {
+        reverseReceiveDepartmentStock(doc.to_department_id, item.product_id, qty, unitCost, vid);
       }
       afterVariantStockChange(vid, item.product_id, branchId);
       syncBranchStockFromDepartments(branchId, item.product_id);
@@ -771,12 +836,23 @@ export function createDocument(data, userId = null, branchId = DEFAULT_BRANCH_ID
     if (!toDepartmentId) throw new Error('Выберите отдел для прихода');
     assertDepartmentInBranch(toDepartmentId, docBranchId);
   }
+  if (data.type === 'return_customer') {
+    toDepartmentId = data.to_department_id || null;
+    if (!toDepartmentId) throw new Error('Выберите отдел для возврата');
+    assertDepartmentInBranch(toDepartmentId, docBranchId);
+    if (!data.counterparty_id) throw new Error('Выберите клиента для возврата');
+  }
   if (data.type === 'return_supplier' && !data.counterparty_id) {
     throw new Error('Выберите поставщика для возврата');
   }
-  const sourceDocumentId = data.type === 'return_supplier' ? (data.source_document_id || null) : null;
+  const sourceDocumentId = (data.type === 'return_supplier' || data.type === 'return_customer')
+    ? (data.source_document_id || null)
+    : null;
   if (data.type === 'return_supplier') {
     assertReturnSupplierSourceDocument(sourceDocumentId, docBranchId, data.counterparty_id, data.date);
+  }
+  if (data.type === 'return_customer') {
+    assertReturnCustomerSourceDocument(sourceDocumentId, docBranchId, data.counterparty_id, data.date);
   }
 
   if (isOutgoingDocType(data.type)) {
@@ -839,6 +915,7 @@ export function createDocument(data, userId = null, branchId = DEFAULT_BRANCH_ID
     addHistory(id, 'created', userId);
 
     if (willConfirm) {
+      if (data.type === 'return_customer') applyReturnCustomerLineCosts(id);
       updateStock(id);
       addHistory(id, 'confirmed', userId);
     }
@@ -903,6 +980,7 @@ export function updateDocument(id, data, userId = null, branchId = DEFAULT_BRANC
       addHistory(id, 'updated', userId);
 
       if (willConfirm) {
+        if (docType === 'return_customer') applyReturnCustomerLineCosts(id);
         updateStock(id);
         if (!wasConfirmed) addHistory(id, 'confirmed', userId);
       }
@@ -936,15 +1014,24 @@ export function updateDocument(id, data, userId = null, branchId = DEFAULT_BRANC
     if (!toDepartmentId) throw new Error('Выберите отдел для прихода');
     assertDepartmentInBranch(toDepartmentId, docBranchId);
   }
+  if (docType === 'return_customer') {
+    toDepartmentId = data.to_department_id ?? existing.to_department_id ?? null;
+    if (!toDepartmentId) throw new Error('Выберите отдел для возврата');
+    assertDepartmentInBranch(toDepartmentId, docBranchId);
+    if (!counterpartyId) throw new Error('Выберите клиента для возврата');
+  }
   if (docType === 'return_supplier' && !counterpartyId) {
     throw new Error('Выберите поставщика для возврата');
   }
-  const sourceDocumentId = docType === 'return_supplier'
+  const sourceDocumentId = (docType === 'return_supplier' || docType === 'return_customer')
     ? (data.source_document_id ?? existing.source_document_id ?? null)
     : null;
   const returnDate = data.date || existing.date;
   if (docType === 'return_supplier') {
     assertReturnSupplierSourceDocument(sourceDocumentId, docBranchId, counterpartyId, returnDate);
+  }
+  if (docType === 'return_customer') {
+    assertReturnCustomerSourceDocument(sourceDocumentId, docBranchId, counterpartyId, returnDate);
   }
 
   if (isOutgoingDocType(docType)) {
@@ -1015,6 +1102,7 @@ export function updateDocument(id, data, userId = null, branchId = DEFAULT_BRANC
     addHistory(id, 'updated', userId);
 
     if (willConfirm) {
+      if (docType === 'return_customer') applyReturnCustomerLineCosts(id);
       updateStock(id);
       if (!wasConfirmed) addHistory(id, 'confirmed', userId);
     }
@@ -1059,6 +1147,15 @@ export function confirmDocument(id, userId = null) {
       doc.counterparty_id,
       doc.date,
     );
+  }
+  if (doc.type === 'return_customer') {
+    assertReturnCustomerSourceDocument(
+      doc.source_document_id,
+      doc.branch_id || DEFAULT_BRANCH_ID,
+      doc.counterparty_id,
+      doc.date,
+    );
+    applyReturnCustomerLineCosts(id);
   }
 
   transaction(() => {
