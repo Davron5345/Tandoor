@@ -239,7 +239,7 @@ function AppContent() {
 
     const reportPathsLocal = [
       ...(canViewDocumentsLocal ? ['/documents'] : []),
-      ...(hasPermission(user, 'reports.view') ? ['/reports/stock', '/reports/documents', '/reports/debts', '/reports/reconciliation', '/reports/returns'] : []),
+      ...(hasPermission(user, 'reports.view') ? ['/reports/stock', '/reports/documents', '/reports/debts', '/reports/reconciliation', '/reports/pnl', '/reports/returns'] : []),
       ...(hasPermission(user, 'opening_balance.view') ? ['/opening-balance'] : []),
     ];
 
@@ -327,6 +327,7 @@ function AppContent() {
     { to: '/reports/documents', label: 'Документы за период', perm: 'reports.view' },
     { to: '/reports/debts/debtors', label: 'Задолженности', perm: 'reports.view' },
     { to: '/reports/reconciliation', label: 'Акт сверки', perm: 'reports.view' },
+    { to: '/reports/pnl', label: 'P&L', perm: 'reports.view' },
     { to: '/reports/returns', label: 'Возвраты поставщикам', perm: 'reports.view' },
     { to: '/opening-balance', label: 'Начальное сальдо', perm: 'opening_balance.view' },
   ].filter((item) => hasPermission(user, item.perm));

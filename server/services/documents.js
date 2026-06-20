@@ -216,9 +216,24 @@ function updateStock(documentId, reverse = false) {
       syncBranchStockFromDepartments(branchId, item.product_id);
     } else if (isOutgoingDocType(doc.type) && doc.from_department_id) {
       if (multiplier > 0) {
-        issueDepartmentStock(doc.from_department_id, item.product_id, qty, vid);
+        const issued = issueDepartmentStock(doc.from_department_id, item.product_id, qty, vid);
+        if (doc.type === 'rashod') {
+          run(
+            'UPDATE document_items SET unit_cost = ?, cost_amount = ? WHERE id = ?',
+            [issued.unitCost, issued.totalCost, item.id],
+          );
+        }
       } else {
-        reverseIssueDepartmentStock(doc.from_department_id, item.product_id, qty, item.price || 0, vid);
+        reverseIssueDepartmentStock(
+          doc.from_department_id,
+          item.product_id,
+          qty,
+          item.unit_cost || item.price || 0,
+          vid,
+        );
+        if (doc.type === 'rashod') {
+          run('UPDATE document_items SET unit_cost = 0, cost_amount = 0 WHERE id = ?', [item.id]);
+        }
       }
       afterVariantStockChange(vid, item.product_id, branchId);
       syncBranchStockFromDepartments(branchId, item.product_id);

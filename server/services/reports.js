@@ -1,5 +1,6 @@
 import db from '../db.js';
 import { DEFAULT_BRANCH_ID } from '../branches.js';
+import { PURCHASE_ARTICLE_CODE } from '../cashArticleDefaults.js';
 
 const { queryAll, queryOne } = db;
 
@@ -322,5 +323,111 @@ export function getStats(branchId = DEFAULT_BRANCH_ID) {
     monthlyActivity,
     topProducts,
     lowStock,
+  };
+}
+
+function buildDateFilter(column, dateFrom, dateTo, params) {
+  let sql = '';
+  if (dateFrom) {
+    sql += ` AND ${column} >= ?`;
+    params.push(dateFrom);
+  }
+  if (dateTo) {
+    sql += ` AND ${column} <= ?`;
+    params.push(dateTo);
+  }
+  return sql;
+}
+
+export function getPnLReport(branchId = DEFAULT_BRANCH_ID, dateFrom = null, dateTo = null) {
+  const docParams = [branchId];
+  const docDateFilter = buildDateFilter('d.date', dateFrom, dateTo, docParams);
+
+  const revenueRow = queryOne(`
+    SELECT COALESCE(SUM(d.total_amount), 0) as total, COUNT(*) as doc_count
+    FROM documents d
+    WHERE d.type = 'rashod' AND d.status = 'confirmed' AND d.branch_id = ?
+    ${docDateFilter}
+  `, docParams);
+
+  const cogsParams = [branchId];
+  const cogsDateFilter = buildDateFilter('d.date', dateFrom, dateTo, cogsParams);
+  const cogsRow = queryOne(`
+    SELECT COALESCE(SUM(di.cost_amount), 0) as total,
+      SUM(CASE WHEN COALESCE(di.cost_amount, 0) = 0 AND di.amount > 0 THEN 1 ELSE 0 END) as missing_cost_lines
+    FROM document_items di
+    JOIN documents d ON d.id = di.document_id
+    WHERE d.type = 'rashod' AND d.status = 'confirmed' AND d.branch_id = ?
+    ${cogsDateFilter}
+  `, cogsParams);
+
+  const payParams = [branchId];
+  const payDateFilter = buildDateFilter('p.date', dateFrom, dateTo, payParams);
+
+  const expenseRows = queryAll(`
+    SELECT ca.code, ca.name, COALESCE(SUM(p.amount), 0) as amount
+    FROM payments p
+    LEFT JOIN cash_articles ca ON ca.id = p.article_id
+    WHERE p.branch_id = ? AND p.type = 'other_expense'
+    ${payDateFilter}
+      AND (ca.code IS NULL OR ca.code != ?)
+    GROUP BY ca.id, ca.code, ca.name
+    ORDER BY amount DESC, ca.name ASC
+  `, [...payParams, PURCHASE_ARTICLE_CODE]);
+
+  const incomeRows = queryAll(`
+    SELECT ca.code, ca.name, COALESCE(SUM(p.amount), 0) as amount
+    FROM payments p
+    LEFT JOIN cash_articles ca ON ca.id = p.article_id
+    WHERE p.branch_id = ? AND p.type = 'other_income'
+    ${payDateFilter}
+    GROUP BY ca.id, ca.code, ca.name
+    ORDER BY amount DESC, ca.name ASC
+  `, payParams);
+
+  const revenue = revenueRow?.total || 0;
+  const cogs = cogsRow?.total || 0;
+  const grossProfit = revenue - cogs;
+  const grossMarginPct = revenue > 0 ? Math.round((grossProfit / revenue) * 10000) / 100 : 0;
+  const operatingExpenses = expenseRows.reduce((s, r) => s + (r.amount || 0), 0);
+  const otherIncome = incomeRows.reduce((s, r) => s + (r.amount || 0), 0);
+  const netProfit = grossProfit - operatingExpenses + otherIncome;
+  const missingCostLines = cogsRow?.missing_cost_lines || 0;
+
+  return {
+    period: { date_from: dateFrom, date_to: dateTo },
+    method: 'accrual',
+    revenue: {
+      sales: revenue,
+      doc_count: revenueRow?.doc_count || 0,
+      total: revenue,
+    },
+    cogs: {
+      total: cogs,
+      missing_cost_lines: missingCostLines,
+    },
+    gross_profit: grossProfit,
+    gross_margin_pct: grossMarginPct,
+    operating_expenses: {
+      total: operatingExpenses,
+      items: expenseRows.map((r) => ({
+        code: r.code || null,
+        name: r.name || 'Без статьи',
+        amount: r.amount || 0,
+      })),
+    },
+    other_income: {
+      total: otherIncome,
+      items: incomeRows.map((r) => ({
+        code: r.code || null,
+        name: r.name || 'Без статьи',
+        amount: r.amount || 0,
+      })),
+    },
+    net_profit: netProfit,
+    net_margin_pct: revenue > 0 ? Math.round((netProfit / revenue) * 10000) / 100 : 0,
+    notes: missingCostLines > 0
+      ? 'Часть продаж без сохранённой себестоимости (старые документы). COGS может быть занижен.'
+      : null,
   };
 }

@@ -348,6 +348,7 @@ function migrateSchema() {
   migrateShopOrdersDepartment();
   migrateOpeningBalance();
   migrateOpeningBalanceDocuments();
+  migrateDocumentItemCost();
 }
 
 function migrateOpeningBalance() {
@@ -458,6 +459,21 @@ function migrateOpeningBalanceDocuments() {
 
   run("INSERT OR REPLACE INTO settings (key, value) VALUES ('opening_balance_docs_v1', '1')");
   saveDb();
+}
+
+function migrateDocumentItemCost() {
+  const itemCols = queryAll('PRAGMA table_info(document_items)').map((c) => c.name);
+  if (!itemCols.includes('unit_cost')) {
+    run('ALTER TABLE document_items ADD COLUMN unit_cost REAL DEFAULT 0');
+  }
+  if (!itemCols.includes('cost_amount')) {
+    run('ALTER TABLE document_items ADD COLUMN cost_amount REAL DEFAULT 0');
+  }
+  const done = queryOne("SELECT value FROM settings WHERE key = 'document_item_cost_v1'");
+  if (!done) {
+    run("INSERT OR REPLACE INTO settings (key, value) VALUES ('document_item_cost_v1', '1')");
+    saveDb();
+  }
 }
 
 function migrateProductBranchesBackfill() {

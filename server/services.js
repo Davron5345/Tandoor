@@ -15,6 +15,7 @@ export {
   getDebtorsReport,
   getCreditorsReport,
   getStats,
+  getPnLReport,
 } from './services/reports.js';
 
 export {

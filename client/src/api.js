@@ -111,6 +111,10 @@ export const api = {
     const q = new URLSearchParams(params).toString();
     return request(`/reports/creditors${q ? `?${q}` : ''}`);
   },
+  getPnLReport: (params = {}) => {
+    const q = new URLSearchParams(params).toString();
+    return request(`/reports/pnl${q ? `?${q}` : ''}`);
+  },
   getBusinessBalance: () => request('/reports/business-balance'),
   getOpeningBalance: () => request('/opening-balance'),
   getOpeningBalanceDocuments: () => request('/opening-balance/documents'),
