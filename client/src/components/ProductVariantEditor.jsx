@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import ProductMediaCubes, { revokePendingImages } from './ProductMediaCubes';
 import { formatMoney, formatPriceInput, parsePriceInput } from '../api';
 
@@ -43,6 +43,29 @@ export default function ProductVariantEditor({
   onRestoreVariant,
 }) {
   const focusedRef = useRef(false);
+  const pendingNewRef = useRef(null);
+
+  useEffect(() => {
+    const clientId = pendingNewRef.current;
+    if (!clientId) return undefined;
+    if (!variants.some((v) => v.clientId === clientId)) return undefined;
+
+    pendingNewRef.current = null;
+    const timer = window.setTimeout(() => {
+      const card = document.getElementById(`product-variant-card-${clientId}`);
+      card?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      card?.querySelector('input')?.focus();
+    }, 50);
+    return () => window.clearTimeout(timer);
+  }, [variants]);
+
+  useEffect(() => {
+    if (!variants.some((v) => v.isNew)) return undefined;
+    const timer = window.setTimeout(() => {
+      setVariants((prev) => prev.map((v) => (v.isNew ? { ...v, isNew: false } : v)));
+    }, 5000);
+    return () => window.clearTimeout(timer);
+  }, [variants, setVariants]);
 
   useEffect(() => {
     if (!focusVariantId) {
@@ -58,9 +81,12 @@ export default function ProductVariantEditor({
     focusedRef.current = true;
     return () => window.clearTimeout(timer);
   }, [focusVariantId, variants]);
-  const updateVariant = (clientId, patch) => {
-    setVariants((prev) => prev.map((v) => (v.clientId === clientId ? { ...v, ...patch } : v)));
-  };
+
+  const updateVariant = useCallback((clientId, patch) => {
+    setVariants((prev) => prev.map((v) => (
+      v.clientId === clientId ? { ...v, ...patch, isNew: false } : v
+    )));
+  }, [setVariants]);
 
   const setVariantImages = (clientId, nextImages) => {
     setVariants((prev) => prev.map((v) => (
@@ -69,7 +95,9 @@ export default function ProductVariantEditor({
   };
 
   const addVariant = () => {
-    setVariants((prev) => [...prev, emptyVariant()]);
+    const newVariant = { ...emptyVariant(), isNew: true };
+    pendingNewRef.current = newVariant.clientId;
+    setVariants((prev) => [newVariant, ...prev]);
   };
 
   const removeVariant = (clientId) => {
@@ -97,6 +125,7 @@ export default function ProductVariantEditor({
             id={`product-variant-card-${variant.clientId}`}
             className={[
               'product-variant-card',
+              variant.isNew ? 'product-variant-card-new' : '',
               focusVariantId && variant.id === focusVariantId ? 'product-variant-card-focused' : '',
             ].filter(Boolean).join(' ')}
           >

@@ -4546,6 +4546,13 @@ input[type='number']::-webkit-inner-spin-button {
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary, #2563eb) 20%, transparent);
 }
 
+.product-variant-card-new {
+  background: #ecfdf5;
+  border-color: #86efac;
+  box-shadow: 0 0 0 2px color-mix(in srgb, #22c55e 18%, transparent);
+  transition: background 0.5s ease, border-color 0.5s ease, box-shadow 0.5s ease;
+}
+
 .products-list-tabs {
   margin-bottom: 12px;
   overflow: visible;
