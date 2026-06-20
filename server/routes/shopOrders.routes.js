@@ -34,7 +34,7 @@ export function registerShopOrdersRoutes(app) {
 
   app.put('/api/shop-orders/:id/status', requirePermission('shop_orders.edit'), attachBranch, (req, res) => {
     try {
-      const order = updateShopOrderStatus(req.params.id, req.body.status, req.branchId, req.user?.id || 'system');
+      const order = updateShopOrderStatus(req.params.id, req.body.status, req.branchId);
       res.json(order);
     } catch (e) {
       res.status(400).json({ error: e.message });

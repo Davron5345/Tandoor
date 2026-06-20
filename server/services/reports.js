@@ -342,11 +342,15 @@ function buildDateFilter(column, dateFrom, dateTo, params) {
 export function getPnLReport(branchId = DEFAULT_BRANCH_ID, dateFrom = null, dateTo = null) {
   const docParams = [branchId];
   const docDateFilter = buildDateFilter('d.date', dateFrom, dateTo, docParams);
+  const excludeMyShopSales = `
+    AND NOT EXISTS (SELECT 1 FROM shop_orders so WHERE so.document_id = d.id)
+  `;
 
   const salesRow = queryOne(`
     SELECT COALESCE(SUM(d.total_amount), 0) as total, COUNT(*) as doc_count
     FROM documents d
     WHERE d.type = 'rashod' AND d.status = 'confirmed' AND d.branch_id = ?
+    ${excludeMyShopSales}
     ${docDateFilter}
   `, docParams);
 
@@ -359,16 +363,6 @@ export function getPnLReport(branchId = DEFAULT_BRANCH_ID, dateFrom = null, date
     ${returnDateFilter}
   `, returnParams);
 
-  const myshopParams = [branchId];
-  const myshopDateFilter = buildDateFilter('d.date', dateFrom, dateTo, myshopParams);
-  const myshopRow = queryOne(`
-    SELECT COALESCE(SUM(d.total_amount), 0) as total, COUNT(*) as doc_count
-    FROM documents d
-    JOIN shop_orders so ON so.document_id = d.id
-    WHERE d.type = 'rashod' AND d.status = 'confirmed' AND d.branch_id = ?
-    ${myshopDateFilter}
-  `, myshopParams);
-
   const cogsParams = [branchId];
   const cogsDateFilter = buildDateFilter('d.date', dateFrom, dateTo, cogsParams);
   const cogsSalesRow = queryOne(`
@@ -377,6 +371,7 @@ export function getPnLReport(branchId = DEFAULT_BRANCH_ID, dateFrom = null, date
     FROM document_items di
     JOIN documents d ON d.id = di.document_id
     WHERE d.type = 'rashod' AND d.status = 'confirmed' AND d.branch_id = ?
+    ${excludeMyShopSales}
     ${cogsDateFilter}
   `, cogsParams);
 
@@ -407,6 +402,7 @@ export function getPnLReport(branchId = DEFAULT_BRANCH_ID, dateFrom = null, date
     WHERE d.status = 'confirmed'
       AND d.branch_id = ?
       AND d.type IN ('rashod', 'return_customer')
+      AND NOT (d.type = 'rashod' AND EXISTS (SELECT 1 FROM shop_orders so WHERE so.document_id = d.id))
     ${categoryDateFilter}
     GROUP BY pc.id, pc.name
     HAVING ABS(revenue) > 0.005 OR ABS(cogs) > 0.005
@@ -427,6 +423,7 @@ export function getPnLReport(branchId = DEFAULT_BRANCH_ID, dateFrom = null, date
     WHERE d.status = 'confirmed'
       AND d.branch_id = ?
       AND d.type IN ('rashod', 'return_customer')
+      AND NOT (d.type = 'rashod' AND EXISTS (SELECT 1 FROM shop_orders so WHERE so.document_id = d.id))
     ${monthDateFilter}
     GROUP BY month
     ORDER BY month ASC
@@ -473,8 +470,6 @@ export function getPnLReport(branchId = DEFAULT_BRANCH_ID, dateFrom = null, date
     revenue: {
       sales,
       returns,
-      myshop: myshopRow?.total || 0,
-      myshop_doc_count: myshopRow?.doc_count || 0,
       doc_count: salesRow?.doc_count || 0,
       return_doc_count: returnsRow?.doc_count || 0,
       total: revenue,

@@ -58,7 +58,7 @@ export const PERMISSION_GROUPS = [
   { id: 'dashboard', label: 'Главная', category: 'main', icon: '🏠', hint: 'Сводка на стартовой странице', actions: { view: 'dashboard.view' } },
   { id: 'products', label: 'Товары', category: 'catalog', icon: '📦', hint: 'Справочник номенклатуры', actions: { view: 'products.view', write: 'products.edit' } },
   { id: 'myshop', label: 'Витрина MyShop', category: 'myshop', icon: '🛍️', hint: 'Просмотр онлайн-магазина филиала', actions: { view: 'myshop.view', write: 'myshop.edit' } },
-  { id: 'shop_orders', label: 'Заказы MyShop', category: 'myshop', icon: '🧾', hint: 'Онлайн-заказы клиентов: просмотр и смена статуса', actions: { view: 'shop_orders.view', write: 'shop_orders.edit' } },
+  { id: 'shop_orders', label: 'Заявки MyShop', category: 'myshop', icon: '🧾', hint: 'Заявки сотрудников на продукты для кухни: просмотр и смена статуса', actions: { view: 'shop_orders.view', write: 'shop_orders.edit' } },
   { id: 'calculations', label: 'Калькуляции', category: 'catalog', icon: '🧮', hint: 'Рецептуры и калькуляции', actions: { view: 'calculations.view', write: 'calculations.edit' } },
   { id: 'counterparties', label: 'Контрагенты', category: 'catalog', icon: '🤝', hint: 'Нужно кассиру: «Смотреть» — выбор поставщика при расходе «Закуп»', actions: { view: 'counterparties.view', write: 'counterparties.edit' } },
   { id: 'prihod', label: 'Приход', category: 'documents', icon: '📥', hint: 'Складской приход товаров', actions: { view: 'documents.prihod', write: 'documents.edit', confirm: 'documents.confirm', delete: 'documents.delete' } },

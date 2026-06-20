@@ -85,8 +85,8 @@ export default function ShopOrders() {
       {Toast}
       <div className="page-header">
         <div>
-          <h1>Заказы MyShop</h1>
-          <p className="page-subtitle">{branchName} · онлайн-заказы клиентов</p>
+          <h1>Заявки MyShop</h1>
+          <p className="page-subtitle">{branchName} · заявки сотрудников на продукты для кухни</p>
         </div>
         <div className="btn-group">
           <a href="/warehouse/orders" target="_blank" rel="noreferrer" className="btn btn-ghost btn-sm">

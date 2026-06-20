@@ -1179,7 +1179,6 @@ function PnlReport() {
               <span className="value">{formatMoney(report.revenue.total)}</span>
               <span className="stock-kpi-hint">
                 {report.revenue.doc_count} продаж
-                {report.revenue.myshop > 0 ? ` · MyShop ${formatMoney(report.revenue.myshop)}` : ''}
               </span>
             </div>
             <div className="stat-card">
@@ -1223,12 +1222,6 @@ function PnlReport() {
                     <tr>
                       <td>Возвраты от клиентов</td>
                       <td className="col-num">− {formatMoney(report.revenue.returns)}</td>
-                    </tr>
-                  )}
-                  {(report.revenue.myshop || 0) > 0 && (
-                    <tr>
-                      <td>в т.ч. MyShop ({report.revenue.myshop_doc_count || 0} зак.)</td>
-                      <td className="col-num">{formatMoney(report.revenue.myshop)}</td>
                     </tr>
                   )}
                   <tr className="pnl-subtotal-row">

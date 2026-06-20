@@ -460,7 +460,7 @@ function AppContent() {
                     to="/shop-orders"
                     className={({ isActive }) => `nav-link nav-link-sub${isActive ? ' active' : ''}`}
                   >
-                    Заказы
+                    Заявки
                   </NavLink>
                 )}
               </NavGroup>
