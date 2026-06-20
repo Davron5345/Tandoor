@@ -5147,44 +5147,48 @@ input[type='number']::-webkit-inner-spin-button {
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
 }
 
-.login-logo {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-size: 22px;
-  font-weight: 700;
-  margin-bottom: 8px;
-}
-
-.login-logo-mark {
-  width: 42px;
-  height: 42px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 12px;
-  background: linear-gradient(135deg, var(--primary) 0%, #6366f1 100%);
-  color: #fff;
-  flex-shrink: 0;
-  box-shadow: 0 4px 14px color-mix(in srgb, var(--primary) 35%, transparent);
-}
-
-.login-logo-mark svg {
-  width: 22px;
-  height: 22px;
-}
-
-.login-logo-text span {
-  display: block;
-  font-size: 13px;
-  font-weight: 400;
-  color: var(--text-muted);
-  margin-top: 4px;
-}
-
-.login-card h1 {
+.login-card h1,
+.login-title {
   font-size: 22px;
   margin-bottom: 24px;
+  text-align: center;
+}
+
+.login-password-field {
+  position: relative;
+}
+
+.login-password-field input {
+  width: 100%;
+  padding-right: 42px;
+}
+
+.login-password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 6px;
+  transition: color 0.15s;
+}
+
+.login-password-toggle:hover {
+  color: var(--text);
+}
+
+.login-password-toggle svg {
+  width: 18px;
+  height: 18px;
 }
 
 .login-btn {

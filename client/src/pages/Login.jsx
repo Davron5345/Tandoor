@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useAuth } from '../AuthContext';
 import { useTheme } from '../ThemeContext';
 import { IconEye, IconEyeOff } from '../components/ActionIcons';
-import { IconNavMoon, IconNavSun, IconNavWarehouse } from '../components/NavIcons';
+import { IconNavMoon, IconNavSun } from '../components/NavIcons';
 
 const TEST_ACCOUNTS = [
   { username: 'admin', password: 'admin123', label: 'Администратор' },
@@ -51,14 +51,7 @@ export default function Login() {
         {theme === 'dark' ? <IconNavSun /> : <IconNavMoon />}
       </button>
       <div className="login-card">
-        <div className="login-logo">
-          <div className="login-logo-mark" aria-hidden><IconNavWarehouse /></div>
-          <div className="login-logo-text">
-            Склад
-            <span>Учёт прихода и расхода</span>
-          </div>
-        </div>
-        <h1>Вход в систему</h1>
+        <h1 className="login-title">Вход в систему</h1>
         <form onSubmit={submit}>
           {error && <div className="alert alert-error">{error}</div>}
           <div className="form-group">
@@ -73,17 +66,22 @@ export default function Login() {
           </div>
           <div className="form-group">
             <label>Пароль</label>
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div className="login-password-field">
               <input
                 type={showPass ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="current-password"
                 placeholder={isDev ? 'admin123' : ''}
-                style={{ flex: 1 }}
                 required
               />
-              <button type="button" className="btn btn-icon btn-ghost" onClick={() => setShowPass(!showPass)} title={showPass ? 'Скрыть' : 'Показать'}>
+              <button
+                type="button"
+                className="login-password-toggle"
+                onClick={() => setShowPass(!showPass)}
+                title={showPass ? 'Скрыть' : 'Показать'}
+                aria-label={showPass ? 'Скрыть пароль' : 'Показать пароль'}
+              >
                 {showPass ? <IconEyeOff /> : <IconEye />}
               </button>
             </div>
