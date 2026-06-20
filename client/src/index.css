@@ -4610,6 +4610,94 @@ input[type='number']::-webkit-inner-spin-button {
   font-variant-numeric: tabular-nums;
 }
 
+.products-table-card {
+  padding: 0;
+  overflow: hidden;
+}
+
+.products-table-scroll {
+  max-height: min(72vh, calc(var(--products-visible-rows, 15) * 42px + 52px));
+  overflow: auto;
+}
+
+.products-table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.products-table .col-num { width: 52px; }
+.products-table .col-photo { width: 56px; }
+.products-table .col-name { width: 18%; min-width: 140px; }
+.products-table .col-kind { width: 9%; min-width: 88px; }
+.products-table .col-category { width: 11%; min-width: 96px; }
+.products-table .col-sku { width: 8%; min-width: 72px; }
+.products-table .col-unit { width: 52px; }
+.products-table .col-weight { width: 72px; }
+.products-table .col-price { width: 96px; }
+.products-table .col-stock { width: 72px; }
+.products-table .col-suppliers { width: 12%; min-width: 100px; }
+.products-table .col-shop { width: 72px; }
+.products-table .col-actions { width: 112px; }
+
+.products-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.products-table tbody td,
+.products-table thead th:not(.sortable-th) {
+  padding: 8px 10px;
+  vertical-align: middle;
+}
+
+.products-table tbody td {
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.products-table-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+  background: var(--surface2);
+}
+
+.products-page-size {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.products-page-size select {
+  min-width: 72px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+}
+
+.products-pagination {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.products-pagination-meta {
+  color: var(--text-muted);
+  font-size: 13px;
+  margin-right: 4px;
+}
+
 .product-list-num {
   display: inline-block;
   min-width: 2ch;

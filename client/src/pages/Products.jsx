@@ -44,6 +44,78 @@ export const FILTER_NO_SUPPLIER = '__no_supplier__';
 
 const categoryFilterExtras = [{ id: FILTER_NO_CATEGORY, label: 'Без категории' }];
 const supplierFilterExtras = [{ id: FILTER_NO_SUPPLIER, label: 'Без поставщиков' }];
+const PRODUCT_PAGE_SIZE_KEY = 'warehouse-products-page-size';
+const PRODUCT_PAGE_SIZE_OPTIONS = [15, 25, 50, 100];
+
+function readProductPageSize() {
+  try {
+    const value = parseInt(localStorage.getItem(PRODUCT_PAGE_SIZE_KEY), 10);
+    if (PRODUCT_PAGE_SIZE_OPTIONS.includes(value)) return value;
+  } catch {
+    /* ignore */
+  }
+  return 15;
+}
+
+function SortHeader({ label, sortKey, activeKey, direction, onSort, className = '' }) {
+  const active = activeKey === sortKey;
+  return (
+    <th
+      className={`sortable-th ${className}${active ? ' is-sorted' : ''}`}
+      aria-sort={active ? (direction === 'asc' ? 'ascending' : 'descending') : 'none'}
+    >
+      <button
+        type="button"
+        className="sortable-th-btn"
+        onClick={() => onSort(sortKey)}
+      >
+        <span>{label}</span>
+        <span className="sortable-th-icons" aria-hidden="true">
+          <span className={`sort-arrow up${active && direction === 'asc' ? ' active' : ''}`}>▲</span>
+          <span className={`sort-arrow down${active && direction === 'desc' ? ' active' : ''}`}>▼</span>
+        </span>
+      </button>
+    </th>
+  );
+}
+
+function compareProducts(a, b, sortKey, sortDir) {
+  const dir = sortDir === 'asc' ? 1 : -1;
+  const text = (value) => (value ?? '').toString().toLocaleLowerCase('ru');
+  const number = (value) => {
+    if (value == null || value === '') return null;
+    const n = Number(value);
+    return Number.isNaN(n) ? null : n;
+  };
+
+  switch (sortKey) {
+    case 'product_kind':
+      return dir * text(a.product_kind_label || a.product_kind).localeCompare(
+        text(b.product_kind_label || b.product_kind),
+        'ru',
+      );
+    case 'category_name':
+      return dir * text(a.category_name).localeCompare(text(b.category_name), 'ru');
+    case 'sku':
+      return dir * text(a.sku).localeCompare(text(b.sku), 'ru');
+    case 'unit':
+      return dir * text(a.unit).localeCompare(text(b.unit), 'ru');
+    case 'net_weight':
+    case 'gross_weight':
+    case 'price':
+    case 'stock': {
+      const av = number(a[sortKey]);
+      const bv = number(b[sortKey]);
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      return dir * (av - bv);
+    }
+    case 'name':
+    default:
+      return dir * text(a.name).localeCompare(text(b.name), 'ru');
+  }
+}
 
 const emptyProduct = {
   name: '',
@@ -179,24 +251,47 @@ function ProductListPhoto({ product, variant = null }) {
   );
 }
 
-function ProductTable({ items, renderRow, showShopColumn = false }) {
+function ProductTable({
+  items,
+  renderRow,
+  showShopColumn = false,
+  sortKey,
+  sortDir,
+  onSort,
+}) {
   if (items.length === 0) return null;
   return (
-    <div className="table-wrap">
-      <table>
+    <div className="table-wrap products-table-scroll">
+      <table className="products-table">
+        <colgroup>
+          <col className="col-num" />
+          <col className="col-photo" />
+          <col className="col-name" />
+          <col className="col-kind" />
+          <col className="col-category" />
+          <col className="col-sku" />
+          <col className="col-unit" />
+          <col className="col-weight" />
+          <col className="col-weight" />
+          <col className="col-price" />
+          <col className="col-stock" />
+          <col className="col-suppliers" />
+          {showShopColumn && <col className="col-shop" />}
+          <col className="col-actions" />
+        </colgroup>
         <thead>
           <tr>
             <th className="product-list-num-col">№</th>
             <th className="product-list-photo-col">Фото</th>
-            <th>Наименование</th>
-            <th>Вид</th>
-            <th>Категория</th>
-            <th>Артикул</th>
-            <th>Ед.</th>
-            <th>Нетто</th>
-            <th>Брутто</th>
-            <th>Цена</th>
-            <th>Остаток</th>
+            <SortHeader label="Наименование" sortKey="name" activeKey={sortKey} direction={sortDir} onSort={onSort} />
+            <SortHeader label="Вид" sortKey="product_kind" activeKey={sortKey} direction={sortDir} onSort={onSort} />
+            <SortHeader label="Категория" sortKey="category_name" activeKey={sortKey} direction={sortDir} onSort={onSort} />
+            <SortHeader label="Артикул" sortKey="sku" activeKey={sortKey} direction={sortDir} onSort={onSort} />
+            <SortHeader label="Ед." sortKey="unit" activeKey={sortKey} direction={sortDir} onSort={onSort} className="col-unit" />
+            <SortHeader label="Нетто" sortKey="net_weight" activeKey={sortKey} direction={sortDir} onSort={onSort} className="col-num" />
+            <SortHeader label="Брутто" sortKey="gross_weight" activeKey={sortKey} direction={sortDir} onSort={onSort} className="col-num" />
+            <SortHeader label="Цена" sortKey="price" activeKey={sortKey} direction={sortDir} onSort={onSort} className="col-num" />
+            <SortHeader label="Остаток" sortKey="stock" activeKey={sortKey} direction={sortDir} onSort={onSort} className="col-num" />
             <th>Поставщики</th>
             {showShopColumn && <th className="product-list-shop-col">Магазин</th>}
             <th></th>
@@ -227,9 +322,11 @@ export default function Products() {
   const [productPage, setProductPage] = useState(1);
   const [productPages, setProductPages] = useState(1);
   const [productTotal, setProductTotal] = useState(0);
+  const [productPageSize, setProductPageSize] = useState(readProductPageSize);
+  const [sortKey, setSortKey] = useState('');
+  const [sortDir, setSortDir] = useState('asc');
   const [catalogCount, setCatalogCount] = useState(0);
   const [archiveCount, setArchiveCount] = useState(0);
-  const PRODUCT_PAGE_SIZE = 50;
   const { show, Toast } = useToast();
   const { user } = useAuth();
   const { branchId, branches, isAdmin } = useBranch();
@@ -291,10 +388,14 @@ export default function Products() {
     if (filterCategory) params.category_id = filterCategory;
     if (filterSupplier) params.supplier_id = filterSupplier;
     if (filterKind) params.product_kind = filterKind;
+    if (sortKey) {
+      params.sort_by = sortKey;
+      params.sort_dir = sortDir;
+    }
     const searching = search.trim().length > 0;
     if (!searching) {
       params.page = productPage;
-      params.limit = PRODUCT_PAGE_SIZE;
+      params.limit = productPageSize;
     }
     const countParams = { page: 1, limit: 1, admin_list: '1' };
     if (filterCategory) countParams.category_id = filterCategory;
@@ -323,11 +424,11 @@ export default function Products() {
         setSuppliers(s);
       })
       .catch(console.error);
-  }, [filterCategory, filterSupplier, filterKind, productPage, search, listView, branchId]);
+  }, [filterCategory, filterSupplier, filterKind, productPage, productPageSize, sortKey, sortDir, search, listView, branchId]);
 
   useEffect(() => {
     setProductPage(1);
-  }, [branchId, filterCategory, filterSupplier, filterKind, search, listView]);
+  }, [branchId, filterCategory, filterSupplier, filterKind, search, listView, sortKey, sortDir, productPageSize]);
 
   useEffect(() => { load(); }, [load, branchId]);
   useAutoRefresh(load, [load, branchId], { enabled: !modal });
@@ -379,8 +480,17 @@ export default function Products() {
     });
   }, [products, search]);
 
+  const isSearching = search.trim().length > 0;
+
+  const sortedProducts = useMemo(() => {
+    if (!isSearching) return filteredProducts;
+    const list = [...filteredProducts];
+    list.sort((a, b) => compareProducts(a, b, sortKey, sortDir));
+    return list;
+  }, [filteredProducts, isSearching, sortKey, sortDir]);
+
   const displayListRows = useMemo(() => {
-    let rows = buildProductListRows(filteredProducts);
+    let rows = buildProductListRows(sortedProducts);
     if (listView === 'archive') {
       rows = rows.filter((row) => row.kind === 'product');
     }
@@ -393,9 +503,7 @@ export default function Products() {
     const related = rows.filter((row) => row.product.id === highlighted.product.id);
     const rest = rows.filter((row) => row.product.id !== highlighted.product.id);
     return [...related, ...rest];
-  }, [filteredProducts, highlightedProductId, listView]);
-
-  const isSearching = search.trim().length > 0;
+  }, [sortedProducts, highlightedProductId, listView]);
 
   const visibleListRows = useMemo(() => {
     if (isSearching) return displayListRows;
@@ -406,9 +514,29 @@ export default function Products() {
   }, [displayListRows, expandedProductIds, isSearching]);
 
   const rowNumbers = useMemo(() => {
-    const startIndex = isSearching ? 0 : (productPage - 1) * PRODUCT_PAGE_SIZE;
+    const startIndex = isSearching ? 0 : (productPage - 1) * productPageSize;
     return buildProductRowNumbers(visibleListRows, startIndex);
-  }, [visibleListRows, isSearching, productPage]);
+  }, [visibleListRows, isSearching, productPage, productPageSize]);
+
+  const handleSort = (key) => {
+    if (sortKey === key) {
+      setSortDir((prevDir) => (prevDir === 'asc' ? 'desc' : 'asc'));
+      return;
+    }
+    setSortKey(key);
+    setSortDir('asc');
+  };
+
+  const handlePageSizeChange = (event) => {
+    const nextSize = parseInt(event.target.value, 10);
+    if (!PRODUCT_PAGE_SIZE_OPTIONS.includes(nextSize)) return;
+    setProductPageSize(nextSize);
+    try {
+      localStorage.setItem(PRODUCT_PAGE_SIZE_KEY, String(nextSize));
+    } catch {
+      /* ignore */
+    }
+  };
 
   const toggleProductVariants = (productId) => {
     setExpandedProductIds((prev) => {
@@ -997,19 +1125,49 @@ export default function Products() {
           </div>
         </div>
       ) : (
-        <div className="card">
-          <ProductTable items={visibleListRows} renderRow={renderListRow} showShopColumn={showShopColumn} />
-          {!isSearching && productPages > 1 && (
-            <div className="table-pagination" style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '12px 16px', justifyContent: 'flex-end' }}>
-              <span style={{ color: 'var(--text-muted)', fontSize: 14 }}>
-                {productTotal} товаров · стр. {productPage} из {productPages}
-              </span>
-              <button type="button" className="btn btn-ghost" disabled={productPage <= 1} onClick={() => setProductPage((p) => p - 1)}>
-                ← Назад
-              </button>
-              <button type="button" className="btn btn-ghost" disabled={productPage >= productPages} onClick={() => setProductPage((p) => p + 1)}>
-                Вперёд →
-              </button>
+        <div
+          className="card products-table-card"
+          style={{ '--products-visible-rows': productPageSize }}
+        >
+          <ProductTable
+            items={visibleListRows}
+            renderRow={renderListRow}
+            showShopColumn={showShopColumn}
+            sortKey={sortKey}
+            sortDir={sortDir}
+            onSort={handleSort}
+          />
+          {!isSearching && productTotal > 0 && (
+            <div className="products-table-footer">
+              <label className="products-page-size">
+                <span>На странице</span>
+                <select value={productPageSize} onChange={handlePageSizeChange}>
+                  {PRODUCT_PAGE_SIZE_OPTIONS.map((size) => (
+                    <option key={size} value={size}>{size}</option>
+                  ))}
+                </select>
+              </label>
+              <div className="products-pagination">
+                <span className="products-pagination-meta">
+                  {productTotal} товаров · стр. {productPage} из {productPages}
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  disabled={productPage <= 1}
+                  onClick={() => setProductPage((p) => p - 1)}
+                >
+                  ← Назад
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  disabled={productPage >= productPages}
+                  onClick={() => setProductPage((p) => p + 1)}
+                >
+                  Вперёд →
+                </button>
+              </div>
             </div>
           )}
         </div>

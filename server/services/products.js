@@ -27,6 +27,30 @@ import { parsePagination, paginateList } from '../pagination.js';
 
 const { queryAll, queryOne, run } = db;
 
+function buildProductsOrderBy(filters = {}) {
+  const dir = String(filters.sort_dir || '').toLowerCase() === 'desc' ? 'DESC' : 'ASC';
+  const columns = {
+    name: 'p.name',
+    product_kind: 'p.product_kind',
+    category_name: 'pc.name',
+    sku: 'p.sku',
+    unit: 'p.unit',
+    net_weight: 'p.net_weight',
+    gross_weight: 'p.gross_weight',
+    price: 'price',
+    stock: 'stock',
+  };
+  const sortBy = String(filters.sort_by || '').trim();
+  const column = columns[sortBy];
+  if (!column) {
+    return 'COALESCE(ppc.sort_order, pc.sort_order, 999), ppc.name, pc.parent_id IS NOT NULL, pc.sort_order, pc.name, p.name';
+  }
+  if (['net_weight', 'gross_weight', 'price', 'stock'].includes(sortBy)) {
+    return `${column} IS NULL, ${column} ${dir}, p.name ASC`;
+  }
+  return `${column} ${dir} COLLATE NOCASE, p.name ASC`;
+}
+
 function getLastPricesMap(branchId, docType, counterpartyId = null) {
   const buildMap = (cpId) => {
     let sql = `
@@ -183,7 +207,7 @@ export function getProducts(filters = {}) {
       LIMIT 1
     )
     WHERE COALESCE(p.archived, 0) = ${archivedOnly}
-    ORDER BY COALESCE(ppc.sort_order, pc.sort_order, 999), ppc.name, pc.parent_id IS NOT NULL, pc.sort_order, pc.name, p.name
+    ORDER BY ${buildProductsOrderBy(filters)}
   `, params);
 
   const lastMap = filters.last_doc_type
