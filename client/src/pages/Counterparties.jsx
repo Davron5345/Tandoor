@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { api, formatDate } from '../api';
+import { api, formatDate, formatPriceInput, parsePriceInput } from '../api';
 import Modal, { useToast, ModalCancelButton } from '../components/Modal';
 import { IconButton, IconEdit, IconTrash } from '../components/ActionIcons';
 import { formatUzPhone } from '../phoneFormat';
@@ -17,7 +17,7 @@ import {
 import { useFormDirty } from '../hooks/useFormDirty';
 import { hasPermission } from '../permissions';
 
-const empty = { name: '', type: 'supplier', phone: '', email: '', telegram_chat_id: '', address: '', notes: '' };
+const empty = { name: '', type: 'supplier', phone: '', email: '', telegram_chat_id: '', address: '', notes: '', opening_balance: 0 };
 const emptyContract = { number: '', date: '' };
 
 export default function Counterparties() {
@@ -77,6 +77,7 @@ export default function Counterparties() {
     const baseForm = {
       ...c,
       phone: c.phone ? formatUzPhone(c.phone) : '',
+      opening_balance: c.opening_balance || 0,
     };
     const key = formDraftKey('counterparties', c.id);
     const draft = readFormDraft(key);
@@ -255,6 +256,19 @@ export default function Counterparties() {
             <div className="form-group full">
               <label>Заметки</label>
               <textarea rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+            </div>
+            <div className="form-group">
+              <label>Начальное сальдо</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={formatPriceInput(form.opening_balance ?? 0)}
+                onChange={(e) => setForm({
+                  ...form,
+                  opening_balance: parsePriceInput(e.target.value) ?? 0,
+                })}
+              />
+              <small className="text-muted" style={{ display: 'block', marginTop: 4 }}>Долг на момент начала учёта (+ клиент должен / мы должны поставщику)</small>
             </div>
           </div>
 

@@ -41,12 +41,14 @@ export function assertCounterpartyBranch(counterpartyId, branchId, docType = nul
 
 export function createCounterparty(data, branchId = DEFAULT_BRANCH_ID) {
   const id = uuidv4();
+  const openingBalance = Number(data.opening_balance);
+  const safeOpening = Number.isFinite(openingBalance) ? openingBalance : 0;
   run(`
-    INSERT INTO counterparties (id, name, type, phone, email, telegram_chat_id, address, notes, branch_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO counterparties (id, name, type, phone, email, telegram_chat_id, address, notes, branch_id, opening_balance)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, [
     id, data.name, data.type, data.phone || '', data.email || '',
-    data.telegram_chat_id || '', data.address || '', data.notes || '', branchId,
+    data.telegram_chat_id || '', data.address || '', data.notes || '', branchId, safeOpening,
   ]);
   return queryOne('SELECT * FROM counterparties WHERE id = ?', [id]);
 }
@@ -54,13 +56,19 @@ export function createCounterparty(data, branchId = DEFAULT_BRANCH_ID) {
 export function updateCounterparty(id, data, branchId = DEFAULT_BRANCH_ID) {
   const existing = getCounterparty(id, branchId);
   if (!existing) throw new Error('Контрагент не найден');
+  const openingBalance = data.opening_balance !== undefined
+    ? Number(data.opening_balance)
+    : (existing.opening_balance || 0);
+  if (!Number.isFinite(openingBalance)) throw new Error('Некорректное начальное сальдо');
   run(`
     UPDATE counterparties
-    SET name=?, type=?, phone=?, email=?, telegram_chat_id=?, address=?, notes=?, updated_at=datetime('now')
+    SET name=?, type=?, phone=?, email=?, telegram_chat_id=?, address=?, notes=?,
+        opening_balance=?, updated_at=datetime('now')
     WHERE id=? AND branch_id=?
   `, [
     data.name, data.type, data.phone || '', data.email || '',
-    data.telegram_chat_id || '', data.address || '', data.notes || '', id, branchId,
+    data.telegram_chat_id || '', data.address || '', data.notes || '',
+    openingBalance, id, branchId,
   ]);
   return queryOne('SELECT * FROM counterparties WHERE id = ?', [id]);
 }

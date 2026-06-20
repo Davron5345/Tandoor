@@ -693,6 +693,7 @@ function CounterpartyDebtReport({ kind }) {
                 <th>Контакты</th>
                 <th className="col-num">По документам</th>
                 <th className="col-num">Оплачено</th>
+                <th className="col-num">Нач. сальдо</th>
                 <th className="col-num">Остаток</th>
               </tr>
             </thead>
@@ -710,17 +711,18 @@ function CounterpartyDebtReport({ kind }) {
                   </td>
                   <td className="col-num">{formatMoney(row.charged)}</td>
                   <td className="col-num muted">{formatMoney(row.paid)}</td>
+                  <td className="col-num muted">{formatMoney(row.opening_balance || 0)}</td>
                   <td className={`col-num strong debt-balance-${kind}`}>{formatMoney(row.balance)}</td>
                 </tr>
               ))}
               {(loading || !report) && (
                 <tr>
-                  <td colSpan={6} className="empty">Загрузка…</td>
+                  <td colSpan={7} className="empty">Загрузка…</td>
                 </tr>
               )}
               {report && rows.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="empty debt-report-empty">
+                  <td colSpan={7} className="empty debt-report-empty">
                     <span className="debt-empty-title">Задолженности нет</span>
                     <span className="debt-empty-hint">
                       {kind === 'debtors'
@@ -734,7 +736,7 @@ function CounterpartyDebtReport({ kind }) {
             {rows.length > 0 && (
               <tfoot>
                 <tr className="report-total-row">
-                  <td colSpan={5}><strong>Итого</strong></td>
+                  <td colSpan={6}><strong>Итого</strong></td>
                   <td className={`col-num strong debt-balance-${kind}`}>
                     <strong>{formatMoney(totalBalance)}</strong>
                   </td>
@@ -862,6 +864,18 @@ function ReconciliationReport() {
       .filter(Boolean);
 
     const merged = [...docRows, ...payRows].sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
+
+    const opening = Number(selectedCounterparty.opening_balance) || 0;
+    if (Math.abs(opening) > 0.005) {
+      merged.unshift({
+        date: '',
+        ref: 'Начальное сальдо',
+        operation: 'Входящий остаток',
+        debit: opening > 0 ? opening : 0,
+        credit: opening < 0 ? Math.abs(opening) : 0,
+      });
+    }
+
     let running = 0;
     return merged.map((row) => {
       running += (row.debit || 0) - (row.credit || 0);

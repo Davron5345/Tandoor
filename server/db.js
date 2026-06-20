@@ -346,6 +346,35 @@ function migrateSchema() {
   migrateProductBranchesBackfill();
   migrateShopOrders();
   migrateShopOrdersDepartment();
+  migrateOpeningBalance();
+}
+
+function migrateOpeningBalance() {
+  const cpCols = queryAll('PRAGMA table_info(counterparties)').map((c) => c.name);
+  if (!cpCols.includes('opening_balance')) {
+    run('ALTER TABLE counterparties ADD COLUMN opening_balance REAL DEFAULT 0');
+  }
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS branch_opening_balances (
+      branch_id TEXT PRIMARY KEY,
+      as_of_date TEXT,
+      cash_balance REAL DEFAULT 0,
+      notes TEXT DEFAULT '',
+      updated_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (branch_id) REFERENCES branches(id) ON DELETE CASCADE
+    )
+  `);
+
+  const branches = queryAll('SELECT id FROM branches');
+  for (const { id } of branches) {
+    const exists = queryOne('SELECT branch_id FROM branch_opening_balances WHERE branch_id = ?', [id]);
+    if (!exists) {
+      run('INSERT INTO branch_opening_balances (branch_id, cash_balance, notes) VALUES (?, 0, ?)', [id, '']);
+    }
+  }
+
+  saveDb();
 }
 
 function migrateProductBranchesBackfill() {

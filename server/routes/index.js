@@ -8,6 +8,7 @@ import { registerFinanceRoutes } from './finance.routes.js';
 import { registerTelegramRoutes } from './telegram.routes.js';
 import { registerPublicShopRoutes } from './publicShop.routes.js';
 import { registerShopOrdersRoutes } from './shopOrders.routes.js';
+import { registerOpeningBalanceRoutes } from './openingBalance.routes.js';
 
 export function registerApiRoutes(app, deps = {}) {
   registerPublicShopRoutes(app);
@@ -19,6 +20,7 @@ export function registerApiRoutes(app, deps = {}) {
   registerDocumentRoutes(app);
   registerFinanceRoutes(app);
   registerShopOrdersRoutes(app);
+  registerOpeningBalanceRoutes(app);
   registerTelegramRoutes(app);
 }
 

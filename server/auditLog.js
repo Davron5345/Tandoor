@@ -10,6 +10,9 @@ export const AUDIT_ACTION_LABELS = {
   'auth.change_password': 'Смена пароля',
   'document.confirm': 'Проведение документа',
   'document.cancel': 'Отмена документа',
+  'opening_balance.settings': 'Начальное сальдо: настройки',
+  'opening_balance.stock': 'Начальное сальдо: остатки',
+  'opening_balance.counterparties': 'Начальное сальдо: контрагенты',
 };
 
 export function formatAuditAction(action) {

@@ -17,6 +17,7 @@ import AuditLog from './pages/AuditLog';
 import Razdelka from './pages/Razdelka';
 import Calculations from './pages/Calculations';
 import Reports from './pages/Reports';
+import OpeningBalance from './pages/OpeningBalance';
 import MyShop from './pages/MyShop';
 import MyShopConstructor from './pages/MyShopConstructor';
 import ShopOrders from './pages/ShopOrders';
@@ -239,6 +240,7 @@ function AppContent() {
     const reportPathsLocal = [
       ...(canViewDocumentsLocal ? ['/documents'] : []),
       ...(hasPermission(user, 'reports.view') ? ['/reports/stock', '/reports/documents', '/reports/debts', '/reports/reconciliation', '/reports/returns'] : []),
+      ...(hasPermission(user, 'opening_balance.view') ? ['/opening-balance'] : []),
     ];
 
     const docPathsLocal = [
@@ -286,6 +288,7 @@ function AppContent() {
   const canViewPayments = hasPermission(user, 'payments.view');
   const canViewCashier = hasAnyPermission(user, ['cashier.view', 'cashier.edit', 'payments.view', 'payments.edit']);
   const canViewCashArticles = hasPermission(user, 'cash_articles.view');
+  const canViewOpeningBalance = hasPermission(user, 'opening_balance.view');
   const canViewCounterparties = hasPermission(user, 'counterparties.view');
   const canViewTelegram = hasPermission(user, 'telegram.view');
   const canViewDashboard = hasPermission(user, 'dashboard.view');
@@ -325,6 +328,7 @@ function AppContent() {
     { to: '/reports/debts/debtors', label: 'Задолженности', perm: 'reports.view' },
     { to: '/reports/reconciliation', label: 'Акт сверки', perm: 'reports.view' },
     { to: '/reports/returns', label: 'Возвраты поставщикам', perm: 'reports.view' },
+    { to: '/opening-balance', label: 'Начальное сальдо', perm: 'opening_balance.view' },
   ].filter((item) => hasPermission(user, item.perm));
 
   const reportPaths = reportNav.map((item) => item.to);
@@ -718,6 +722,7 @@ function AppContent() {
           <Route path="/razdelka" element={hasPermission(user, 'documents.razdelka') ? <Razdelka /> : <Navigate to="/" />} />
           <Route path="/calculations" element={hasPermission(user, 'calculations.view') ? <Calculations /> : <Navigate to="/" />} />
           <Route path="/reports/*" element={hasPermission(user, 'reports.view') ? <Reports /> : <Navigate to="/" />} />
+          <Route path="/opening-balance" element={canViewOpeningBalance ? <OpeningBalance /> : <Navigate to="/" />} />
           <Route path="/documents" element={hasPermission(user, 'documents.view') ? <Documents /> : <Navigate to="/" />} />
           <Route path="/cashier" element={canViewCashier ? <Cashier /> : <Navigate to={firstNavPath} />} />
           <Route path="/payments" element={canViewPayments ? <Payments /> : <Navigate to="/" />} />

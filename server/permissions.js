@@ -77,6 +77,7 @@ export const PERMISSION_GROUPS = [
   { id: 'payments', label: 'Оплаты', category: 'finance', icon: '💰', hint: 'Старый раздел оплат (не путать с «Касса»)', actions: { view: 'payments.view', write: 'payments.edit', delete: 'payments.delete', editPast: 'payments.edit_past' } },
   { id: 'cash_articles', label: 'Статьи кассы', category: 'finance', icon: '📑', hint: 'Настройка статей прихода/расхода (бухгалтер)', actions: { view: 'cash_articles.view', write: 'cash_articles.edit' } },
   { id: 'reports', label: 'Отчёты', category: 'main', icon: '📊', hint: 'Остатки, дебиторы, кредиторы', actions: { view: 'reports.view' } },
+  { id: 'opening_balance', label: 'Начальное сальдо', category: 'finance', icon: '⚖️', hint: 'Стартовые остатки товаров, долги контрагентов и касса', actions: { view: 'opening_balance.view', write: 'opening_balance.edit' } },
   { id: 'telegram', label: 'Telegram', category: 'admin', icon: '✈️', hint: 'Просмотр истории, настройка бота и ручная отправка', actions: { view: 'telegram.view', write: 'telegram.settings', send: 'telegram.send' } },
   { id: 'users', label: 'Сотрудники', category: 'admin', icon: '👤', actions: { view: 'users.view', write: 'users.edit' } },
   { id: 'branches', label: 'Филиалы', category: 'admin', icon: '🏢', actions: { view: 'branches.view', write: 'branches.edit' } },
@@ -156,6 +157,7 @@ const DEFAULT_ROLE_PERMISSIONS = {
     'payments.view', 'payments.edit', 'payments.delete', 'payments.edit_past',
     'cash_articles.view', 'cash_articles.edit',
     'reports.view',
+    'opening_balance.view', 'opening_balance.edit',
   ],
 };
 
@@ -350,6 +352,7 @@ export function initPermissions(db) {
   migrateCashierBundleSync(db);
   migrateTelegramSendPermission(db);
   migrateMyShopPermissions(db);
+  migrateOpeningBalancePermissions(db);
   permissionsCache = loadRolePermissionsFromDb(db) || { ...DEFAULT_ROLE_PERMISSIONS };
 }
 
@@ -383,6 +386,23 @@ export function normalizePermissionBundle(permissions) {
   }
 
   return [...set];
+}
+
+function migrateOpeningBalancePermissions(db) {
+  const done = db.queryOne("SELECT value FROM settings WHERE key = 'opening_balance_perm_v1'");
+  if (done) return;
+
+  for (const perm of ['opening_balance.view', 'opening_balance.edit']) {
+    const exists = db.queryOne(
+      'SELECT 1 as ok FROM role_permissions WHERE role = ? AND permission = ? LIMIT 1',
+      ['accountant', perm],
+    );
+    if (!exists) {
+      db.run('INSERT INTO role_permissions (role, permission) VALUES (?, ?)', ['accountant', perm]);
+    }
+  }
+
+  db.run("INSERT OR REPLACE INTO settings (key, value) VALUES ('opening_balance_perm_v1', '1')");
 }
 
 function migrateMyShopPermissions(db) {

@@ -84,7 +84,7 @@ export function getStockReport(branchId = DEFAULT_BRANCH_ID, departmentId = null
 
 function getCounterpartyDebtRows(branchId, counterpartyType, docType, paymentType, includeUnlinkedPayments = true) {
   const rows = queryAll(`
-    SELECT c.id, c.name, c.phone, c.email,
+    SELECT c.id, c.name, c.phone, c.email, COALESCE(c.opening_balance, 0) as opening_balance,
       COALESCE((
         SELECT SUM(d.total_amount)
         FROM documents d
@@ -131,14 +131,16 @@ function getCounterpartyDebtRows(branchId, counterpartyType, docType, paymentTyp
   return rows.map((row) => {
     const charged = row.charged || 0;
     const paid = row.paid || 0;
+    const openingBalance = row.opening_balance || 0;
     return {
       id: row.id,
       name: row.name,
       phone: row.phone || '',
       email: row.email || '',
+      opening_balance: openingBalance,
       charged,
       paid,
-      balance: charged - paid,
+      balance: charged - paid + openingBalance,
     };
   });
 }
@@ -152,7 +154,7 @@ export function getDebtorsReport(branchId = DEFAULT_BRANCH_ID, includeZero = fal
     includeUnlinkedPayments,
   );
   const filtered = includeZero
-    ? rows.filter((r) => r.charged > 0 || r.paid > 0)
+    ? rows.filter((r) => r.charged > 0 || r.paid > 0 || Math.abs(r.opening_balance || 0) > 0.005)
     : rows.filter((r) => r.balance > 0.005);
   const totalBalance = filtered.reduce((s, r) => s + r.balance, 0);
   return {
@@ -192,12 +194,12 @@ export function getCreditorsReport(branchId = DEFAULT_BRANCH_ID, includeZero = f
       ...r,
       returned,
       charged,
-      balance: charged - paid,
+      balance: charged - paid + (r.opening_balance || 0),
     };
   });
 
   const filtered = includeZero
-    ? adjusted.filter((r) => r.charged > 0 || r.paid > 0 || r.returned > 0)
+    ? adjusted.filter((r) => r.charged > 0 || r.paid > 0 || r.returned > 0 || Math.abs(r.opening_balance || 0) > 0.005)
     : adjusted.filter((r) => r.balance > 0.005);
   const totalBalance = filtered.reduce((s, r) => s + r.balance, 0);
   return {

@@ -111,6 +111,18 @@ export const api = {
     const q = new URLSearchParams(params).toString();
     return request(`/reports/creditors${q ? `?${q}` : ''}`);
   },
+  getBusinessBalance: () => request('/reports/business-balance'),
+  getOpeningBalance: () => request('/opening-balance'),
+  getOpeningStock: (params = {}) => {
+    const q = new URLSearchParams(params).toString();
+    return request(`/opening-balance/stock${q ? `?${q}` : ''}`);
+  },
+  saveOpeningSettings: (data) => request('/opening-balance/settings', { method: 'PUT', body: JSON.stringify(data) }),
+  saveOpeningStock: (data) => request('/opening-balance/stock', { method: 'PUT', body: JSON.stringify(data) }),
+  saveOpeningCounterparties: (items) => request('/opening-balance/counterparties', {
+    method: 'PUT',
+    body: JSON.stringify({ items }),
+  }),
   getProductCategories: () => request('/product-categories'),
   createProductCategory: (data) => request('/product-categories', { method: 'POST', body: JSON.stringify(data) }),
   updateProductCategory: (id, data) => request(`/product-categories/${id}`, { method: 'PUT', body: JSON.stringify(data) }),

@@ -4,6 +4,13 @@ import { DEFAULT_CASH_ARTICLES, cashArticleId } from './cashArticleDefaults.js';
 
 const { queryAll, queryOne, run } = db;
 
+function ensureBranchOpeningBalanceRow(branchId) {
+  const existing = queryOne('SELECT branch_id FROM branch_opening_balances WHERE branch_id = ?', [branchId]);
+  if (!existing) {
+    run('INSERT INTO branch_opening_balances (branch_id, cash_balance, notes) VALUES (?, 0, ?)', [branchId, '']);
+  }
+}
+
 export const DEFAULT_BRANCH_ID = 'main';
 
 function seedCashArticlesForBranch(branchId) {
@@ -59,6 +66,7 @@ export function createBranch(data) {
   );
   seedCashArticlesForBranch(id);
   linkAllProductsToBranchLocal(id);
+  ensureBranchOpeningBalanceRow(id);
   return getBranch(id);
 }
 
