@@ -558,6 +558,9 @@ function getSuppliersForProduct(productId, branchId = DEFAULT_BRANCH_ID) {
 }
 
 function enrichProduct(product, branchId = DEFAULT_BRANCH_ID, departmentId = null, lastMap = null) {
+  if (!product) {
+    throw new Error('Товар не найден');
+  }
   const {
     primary_file_name,
     primary_media_type,
@@ -613,12 +616,26 @@ function fetchProductRow(id, branchId) {
            pc.name as category_name, pc.parent_id as category_parent_id,
            ppc.name as parent_category_name,
            COALESCE(ppc.sort_order, pc.sort_order, 999) as category_sort,
-           COALESCE(pc.sort_order, 999) as subcategory_sort
+           COALESCE(pc.sort_order, 999) as subcategory_sort,
+           pi.file_name as primary_file_name,
+           pi.media_type as primary_media_type,
+           (SELECT COUNT(*) FROM product_images WHERE product_id = p.id AND media_type = 'photo') as photo_count,
+           (SELECT COUNT(*) FROM product_images WHERE product_id = p.id AND media_type = 'gif') as gif_count
     FROM products p
-    INNER JOIN product_branches pb ON pb.product_id = p.id AND pb.branch_id = ? AND pb.visible = 1
+    LEFT JOIN product_branches pb ON pb.product_id = p.id AND pb.branch_id = ?
     LEFT JOIN product_branch_stock pbs ON pbs.product_id = p.id AND pbs.branch_id = ?
     LEFT JOIN product_categories pc ON pc.id = p.category_id
     LEFT JOIN product_categories ppc ON ppc.id = pc.parent_id
+    LEFT JOIN product_images pi ON pi.id = (
+      SELECT id FROM product_images
+      WHERE product_id = p.id
+        AND (
+          (COALESCE(p.has_variants, 0) = 0 AND (variant_id IS NULL OR variant_id = ''))
+          OR (COALESCE(p.has_variants, 0) = 1 AND variant_id IS NOT NULL)
+        )
+      ORDER BY is_primary DESC, sort_order, created_at
+      LIMIT 1
+    )
     WHERE p.id = ?
   `, [branchId, branchId, id]);
 }
@@ -658,10 +675,9 @@ export function createProduct(data) {
   ]);
 
   const branchId = data.branch_id || DEFAULT_BRANCH_ID;
+  ensureProductBranchOnCreate(id, branchId);
   if (Array.isArray(data.branch_settings) && data.branch_settings.length) {
     saveProductBranchSettings(id, data.branch_settings);
-  } else {
-    ensureProductBranchOnCreate(id, branchId);
   }
 
   if (data.stock && data.stock > 0) {
