@@ -35,4 +35,5 @@ export const DOC_TYPE_LABELS = {
   return_supplier: 'Возврат поставщику',
   peremeshchenie: 'Перемещение',
   razdelka: 'Разделка',
+  opening_balance: 'Начальное сальдо',
 };

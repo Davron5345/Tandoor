@@ -347,6 +347,7 @@ function migrateSchema() {
   migrateShopOrders();
   migrateShopOrdersDepartment();
   migrateOpeningBalance();
+  migrateOpeningBalanceDocuments();
 }
 
 function migrateOpeningBalance() {
@@ -374,6 +375,88 @@ function migrateOpeningBalance() {
     }
   }
 
+  saveDb();
+}
+
+function migrateOpeningBalanceDocuments() {
+  db.run(`
+    CREATE TABLE IF NOT EXISTS opening_balance_lines (
+      id TEXT PRIMARY KEY,
+      document_id TEXT NOT NULL,
+      line_type TEXT NOT NULL CHECK(line_type IN ('stock', 'debtor', 'creditor', 'cash', 'bank')),
+      product_id TEXT REFERENCES products(id),
+      variant_id TEXT REFERENCES product_variants(id),
+      department_id TEXT REFERENCES departments(id),
+      counterparty_id TEXT REFERENCES counterparties(id),
+      quantity REAL DEFAULT 0,
+      unit_cost REAL DEFAULT 0,
+      amount REAL DEFAULT 0,
+      comment TEXT DEFAULT '',
+      sort_order INTEGER DEFAULT 0,
+      FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE
+    )
+  `);
+
+  const done = queryOne("SELECT value FROM settings WHERE key = 'opening_balance_docs_v1'");
+  if (done) return;
+
+  const branches = queryAll('SELECT id FROM branches');
+  for (const { id: branchId } of branches) {
+    const settings = queryOne('SELECT * FROM branch_opening_balances WHERE branch_id = ?', [branchId]);
+    const counterparties = queryAll(
+      `SELECT id, type, opening_balance FROM counterparties
+       WHERE branch_id = ? AND ABS(COALESCE(opening_balance, 0)) > 0.005`,
+      [branchId],
+    );
+    const hasCash = (settings?.cash_balance || 0) > 0;
+    const hasLegacy = hasCash || counterparties.length > 0;
+    if (!hasLegacy) continue;
+
+    const docId = `legacy_ob_${branchId}`;
+    const existing = queryOne('SELECT id FROM documents WHERE id = ?', [docId]);
+    if (existing) continue;
+
+    const date = settings?.as_of_date || '2020-01-01';
+    const comment = settings?.notes
+      ? `Перенос: ${settings.notes}`
+      : 'Автоперенос начального сальдо';
+
+    run(
+      `INSERT INTO documents (id, number, type, date, comment, branch_id, total_amount, status)
+       VALUES (?, '1', 'opening_balance', ?, ?, ?, 0, 'confirmed')`,
+      [docId, date, comment, branchId],
+    );
+
+    let sort = 0;
+    if (hasCash) {
+      run(
+        `INSERT INTO opening_balance_lines
+          (id, document_id, line_type, amount, sort_order)
+         VALUES (?, ?, 'cash', ?, ?)`,
+        [`${docId}_cash`, docId, settings.cash_balance, sort++],
+      );
+    }
+
+    for (const cp of counterparties) {
+      const lineType = cp.type === 'supplier' ? 'creditor' : 'debtor';
+      run(
+        `INSERT INTO opening_balance_lines
+          (id, document_id, line_type, counterparty_id, amount, sort_order)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [`${docId}_${cp.id}`, docId, lineType, cp.id, cp.opening_balance, sort++],
+      );
+    }
+
+    const total = queryOne(
+      'SELECT COALESCE(SUM(amount), 0) as v FROM opening_balance_lines WHERE document_id = ?',
+      [docId],
+    )?.v || 0;
+    run('UPDATE documents SET total_amount = ? WHERE id = ?', [total, docId]);
+    run("UPDATE counterparties SET opening_balance = 0 WHERE branch_id = ?", [branchId]);
+    run("UPDATE branch_opening_balances SET cash_balance = 0, as_of_date = NULL WHERE branch_id = ?", [branchId]);
+  }
+
+  run("INSERT OR REPLACE INTO settings (key, value) VALUES ('opening_balance_docs_v1', '1')");
   saveDb();
 }
 

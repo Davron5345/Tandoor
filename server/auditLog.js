@@ -13,6 +13,9 @@ export const AUDIT_ACTION_LABELS = {
   'opening_balance.settings': 'Начальное сальдо: настройки',
   'opening_balance.stock': 'Начальное сальдо: остатки',
   'opening_balance.counterparties': 'Начальное сальдо: контрагенты',
+  'opening_balance.create': 'Начальное сальдо: создание документа',
+  'opening_balance.confirm': 'Начальное сальдо: проведение',
+  'opening_balance.cancel': 'Начальное сальдо: отмена',
 };
 
 export function formatAuditAction(action) {

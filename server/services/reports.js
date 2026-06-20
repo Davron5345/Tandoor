@@ -83,8 +83,18 @@ export function getStockReport(branchId = DEFAULT_BRANCH_ID, departmentId = null
 }
 
 function getCounterpartyDebtRows(branchId, counterpartyType, docType, paymentType, includeUnlinkedPayments = true) {
+  const openingLineType = counterpartyType === 'client' ? 'debtor' : 'creditor';
   const rows = queryAll(`
-    SELECT c.id, c.name, c.phone, c.email, COALESCE(c.opening_balance, 0) as opening_balance,
+    SELECT c.id, c.name, c.phone, c.email,
+      (
+        COALESCE(c.opening_balance, 0) + COALESCE((
+          SELECT SUM(obl.amount)
+          FROM opening_balance_lines obl
+          JOIN documents d ON d.id = obl.document_id
+          WHERE d.type = 'opening_balance' AND d.status = 'confirmed' AND d.branch_id = ?
+            AND obl.counterparty_id = c.id AND obl.line_type = ?
+        ), 0)
+      ) AS opening_balance,
       COALESCE((
         SELECT SUM(d.total_amount)
         FROM documents d
@@ -118,6 +128,8 @@ function getCounterpartyDebtRows(branchId, counterpartyType, docType, paymentTyp
     WHERE c.branch_id = ? AND c.type = ?
     ORDER BY c.name
   `, [
+    branchId,
+    openingLineType,
     docType,
     branchId,
     branchId,

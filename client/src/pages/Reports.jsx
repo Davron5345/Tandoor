@@ -755,6 +755,7 @@ function ReconciliationReport() {
   const [counterpartyId, setCounterpartyId] = useState('');
   const [documents, setDocuments] = useState([]);
   const [payments, setPayments] = useState([]);
+  const [cpOpeningBalance, setCpOpeningBalance] = useState(0);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [dateFrom, setDateFrom] = useState(() => {
@@ -813,6 +814,22 @@ function ReconciliationReport() {
     load();
   }, [branchId, load]);
 
+  useEffect(() => {
+    if (!counterpartyId || !selectedCounterparty) {
+      setCpOpeningBalance(0);
+      return;
+    }
+    const fetcher = selectedCounterparty.type === 'supplier'
+      ? api.getCreditorsReport({ include_zero: '1' })
+      : api.getDebtorsReport({ include_zero: '1' });
+    fetcher
+      .then((report) => {
+        const row = (report.rows || []).find((r) => r.id === counterpartyId);
+        setCpOpeningBalance(row?.opening_balance || 0);
+      })
+      .catch(() => setCpOpeningBalance(0));
+  }, [counterpartyId, selectedCounterparty, branchId]);
+
   const rows = useMemo(() => {
     if (!selectedCounterparty) return [];
     const isSupplier = selectedCounterparty.type === 'supplier';
@@ -865,7 +882,7 @@ function ReconciliationReport() {
 
     const merged = [...docRows, ...payRows].sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
 
-    const opening = Number(selectedCounterparty.opening_balance) || 0;
+    const opening = Number(cpOpeningBalance) || 0;
     if (Math.abs(opening) > 0.005) {
       merged.unshift({
         date: '',
@@ -881,7 +898,7 @@ function ReconciliationReport() {
       running += (row.debit || 0) - (row.credit || 0);
       return { ...row, balance: running };
     });
-  }, [documents, payments, selectedCounterparty]);
+  }, [documents, payments, selectedCounterparty, cpOpeningBalance]);
 
   const totals = useMemo(() => {
     const debit = rows.reduce((s, r) => s + (r.debit || 0), 0);

@@ -1,76 +1,89 @@
 import { requirePermission, attachBranch } from '../middleware.js';
 import { logAudit } from '../auditLog.js';
+import { getBusinessBalanceSummary, getMoneyBalances } from '../openingBalance.js';
 import {
-  getBusinessBalanceSummary,
-  getBranchOpeningSettings,
-  saveBranchOpeningSettings,
-  getOpeningStockLines,
-  saveOpeningStock,
-  saveCounterpartyOpeningBalances,
-  getCurrentCashBalance,
-} from '../openingBalance.js';
-import { getCounterparties } from '../services/counterparties.js';
+  listOpeningBalanceDocuments,
+  getOpeningBalanceDocument,
+  createOpeningBalanceDocument,
+  updateOpeningBalanceDocument,
+  confirmOpeningBalanceDocument,
+  cancelOpeningBalanceDocument,
+  deleteOpeningBalanceDocument,
+} from '../services/openingBalanceDocuments.js';
 
 export function registerOpeningBalanceRoutes(app) {
   app.get('/api/opening-balance', requirePermission('opening_balance.view'), attachBranch, (req, res) => {
-    const branchId = req.branchId;
     res.json({
-      summary: getBusinessBalanceSummary(branchId),
-      settings: getBranchOpeningSettings(branchId),
-      cash: getCurrentCashBalance(branchId),
-      counterparties: getCounterparties(null, branchId).map((c) => ({
-        id: c.id,
-        name: c.name,
-        type: c.type,
-        phone: c.phone || '',
-        opening_balance: c.opening_balance || 0,
-      })),
+      summary: getBusinessBalanceSummary(req.branchId),
+      money: getMoneyBalances(req.branchId),
+      documents: listOpeningBalanceDocuments(req.branchId),
     });
   });
 
-  app.get('/api/opening-balance/stock', requirePermission('opening_balance.view'), attachBranch, (req, res) => {
-    const departmentId = req.query.department_id || null;
-    res.json(getOpeningStockLines(req.branchId, departmentId));
+  app.get('/api/opening-balance/documents', requirePermission('opening_balance.view'), attachBranch, (req, res) => {
+    res.json(listOpeningBalanceDocuments(req.branchId));
   });
 
-  app.put('/api/opening-balance/settings', requirePermission('opening_balance.edit'), attachBranch, (req, res) => {
+  app.get('/api/opening-balance/documents/:id', requirePermission('opening_balance.view'), attachBranch, (req, res) => {
+    const doc = getOpeningBalanceDocument(req.params.id, req.branchId);
+    if (!doc) return res.status(404).json({ error: 'Документ не найден' });
+    res.json(doc);
+  });
+
+  app.post('/api/opening-balance/documents', requirePermission('opening_balance.edit'), attachBranch, (req, res) => {
     try {
-      const settings = saveBranchOpeningSettings(req.branchId, req.body || {});
-      logAudit(req, 'opening_balance.settings', {
-        entity_type: 'branch',
-        entity_id: req.branchId,
-        meta: { as_of_date: settings.as_of_date, cash_balance: settings.cash_balance },
+      const doc = createOpeningBalanceDocument(req.body, req.user.id, req.branchId);
+      logAudit(req, 'opening_balance.create', {
+        entity_type: 'document',
+        entity_id: doc.id,
+        meta: { number: doc.number, date: doc.date },
       });
-      res.json(settings);
+      res.status(201).json(doc);
     } catch (e) {
       res.status(400).json({ error: e.message });
     }
   });
 
-  app.put('/api/opening-balance/stock', requirePermission('opening_balance.edit'), attachBranch, (req, res) => {
+  app.put('/api/opening-balance/documents/:id', requirePermission('opening_balance.edit'), attachBranch, (req, res) => {
     try {
-      const { department_id, lines } = req.body || {};
-      const result = saveOpeningStock(req.branchId, department_id, lines);
-      logAudit(req, 'opening_balance.stock', {
-        entity_type: 'department',
-        entity_id: department_id,
-        meta: { lines: lines?.length || 0 },
-      });
-      res.json(result);
+      const doc = updateOpeningBalanceDocument(req.params.id, req.body, req.user.id, req.branchId);
+      res.json(doc);
     } catch (e) {
       res.status(400).json({ error: e.message });
     }
   });
 
-  app.put('/api/opening-balance/counterparties', requirePermission('opening_balance.edit'), attachBranch, (req, res) => {
+  app.post('/api/opening-balance/documents/:id/confirm', requirePermission('opening_balance.edit'), attachBranch, (req, res) => {
     try {
-      const items = saveCounterpartyOpeningBalances(req.branchId, req.body?.items || []);
-      logAudit(req, 'opening_balance.counterparties', {
-        entity_type: 'branch',
-        entity_id: req.branchId,
-        meta: { count: items.length },
+      const doc = confirmOpeningBalanceDocument(req.params.id, req.user.id, req.branchId);
+      logAudit(req, 'opening_balance.confirm', {
+        entity_type: 'document',
+        entity_id: doc.id,
+        meta: { number: doc.number, date: doc.date },
       });
-      res.json({ items });
+      res.json(doc);
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
+  app.post('/api/opening-balance/documents/:id/cancel', requirePermission('opening_balance.edit'), attachBranch, (req, res) => {
+    try {
+      const doc = cancelOpeningBalanceDocument(req.params.id, req.user.id, req.branchId);
+      logAudit(req, 'opening_balance.cancel', {
+        entity_type: 'document',
+        entity_id: doc.id,
+        meta: { number: doc.number },
+      });
+      res.json(doc);
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
+  app.delete('/api/opening-balance/documents/:id', requirePermission('opening_balance.edit'), attachBranch, (req, res) => {
+    try {
+      res.json(deleteOpeningBalanceDocument(req.params.id, req.branchId));
     } catch (e) {
       res.status(400).json({ error: e.message });
     }

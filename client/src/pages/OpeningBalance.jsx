@@ -1,18 +1,41 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { api, formatDate, formatMoney, formatPriceInput, parsePriceInput } from '../api';
+import {
+  api, formatDate, formatMoney, formatPriceInput, parsePriceInput, STATUS_LABELS,
+} from '../api';
 import { useToast } from '../components/Modal';
 import { useAuth } from '../AuthContext';
 import { useBranch } from '../BranchContext';
 import BranchChip from '../components/BranchChip';
+import ProductSelect from '../components/ProductSelect';
+import { encodeProductPick, resolvePickFromProducts } from '../utils/productVariants';
 import { hasPermission } from '../permissions';
 import { todayLocalIso } from '../utils/date';
 
-const TABS = [
-  { id: 'summary', label: 'Сводка' },
-  { id: 'stock', label: 'Остатки товаров' },
-  { id: 'counterparties', label: 'Задолженности' },
-  { id: 'settings', label: 'Настройки' },
-];
+const LINE_LABELS = {
+  stock: 'Остаток товара',
+  debtor: 'Клиент должен',
+  creditor: 'Долг поставщику',
+  cash: 'Касса',
+  bank: 'Банк / счёт',
+};
+
+const emptyLine = (lineType) => ({
+  line_type: lineType,
+  product_id: '',
+  variant_id: null,
+  department_id: '',
+  counterparty_id: '',
+  quantity: 0,
+  unit_cost: 0,
+  amount: 0,
+  comment: '',
+});
+
+const emptyDoc = {
+  date: todayLocalIso(),
+  comment: '',
+  lines: [],
+};
 
 function formatQty(n) {
   const value = Number(n) || 0;
@@ -20,39 +43,36 @@ function formatQty(n) {
   return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 3 }).format(value);
 }
 
+function statusClass(status) {
+  if (status === 'confirmed') return 'badge-confirmed';
+  if (status === 'cancelled') return 'badge-cancelled';
+  return 'badge-draft';
+}
+
 export default function OpeningBalance() {
-  const [tab, setTab] = useState('summary');
+  const [view, setView] = useState('list');
+  const [documents, setDocuments] = useState([]);
   const [summary, setSummary] = useState(null);
-  const [settings, setSettings] = useState({ as_of_date: '', cash_balance: 0, notes: '' });
-  const [counterparties, setCounterparties] = useState([]);
-  const [cpDraft, setCpDraft] = useState({});
-  const [departments, setDepartments] = useState([]);
-  const [departmentId, setDepartmentId] = useState('');
-  const [stockLines, setStockLines] = useState([]);
-  const [stockDraft, setStockDraft] = useState({});
-  const [stockSearch, setStockSearch] = useState('');
+  const [form, setForm] = useState(emptyDoc);
+  const [editId, setEditId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [departments, setDepartments] = useState([]);
+  const [counterparties, setCounterparties] = useState([]);
+  const [products, setProducts] = useState([]);
   const { show, Toast } = useToast();
   const { user } = useAuth();
   const { branchId, branchName } = useBranch();
   const canEdit = hasPermission(user, 'opening_balance.edit');
 
-  const loadMain = useCallback(async () => {
+  const isReadOnly = !canEdit || (editId && form.status && form.status !== 'draft');
+
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const data = await api.getOpeningBalance();
       setSummary(data.summary);
-      setSettings({
-        as_of_date: data.settings?.as_of_date || '',
-        cash_balance: data.settings?.cash_balance || 0,
-        notes: data.settings?.notes || '',
-      });
-      const cps = data.counterparties || [];
-      setCounterparties(cps);
-      const cpMap = {};
-      for (const c of cps) cpMap[c.id] = c.opening_balance || 0;
-      setCpDraft(cpMap);
+      setDocuments(data.documents || []);
     } catch (e) {
       show(e.message, 'error');
     } finally {
@@ -60,62 +80,128 @@ export default function OpeningBalance() {
     }
   }, [branchId, show]);
 
-  const loadStock = useCallback(async () => {
-    if (!departmentId) {
-      setStockLines([]);
-      return;
-    }
-    try {
-      const data = await api.getOpeningStock({ department_id: departmentId });
-      setDepartments(data.departments || []);
-      setStockLines(data.lines || []);
-      const draft = {};
-      for (const line of data.lines || []) {
-        draft[line.row_key] = {
-          quantity: line.quantity,
-          unit_cost: line.unit_cost,
-        };
-      }
-      setStockDraft(draft);
-    } catch (e) {
-      show(e.message, 'error');
-    }
-  }, [departmentId, branchId, show]);
+  useEffect(() => { load(); }, [load]);
 
-  useEffect(() => { loadMain(); }, [loadMain]);
   useEffect(() => {
-    api.getDepartments({ active: '1' }).then((list) => {
-      setDepartments(list);
-      if (!departmentId && list.length === 1) setDepartmentId(list[0].id);
+    Promise.all([
+      api.getDepartments({ active: '1' }),
+      api.getCounterparties(),
+      api.getProducts({ archived: '0' }),
+    ]).then(([depts, cps, prods]) => {
+      setDepartments(depts);
+      setCounterparties(cps);
+      setProducts(Array.isArray(prods) ? prods : []);
     }).catch(console.error);
   }, [branchId]);
 
-  useEffect(() => {
-    if (tab === 'stock') loadStock();
-  }, [tab, loadStock]);
+  const openCreate = () => {
+    setEditId(null);
+    setForm({ ...emptyDoc, date: todayLocalIso(), lines: [emptyLine('cash')] });
+    setView('edit');
+  };
 
-  const filteredStock = useMemo(() => {
-    const q = stockSearch.trim().toLowerCase();
-    if (!q) return stockLines;
-    return stockLines.filter((line) => (line.name || '').toLowerCase().includes(q));
-  }, [stockLines, stockSearch]);
+  const openDoc = async (id) => {
+    try {
+      const doc = await api.getOpeningBalanceDocument(id);
+      setEditId(id);
+      setForm({
+        date: doc.date?.slice(0, 10) || todayLocalIso(),
+        comment: doc.comment || '',
+        status: doc.status,
+        number: doc.number,
+        lines: (doc.lines || []).map((l) => ({
+          line_type: l.line_type,
+          product_id: l.product_id || '',
+          variant_id: l.variant_id || null,
+          department_id: l.department_id || '',
+          counterparty_id: l.counterparty_id || '',
+          quantity: l.quantity || 0,
+          unit_cost: l.unit_cost || 0,
+          amount: l.amount || 0,
+          comment: l.comment || '',
+        })),
+      });
+      setView('edit');
+    } catch (e) {
+      show(e.message, 'error');
+    }
+  };
 
-  const saveSettings = async () => {
+  const addLine = (lineType) => {
+    setForm((f) => ({ ...f, lines: [...f.lines, emptyLine(lineType)] }));
+  };
+
+  const updateLine = (index, patch) => {
+    setForm((f) => {
+      const lines = [...f.lines];
+      lines[index] = { ...lines[index], ...patch };
+      if (lines[index].line_type === 'stock') {
+        lines[index].amount = (Number(lines[index].quantity) || 0) * (Number(lines[index].unit_cost) || 0);
+      }
+      return { ...f, lines };
+    });
+  };
+
+  const removeLine = (index) => {
+    setForm((f) => ({ ...f, lines: f.lines.filter((_, i) => i !== index) }));
+  };
+
+  const docTotal = useMemo(
+    () => form.lines.reduce((s, l) => {
+      if (l.line_type === 'stock') return s + (Number(l.quantity) || 0) * (Number(l.unit_cost) || 0);
+      return s + (Number(l.amount) || 0);
+    }, 0),
+    [form.lines],
+  );
+
+  const save = async (andConfirm = false) => {
     if (!canEdit) return;
+    if (!form.date) {
+      show('Укажите дату документа', 'error');
+      return;
+    }
+    if (form.lines.length === 0) {
+      show('Добавьте строки', 'error');
+      return;
+    }
     setSaving(true);
     try {
-      const saved = await api.saveOpeningSettings({
-        as_of_date: settings.as_of_date || null,
-        cash_balance: Number(settings.cash_balance) || 0,
-        notes: settings.notes,
+      const payload = {
+        date: form.date,
+        comment: form.comment,
+        lines: form.lines,
+      };
+      let doc;
+      if (editId) {
+        doc = await api.updateOpeningBalanceDocument(editId, payload);
+      } else {
+        doc = await api.createOpeningBalanceDocument(payload);
+        setEditId(doc.id);
+      }
+      if (andConfirm) {
+        doc = await api.confirmOpeningBalanceDocument(doc.id);
+        show('Документ проведён');
+      } else {
+        show('Черновик сохранён');
+      }
+      await load();
+      setForm({
+        date: doc.date?.slice(0, 10),
+        comment: doc.comment || '',
+        status: doc.status,
+        number: doc.number,
+        lines: (doc.lines || []).map((l) => ({
+          line_type: l.line_type,
+          product_id: l.product_id || '',
+          variant_id: l.variant_id || null,
+          department_id: l.department_id || '',
+          counterparty_id: l.counterparty_id || '',
+          quantity: l.quantity || 0,
+          unit_cost: l.unit_cost || 0,
+          amount: l.amount || 0,
+          comment: l.comment || '',
+        })),
       });
-      setSettings({
-        as_of_date: saved.as_of_date || '',
-        cash_balance: saved.cash_balance || 0,
-        notes: saved.notes || '',
-      });
-      await loadMain();
-      show('Настройки сохранены');
     } catch (e) {
       show(e.message, 'error');
     } finally {
@@ -123,17 +209,14 @@ export default function OpeningBalance() {
     }
   };
 
-  const saveCounterparties = async () => {
-    if (!canEdit) return;
+  const confirmDoc = async () => {
+    if (!editId) return save(true);
     setSaving(true);
     try {
-      const items = counterparties.map((c) => ({
-        id: c.id,
-        opening_balance: Number(cpDraft[c.id]) || 0,
-      }));
-      await api.saveOpeningCounterparties(items);
-      await loadMain();
-      show('Начальные сальдо контрагентов сохранены');
+      await api.confirmOpeningBalanceDocument(editId);
+      show('Документ проведён');
+      await load();
+      await openDoc(editId);
     } catch (e) {
       show(e.message, 'error');
     } finally {
@@ -141,24 +224,14 @@ export default function OpeningBalance() {
     }
   };
 
-  const saveStock = async () => {
-    if (!canEdit || !departmentId) return;
+  const cancelDoc = async () => {
+    if (!editId || !window.confirm('Отменить проведение? Остатки товаров из документа будут обнулены.')) return;
     setSaving(true);
     try {
-      const lines = stockLines.map((line) => {
-        const draft = stockDraft[line.row_key] || {};
-        return {
-          product_id: line.product_id,
-          variant_id: line.variant_id,
-          name: line.name,
-          quantity: draft.quantity ?? line.quantity,
-          unit_cost: draft.unit_cost ?? line.unit_cost,
-        };
-      });
-      await api.saveOpeningStock({ department_id: departmentId, lines });
-      await loadStock();
-      await loadMain();
-      show('Остатки сохранены');
+      await api.cancelOpeningBalanceDocument(editId);
+      show('Документ отменён');
+      await load();
+      await openDoc(editId);
     } catch (e) {
       show(e.message, 'error');
     } finally {
@@ -166,307 +239,296 @@ export default function OpeningBalance() {
     }
   };
 
-  const updateStockField = (rowKey, field, rawValue) => {
-    setStockDraft((prev) => ({
-      ...prev,
-      [rowKey]: {
-        ...prev[rowKey],
-        [field]: field === 'quantity' ? (parseFloat(rawValue) || 0) : (parsePriceInput(rawValue) ?? 0),
-      },
-    }));
+  const removeDoc = async (id) => {
+    if (!window.confirm('Удалить черновик?')) return;
+    try {
+      await api.deleteOpeningBalanceDocument(id);
+      show('Удалено');
+      if (editId === id) {
+        setView('list');
+        setEditId(null);
+      }
+      await load();
+    } catch (e) {
+      show(e.message, 'error');
+    }
   };
 
-  const netPosition = summary?.net_position ?? 0;
+  const clients = counterparties.filter((c) => c.type === 'client');
+  const suppliers = counterparties.filter((c) => c.type === 'supplier');
 
   return (
     <div className="opening-balance-page">
       {Toast}
       <div className="page-header">
         <h1>Начальное сальдо</h1>
-        <BranchChip>{branchName}</BranchChip>
+        <div className="btn-group">
+          <BranchChip>{branchName}</BranchChip>
+          {canEdit && view === 'list' && (
+            <button type="button" className="btn btn-primary" onClick={openCreate}>+ Новый документ</button>
+          )}
+          {view === 'edit' && (
+            <button type="button" className="btn btn-ghost" onClick={() => setView('list')}>← К списку</button>
+          )}
+        </div>
       </div>
 
       <p className="page-hint">
-        Укажите стартовые данные на момент начала учёта в системе: остатки на складе,
-        долги клиентов и поставщиков, сумма в кассе. Эти значения учитываются в отчётах по задолженностям и сводке бизнеса.
+        Начальное сальдо оформляется документом с датой. После проведения остатки товаров, долги, касса и банк
+        учитываются в отчётах; операции кассы после даты документа пересчитывают текущую сумму в кассе.
       </p>
 
-      <div className="debt-kind-tabs" role="tablist" aria-label="Разделы начального сальдо">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            role="tab"
-            aria-selected={tab === t.id}
-            className={`debt-kind-tab${tab === t.id ? ' active' : ''}`}
-            onClick={() => setTab(t.id)}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      {tab === 'summary' && (
-        <div className="opening-summary">
-          {loading ? (
-            <div className="card"><div className="empty" style={{ padding: 24 }}>Загрузка…</div></div>
-          ) : (
-            <>
-              <div className="stock-report-kpi">
-                <div className="stat-card stock-kpi-card">
-                  <span className="label">Товары на складе</span>
-                  <span className="value">{formatMoney(summary?.stock?.value || 0)}</span>
-                  <span className="stock-kpi-hint">{summary?.stock?.sku_count || 0} позиций</span>
-                </div>
-                <div className="stat-card stock-kpi-card debt-kpi-debtors">
-                  <span className="label">Нам должны</span>
-                  <span className="value">{formatMoney(summary?.debtors?.total || 0)}</span>
-                  {summary?.debtors?.opening_total > 0 && (
-                    <span className="stock-kpi-hint">из них нач. сальдо: {formatMoney(summary.debtors.opening_total)}</span>
-                  )}
-                </div>
-                <div className="stat-card stock-kpi-card debt-kpi-creditors">
-                  <span className="label">Мы должны</span>
-                  <span className="value">{formatMoney(summary?.creditors?.total || 0)}</span>
-                  {summary?.creditors?.opening_total > 0 && (
-                    <span className="stock-kpi-hint">из них нач. сальдо: {formatMoney(summary.creditors.opening_total)}</span>
-                  )}
-                </div>
-                <div className="stat-card stock-kpi-card">
-                  <span className="label">Касса сейчас</span>
-                  <span className="value">{formatMoney(summary?.cash?.current || 0)}</span>
-                  <span className="stock-kpi-hint">начало: {formatMoney(summary?.cash?.opening_cash || 0)}</span>
-                </div>
-              </div>
-              <div className="card" style={{ marginTop: 16 }}>
-                <div className="card-header">
-                  <strong>Чистая позиция бизнеса</strong>
-                  <span className="report-meta">
-                    {summary?.settings?.as_of_date
-                      ? `с ${formatDate(summary.settings.as_of_date)}`
-                      : 'дата начала учёта не задана'}
-                  </span>
-                </div>
-                <div style={{ padding: '16px 20px' }}>
-                  <p style={{ margin: '0 0 8px', color: 'var(--text-muted)' }}>
-                    Склад + дебиторы − кредиторы + касса
-                  </p>
-                  <p style={{ margin: 0, fontSize: '1.5rem', fontWeight: 700 }}>
-                    {formatMoney(netPosition)}
-                  </p>
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-      )}
-
-      {tab === 'settings' && (
-        <div className="card">
-          <div className="card-header"><strong>Общие настройки</strong></div>
-          <div className="form-grid" style={{ padding: 16 }}>
-            <div className="form-group">
-              <label>Дата начала учёта</label>
-              <input
-                type="date"
-                value={settings.as_of_date || ''}
-                max={todayLocalIso()}
-                disabled={!canEdit}
-                onChange={(e) => setSettings({ ...settings, as_of_date: e.target.value })}
-              />
-              <small className="text-muted" style={{ display: 'block', marginTop: 4 }}>Операции кассы после этой даты прибавляются к начальному остатку</small>
-            </div>
-            <div className="form-group">
-              <label>Начальный остаток кассы</label>
-              <input
-                type="text"
-                inputMode="numeric"
-                disabled={!canEdit}
-                value={formatPriceInput(settings.cash_balance)}
-                onChange={(e) => setSettings({
-                  ...settings,
-                  cash_balance: parsePriceInput(e.target.value) ?? 0,
-                })}
-              />
-            </div>
-            <div className="form-group form-group-full">
-              <label>Примечание</label>
-              <textarea
-                rows={3}
-                disabled={!canEdit}
-                value={settings.notes}
-                onChange={(e) => setSettings({ ...settings, notes: e.target.value })}
-                placeholder="Например: перенос из Excel, инвентаризация на 01.01.2026"
-              />
-            </div>
+      {summary && view === 'list' && (
+        <div className="stock-report-kpi" style={{ marginBottom: 16 }}>
+          <div className="stat-card stock-kpi-card">
+            <span className="label">Склад</span>
+            <span className="value">{formatMoney(summary.stock?.value || 0)}</span>
           </div>
-          {canEdit && (
-            <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)' }}>
-              <button type="button" className="btn btn-primary" disabled={saving} onClick={saveSettings}>
-                {saving ? 'Сохранение…' : 'Сохранить настройки'}
-              </button>
-            </div>
-          )}
+          <div className="stat-card stock-kpi-card debt-kpi-debtors">
+            <span className="label">Нам должны</span>
+            <span className="value">{formatMoney(summary.debtors?.total || 0)}</span>
+          </div>
+          <div className="stat-card stock-kpi-card debt-kpi-creditors">
+            <span className="label">Мы должны</span>
+            <span className="value">{formatMoney(summary.creditors?.total || 0)}</span>
+          </div>
+          <div className="stat-card stock-kpi-card">
+            <span className="label">Касса</span>
+            <span className="value">{formatMoney(summary.money?.current_cash || 0)}</span>
+            <span className="stock-kpi-hint">начало: {formatMoney(summary.money?.opening_cash || 0)}</span>
+          </div>
+          <div className="stat-card stock-kpi-card">
+            <span className="label">Банк</span>
+            <span className="value">{formatMoney(summary.money?.current_bank || 0)}</span>
+          </div>
+          <div className="stat-card stock-kpi-card">
+            <span className="label">Чистая позиция</span>
+            <span className="value">{formatMoney(summary.net_position || 0)}</span>
+            {summary.money?.start_date && (
+              <span className="stock-kpi-hint">с {formatDate(summary.money.start_date)}</span>
+            )}
+          </div>
         </div>
       )}
 
-      {tab === 'counterparties' && (
+      {view === 'list' && (
         <div className="card">
           <div className="card-header">
-            <strong>Начальное сальдо контрагентов</strong>
-            <span className="report-meta">{counterparties.length} записей</span>
+            <strong>Документы начального сальдо</strong>
+            <span className="report-meta">{loading ? 'Загрузка…' : `${documents.length} шт.`}</span>
           </div>
-          <p style={{ padding: '0 16px', margin: '12px 0 0', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-            Положительная сумма: клиент должен нам / мы должны поставщику. Отрицательная — аванс или переплата.
-          </p>
           <div className="table-wrap">
             <table>
               <thead>
                 <tr>
-                  <th>Контрагент</th>
-                  <th>Тип</th>
-                  <th className="col-num">Нач. сальдо</th>
+                  <th>№</th>
+                  <th>Дата</th>
+                  <th>Статус</th>
+                  <th className="col-num">Сумма</th>
+                  <th>Комментарий</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
-                {counterparties.map((c) => (
-                  <tr key={c.id}>
-                    <td>{c.name}</td>
+                {documents.map((d) => (
+                  <tr key={d.id}>
+                    <td>{d.number}</td>
+                    <td>{formatDate(d.date)}</td>
+                    <td><span className={`badge ${statusClass(d.status)}`}>{STATUS_LABELS[d.status] || d.status}</span></td>
+                    <td className="col-num">{formatMoney(d.total_amount)}</td>
+                    <td>{d.comment || '—'}</td>
                     <td>
-                      <span className={`badge badge-${c.type}`}>
-                        {c.type === 'supplier' ? 'Поставщик' : 'Клиент'}
-                      </span>
-                    </td>
-                    <td className="col-num">
-                      {canEdit ? (
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          className="input-compact input-num"
-                          value={formatPriceInput(cpDraft[c.id] ?? 0)}
-                          onChange={(e) => setCpDraft({
-                            ...cpDraft,
-                            [c.id]: parsePriceInput(e.target.value) ?? 0,
-                          })}
-                        />
-                      ) : formatMoney(cpDraft[c.id] ?? 0)}
+                      <div className="btn-group btn-group-icons">
+                        <button type="button" className="btn btn-sm btn-ghost" onClick={() => openDoc(d.id)}>Открыть</button>
+                        {canEdit && d.status === 'draft' && (
+                          <button type="button" className="btn btn-sm btn-danger" onClick={() => removeDoc(d.id)}>Удалить</button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
-                {counterparties.length === 0 && (
-                  <tr><td colSpan={3} className="empty">Нет контрагентов — добавьте в справочнике</td></tr>
+                {!loading && documents.length === 0 && (
+                  <tr><td colSpan={6} className="empty">Нет документов — создайте первый</td></tr>
                 )}
               </tbody>
             </table>
           </div>
-          {canEdit && counterparties.length > 0 && (
-            <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)' }}>
-              <button type="button" className="btn btn-primary" disabled={saving} onClick={saveCounterparties}>
-                {saving ? 'Сохранение…' : 'Сохранить задолженности'}
-              </button>
-            </div>
-          )}
         </div>
       )}
 
-      {tab === 'stock' && (
+      {view === 'edit' && (
         <>
-          <div className="card stock-report-toolbar">
-            <div className="stock-toolbar-grid">
-              <label>
-                Склад (отдел)
-                <select value={departmentId} onChange={(e) => setDepartmentId(e.target.value)}>
-                  <option value="">— выберите —</option>
-                  {departments.map((d) => (
-                    <option key={d.id} value={d.id}>{d.name}</option>
-                  ))}
-                </select>
-              </label>
-              <div className="stock-search-wrap">
-                <span className="stock-search-icon" aria-hidden="true">⌕</span>
+          <div className="card" style={{ marginBottom: 16 }}>
+            <div className="card-header">
+              <strong>
+                {editId ? `Документ №${form.number || '…'}` : 'Новый документ'}
+                {form.status && (
+                  <span className={`badge ${statusClass(form.status)}`} style={{ marginLeft: 8 }}>
+                    {STATUS_LABELS[form.status]}
+                  </span>
+                )}
+              </strong>
+              <span className="report-meta">Итого: {formatMoney(docTotal)}</span>
+            </div>
+            <div className="form-grid" style={{ padding: 16 }}>
+              <div className="form-group">
+                <label>Дата документа *</label>
                 <input
-                  type="search"
-                  className="stock-search-input"
-                  placeholder="Поиск товара..."
-                  value={stockSearch}
-                  onChange={(e) => setStockSearch(e.target.value)}
+                  type="date"
+                  value={form.date}
+                  disabled={isReadOnly}
+                  onChange={(e) => setForm({ ...form, date: e.target.value })}
+                />
+              </div>
+              <div className="form-group form-group-full">
+                <label>Комментарий</label>
+                <input
+                  value={form.comment}
+                  disabled={isReadOnly}
+                  onChange={(e) => setForm({ ...form, comment: e.target.value })}
+                  placeholder="Например: перенос из Excel на 01.01.2026"
                 />
               </div>
             </div>
           </div>
-          {!departmentId ? (
-            <div className="card"><div className="empty" style={{ padding: 24 }}>Выберите склад для ввода остатков</div></div>
-          ) : (
-            <div className="card">
-              <div className="card-header">
-                <strong>Остатки на складе</strong>
-                <span className="report-meta">{filteredStock.length} позиций</span>
-              </div>
-              <p style={{ padding: '0 16px', margin: '12px 0 0', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-                Укажите фактическое количество и себестоимость на дату начала учёта. Значения заменяют текущие остатки по выбранному складу.
-              </p>
-              <div className="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Товар</th>
-                      <th>Ед.</th>
-                      <th className="col-num">Кол-во</th>
-                      <th className="col-num">Себестоимость</th>
-                      <th className="col-num">Сумма</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredStock.map((line) => {
-                      const draft = stockDraft[line.row_key] || {};
-                      const qty = draft.quantity ?? line.quantity;
-                      const cost = draft.unit_cost ?? line.unit_cost;
-                      return (
-                        <tr key={line.row_key}>
-                          <td>{line.name}</td>
-                          <td>{line.unit}</td>
-                          <td className="col-num">
-                            {canEdit ? (
-                              <input
-                                type="number"
-                                min="0"
-                                step="any"
-                                className="input-compact input-num"
-                                value={qty}
-                                onChange={(e) => updateStockField(line.row_key, 'quantity', e.target.value)}
-                              />
-                            ) : formatQty(qty)}
-                          </td>
-                          <td className="col-num">
-                            {canEdit ? (
-                              <input
-                                type="text"
-                                inputMode="numeric"
-                                className="input-compact input-num"
-                                value={formatPriceInput(cost)}
-                                onChange={(e) => updateStockField(line.row_key, 'unit_cost', e.target.value)}
-                              />
-                            ) : formatMoney(cost)}
-                          </td>
-                          <td className="col-num">{formatMoney(qty * cost)}</td>
-                        </tr>
-                      );
-                    })}
-                    {filteredStock.length === 0 && (
-                      <tr><td colSpan={5} className="empty">Нет товаров</td></tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-              {canEdit && filteredStock.length > 0 && (
-                <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)' }}>
-                  <button type="button" className="btn btn-primary" disabled={saving} onClick={saveStock}>
-                    {saving ? 'Сохранение…' : 'Сохранить остатки'}
-                  </button>
-                </div>
-              )}
+
+          {!isReadOnly && (
+            <div className="btn-group" style={{ marginBottom: 12, flexWrap: 'wrap' }}>
+              <button type="button" className="btn btn-sm btn-ghost" onClick={() => addLine('stock')}>+ Товар</button>
+              <button type="button" className="btn btn-sm btn-ghost" onClick={() => addLine('debtor')}>+ Дебитор</button>
+              <button type="button" className="btn btn-sm btn-ghost" onClick={() => addLine('creditor')}>+ Кредитор</button>
+              <button type="button" className="btn btn-sm btn-ghost" onClick={() => addLine('cash')}>+ Касса</button>
+              <button type="button" className="btn btn-sm btn-ghost" onClick={() => addLine('bank')}>+ Банк</button>
             </div>
           )}
+
+          <div className="card">
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Тип</th>
+                    <th>Детали</th>
+                    <th className="col-num">Кол-во</th>
+                    <th className="col-num">Цена/сумма</th>
+                    <th className="col-num">Итого</th>
+                    {!isReadOnly && <th></th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {form.lines.map((line, index) => {
+                    const lineTotal = line.line_type === 'stock'
+                      ? (Number(line.quantity) || 0) * (Number(line.unit_cost) || 0)
+                      : (Number(line.amount) || 0);
+                    return (
+                      <tr key={`line-${index}`}>
+                        <td>{LINE_LABELS[line.line_type]}</td>
+                        <td>
+                          {line.line_type === 'stock' && (
+                            <div className="form-grid" style={{ gap: 8 }}>
+                              <select
+                                value={line.department_id}
+                                disabled={isReadOnly}
+                                onChange={(e) => updateLine(index, { department_id: e.target.value })}
+                              >
+                                <option value="">Склад…</option>
+                                {departments.map((d) => (
+                                  <option key={d.id} value={d.id}>{d.name}</option>
+                                ))}
+                              </select>
+                              <ProductSelect
+                                products={products}
+                                value={encodeProductPick(line.product_id, line.variant_id)}
+                                disabled={isReadOnly}
+                                onChange={(pickValue) => {
+                                  const pick = resolvePickFromProducts(products, pickValue);
+                                  if (pick) {
+                                    updateLine(index, {
+                                      product_id: pick.product_id,
+                                      variant_id: pick.variant_id,
+                                    });
+                                  }
+                                }}
+                              />
+                            </div>
+                          )}
+                          {(line.line_type === 'debtor' || line.line_type === 'creditor') && (
+                            <select
+                              value={line.counterparty_id}
+                              disabled={isReadOnly}
+                              onChange={(e) => updateLine(index, { counterparty_id: e.target.value })}
+                            >
+                              <option value="">Контрагент…</option>
+                              {(line.line_type === 'debtor' ? clients : suppliers).map((c) => (
+                                <option key={c.id} value={c.id}>{c.name}</option>
+                              ))}
+                            </select>
+                          )}
+                          {(line.line_type === 'cash' || line.line_type === 'bank') && (
+                            <span className="text-muted">Остаток на дату документа</span>
+                          )}
+                        </td>
+                        <td className="col-num">
+                          {line.line_type === 'stock' && !isReadOnly ? (
+                            <input
+                              type="number"
+                              min="0"
+                              step="any"
+                              className="input-compact input-num"
+                              value={line.quantity}
+                              onChange={(e) => updateLine(index, { quantity: parseFloat(e.target.value) || 0 })}
+                            />
+                          ) : line.line_type === 'stock' ? formatQty(line.quantity) : '—'}
+                        </td>
+                        <td className="col-num">
+                          {!isReadOnly ? (
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              className="input-compact input-num"
+                              value={formatPriceInput(line.line_type === 'stock' ? line.unit_cost : line.amount)}
+                              onChange={(e) => {
+                                const val = parsePriceInput(e.target.value) ?? 0;
+                                updateLine(index, line.line_type === 'stock' ? { unit_cost: val } : { amount: val });
+                              }}
+                            />
+                          ) : formatMoney(line.line_type === 'stock' ? line.unit_cost : line.amount)}
+                        </td>
+                        <td className="col-num">{formatMoney(lineTotal)}</td>
+                        {!isReadOnly && (
+                          <td>
+                            <button type="button" className="btn btn-sm btn-danger" onClick={() => removeLine(index)}>×</button>
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
+                  {form.lines.length === 0 && (
+                    <tr><td colSpan={isReadOnly ? 5 : 6} className="empty">Добавьте строки</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            {canEdit && (
+              <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {(!form.status || form.status === 'draft') && (
+                  <>
+                    <button type="button" className="btn btn-primary" disabled={saving} onClick={() => save(false)}>
+                      {saving ? '…' : 'Сохранить черновик'}
+                    </button>
+                    <button type="button" className="btn btn-prihod" disabled={saving} onClick={confirmDoc}>
+                      Провести
+                    </button>
+                  </>
+                )}
+                {form.status === 'confirmed' && (
+                  <button type="button" className="btn btn-danger" disabled={saving} onClick={cancelDoc}>
+                    Отменить проведение
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         </>
       )}
     </div>

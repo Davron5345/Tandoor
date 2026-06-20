@@ -268,7 +268,7 @@ export default function Counterparties() {
                   opening_balance: parsePriceInput(e.target.value) ?? 0,
                 })}
               />
-              <small className="text-muted" style={{ display: 'block', marginTop: 4 }}>Долг на момент начала учёта (+ клиент должен / мы должны поставщику)</small>
+              <small className="text-muted" style={{ display: 'block', marginTop: 4 }}>Удобнее задавать в документе «Начальное сальдо»</small>
             </div>
           </div>
 

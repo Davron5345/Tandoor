@@ -113,16 +113,13 @@ export const api = {
   },
   getBusinessBalance: () => request('/reports/business-balance'),
   getOpeningBalance: () => request('/opening-balance'),
-  getOpeningStock: (params = {}) => {
-    const q = new URLSearchParams(params).toString();
-    return request(`/opening-balance/stock${q ? `?${q}` : ''}`);
-  },
-  saveOpeningSettings: (data) => request('/opening-balance/settings', { method: 'PUT', body: JSON.stringify(data) }),
-  saveOpeningStock: (data) => request('/opening-balance/stock', { method: 'PUT', body: JSON.stringify(data) }),
-  saveOpeningCounterparties: (items) => request('/opening-balance/counterparties', {
-    method: 'PUT',
-    body: JSON.stringify({ items }),
-  }),
+  getOpeningBalanceDocuments: () => request('/opening-balance/documents'),
+  getOpeningBalanceDocument: (id) => request(`/opening-balance/documents/${id}`),
+  createOpeningBalanceDocument: (data) => request('/opening-balance/documents', { method: 'POST', body: JSON.stringify(data) }),
+  updateOpeningBalanceDocument: (id, data) => request(`/opening-balance/documents/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  confirmOpeningBalanceDocument: (id) => request(`/opening-balance/documents/${id}/confirm`, { method: 'POST' }),
+  cancelOpeningBalanceDocument: (id) => request(`/opening-balance/documents/${id}/cancel`, { method: 'POST' }),
+  deleteOpeningBalanceDocument: (id) => request(`/opening-balance/documents/${id}`, { method: 'DELETE' }),
   getProductCategories: () => request('/product-categories'),
   createProductCategory: (data) => request('/product-categories', { method: 'POST', body: JSON.stringify(data) }),
   updateProductCategory: (id, data) => request(`/product-categories/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
