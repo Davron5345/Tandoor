@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   api, formatDate, formatMoney, formatPriceInput, parsePriceInput, STATUS_LABELS,
 } from '../api';
@@ -12,12 +12,20 @@ import { hasPermission } from '../permissions';
 import { todayLocalIso } from '../utils/date';
 
 const LINE_LABELS = {
-  stock: 'Товар',
-  debtor: 'Клиент должен',
-  creditor: 'Долг поставщику',
+  stock: 'Склад',
+  debtor: 'Дебиторская задолженность',
+  creditor: 'Кредиторская задолженность',
   cash: 'Касса',
   bank: 'Банк',
 };
+
+const CREATE_DOC_OPTIONS = [
+  { type: 'stock', label: 'Склад', hint: 'товары и остатки' },
+  { type: 'cash', label: 'Касса', hint: 'наличные на дату' },
+  { type: 'bank', label: 'Банк', hint: 'расчётный счёт' },
+  { type: 'debtor', label: 'Дебиторская задолженность', hint: 'клиенты должны нам' },
+  { type: 'creditor', label: 'Кредиторская задолженность', hint: 'мы должны поставщикам' },
+];
 
 const SECTIONS = [
   {
@@ -84,8 +92,66 @@ function lineTotal(line) {
   return Number(line.amount) || 0;
 }
 
-function defaultNewDocLines() {
+function defaultNewDocLines(lineType) {
+  if (lineType) return [emptyLine(lineType)];
   return [emptyLine('cash'), emptyLine('bank')];
+}
+
+function CreateDocumentMenu({ onSelect, buttonClassName = 'btn btn-primary' }) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onPointer = (e) => {
+      if (!rootRef.current?.contains(e.target)) setOpen(false);
+    };
+    const onKey = (e) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', onPointer);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onPointer);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  const pick = (type) => {
+    setOpen(false);
+    onSelect(type);
+  };
+
+  return (
+    <div className="ob-create-menu" ref={rootRef}>
+      <button
+        type="button"
+        className={buttonClassName}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+      >
+        Создать документ
+        <span className="ob-create-menu-caret" aria-hidden>▾</span>
+      </button>
+      {open && (
+        <div className="ob-create-menu-list" role="menu">
+          {CREATE_DOC_OPTIONS.map((opt) => (
+            <button
+              key={opt.type}
+              type="button"
+              role="menuitem"
+              className="ob-create-menu-item"
+              onClick={() => pick(opt.type)}
+            >
+              <span className="ob-create-menu-item-label">{opt.label}</span>
+              <span className="ob-create-menu-item-hint">{opt.hint}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function OpeningBalance() {
@@ -133,12 +199,12 @@ export default function OpeningBalance() {
     }).catch(console.error);
   }, [branchId]);
 
-  const openCreate = () => {
+  const openCreate = (lineType = null) => {
     setEditId(null);
     setForm({
       ...emptyDoc,
       date: todayLocalIso(),
-      lines: defaultNewDocLines(),
+      lines: defaultNewDocLines(lineType),
     });
     setView('edit');
   };
@@ -413,7 +479,7 @@ export default function OpeningBalance() {
         <div className="btn-group">
           <BranchChip>{branchName}</BranchChip>
           {canEdit && view === 'list' && (
-            <button type="button" className="btn btn-primary" onClick={openCreate}>+ Новый документ</button>
+            <CreateDocumentMenu onSelect={openCreate} />
           )}
           {view === 'edit' && (
             <button type="button" className="btn btn-ghost" onClick={() => setView('list')}>← К списку</button>
@@ -430,11 +496,11 @@ export default function OpeningBalance() {
                 <span className="value">{formatMoney(summary.stock?.value || 0)}</span>
               </div>
               <div className="stat-card debt-kpi-debtors">
-                <span className="label">Нам должны</span>
+                <span className="label">Дебиторская задолженность</span>
                 <span className="value">{formatMoney(summary.debtors?.total || 0)}</span>
               </div>
               <div className="stat-card debt-kpi-creditors">
-                <span className="label">Мы должны</span>
+                <span className="label">Кредиторская задолженность</span>
                 <span className="value">{formatMoney(summary.creditors?.total || 0)}</span>
               </div>
               <div className="stat-card">
@@ -467,9 +533,7 @@ export default function OpeningBalance() {
                 долги контрагентов и товары на складе — после проведения сводка заполнится автоматически.
               </p>
               {canEdit && (
-                <button type="button" className="btn btn-primary" onClick={openCreate}>
-                  Создать документ
-                </button>
+                <CreateDocumentMenu onSelect={openCreate} />
               )}
             </div>
           ) : (
@@ -536,7 +600,7 @@ export default function OpeningBalance() {
           <div className="opening-balance-section">
             <div className="opening-balance-section-head">
               <div>
-                <h3>{editId ? `Документ №${form.number || '…'}` : 'Новый документ начального сальдо'}</h3>
+                <h3>{editId ? `Документ №${form.number || '…'}` : 'Создание документа начального сальдо'}</h3>
                 <p>Дата документа определяет, с какого дня считаются операции кассы</p>
               </div>
               {form.status && (
@@ -566,8 +630,8 @@ export default function OpeningBalance() {
             <div className="opening-balance-doc-totals">
               <span>Касса: <strong>{formatMoney(formTotals.cash)}</strong></span>
               <span>Банк: <strong>{formatMoney(formTotals.bank)}</strong></span>
-              <span>Дебиторы: <strong>{formatMoney(formTotals.debtor)}</strong></span>
-              <span>Кредиторы: <strong>{formatMoney(formTotals.creditor)}</strong></span>
+              <span>Дебиторская задолженность: <strong>{formatMoney(formTotals.debtor)}</strong></span>
+              <span>Кредиторская задолженность: <strong>{formatMoney(formTotals.creditor)}</strong></span>
               <span>Склад: <strong>{formatMoney(formTotals.stock)}</strong></span>
               <span>Итого: <strong>{formatMoney(docTotal)}</strong></span>
             </div>

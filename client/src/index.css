@@ -8803,6 +8803,72 @@ html.public-shop-lock #root {
   font-size: clamp(1.15rem, 2.2vw, 1.45rem);
 }
 
+.opening-balance-kpi .stat-card .label {
+  line-height: 1.25;
+}
+
+.ob-create-menu {
+  position: relative;
+  display: inline-flex;
+}
+
+.ob-create-menu > .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ob-create-menu-caret {
+  font-size: 11px;
+  opacity: 0.85;
+  line-height: 1;
+}
+
+.ob-create-menu-list {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 40;
+  min-width: 260px;
+  padding: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.ob-create-menu-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: var(--text);
+}
+
+.ob-create-menu-item:hover,
+.ob-create-menu-item:focus-visible {
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
+  outline: none;
+}
+
+.ob-create-menu-item-label {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.ob-create-menu-item-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
 .opening-balance-empty {
   padding: 48px 24px;
   text-align: center;

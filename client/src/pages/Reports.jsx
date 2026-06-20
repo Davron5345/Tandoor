@@ -603,7 +603,7 @@ function CounterpartyDebtReport({ kind }) {
     [rows],
   );
 
-  const balanceLabel = kind === 'debtors' ? 'Нам должны' : 'Мы должны';
+  const balanceLabel = kind === 'debtors' ? 'Дебиторская задолженность' : 'Кредиторская задолженность';
   const hasSearch = !!search.trim();
   const allCount = report?.rows?.length ?? 0;
 
