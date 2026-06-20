@@ -8869,6 +8869,42 @@ html.public-shop-lock #root {
   color: var(--text-muted);
 }
 
+.modal-ob-create .modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.ob-create-modal-hint {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.ob-create-modal-money .form-group {
+  max-width: 280px;
+}
+
+.ob-create-modal-table-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ob-create-modal-total {
+  padding-top: 4px;
+  font-size: 14px;
+  color: var(--text-muted);
+  text-align: right;
+}
+
+.ob-create-modal-total strong {
+  color: var(--text);
+  font-size: 16px;
+}
+
 .opening-balance-empty {
   padding: 48px 24px;
   text-align: center;

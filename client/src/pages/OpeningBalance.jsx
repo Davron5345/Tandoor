@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   api, formatDate, formatMoney, formatPriceInput, parsePriceInput, STATUS_LABELS,
 } from '../api';
-import { useToast } from '../components/Modal';
+import Modal, { useToast, ModalCancelButton } from '../components/Modal';
 import { useAuth } from '../AuthContext';
 import { useBranch } from '../BranchContext';
 import BranchChip from '../components/BranchChip';
@@ -20,12 +20,22 @@ const LINE_LABELS = {
 };
 
 const CREATE_DOC_OPTIONS = [
-  { type: 'stock', label: 'Склад', hint: 'товары и остатки' },
-  { type: 'cash', label: 'Касса', hint: 'наличные на дату' },
-  { type: 'bank', label: 'Банк', hint: 'расчётный счёт' },
-  { type: 'debtor', label: 'Дебиторская задолженность', hint: 'клиенты должны нам' },
-  { type: 'creditor', label: 'Кредиторская задолженность', hint: 'мы должны поставщикам' },
+  { type: 'stock', label: 'Склад', hint: 'Товары и остатки на складах на дату начала учёта' },
+  { type: 'cash', label: 'Касса', hint: 'Остаток наличных в кассе на дату документа' },
+  { type: 'bank', label: 'Банк', hint: 'Остаток на расчётном счёте на дату документа' },
+  { type: 'debtor', label: 'Дебиторская задолженность', hint: 'Суммы, которые клиенты должны на дату начала учёта' },
+  { type: 'creditor', label: 'Кредиторская задолженность', hint: 'Суммы, которые вы должны поставщикам на дату начала учёта' },
 ];
+
+const CREATE_MODAL_WIDE = new Set(['stock', 'debtor', 'creditor']);
+
+function createModalTitle(type) {
+  return CREATE_DOC_OPTIONS.find((o) => o.type === type)?.label || 'Документ';
+}
+
+function createModalHint(type) {
+  return CREATE_DOC_OPTIONS.find((o) => o.type === type)?.hint || '';
+}
 
 const SECTIONS = [
   {
@@ -97,6 +107,21 @@ function defaultNewDocLines(lineType) {
   return [emptyLine('cash'), emptyLine('bank')];
 }
 
+function isCreateFormDirty(form, lineType) {
+  if (form.comment?.trim()) return true;
+  return form.lines.some((line) => {
+    if (line.line_type !== lineType) return false;
+    if (line.comment?.trim()) return true;
+    if (line.line_type === 'stock') {
+      return line.product_id || line.department_id || Number(line.quantity) > 0 || Number(line.unit_cost) > 0;
+    }
+    if (line.line_type === 'debtor' || line.line_type === 'creditor') {
+      return line.counterparty_id || Number(line.amount) > 0;
+    }
+    return Number(line.amount) > 0;
+  });
+}
+
 function CreateDocumentMenu({ onSelect, buttonClassName = 'btn btn-primary' }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef(null);
@@ -165,6 +190,9 @@ export default function OpeningBalance() {
   const [departments, setDepartments] = useState([]);
   const [counterparties, setCounterparties] = useState([]);
   const [products, setProducts] = useState([]);
+  const [createModalType, setCreateModalType] = useState(null);
+  const [createForm, setCreateForm] = useState(emptyDoc);
+  const [createSaving, setCreateSaving] = useState(false);
   const { show, Toast } = useToast();
   const { user } = useAuth();
   const { branchId, branchName } = useBranch();
@@ -199,14 +227,70 @@ export default function OpeningBalance() {
     }).catch(console.error);
   }, [branchId]);
 
-  const openCreate = (lineType = null) => {
-    setEditId(null);
-    setForm({
+  const openCreate = (lineType) => {
+    setCreateForm({
       ...emptyDoc,
       date: todayLocalIso(),
       lines: defaultNewDocLines(lineType),
     });
-    setView('edit');
+    setCreateModalType(lineType);
+  };
+
+  const closeCreateModal = () => {
+    setCreateModalType(null);
+    setCreateForm(emptyDoc);
+  };
+
+  const updateCreateLine = (index, patch) => {
+    setCreateForm((f) => {
+      const lines = [...f.lines];
+      lines[index] = { ...lines[index], ...patch };
+      if (lines[index].line_type === 'stock') {
+        lines[index].amount = (Number(lines[index].quantity) || 0) * (Number(lines[index].unit_cost) || 0);
+      }
+      return { ...f, lines };
+    });
+  };
+
+  const addCreateLine = (lineType) => {
+    setCreateForm((f) => ({ ...f, lines: [...f.lines, emptyLine(lineType)] }));
+  };
+
+  const removeCreateLine = (index) => {
+    setCreateForm((f) => ({ ...f, lines: f.lines.filter((_, i) => i !== index) }));
+  };
+
+  const saveCreateModal = async (andConfirm = false) => {
+    if (!canEdit || !createModalType) return;
+    if (!createForm.date) {
+      show('Укажите дату документа', 'error');
+      return;
+    }
+    const lines = createForm.lines.filter((l) => l.line_type === createModalType);
+    if (lines.length === 0) {
+      show('Добавьте хотя бы одну строку', 'error');
+      return;
+    }
+    setCreateSaving(true);
+    try {
+      let doc = await api.createOpeningBalanceDocument({
+        date: createForm.date,
+        comment: createForm.comment,
+        lines,
+      });
+      if (andConfirm) {
+        doc = await api.confirmOpeningBalanceDocument(doc.id);
+        show('Документ проведён');
+      } else {
+        show('Черновик сохранён');
+      }
+      await load();
+      closeCreateModal();
+    } catch (e) {
+      show(e.message, 'error');
+    } finally {
+      setCreateSaving(false);
+    }
   };
 
   const openDoc = async (id) => {
@@ -385,7 +469,14 @@ export default function OpeningBalance() {
   const suppliers = counterparties.filter((c) => c.type === 'supplier');
   const hasConfirmedDoc = documents.some((d) => d.status === 'confirmed');
 
-  const renderLineRow = (line, index) => {
+  const renderLineRow = (line, index, ctx) => {
+    const {
+      isReadOnly: readOnly,
+      onUpdate,
+      onRemove,
+      clientList,
+      supplierList,
+    } = ctx;
     const total = lineTotal(line);
     return (
       <tr key={`line-${index}`}>
@@ -397,8 +488,8 @@ export default function OpeningBalance() {
             <div className="form-grid">
               <select
                 value={line.department_id}
-                disabled={isReadOnly}
-                onChange={(e) => updateLine(index, { department_id: e.target.value })}
+                disabled={readOnly}
+                onChange={(e) => onUpdate(index, { department_id: e.target.value })}
               >
                 <option value="">Склад…</option>
                 {departments.map((d) => (
@@ -408,11 +499,11 @@ export default function OpeningBalance() {
               <ProductSelect
                 products={products}
                 value={encodeProductPick(line.product_id, line.variant_id)}
-                disabled={isReadOnly}
+                disabled={readOnly}
                 onChange={(pickValue) => {
                   const pick = resolvePickFromProducts(products, pickValue);
                   if (pick) {
-                    updateLine(index, { product_id: pick.product_id, variant_id: pick.variant_id });
+                    onUpdate(index, { product_id: pick.product_id, variant_id: pick.variant_id });
                   }
                 }}
               />
@@ -421,11 +512,11 @@ export default function OpeningBalance() {
           {(line.line_type === 'debtor' || line.line_type === 'creditor') && (
             <select
               value={line.counterparty_id}
-              disabled={isReadOnly}
-              onChange={(e) => updateLine(index, { counterparty_id: e.target.value })}
+              disabled={readOnly}
+              onChange={(e) => onUpdate(index, { counterparty_id: e.target.value })}
             >
               <option value="">Выберите контрагента…</option>
-              {(line.line_type === 'debtor' ? clients : suppliers).map((c) => (
+              {(line.line_type === 'debtor' ? clientList : supplierList).map((c) => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
@@ -435,19 +526,19 @@ export default function OpeningBalance() {
           )}
         </td>
         <td className="col-num">
-          {line.line_type === 'stock' && !isReadOnly ? (
+          {line.line_type === 'stock' && !readOnly ? (
             <input
               type="number"
               min="0"
               step="any"
               className="input-compact input-num"
               value={line.quantity}
-              onChange={(e) => updateLine(index, { quantity: parseFloat(e.target.value) || 0 })}
+              onChange={(e) => onUpdate(index, { quantity: parseFloat(e.target.value) || 0 })}
             />
           ) : line.line_type === 'stock' ? formatQty(line.quantity) : '—'}
         </td>
         <td className="col-num">
-          {!isReadOnly ? (
+          {!readOnly ? (
             <input
               type="text"
               inputMode="numeric"
@@ -455,18 +546,141 @@ export default function OpeningBalance() {
               value={formatPriceInput(line.line_type === 'stock' ? line.unit_cost : line.amount)}
               onChange={(e) => {
                 const val = parsePriceInput(e.target.value) ?? 0;
-                updateLine(index, line.line_type === 'stock' ? { unit_cost: val } : { amount: val });
+                onUpdate(index, line.line_type === 'stock' ? { unit_cost: val } : { amount: val });
               }}
             />
           ) : formatMoney(line.line_type === 'stock' ? line.unit_cost : line.amount)}
         </td>
         <td className="col-num"><strong>{formatMoney(total)}</strong></td>
-        {!isReadOnly && (
+        {!readOnly && (
           <td>
-            <button type="button" className="btn btn-sm btn-danger" onClick={() => removeLine(index)} aria-label="Удалить">×</button>
+            <button type="button" className="btn btn-sm btn-danger" onClick={() => onRemove(index)} aria-label="Удалить">×</button>
           </td>
         )}
       </tr>
+    );
+  };
+
+  const editLineCtx = {
+    isReadOnly,
+    onUpdate: updateLine,
+    onRemove: removeLine,
+    clientList: clients,
+    supplierList: suppliers,
+  };
+
+  const createLineCtx = {
+    isReadOnly: false,
+    onUpdate: updateCreateLine,
+    onRemove: removeCreateLine,
+    clientList: clients,
+    supplierList: suppliers,
+  };
+
+  const createModalLines = useMemo(
+    () => createForm.lines
+      .map((line, index) => ({ line, index }))
+      .filter(({ line }) => line.line_type === createModalType),
+    [createForm.lines, createModalType],
+  );
+
+  const createModalTotal = useMemo(
+    () => createModalLines.reduce((s, { line }) => s + lineTotal(line), 0),
+    [createModalLines],
+  );
+
+  const createModalDirty = createModalType
+    ? isCreateFormDirty(createForm, createModalType)
+    : false;
+
+  const renderCreateModalBody = () => {
+    if (!createModalType) return null;
+    const isMoney = createModalType === 'cash' || createModalType === 'bank';
+    const moneyLineIndex = createForm.lines.findIndex((l) => l.line_type === createModalType);
+
+    return (
+      <div className="ob-create-modal">
+        <p className="ob-create-modal-hint">{createModalHint(createModalType)}</p>
+        <div className="opening-balance-doc-meta">
+          <div className="form-group">
+            <label>Дата начала учёта *</label>
+            <input
+              type="date"
+              value={createForm.date}
+              onChange={(e) => setCreateForm({ ...createForm, date: e.target.value })}
+            />
+          </div>
+          <div className="form-group">
+            <label>Комментарий</label>
+            <input
+              value={createForm.comment}
+              onChange={(e) => setCreateForm({ ...createForm, comment: e.target.value })}
+              placeholder="Необязательно"
+            />
+          </div>
+        </div>
+
+        {isMoney ? (
+          <div className="ob-create-modal-money">
+            <div className="form-group">
+              <label>Сумма *</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                className="input-num"
+                value={formatPriceInput(createForm.lines[moneyLineIndex]?.amount || 0)}
+                onChange={(e) => {
+                  const val = parsePriceInput(e.target.value) ?? 0;
+                  updateCreateLine(moneyLineIndex, { amount: val });
+                }}
+                placeholder="0"
+              />
+            </div>
+            <div className="ob-create-modal-total">
+              Итого: <strong>{formatMoney(createModalTotal)}</strong>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="ob-create-modal-table-head">
+              <strong>{createModalTitle(createModalType)}</strong>
+              <button
+                type="button"
+                className="btn btn-sm btn-ghost"
+                onClick={() => addCreateLine(createModalType)}
+              >
+                {createModalType === 'stock' ? '+ Товар' : '+ Контрагент'}
+              </button>
+            </div>
+            {createModalLines.length === 0 ? (
+              <div className="empty" style={{ padding: 20 }}>
+                Нет строк — нажмите «{createModalType === 'stock' ? '+ Товар' : '+ Контрагент'}»
+              </div>
+            ) : (
+              <div className="table-wrap">
+                <table className="opening-balance-line-table">
+                  <thead>
+                    <tr>
+                      <th>Тип</th>
+                      <th>Детали</th>
+                      <th className="col-num">Кол-во</th>
+                      <th className="col-num">Сумма / цена</th>
+                      <th className="col-num">Итого</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {createModalLines.map(({ line, index }) => renderLineRow(line, index, createLineCtx))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <div className="ob-create-modal-total">
+              Итого: <strong>{formatMoney(createModalTotal)}</strong>
+            </div>
+          </>
+        )}
+      </div>
     );
   };
 
@@ -670,7 +884,7 @@ export default function OpeningBalance() {
                         </tr>
                       </thead>
                       <tbody>
-                        {indices.map(({ line, index }) => renderLineRow(line, index))}
+                        {indices.map(({ line, index }) => renderLineRow(line, index, editLineCtx))}
                       </tbody>
                     </table>
                   </div>
@@ -699,6 +913,39 @@ export default function OpeningBalance() {
             </div>
           )}
         </div>
+      )}
+
+      {createModalType && (
+        <Modal
+          title={createModalTitle(createModalType)}
+          wide={CREATE_MODAL_WIDE.has(createModalType)}
+          className="modal-ob-create"
+          dirty={createModalDirty}
+          onClose={closeCreateModal}
+          footer={(
+            <>
+              <ModalCancelButton />
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={createSaving}
+                onClick={() => saveCreateModal(false)}
+              >
+                {createSaving ? 'Сохранение…' : 'Сохранить черновик'}
+              </button>
+              <button
+                type="button"
+                className="btn btn-prihod"
+                disabled={createSaving}
+                onClick={() => saveCreateModal(true)}
+              >
+                Провести
+              </button>
+            </>
+          )}
+        >
+          {renderCreateModalBody()}
+        </Modal>
       )}
     </div>
   );
