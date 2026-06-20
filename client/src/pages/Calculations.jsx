@@ -17,6 +17,7 @@ const emptyLine = { product_id: '', variant_id: null, quantity: 0, price: 0 };
 const emptySourceLine = { product_id: '', variant_id: null, quantity: 1 };
 const emptyForm = {
   name: '',
+  kind: 'razdelka',
   source_product_id: '',
   base_quantity: 1,
   active: true,
@@ -68,6 +69,8 @@ export default function Calculations() {
     [products],
   );
 
+  const isRecipe = form.kind === 'recipe';
+
   const openCreate = () => {
     setForm({ ...emptyForm, sources: [{ ...emptySourceLine }], items: [{ ...emptyLine }] });
     setModal('create');
@@ -78,6 +81,7 @@ export default function Calculations() {
     setForm({
       id: calc.id,
       name: calc.name,
+      kind: calc.kind === 'recipe' ? 'recipe' : 'razdelka',
       source_product_id: calc.source_product_id,
       base_quantity: calc.base_quantity || 1,
       active: !!calc.active,
@@ -193,6 +197,7 @@ export default function Calculations() {
 
       const payload = {
         name: form.name.trim(),
+        kind: form.kind === 'recipe' ? 'recipe' : 'razdelka',
         source_product_id: sources[0].product_id,
         source_variant_id: sources[0].variant_id || null,
         base_quantity: sources[0].quantity || 1,
@@ -262,8 +267,9 @@ export default function Calculations() {
       </div>
 
       <p className="page-hint">
-        Шаблон разделки: укажите сырьё и список выходных товаров.
-        Количество в выходе необязательно — фактические кг вводятся в разделке. Отметьте «Отход» для позиций без стоимости.
+        Шаблон разделки или рецепт блюда: укажите ингредиенты/сырьё и выход.
+        Для рецепта блюда в выходе укажите готовое блюдо — при продаже ингредиенты спишутся автоматически.
+        Количество в выходе разделки необязательно — фактические кг вводятся в разделке. Отметьте «Отход» для позиций без стоимости.
       </p>
 
       <div className="card">
@@ -271,6 +277,7 @@ export default function Calculations() {
           <table>
             <thead>
               <tr>
+                <th>Тип</th>
                 <th>Название</th>
                 <th>Сырьё</th>
                 <th>База</th>
@@ -282,6 +289,7 @@ export default function Calculations() {
             <tbody>
               {list.map((c) => (
                 <tr key={c.id}>
+                  <td>{c.kind === 'recipe' ? 'Рецепт' : 'Разделка'}</td>
                   <td><strong>{c.name}</strong></td>
                   <td>{c.source_product_name}</td>
                   <td>{c.base_quantity} {c.source_unit || 'шт'}</td>
@@ -294,7 +302,7 @@ export default function Calculations() {
                   <td>
                     <div className="btn-group">
                       <button type="button" className="btn btn-sm btn-ghost" onClick={() => openEdit(c.id)}>Открыть</button>
-                      {hasPermission(user, 'documents.razdelka') && c.active && (
+                      {hasPermission(user, 'documents.razdelka') && c.active && c.kind !== 'recipe' && (
                         <button
                           type="button"
                           className="btn btn-sm btn-primary"
@@ -311,7 +319,7 @@ export default function Calculations() {
                 </tr>
               ))}
               {list.length === 0 && (
-                <tr><td colSpan={6} className="empty">Калькуляции не созданы</td></tr>
+                <tr><td colSpan={7} className="empty">Калькуляции не созданы</td></tr>
               )}
             </tbody>
           </table>
@@ -353,6 +361,17 @@ export default function Calculations() {
                 />
               </div>
               <div className="form-group calc-field-status">
+                <label>Тип</label>
+                <select
+                  value={form.kind}
+                  disabled={!canEdit || modal === 'edit'}
+                  onChange={(e) => setForm({ ...form, kind: e.target.value })}
+                >
+                  <option value="razdelka">Разделка</option>
+                  <option value="recipe">Рецепт блюда</option>
+                </select>
+              </div>
+              <div className="form-group calc-field-status">
                 <label>Статус</label>
                 <select
                   value={form.active ? '1' : '0'}
@@ -378,7 +397,7 @@ export default function Calculations() {
             <div className="calc-modal-panels">
               <section className="calc-panel calc-panel-in">
                 <div className="doc-modal-items-header">
-                  <h3>Вход — сырьё</h3>
+                  <h3>{isRecipe ? 'Ингредиенты' : 'Вход — сырьё'}</h3>
                   {canEdit && <AddRowButton onClick={addSource} />}
                 </div>
                 <div className="table-wrap items-table doc-items-table calc-source-table doc-modal-items-scroll">
@@ -433,7 +452,7 @@ export default function Calculations() {
 
               <section className="calc-panel calc-panel-out">
                 <div className="doc-modal-items-header">
-                  <h3>Выход — продукция</h3>
+                  <h3>{isRecipe ? 'Блюдо (выход)' : 'Выход — продукция'}</h3>
                   {canEdit && <AddRowButton onClick={addItem} />}
                 </div>
                 <div className="table-wrap items-table doc-items-table calc-items-table doc-modal-items-scroll">
@@ -441,9 +460,11 @@ export default function Calculations() {
                     <thead>
                       <tr>
                         <th>Товар</th>
-                        <th className="col-num" title="Необязательно — кг вводятся при разделке">Доля, кг</th>
-                        <th className="col-num" title="0 или пусто — авто из сырья">Цена</th>
-                        <th className="col-waste">Отход</th>
+                        <th className="col-num" title={isRecipe ? 'Порций на партию рецепта' : 'Необязательно — кг вводятся при разделке'}>
+                          {isRecipe ? 'Порций' : 'Доля, кг'}
+                        </th>
+                        {!isRecipe && <th className="col-num" title="0 или пусто — авто из сырья">Цена</th>}
+                        {!isRecipe && <th className="col-waste">Отход</th>}
                         <th className="doc-items-actions-col"></th>
                       </tr>
                     </thead>
@@ -471,26 +492,30 @@ export default function Calculations() {
                               onChange={(e) => updateItem(idx, 'quantity', +e.target.value)}
                             />
                           </td>
-                          <td className="col-num">
-                            <input
-                              type="text"
-                              inputMode="decimal"
-                              value={item.price ? formatPriceInput(item.price) : ''}
-                              placeholder="Авто"
-                              disabled={!canEdit || item.is_waste}
-                              onChange={(e) => updateItem(idx, 'price', parsePriceInput(e.target.value) || 0)}
-                            />
-                          </td>
-                          <td className="col-waste">
-                            <label className="calc-waste-toggle" title="Без стоимости (отход)">
+                          {!isRecipe && (
+                            <td className="col-num">
                               <input
-                                type="checkbox"
-                                checked={!!item.is_waste}
-                                disabled={!canEdit}
-                                onChange={(e) => updateItem(idx, 'is_waste', e.target.checked)}
+                                type="text"
+                                inputMode="decimal"
+                                value={item.price ? formatPriceInput(item.price) : ''}
+                                placeholder="Авто"
+                                disabled={!canEdit || item.is_waste}
+                                onChange={(e) => updateItem(idx, 'price', parsePriceInput(e.target.value) || 0)}
                               />
-                            </label>
-                          </td>
+                            </td>
+                          )}
+                          {!isRecipe && (
+                            <td className="col-waste">
+                              <label className="calc-waste-toggle" title="Без стоимости (отход)">
+                                <input
+                                  type="checkbox"
+                                  checked={!!item.is_waste}
+                                  disabled={!canEdit}
+                                  onChange={(e) => updateItem(idx, 'is_waste', e.target.checked)}
+                                />
+                              </label>
+                            </td>
+                          )}
                           <td className="doc-items-actions-col">
                             {canEdit && form.items.length > 1 && (
                               <button

@@ -15,6 +15,7 @@ import Branches from './pages/Branches';
 import Departments from './pages/Departments';
 import AuditLog from './pages/AuditLog';
 import Razdelka from './pages/Razdelka';
+import DishSales from './pages/DishSales';
 import Calculations from './pages/Calculations';
 import Reports from './pages/Reports';
 import OpeningBalance from './pages/OpeningBalance';
@@ -223,6 +224,7 @@ function AppContent() {
       { to: '/prihod', perm: 'documents.prihod' },
       { to: '/transfer', perm: 'documents.transfer' },
       { to: '/razdelka', perm: 'documents.razdelka' },
+      { to: '/dish-sales', perm: 'documents.dish_sale' },
       { to: '/calculations', perm: 'calculations.view' },
     ].filter((item) => hasPermission(user, item.perm));
 
@@ -306,6 +308,7 @@ function AppContent() {
     { to: '/return-customer', label: 'Возврат от клиента', perm: 'documents.rashod' },
     { to: '/transfer', label: 'Перемещение', perm: 'documents.transfer' },
     { to: '/razdelka', label: 'Разделка', perm: 'documents.razdelka' },
+    { to: '/dish-sales', label: 'Продажа блюд', perm: 'documents.dish_sale' },
     { to: '/calculations', label: 'Калькуляции', perm: 'calculations.view' },
   ].filter((item) => hasPermission(user, item.perm));
 
@@ -722,6 +725,7 @@ function AppContent() {
           <Route path="/return-supplier" element={hasPermission(user, 'documents.rashod') ? <Documents key="return-supplier" defaultType="return_supplier" /> : <Navigate to="/" />} />
           <Route path="/return-customer" element={hasPermission(user, 'documents.rashod') ? <Documents key="return-customer" defaultType="return_customer" /> : <Navigate to="/" />} />
           <Route path="/transfer" element={hasPermission(user, 'documents.transfer') ? <Documents key="transfer" defaultType="peremeshchenie" /> : <Navigate to="/" />} />
+          <Route path="/dish-sales" element={hasPermission(user, 'documents.dish_sale') ? <DishSales /> : <Navigate to="/" />} />
           <Route path="/razdelka" element={hasPermission(user, 'documents.razdelka') ? <Razdelka /> : <Navigate to="/" />} />
           <Route path="/calculations" element={hasPermission(user, 'calculations.view') ? <Calculations /> : <Navigate to="/" />} />
           <Route path="/reports/*" element={hasPermission(user, 'reports.view') ? <Reports /> : <Navigate to="/" />} />

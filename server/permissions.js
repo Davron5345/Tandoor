@@ -65,6 +65,7 @@ export const PERMISSION_GROUPS = [
   { id: 'rashod', label: 'Расход', category: 'documents', icon: '📤', hint: 'Складской расход товаров и возврат поставщику', actions: { view: 'documents.rashod', write: 'documents.edit', confirm: 'documents.confirm', delete: 'documents.delete' } },
   { id: 'transfer', label: 'Перемещение', category: 'documents', icon: '🔄', hint: 'Перемещение между филиалами', actions: { view: 'documents.transfer', write: 'documents.edit', confirm: 'documents.confirm', delete: 'documents.delete' } },
   { id: 'razdelka', label: 'Разделка', category: 'documents', icon: '🔪', hint: 'Документы разделки', actions: { view: 'documents.razdelka', write: 'documents.edit', confirm: 'documents.confirm', delete: 'documents.delete' } },
+  { id: 'dish_sale', label: 'Продажа блюд', category: 'documents', icon: '🍽️', hint: 'Продажа готовых блюд по рецепту: выручка в P&L, списание ингредиентов', actions: { view: 'documents.dish_sale', write: 'documents.edit', confirm: 'documents.confirm', delete: 'documents.delete' } },
   { id: 'documents', label: 'Все документы', category: 'documents', icon: '📋', hint: 'Общий список документов (просмотр)', actions: { view: 'documents.view' } },
   {
     id: 'cashier',
@@ -146,13 +147,14 @@ const DEFAULT_ROLE_PERMISSIONS = {
     'dashboard.view', 'products.view', 'products.edit', 'myshop.view', 'myshop.edit',
     'shop_orders.view', 'shop_orders.edit',
     'calculations.view', 'calculations.edit', 'counterparties.view',
-    'documents.prihod', 'documents.rashod', 'documents.transfer', 'documents.razdelka',
+    'documents.prihod', 'documents.rashod', 'documents.transfer', 'documents.razdelka', 'documents.dish_sale',
     'documents.view', 'documents.edit', 'documents.confirm', 'documents.delete',
     'reports.view',
   ],
   cashier: CASHIER_MINIMUM_PERMS,
   accountant: [
     'dashboard.view', 'counterparties.view', 'documents.view',
+    'documents.dish_sale', 'documents.edit', 'documents.confirm',
     'cashier.view', 'cashier.edit', 'cashier.delete', 'cashier.edit_past',
     'payments.view', 'payments.edit', 'payments.delete', 'payments.edit_past',
     'cash_articles.view', 'cash_articles.edit',
@@ -343,6 +345,7 @@ export function initPermissions(db) {
   initRoles(db);
   seedRolePermissions(db);
   migrateRazdelkaPermissions(db);
+  migrateDishSalePermissions(db);
   migrateCalculationsPermissions(db);
   migrateReportsPermissions(db);
   migratePaymentsAccess(db);
@@ -654,6 +657,23 @@ function migrateReportsPermissions(db) {
   db.run("INSERT OR REPLACE INTO settings (key, value) VALUES ('reports_perm_v1', '1')");
 }
 
+function migrateDishSalePermissions(db) {
+  const done = db.queryOne("SELECT value FROM settings WHERE key = 'dish_sale_perm_v1'");
+  if (done) return;
+
+  for (const role of ['warehouse', 'accountant', 'admin']) {
+    const exists = db.queryOne(
+      'SELECT 1 as ok FROM role_permissions WHERE role = ? AND permission = ? LIMIT 1',
+      [role, 'documents.dish_sale'],
+    );
+    if (!exists) {
+      db.run("INSERT INTO role_permissions (role, permission) VALUES (?, 'documents.dish_sale')", [role]);
+    }
+  }
+
+  db.run("INSERT OR REPLACE INTO settings (key, value) VALUES ('dish_sale_perm_v1', '1')");
+}
+
 function migrateRazdelkaPermissions(db) {
   const done = db.queryOne("SELECT value FROM settings WHERE key = 'razdelka_perm_v1'");
   if (done) return;
@@ -769,6 +789,7 @@ export function canAccessDocumentType(role, type) {
   }
   if (type === 'peremeshchenie') return hasPermission(role, 'documents.transfer');
   if (type === 'razdelka') return hasPermission(role, 'documents.razdelka');
+  if (type === 'dish_sale') return hasPermission(role, 'documents.dish_sale');
   return hasPermission(role, 'documents.view');
 }
 

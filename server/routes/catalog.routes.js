@@ -166,7 +166,7 @@ export function registerCatalogRoutes(app, { productImageUpload }) {
 
   app.get('/api/calculations', requirePermission('calculations.view'), attachBranch, (req, res) => {
     const activeOnly = req.query.active === '1';
-    res.json(calculations.getCalculations(req.branchId, activeOnly));
+    res.json(calculations.getCalculations(req.branchId, activeOnly, req.query.kind || null));
   });
 
   app.get('/api/calculations/:id', requirePermission('calculations.view'), attachBranch, (req, res) => {

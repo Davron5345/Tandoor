@@ -36,5 +36,6 @@ export const DOC_TYPE_LABELS = {
   return_customer: 'Возврат от клиента',
   peremeshchenie: 'Перемещение',
   razdelka: 'Разделка',
+  dish_sale: 'Продажа блюд',
   opening_balance: 'Начальное сальдо',
 };

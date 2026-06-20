@@ -2,6 +2,9 @@ import { v4 as uuidv4 } from 'uuid';
 import db from './db.js';
 import { DEFAULT_BRANCH_ID } from './branches.js';
 
+export const CALC_KIND_RAZDELKA = 'razdelka';
+export const CALC_KIND_RECIPE = 'recipe';
+
 const { queryAll, queryOne, run, transaction } = db;
 
 export function calcLineKey(productId, variantId = null) {
@@ -50,6 +53,7 @@ function enrichCalculation(row) {
   return {
     ...row,
     active: !!row.active,
+    kind: row.kind === CALC_KIND_RECIPE ? CALC_KIND_RECIPE : CALC_KIND_RAZDELKA,
     sources,
     items,
     output_count: items.length,
@@ -61,7 +65,7 @@ function enrichCalculation(row) {
   };
 }
 
-export function getCalculations(branchId = DEFAULT_BRANCH_ID, activeOnly = false) {
+export function getCalculations(branchId = DEFAULT_BRANCH_ID, activeOnly = false, kind = null) {
   let sql = `
     SELECT c.*,
            cs.product_id as source_product_id,
@@ -82,6 +86,10 @@ export function getCalculations(branchId = DEFAULT_BRANCH_ID, activeOnly = false
   if (activeOnly) {
     sql += ' AND c.active = 1';
   }
+  if (kind === CALC_KIND_RECIPE || kind === CALC_KIND_RAZDELKA) {
+    sql += ' AND c.kind = ?';
+    params.push(kind);
+  }
   sql += ' ORDER BY c.name';
   return queryAll(sql, params).map((row) => {
     const count = queryOne(
@@ -95,6 +103,7 @@ export function getCalculations(branchId = DEFAULT_BRANCH_ID, activeOnly = false
     return {
       ...row,
       active: !!row.active,
+      kind: row.kind === CALC_KIND_RECIPE ? CALC_KIND_RECIPE : CALC_KIND_RAZDELKA,
       source_product_name: row.source_variant_name
         ? `${row.source_product_name} — ${row.source_variant_name}`
         : row.source_product_name,
@@ -122,7 +131,7 @@ export function getCalculation(id, branchId = null) {
   return enrichCalculation(row);
 }
 
-function normalizeSources(data) {
+function normalizeSources(data, kind = CALC_KIND_RAZDELKA) {
   let sources = (data.sources || []).filter((s) => s.product_id);
   if (sources.length === 0 && data.source_product_id) {
     sources = [{
@@ -131,7 +140,9 @@ function normalizeSources(data) {
       quantity: Number(data.base_quantity) || 1,
     }];
   }
-  if (sources.length === 0) throw new Error('Добавьте сырьё (вход)');
+  if (sources.length === 0) {
+    throw new Error(kind === CALC_KIND_RECIPE ? 'Добавьте ингредиенты' : 'Добавьте сырьё (вход)');
+  }
   return sources.map((s, idx) => ({
     product_id: s.product_id,
     variant_id: s.variant_id || null,
@@ -140,9 +151,11 @@ function normalizeSources(data) {
   })).filter((s) => s.quantity > 0);
 }
 
-function normalizeItems(items) {
+function normalizeItems(items, kind = CALC_KIND_RAZDELKA) {
   const valid = (items || []).filter((i) => i.product_id);
-  if (valid.length === 0) throw new Error('Добавьте хотя бы одну выходную позицию');
+  if (valid.length === 0) {
+    throw new Error(kind === CALC_KIND_RECIPE ? 'Добавьте блюдо (выход)' : 'Добавьте хотя бы одну выходную позицию');
+  }
   return valid;
 }
 
@@ -303,24 +316,28 @@ export function applyCalculation(calculationId, inputQuantity, inputPrice, branc
 export function createCalculation(data, branchId = DEFAULT_BRANCH_ID) {
   const name = (data.name || '').trim();
   if (!name) throw new Error('Укажите название калькуляции');
+  const kind = data.kind === CALC_KIND_RECIPE ? CALC_KIND_RECIPE : CALC_KIND_RAZDELKA;
 
-  const sources = normalizeSources(data);
+  const sources = normalizeSources(data, kind);
   const primarySource = sources[0];
   sources.forEach(assertCalcLine);
 
-  const items = normalizeItems(data.items).map((item, idx) => ({
+  const items = normalizeItems(data.items, kind).map((item, idx) => ({
     ...item,
     variant_id: item.variant_id || null,
     sort_order: item.sort_order ?? idx,
     is_waste: !!item.is_waste,
   }));
   items.forEach(assertCalcLine);
+  if (kind === CALC_KIND_RECIPE && !items.some((item) => !item.is_waste)) {
+    throw new Error('Добавьте блюдо (выход рецепта) без отметки «Отход»');
+  }
 
   const id = uuidv4();
   transaction(() => {
     run(`
-      INSERT INTO calculations (id, branch_id, name, source_product_id, base_quantity, active, comment)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO calculations (id, branch_id, name, source_product_id, base_quantity, active, comment, kind)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       id,
       branchId,
@@ -329,6 +346,7 @@ export function createCalculation(data, branchId = DEFAULT_BRANCH_ID) {
       primarySource.quantity,
       data.active !== false ? 1 : 0,
       data.comment || '',
+      kind,
     ]);
 
     saveCalculationSources(id, sources);
@@ -344,15 +362,18 @@ export function updateCalculation(id, data, branchId = DEFAULT_BRANCH_ID) {
 
   const name = (data.name || existing.name).trim();
   if (!name) throw new Error('Укажите название калькуляции');
+  const kind = data.kind === CALC_KIND_RECIPE
+    ? CALC_KIND_RECIPE
+    : (data.kind === CALC_KIND_RAZDELKA ? CALC_KIND_RAZDELKA : (existing.kind || CALC_KIND_RAZDELKA));
 
   const sources = normalizeSources({
     sources: data.sources,
     source_product_id: data.source_product_id || existing.source_product_id,
     base_quantity: data.base_quantity ?? existing.base_quantity,
-  });
+  }, kind);
   const primarySource = sources[0];
 
-  const items = normalizeItems(data.items).map((item, idx) => ({
+  const items = normalizeItems(data.items, kind).map((item, idx) => ({
     ...item,
     variant_id: item.variant_id || null,
     sort_order: item.sort_order ?? idx,
@@ -360,11 +381,14 @@ export function updateCalculation(id, data, branchId = DEFAULT_BRANCH_ID) {
   }));
   sources.forEach(assertCalcLine);
   items.forEach(assertCalcLine);
+  if (kind === CALC_KIND_RECIPE && !items.some((item) => !item.is_waste)) {
+    throw new Error('Добавьте блюдо (выход рецепта) без отметки «Отход»');
+  }
 
   transaction(() => {
     run(`
       UPDATE calculations
-      SET name=?, source_product_id=?, base_quantity=?, active=?, comment=?, updated_at=datetime('now')
+      SET name=?, source_product_id=?, base_quantity=?, active=?, comment=?, kind=?, updated_at=datetime('now')
       WHERE id=? AND branch_id=?
     `, [
       name,
@@ -372,6 +396,7 @@ export function updateCalculation(id, data, branchId = DEFAULT_BRANCH_ID) {
       primarySource.quantity,
       data.active !== undefined ? (data.active ? 1 : 0) : existing.active,
       data.comment ?? existing.comment ?? '',
+      kind,
       id,
       branchId,
     ]);

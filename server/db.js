@@ -350,6 +350,20 @@ function migrateSchema() {
   migrateOpeningBalanceDocuments();
   migrateDocumentItemCost();
   migrateShopOrderDocument();
+  migrateCalculationKind();
+}
+
+function migrateCalculationKind() {
+  const cols = queryAll('PRAGMA table_info(calculations)').map((c) => c.name);
+  if (!cols.includes('kind')) {
+    run("ALTER TABLE calculations ADD COLUMN kind TEXT NOT NULL DEFAULT 'razdelka'");
+    run("UPDATE calculations SET kind = 'razdelka' WHERE kind IS NULL OR kind = ''");
+  }
+  const done = queryOne("SELECT value FROM settings WHERE key = 'calculations_kind_v1'");
+  if (!done) {
+    run("INSERT OR REPLACE INTO settings (key, value) VALUES ('calculations_kind_v1', '1')");
+    saveDb();
+  }
 }
 
 function migrateShopOrderDocument() {

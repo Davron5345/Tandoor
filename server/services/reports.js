@@ -354,6 +354,15 @@ export function getPnLReport(branchId = DEFAULT_BRANCH_ID, dateFrom = null, date
     ${docDateFilter}
   `, docParams);
 
+  const dishParams = [branchId];
+  const dishDateFilter = buildDateFilter('d.date', dateFrom, dateTo, dishParams);
+  const dishSalesRow = queryOne(`
+    SELECT COALESCE(SUM(d.total_amount), 0) as total, COUNT(*) as doc_count
+    FROM documents d
+    WHERE d.type = 'dish_sale' AND d.status = 'confirmed' AND d.branch_id = ?
+    ${dishDateFilter}
+  `, dishParams);
+
   const returnParams = [branchId];
   const returnDateFilter = buildDateFilter('d.date', dateFrom, dateTo, returnParams);
   const returnsRow = queryOne(`
@@ -385,15 +394,32 @@ export function getPnLReport(branchId = DEFAULT_BRANCH_ID, dateFrom = null, date
     ${cogsReturnDateFilter}
   `, cogsReturnParams);
 
+  const cogsDishParams = [branchId];
+  const cogsDishDateFilter = buildDateFilter('d.date', dateFrom, dateTo, cogsDishParams);
+  const cogsDishRow = queryOne(`
+    SELECT COALESCE(SUM(di.cost_amount), 0) as total
+    FROM document_items di
+    JOIN documents d ON d.id = di.document_id
+    WHERE d.type = 'dish_sale' AND d.status = 'confirmed' AND d.branch_id = ?
+      AND di.item_role = 'sale'
+    ${cogsDishDateFilter}
+  `, cogsDishParams);
+
   const categoryParams = [branchId];
   const categoryDateFilter = buildDateFilter('d.date', dateFrom, dateTo, categoryParams);
   const categoryRows = queryAll(`
     SELECT
       COALESCE(pc.id, '') as category_id,
       COALESCE(pc.name, 'Без категории') as category_name,
-      COALESCE(SUM(CASE WHEN d.type = 'rashod' THEN di.amount ELSE 0 END), 0)
+      COALESCE(SUM(CASE
+        WHEN d.type = 'rashod' THEN di.amount
+        WHEN d.type = 'dish_sale' AND di.item_role = 'sale' THEN di.amount
+        ELSE 0 END), 0)
         - COALESCE(SUM(CASE WHEN d.type = 'return_customer' THEN di.amount ELSE 0 END), 0) as revenue,
-      COALESCE(SUM(CASE WHEN d.type = 'rashod' THEN di.cost_amount ELSE 0 END), 0)
+      COALESCE(SUM(CASE
+        WHEN d.type = 'rashod' THEN di.cost_amount
+        WHEN d.type = 'dish_sale' AND di.item_role = 'sale' THEN di.cost_amount
+        ELSE 0 END), 0)
         - COALESCE(SUM(CASE WHEN d.type = 'return_customer' THEN di.cost_amount ELSE 0 END), 0) as cogs
     FROM document_items di
     JOIN documents d ON d.id = di.document_id
@@ -401,8 +427,11 @@ export function getPnLReport(branchId = DEFAULT_BRANCH_ID, dateFrom = null, date
     LEFT JOIN product_categories pc ON pc.id = p.category_id
     WHERE d.status = 'confirmed'
       AND d.branch_id = ?
-      AND d.type IN ('rashod', 'return_customer')
-      AND NOT (d.type = 'rashod' AND EXISTS (SELECT 1 FROM shop_orders so WHERE so.document_id = d.id))
+      AND (
+        d.type IN ('return_customer', 'dish_sale')
+        OR (d.type = 'rashod' AND NOT EXISTS (SELECT 1 FROM shop_orders so WHERE so.document_id = d.id))
+      )
+      AND (d.type != 'dish_sale' OR di.item_role = 'sale')
     ${categoryDateFilter}
     GROUP BY pc.id, pc.name
     HAVING ABS(revenue) > 0.005 OR ABS(cogs) > 0.005
@@ -415,15 +444,20 @@ export function getPnLReport(branchId = DEFAULT_BRANCH_ID, dateFrom = null, date
     SELECT
       strftime('%Y-%m', d.date) as month,
       COALESCE(SUM(CASE WHEN d.type = 'rashod' THEN d.total_amount ELSE 0 END), 0)
+        + COALESCE(SUM(CASE WHEN d.type = 'dish_sale' THEN d.total_amount ELSE 0 END), 0)
         - COALESCE(SUM(CASE WHEN d.type = 'return_customer' THEN d.total_amount ELSE 0 END), 0) as revenue,
       COALESCE(SUM(CASE WHEN d.type = 'rashod' THEN di.cost_amount ELSE 0 END), 0)
+        + COALESCE(SUM(CASE WHEN d.type = 'dish_sale' AND di.item_role = 'sale' THEN di.cost_amount ELSE 0 END), 0)
         - COALESCE(SUM(CASE WHEN d.type = 'return_customer' THEN di.cost_amount ELSE 0 END), 0) as cogs
     FROM documents d
     LEFT JOIN document_items di ON di.document_id = d.id
+      AND (d.type != 'dish_sale' OR di.item_role = 'sale' OR di.item_role IS NULL)
     WHERE d.status = 'confirmed'
       AND d.branch_id = ?
-      AND d.type IN ('rashod', 'return_customer')
-      AND NOT (d.type = 'rashod' AND EXISTS (SELECT 1 FROM shop_orders so WHERE so.document_id = d.id))
+      AND (
+        d.type IN ('return_customer', 'dish_sale')
+        OR (d.type = 'rashod' AND NOT EXISTS (SELECT 1 FROM shop_orders so WHERE so.document_id = d.id))
+      )
     ${monthDateFilter}
     GROUP BY month
     ORDER BY month ASC
@@ -453,10 +487,10 @@ export function getPnLReport(branchId = DEFAULT_BRANCH_ID, dateFrom = null, date
     ORDER BY amount DESC, ca.name ASC
   `, payParams);
 
-  const sales = salesRow?.total || 0;
+  const sales = (salesRow?.total || 0) + (dishSalesRow?.total || 0);
   const returns = returnsRow?.total || 0;
   const revenue = sales - returns;
-  const cogs = (cogsSalesRow?.total || 0) - (cogsReturnsRow?.total || 0);
+  const cogs = (cogsSalesRow?.total || 0) + (cogsDishRow?.total || 0) - (cogsReturnsRow?.total || 0);
   const grossProfit = revenue - cogs;
   const grossMarginPct = revenue > 0 ? Math.round((grossProfit / revenue) * 10000) / 100 : 0;
   const operatingExpenses = expenseRows.reduce((s, r) => s + (r.amount || 0), 0);
@@ -468,9 +502,12 @@ export function getPnLReport(branchId = DEFAULT_BRANCH_ID, dateFrom = null, date
     period: { date_from: dateFrom, date_to: dateTo },
     method: 'accrual',
     revenue: {
-      sales,
+      sales: salesRow?.total || 0,
+      dishes: dishSalesRow?.total || 0,
       returns,
-      doc_count: salesRow?.doc_count || 0,
+      doc_count: (salesRow?.doc_count || 0) + (dishSalesRow?.doc_count || 0),
+      rashod_doc_count: salesRow?.doc_count || 0,
+      dish_doc_count: dishSalesRow?.doc_count || 0,
       return_doc_count: returnsRow?.doc_count || 0,
       total: revenue,
     },

@@ -20,6 +20,7 @@ import {
 } from '../inventoryCost.js';
 import { getEffectiveProductPrice } from '../productBranches.js';
 import { getCalculation, calcLineKey } from '../calculations.js';
+import { applyDishSaleConsumption, buildDishSalePlan } from '../dishSales.js';
 import {
   DEFAULT_CONTRACT_ID,
   isSupplierCounterpartyDoc,
@@ -203,6 +204,30 @@ function updateStock(documentId, reverse = false) {
         receiveDepartmentStock(toDept, item.product_id, item.quantity, unitCost, variantId(item));
       } else {
         reverseReceiveDepartmentStock(toDept, item.product_id, item.quantity, unitCost, variantId(item));
+      }
+      afterVariantStockChange(variantId(item), item.product_id, branchId);
+      syncBranchStockFromDepartments(branchId, item.product_id);
+    }
+    return;
+  }
+
+  if (doc.type === 'dish_sale') {
+    const branchId = doc.branch_id || DEFAULT_BRANCH_ID;
+    const fromDept = doc.from_department_id;
+    const consumptionItems = items.filter((i) => i.item_role === 'consumption');
+    for (const item of consumptionItems) {
+      const qty = Math.abs(item.quantity);
+      if (qty <= 0) continue;
+      if (!reverse) {
+        issueDepartmentStock(fromDept, item.product_id, qty, variantId(item));
+      } else {
+        reverseIssueDepartmentStock(
+          fromDept,
+          item.product_id,
+          qty,
+          Number(item.unit_cost) || 0,
+          variantId(item),
+        );
       }
       afterVariantStockChange(variantId(item), item.product_id, branchId);
       syncBranchStockFromDepartments(branchId, item.product_id);
@@ -471,7 +496,9 @@ export function getDocument(id, branchId = null) {
   const stockBranch = branchId || doc.branch_id || DEFAULT_BRANCH_ID;
   const stockDepartmentId = isOutgoingDocType(doc.type)
     ? doc.from_department_id
-    : doc.type === 'prihod'
+    : doc.type === 'dish_sale'
+      ? doc.from_department_id
+      : doc.type === 'prihod'
       ? doc.to_department_id
       : doc.type === 'razdelka'
         ? doc.from_department_id
@@ -515,8 +542,17 @@ export function getDocument(id, branchId = null) {
 
   const input_items = items.filter((i) => i.item_role === 'input');
   const output_items = items.filter((i) => i.item_role === 'output');
+  const sale_items = items.filter((i) => i.item_role === 'sale');
+  const consumption_items = items.filter((i) => i.item_role === 'consumption');
 
-  return { ...doc, items, input_items, output_items };
+  return {
+    ...doc,
+    items: doc.type === 'dish_sale' ? sale_items : items,
+    input_items,
+    output_items,
+    sale_items,
+    consumption_items,
+  };
 }
 
 function validatePrihodItems(counterpartyId, items, branchId = DEFAULT_BRANCH_ID) {
@@ -616,6 +652,9 @@ function buildRazdelkaOutputItemsFromInput(inputItems, calculationId) {
 
   const calc = getCalculation(calculationId);
   if (!calc) throw new Error('Калькуляция не найдена');
+  if (calc.kind === 'recipe') {
+    throw new Error('Для разделки выберите калькуляцию разделки, не рецепт блюда');
+  }
 
   const calcItems = calc.items || [];
   const calcSources = calc.sources || [];
@@ -771,7 +810,128 @@ function calcRazdelkaTotal(outputItems) {
   return outputItems.reduce((s, i) => s + i.quantity * (i.price || 0), 0);
 }
 
+function insertDishSaleLines(documentId, items) {
+  for (const item of items) {
+    run(`
+      INSERT INTO document_items
+        (id, document_id, product_id, variant_id, quantity, price, amount, item_role, unit_cost, cost_amount)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 'sale', ?, ?)
+    `, [
+      uuidv4(),
+      documentId,
+      item.product_id,
+      item.variant_id || null,
+      item.quantity,
+      item.price || 0,
+      item.quantity * (item.price || 0),
+      item.unit_cost || 0,
+      item.cost_amount || 0,
+    ]);
+  }
+}
+
+function persistDishSaleDocument(id, data, userId, branchId, items, willConfirm) {
+  const docBranchId = data.branch_id || branchId;
+  const fromDept = data.from_department_id;
+  const total = items.reduce((s, i) => s + i.quantity * i.price, 0);
+  const number = data.number || generateDocNumber(docBranchId, 'dish_sale');
+
+  if (willConfirm) {
+    buildDishSalePlan(items, fromDept, docBranchId);
+  }
+
+  transaction(() => {
+    run(`
+      INSERT INTO documents (id, number, type, counterparty_id, date, comment, from_location, to_location,
+        branch_id, from_department_id, total_amount, status)
+      VALUES (?, ?, 'dish_sale', ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [
+      id,
+      number,
+      data.counterparty_id || null,
+      data.date,
+      data.comment || '',
+      data.from_location || '',
+      data.to_location || '',
+      docBranchId,
+      fromDept,
+      total,
+      data.status || 'draft',
+    ]);
+
+    insertDishSaleLines(id, items);
+    addHistory(id, 'created', userId);
+
+    if (willConfirm) {
+      applyDishSaleConsumption(id, fromDept, docBranchId);
+      updateStock(id);
+      addHistory(id, 'confirmed', userId);
+    }
+  });
+
+  return getDocument(id, docBranchId);
+}
+
+function updateDishSaleDocument(id, existing, data, userId, branchId, items) {
+  const docBranchId = data.branch_id || existing.branch_id || branchId;
+  const fromDept = data.from_department_id ?? existing.from_department_id ?? null;
+  const wasConfirmed = existing.status === 'confirmed';
+  const willConfirm = data.status === 'confirmed' || (wasConfirmed && data.status !== 'draft');
+  const total = items.reduce((s, i) => s + i.quantity * i.price, 0);
+
+  if (willConfirm) {
+    buildDishSalePlan(items, fromDept, docBranchId);
+  }
+
+  transaction(() => {
+    if (wasConfirmed) updateStock(id, true);
+
+    run(`
+      UPDATE documents
+      SET counterparty_id=?, date=?, comment=?, from_location=?, to_location=?,
+          branch_id=?, from_department_id=?, total_amount=?, status=?, updated_at=datetime('now')
+      WHERE id=?
+    `, [
+      data.counterparty_id ?? existing.counterparty_id ?? null,
+      data.date ?? existing.date,
+      data.comment ?? existing.comment ?? '',
+      data.from_location ?? existing.from_location ?? '',
+      data.to_location ?? existing.to_location ?? '',
+      docBranchId,
+      fromDept,
+      total,
+      willConfirm ? 'confirmed' : (data.status || existing.status),
+      id,
+    ]);
+
+    run('DELETE FROM document_items WHERE document_id = ?', [id]);
+    insertDishSaleLines(id, items);
+    addHistory(id, 'updated', userId);
+
+    if (willConfirm) {
+      applyDishSaleConsumption(id, fromDept, docBranchId);
+      updateStock(id);
+      if (!wasConfirmed) addHistory(id, 'confirmed', userId);
+    }
+  });
+
+  return getDocument(id, docBranchId);
+}
+
 export function createDocument(data, userId = null, branchId = DEFAULT_BRANCH_ID) {
+  if (data.type === 'dish_sale') {
+    const items = normalizeItems(data.items);
+    const docBranchId = data.branch_id || branchId;
+    const fromDept = data.from_department_id || null;
+    if (!fromDept) throw new Error('Выберите склад списания ингредиентов');
+    assertDepartmentInBranch(fromDept, docBranchId);
+    if (data.counterparty_id) {
+      assertCounterpartyBranch(data.counterparty_id, docBranchId, 'rashod');
+    }
+    const willConfirm = data.status === 'confirmed';
+    return persistDishSaleDocument(uuidv4(), data, userId, branchId, items, willConfirm);
+  }
+
   if (data.type === 'razdelka') {
     const { inputItems } = normalizeRazdelkaItems(data);
     const calculationId = data.calculation_id || null;
@@ -930,6 +1090,18 @@ export function updateDocument(id, data, userId = null, branchId = DEFAULT_BRANC
   if (existing.status === 'cancelled') throw new Error('Отменённый документ нельзя редактировать');
 
   const docType = data.type || existing.type;
+
+  if (docType === 'dish_sale') {
+    const items = normalizeItems(data.items);
+    const fromDept = data.from_department_id ?? existing.from_department_id ?? null;
+    if (!fromDept) throw new Error('Выберите склад списания ингредиентов');
+    assertDepartmentInBranch(fromDept, data.branch_id || existing.branch_id || branchId);
+    const counterpartyId = data.counterparty_id ?? existing.counterparty_id;
+    if (counterpartyId) {
+      assertCounterpartyBranch(counterpartyId, data.branch_id || existing.branch_id || branchId, 'rashod');
+    }
+    return updateDishSaleDocument(id, existing, data, userId, branchId, items);
+  }
 
   if (docType === 'razdelka') {
     const { inputItems } = normalizeRazdelkaItems(data);
@@ -1156,6 +1328,9 @@ export function confirmDocument(id, userId = null) {
       doc.date,
     );
     applyReturnCustomerLineCosts(id);
+  }
+  if (doc.type === 'dish_sale') {
+    applyDishSaleConsumption(id, doc.from_department_id, doc.branch_id || DEFAULT_BRANCH_ID);
   }
 
   transaction(() => {

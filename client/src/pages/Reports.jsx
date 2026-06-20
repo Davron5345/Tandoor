@@ -1215,9 +1215,15 @@ function PnlReport() {
                     <td colSpan={2}><strong>Выручка</strong></td>
                   </tr>
                   <tr>
-                    <td>Продажи клиентам (расходные документы)</td>
+                    <td>Товары / услуги (расходные документы)</td>
                     <td className="col-num">{formatMoney(report.revenue.sales)}</td>
                   </tr>
+                  {(report.revenue.dishes || 0) > 0 && (
+                    <tr>
+                      <td>Продажа блюд ({report.revenue.dish_doc_count || 0} док.)</td>
+                      <td className="col-num">{formatMoney(report.revenue.dishes)}</td>
+                    </tr>
+                  )}
                   {(report.revenue.returns || 0) > 0 && (
                     <tr>
                       <td>Возвраты от клиентов</td>

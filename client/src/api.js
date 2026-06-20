@@ -197,6 +197,9 @@ export const api = {
   updateCalculation: (id, data) => request(`/calculations/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteCalculation: (id) => request(`/calculations/${id}`, { method: 'DELETE' }),
 
+  getDishRecipes: () => request('/dish-recipes'),
+  previewDishSale: (data) => request('/dish-sales/preview', { method: 'POST', body: JSON.stringify(data) }),
+
   getProductImages: (productId, variantId = null) => {
     const q = variantId ? `?variant_id=${encodeURIComponent(variantId)}` : '';
     return request(`/products/${productId}/images${q}`);
