@@ -7,12 +7,14 @@ import ShopOrdersMobile from './pages/ShopOrdersMobile';
 import { ThemeProvider } from './ThemeContext';
 import { AuthProvider } from './AuthContext';
 import { BranchProvider } from './BranchContext';
+import AppUpdateManager from './components/AppUpdateManager';
 import './index.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <ThemeProvider>
       <BrowserRouter>
+        <AppUpdateManager />
         <Routes>
           <Route path="/shop/:branchId/dept/:departmentId" element={<PublicShop />} />
           <Route path="/shop/:branchId" element={<PublicShop />} />

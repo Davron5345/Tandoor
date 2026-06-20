@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { registerModalOpen } from '../modalRegistry';
 
 const ModalCloseContext = createContext({
   intentionalClose: () => {},
@@ -48,6 +49,7 @@ export default function Modal({
   }, [onClose]);
 
   useEffect(() => {
+    const unregister = registerModalOpen();
     const onKey = (e) => {
       if (e.key === 'Escape') {
         e.preventDefault();
@@ -58,6 +60,7 @@ export default function Modal({
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
+      unregister();
       document.removeEventListener('keydown', onKey);
       document.body.style.overflow = prevOverflow;
     };

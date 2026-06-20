@@ -5,10 +5,16 @@ import { isTelegramEnabled } from '../telegram.js';
 import { setSessionCookie, clearSessionCookie } from '../sessionCookie.js';
 import { logAudit } from '../auditLog.js';
 import { buildOpenApiSpec, renderApiDocsHtml } from '../openapi.js';
+import { getAppVersion } from '../appVersion.js';
 
 export function registerAuthRoutes(app, { authRequired }) {
   app.get('/api/health', (_, res) => {
     res.json({ ok: true, telegram: isTelegramEnabled() });
+  });
+
+  app.get('/api/app-version', (_, res) => {
+    res.set('Cache-Control', 'no-store');
+    res.json(getAppVersion());
   });
 
   app.get('/api/openapi.json', (_, res) => {

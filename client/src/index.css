@@ -2366,6 +2366,22 @@ input[type='number']::-webkit-inner-spin-button {
   grid-column: 1 / -1;
 }
 
+.app-update-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 3000;
+  padding: 10px 16px;
+  text-align: center;
+  font-size: 0.92rem;
+  font-weight: 500;
+  color: #14532d;
+  background: #ecfdf5;
+  border-bottom: 1px solid #86efac;
+  box-shadow: 0 2px 12px color-mix(in srgb, #22c55e 18%, transparent);
+}
+
 .modal-overlay {
   position: fixed;
   inset: 0;
