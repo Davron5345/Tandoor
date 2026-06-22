@@ -1,27 +1,34 @@
-let openCount = 0;
+const closeHandlers = [];
 const listeners = new Set();
 
 function emit() {
+  const count = closeHandlers.length;
   for (const listener of listeners) {
-    listener(openCount);
+    listener(count);
   }
 }
 
-export function registerModalOpen() {
-  openCount += 1;
+/** Регистрирует обработчик закрытия модалки. Возвращает функцию отмены регистрации. */
+export function registerModalClose(handler) {
+  closeHandlers.push(handler);
   emit();
   return () => {
-    openCount = Math.max(0, openCount - 1);
+    const idx = closeHandlers.lastIndexOf(handler);
+    if (idx >= 0) closeHandlers.splice(idx, 1);
     emit();
   };
 }
 
+export function isTopModalCloseHandler(handler) {
+  return closeHandlers.length > 0 && closeHandlers[closeHandlers.length - 1] === handler;
+}
+
 export function getOpenModalCount() {
-  return openCount;
+  return closeHandlers.length;
 }
 
 export function subscribeOpenModalCount(listener) {
   listeners.add(listener);
-  listener(openCount);
+  listener(closeHandlers.length);
   return () => listeners.delete(listener);
 }

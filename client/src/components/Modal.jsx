@@ -1,5 +1,5 @@
-import { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import { registerModalOpen } from '../modalRegistry';
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { isTopModalCloseHandler, registerModalClose } from '../modalRegistry';
 
 const ModalCloseContext = createContext({
   intentionalClose: () => {},
@@ -48,13 +48,18 @@ export default function Modal({
     onClose();
   }, [onClose]);
 
+  const requestCloseRef = useRef(requestClose);
+  requestCloseRef.current = requestClose;
+
   useEffect(() => {
-    const unregister = registerModalOpen();
+    const closeHandler = () => requestCloseRef.current();
+    const unregister = registerModalClose(closeHandler);
     const onKey = (e) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        requestClose();
-      }
+      if (e.key !== 'Escape') return;
+      if (!isTopModalCloseHandler(closeHandler)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      closeHandler();
     };
     document.addEventListener('keydown', onKey);
     const prevOverflow = document.body.style.overflow;
@@ -64,7 +69,7 @@ export default function Modal({
       document.removeEventListener('keydown', onKey);
       document.body.style.overflow = prevOverflow;
     };
-  }, [requestClose]);
+  }, []);
 
   return (
     <ModalCloseContext.Provider value={{ intentionalClose: requestClose }}>
