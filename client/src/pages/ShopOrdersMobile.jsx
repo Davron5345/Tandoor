@@ -10,6 +10,12 @@ import Login from './Login';
 import ChangePassword from './ChangePassword';
 import ShopOrderItem from '../components/ShopOrderItem';
 import { IconNavWarehouse, IconNavLogout, IconNavSun, IconNavMoon, IconNavRefresh } from '../components/NavIcons';
+import {
+  getPushSubscriptionState,
+  isPushSupported,
+  isStandaloneApp,
+  subscribeToOrderPush,
+} from '../utils/pwaPush';
 
 const STATUS_FILTERS = [
   { value: '', label: 'Все' },
@@ -47,6 +53,12 @@ export default function ShopOrdersMobile() {
   const [selected, setSelected] = useState(null);
   const [updating, setUpdating] = useState(false);
   const [notice, setNotice] = useState('');
+  const [installPrompt, setInstallPrompt] = useState(null);
+  const [pushState, setPushState] = useState({ supported: false, subscribed: false, standalone: false });
+  const [pushLoading, setPushLoading] = useState(false);
+  const [dismissSetup, setDismissSetup] = useState(() => {
+    try { return localStorage.getItem('warehouse-pwa-setup-dismiss') === '1'; } catch { return false; }
+  });
 
   const load = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);
@@ -101,11 +113,59 @@ export default function ShopOrdersMobile() {
 
   useEffect(() => {
     const prevTitle = document.title;
-    document.title = 'Заказы — склад';
+    document.title = 'Снабжение — заказы';
     return () => {
       document.title = prevTitle;
     };
   }, []);
+
+  useEffect(() => {
+    const onInstall = (event) => {
+      event.preventDefault();
+      setInstallPrompt(event);
+    };
+    window.addEventListener('beforeinstallprompt', onInstall);
+    return () => window.removeEventListener('beforeinstallprompt', onInstall);
+  }, []);
+
+  useEffect(() => {
+    if (!canView) return undefined;
+    let cancelled = false;
+    getPushSubscriptionState().then((state) => {
+      if (!cancelled) setPushState(state);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [canView, branchId]);
+
+  const handleInstall = async () => {
+    if (!installPrompt) return;
+    await installPrompt.prompt();
+    setInstallPrompt(null);
+  };
+
+  const handleEnablePush = async () => {
+    setPushLoading(true);
+    try {
+      await subscribeToOrderPush(api);
+      const state = await getPushSubscriptionState();
+      setPushState(state);
+      setNotice('Уведомления включены');
+    } catch (err) {
+      setNotice(err.message || 'Не удалось включить уведомления');
+    } finally {
+      setPushLoading(false);
+    }
+  };
+
+  const dismissSetupBanner = () => {
+    setDismissSetup(true);
+    try { localStorage.setItem('warehouse-pwa-setup-dismiss', '1'); } catch { /* ignore */ }
+  };
+
+  const showSetupBanner = !dismissSetup && (
+    !pushState.standalone && !isStandaloneApp()
+    || (isPushSupported() && pushState.permission !== 'granted')
+  );
 
   const openOrder = async (order) => {
     try {
@@ -172,7 +232,7 @@ export default function ShopOrdersMobile() {
             <div className="warehouse-orders-mobile-brand">
               <span className="warehouse-orders-mobile-mark" aria-hidden><IconNavWarehouse /></span>
               <div>
-                <strong>Заказы</strong>
+                <strong>Снабжение</strong>
                 <span>{branchName}</span>
               </div>
             </div>
@@ -194,6 +254,30 @@ export default function ShopOrdersMobile() {
               </button>
             </div>
           </header>
+
+          {showSetupBanner && (
+            <div className="warehouse-pwa-setup">
+              <div className="warehouse-pwa-setup-text">
+                <strong>Установите приложение на телефон</strong>
+                <span>Без Play Market — только для сотрудников. Откройте в Chrome → «Установить» или «На главный экран».</span>
+              </div>
+              <div className="warehouse-pwa-setup-actions">
+                {installPrompt && (
+                  <button type="button" className="btn btn-primary btn-sm" onClick={handleInstall}>
+                    Установить
+                  </button>
+                )}
+                {isPushSupported() && pushState.permission !== 'granted' && (
+                  <button type="button" className="btn btn-primary btn-sm" onClick={handleEnablePush} disabled={pushLoading}>
+                    {pushLoading ? '...' : 'Включить уведомления'}
+                  </button>
+                )}
+                <button type="button" className="btn btn-ghost btn-sm" onClick={dismissSetupBanner}>
+                  Скрыть
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className="warehouse-orders-mobile-filters" role="tablist" aria-label="Фильтр по статусу">
             {STATUS_FILTERS.map((opt) => (

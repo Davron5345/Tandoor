@@ -9,9 +9,11 @@ import { registerTelegramRoutes } from './telegram.routes.js';
 import { registerPublicShopRoutes } from './publicShop.routes.js';
 import { registerShopOrdersRoutes } from './shopOrders.routes.js';
 import { registerOpeningBalanceRoutes } from './openingBalance.routes.js';
+import { registerPublicPushRoutes, registerPushRoutes } from './push.routes.js';
 
 export function registerApiRoutes(app, deps = {}) {
   registerPublicShopRoutes(app);
+  registerPublicPushRoutes(app);
   registerAuthRoutes(app, deps);
   registerAdminRoutes(app);
   registerOrgRoutes(app);
@@ -20,6 +22,7 @@ export function registerApiRoutes(app, deps = {}) {
   registerDocumentRoutes(app);
   registerFinanceRoutes(app);
   registerShopOrdersRoutes(app);
+  registerPushRoutes(app);
   registerOpeningBalanceRoutes(app);
   registerTelegramRoutes(app);
 }

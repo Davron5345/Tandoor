@@ -5,6 +5,7 @@ import * as departments from './departments.js';
 import { initPermissions } from './permissions.js';
 import { seedDefaultUsers } from './auth.js';
 import { initTelegram } from './telegram.js';
+import { initWebPush } from './push.js';
 import * as svc from './services.js';
 import { createApp } from './app.js';
 
@@ -33,6 +34,10 @@ async function start() {
 
   if (process.env.NODE_ENV !== 'production') {
     console.log('👤 Логины: admin/admin123, sklad/sklad123, kassir/kassir123');
+  }
+
+  if (initWebPush()) {
+    console.log('🔔 Push-уведомления включены');
   }
 
   if (process.env.TELEGRAM_ENABLED !== 'false') {

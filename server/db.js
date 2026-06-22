@@ -345,6 +345,7 @@ function migrateSchema() {
   migrateSessionsMeta();
   migrateBlockedDevices();
   migrateVisitLog();
+  migratePushSubscriptions();
   migrateProductBranches();
   migrateProductBranchesBackfill();
   migrateShopOrders();
@@ -642,6 +643,24 @@ function migrateProductBranches() {
   }
 
   run("INSERT OR REPLACE INTO settings (key, value) VALUES ('product_branches_v1', '1')");
+}
+
+function migratePushSubscriptions() {
+  run(`
+    CREATE TABLE IF NOT EXISTS push_subscriptions (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      branch_id TEXT,
+      endpoint TEXT NOT NULL UNIQUE,
+      p256dh TEXT NOT NULL,
+      auth TEXT NOT NULL,
+      user_agent TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+  run('CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user ON push_subscriptions(user_id)');
+  run('CREATE INDEX IF NOT EXISTS idx_push_subscriptions_branch ON push_subscriptions(branch_id)');
 }
 
 function migrateVisitLog() {

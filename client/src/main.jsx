@@ -1,6 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import App from './App';
 import PublicShop from './pages/PublicShop';
 import ShopOrdersMobile from './pages/ShopOrdersMobile';
@@ -18,6 +18,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         <Routes>
           <Route path="/shop/:branchId/dept/:departmentId" element={<PublicShop />} />
           <Route path="/shop/:branchId" element={<PublicShop />} />
+          <Route path="/snab" element={<Navigate to="/warehouse/orders" replace />} />
           <Route
             path="/warehouse/orders"
             element={(

@@ -5,6 +5,7 @@ import { assertDepartmentInBranch } from './departments.js';
 import { getProducts } from './services/products.js';
 import { getSetting, setSetting } from './services/telegram.js';
 import { sendShopOrderNotification } from './telegram.js';
+import { notifyShopOrderPush } from './push.js';
 
 const { queryAll, queryOne, run } = db;
 
@@ -207,6 +208,9 @@ export function createShopOrder(branchId, payload, departmentId = null) {
   const order = getShopOrder(orderId);
   sendShopOrderNotification(order, branch).catch((err) => {
     console.error('Shop order telegram notify failed:', err.message);
+  });
+  notifyShopOrderPush(order).catch((err) => {
+    console.error('Shop order push notify failed:', err.message);
   });
 
   return order;

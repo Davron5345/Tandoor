@@ -319,6 +319,16 @@ export const api = {
     return normalizeListResponse(await request(`/auth/sessions?${q}`));
   },
   revokeMySession: (id) => request(`/auth/sessions/${id}`, { method: 'DELETE' }),
+
+  getPushPublicKey: () => request('/push/vapid-public-key'),
+  subscribePush: (subscription) => request('/push/subscribe', {
+    method: 'POST',
+    body: JSON.stringify({ subscription }),
+  }),
+  unsubscribePush: (endpoint) => request('/push/unsubscribe', {
+    method: 'POST',
+    body: JSON.stringify({ endpoint }),
+  }),
 };
 
 export function formatMoney(n) {

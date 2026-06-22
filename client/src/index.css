@@ -8803,6 +8803,36 @@ html.public-shop-lock #root {
     radial-gradient(circle at top, color-mix(in srgb, var(--primary) 8%, var(--bg)), var(--bg));
 }
 
+.warehouse-pwa-setup {
+  margin: 0 12px 8px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--primary) 35%, var(--border));
+  background: color-mix(in srgb, var(--primary) 10%, var(--surface));
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.warehouse-pwa-setup-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.warehouse-pwa-setup-text strong {
+  color: var(--text);
+  font-size: 14px;
+}
+
+.warehouse-pwa-setup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .warehouse-orders-mobile-notice {
   position: fixed;
   top: max(12px, env(safe-area-inset-top));

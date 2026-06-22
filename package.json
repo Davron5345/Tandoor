@@ -17,6 +17,7 @@
     "db:verify": "node server/scripts/db-verify.mjs",
     "db:list-backups": "node server/scripts/db-list-backups.mjs",
     "db:restore": "node server/scripts/db-restore.mjs",
+    "vapid:generate": "node server/scripts/generate-vapid.mjs",
     "perms:verify": "node server/scripts/verify-cashier-perms.mjs",
     "test": "node --test server/test/**/*.test.js",
     "test:e2e": "playwright test",
@@ -31,15 +32,16 @@
     "multer": "^2.2.0",
     "node-telegram-bot-api": "^0.66.0",
     "sql.js": "^1.12.0",
-    "uuid": "^11.0.3"
+    "uuid": "^11.0.3",
+    "web-push": "^3.6.7"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
+    "@playwright/test": "^1.51.0",
     "concurrently": "^9.1.2",
     "eslint": "^9.17.0",
     "eslint-plugin-react": "^7.37.3",
     "eslint-plugin-react-hooks": "^5.1.0",
-    "globals": "^15.14.0",
-    "@playwright/test": "^1.51.0"
+    "globals": "^15.14.0"
   }
 }
