@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   expandSearchTerms,
+  splitTextBySearchHighlights,
   swapKeyboardLayout,
   textMatchesSearch,
 } from '../../client/src/utils/searchNormalize.js';
@@ -25,4 +26,10 @@ test('expandSearchTerms includes transliteration variants', () => {
   const terms = expandSearchTerms('Qizil');
   assert.ok(terms.includes('qizil'));
   assert.ok(terms.some((t) => t.includes('к')));
+});
+
+test('splitTextBySearchHighlights marks all occurrences', () => {
+  const parts = splitTextBySearchHighlights('Нон — Нон буханка', 'нон');
+  const highlighted = parts.filter((p) => p.highlighted).map((p) => p.text);
+  assert.deepEqual(highlighted, ['Нон', 'Нон']);
 });

@@ -21,6 +21,7 @@ import {
   productListRowMatchesSearch,
 } from '../utils/productVariants';
 import ProductKindFilter from '../components/ProductKindFilter';
+import SearchHighlight from '../components/SearchHighlight';
 import SupplierMultiSelect from '../components/SupplierMultiSelect';
 import ProductBranchSettings, {
   mapBranchSettingsFromApi,
@@ -988,16 +989,25 @@ export default function Products() {
                 title={isExpanded ? 'Скрыть варианты' : 'Показать варианты'}
               >
                 <span className="product-list-chevron" aria-hidden>{isExpanded ? '▾' : '▸'}</span>
-                <strong>{p.name}</strong>
+                <strong><SearchHighlight text={p.name} query={search} /></strong>
                 {!isExpanded && (
                   <span className="product-list-variant-count">{p.variants.length}</span>
                 )}
               </button>
             ) : (
-              <strong>{isVariant ? getVariantDisplayName(p, variant) : p.name}</strong>
+              <strong>
+                <SearchHighlight
+                  text={isVariant ? getVariantDisplayName(p, variant) : p.name}
+                  query={search}
+                />
+              </strong>
             )}
           </div>
-          {!isVariant && p.barcode && <div className="product-meta">Штрих-код: {p.barcode}</div>}
+          {!isVariant && p.barcode && (
+            <div className="product-meta">
+              Штрих-код: <SearchHighlight text={p.barcode} query={search} />
+            </div>
+          )}
         </td>
         <td>{isVariant ? '—' : (p.product_kind_label || productKindLabel(p.product_kind))}</td>
         <td>{isVariant ? '—' : formatCategory(p)}</td>

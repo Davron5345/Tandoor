@@ -112,3 +112,62 @@ export function textMatchesSearch(haystack, query) {
   return hayTerms.some((term) => term.includes(normalizedQuery)
     || queryTerms.some((q) => term.includes(q)));
 }
+
+function mergeHighlightRanges(ranges) {
+  if (!ranges.length) return [];
+  const sorted = [...ranges].sort((a, b) => a[0] - b[0]);
+  const merged = [sorted[0]];
+  for (let i = 1; i < sorted.length; i += 1) {
+    const prev = merged[merged.length - 1];
+    const cur = sorted[i];
+    if (cur[0] <= prev[1]) {
+      prev[1] = Math.max(prev[1], cur[1]);
+    } else {
+      merged.push(cur);
+    }
+  }
+  return merged;
+}
+
+export function findSearchHighlightRanges(text, query) {
+  if (!query?.trim() || !text) return [];
+
+  const terms = [...new Set([
+    query.trim().toLowerCase(),
+    ...expandSearchTerms(query),
+  ])].filter((term) => term.length > 0).sort((a, b) => b.length - a.length);
+
+  const lower = text.toLowerCase();
+  const ranges = [];
+
+  for (const term of terms) {
+    let start = 0;
+    while (start < lower.length) {
+      const idx = lower.indexOf(term, start);
+      if (idx === -1) break;
+      ranges.push([idx, idx + term.length]);
+      start = idx + term.length;
+    }
+  }
+
+  return mergeHighlightRanges(ranges);
+}
+
+export function splitTextBySearchHighlights(text, query) {
+  const ranges = findSearchHighlightRanges(text, query);
+  if (!ranges.length) return [{ highlighted: false, text }];
+
+  const parts = [];
+  let last = 0;
+  for (const [start, end] of ranges) {
+    if (start > last) {
+      parts.push({ highlighted: false, text: text.slice(last, start) });
+    }
+    parts.push({ highlighted: true, text: text.slice(start, end) });
+    last = end;
+  }
+  if (last < text.length) {
+    parts.push({ highlighted: false, text: text.slice(last) });
+  }
+  return parts;
+}
