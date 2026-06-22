@@ -4,6 +4,8 @@ import { IconImage } from '../ActionIcons';
 import { useTheme } from '../../ThemeContext';
 import { IconNavShop, IconNavCart, IconNavSettings, IconBannerOfPeace } from '../NavIcons';
 import { getBlockMeta } from '../../utils/myShopLayout';
+import { textMatchesSearch } from '../../utils/searchNormalize';
+import SearchHighlight from '../SearchHighlight';
 
 export function formatShopPrice(product) {
   if (product.has_variants && product.variant_price_min != null) {
@@ -67,8 +69,8 @@ function productMatchesSearch(product, query) {
     product.sku,
     product.category_name,
     product.parent_category_name,
-  ].filter(Boolean).join(' ').toLowerCase();
-  return haystack.includes(query);
+  ].filter(Boolean).join(' ');
+  return textMatchesSearch(haystack, query);
 }
 
 function smoothScrollElement(root, targetTop, duration = 480) {
@@ -162,6 +164,7 @@ function ShopProductCard({
   onQtyChange,
   cartQty = 0,
   publicMode = false,
+  searchQuery = '',
 }) {
   const inStock = (product.stock || 0) > 0;
   const canOrder = publicMode || inStock;
@@ -234,7 +237,11 @@ function ShopProductCard({
           onClick={handleActivate}
           disabled={!canOrder}
         >
-          {product.name}
+          {searchQuery.trim() ? (
+            <SearchHighlight text={product.name} query={searchQuery} />
+          ) : (
+            product.name
+          )}
         </button>
         <div className="myshop-product-card-footer">
           <span className="myshop-product-card-price">{formatShopPrice(product)}</span>
@@ -262,6 +269,7 @@ function ProductGrid({
   cartQtyByKey,
   publicMode = false,
   emptyText = 'Нет товаров',
+  searchQuery = '',
 }) {
   if (!products.length) {
     return <div className="myshop-empty">{emptyText}</div>;
@@ -278,6 +286,7 @@ function ProductGrid({
           onQtyChange={onProductQtyChange}
           cartQty={cartQtyByKey?.get(productCartKey(product)) || 0}
           publicMode={publicMode}
+          searchQuery={searchQuery}
         />
       ))}
     </div>
@@ -319,6 +328,7 @@ function CategoryCatalogView({
         cartQtyByKey={cartQtyByKey}
         publicMode={publicMode}
         emptyText="В этой категории пока нет товаров"
+        searchQuery={search}
       />
     </section>
   );
@@ -377,7 +387,7 @@ function PublicCategoryCatalog({
     () => buildDirectCategoryProductMap(products),
     [products],
   );
-  const query = searchQuery.trim().toLowerCase();
+  const query = searchQuery.trim();
 
   const sections = categories
     .map((category) => {
@@ -416,6 +426,7 @@ function PublicCategoryCatalog({
             onProductQtyChange={onProductQtyChange}
             cartQtyByKey={cartQtyByKey}
             publicMode
+            searchQuery={searchQuery}
           />
         </section>
       ))}
@@ -598,7 +609,7 @@ export default function ShopStorefront({
   }, [cartItems]);
 
   const filteredProducts = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = search.trim();
     return products.filter((product) => {
       if (activeCategoryId) {
         const inCategory = product.category_id === activeCategoryId
@@ -878,6 +889,7 @@ export default function ShopStorefront({
                 onProductQtyChange={onProductQtyChange}
                 cartQtyByKey={cartQtyByKey}
                 publicMode
+                searchQuery={search}
               />
             </section>
           )}
@@ -908,6 +920,7 @@ export default function ShopStorefront({
             onProductQtyChange={onProductQtyChange}
             cartQtyByKey={cartQtyByKey}
             publicMode={publicMode}
+            searchQuery={search}
           />
         )}
       </div>

@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { textMatchesSearch } from '../utils/searchNormalize';
+import SearchHighlight from './SearchHighlight';
 
 function getSelectedLabel(categories, value, emptyLabel, placeholder, tree, extraOptions = []) {
   if (!value) return emptyLabel || placeholder;
@@ -18,7 +20,7 @@ function getSelectedLabel(categories, value, emptyLabel, placeholder, tree, extr
 }
 
 function buildTreeSections(categories, excludeIds, selectedId, query) {
-  const q = query.trim().toLowerCase();
+  const q = (query || '').trim();
   const roots = categories.filter((c) => !c.parent_id && !excludeIds.includes(c.id));
   const sections = [];
 
@@ -34,8 +36,8 @@ function buildTreeSections(categories, excludeIds, selectedId, query) {
       continue;
     }
 
-    const rootMatch = root.name.toLowerCase().includes(q);
-    const matchedSubs = subs.filter((s) => s.name.toLowerCase().includes(q));
+    const rootMatch = textMatchesSearch(root.name, q);
+    const matchedSubs = subs.filter((s) => textMatchesSearch(s.name, q));
 
     if (rootMatch || matchedSubs.length > 0) {
       sections.push({
@@ -92,10 +94,10 @@ export default function CategorySelect({
   );
 
   const flatItems = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = search.trim();
     const items = categories.filter((c) => !excludeIds.includes(c.id));
     if (!q) return items;
-    return items.filter((c) => c.name.toLowerCase().includes(q));
+    return items.filter((c) => textMatchesSearch(c.name, q));
   }, [categories, excludeIds, search]);
 
   const treeSections = useMemo(
@@ -105,12 +107,12 @@ export default function CategorySelect({
 
   const hasResults = tree
     ? treeSections.length > 0
-    : flatItems.length > 0 || extraOptions.some((o) => o.label.toLowerCase().includes(search.trim().toLowerCase()));
+    : flatItems.length > 0 || extraOptions.some((o) => textMatchesSearch(o.label, search));
   const showEmptyOption = includeEmpty || !tree;
   const visibleExtraOptions = extraOptions.filter((o) => {
-    const q = search.trim().toLowerCase();
+    const q = search.trim();
     if (!q) return true;
-    return o.label.toLowerCase().includes(q);
+    return textMatchesSearch(o.label, q);
   });
 
   const close = () => {
@@ -187,7 +189,7 @@ export default function CategorySelect({
           </div>
 
           <ul className="category-select-list" role="listbox">
-            {showEmptyOption && (!search.trim() || emptyLabel.toLowerCase().includes(search.trim().toLowerCase())) && (
+            {showEmptyOption && (!search.trim() || textMatchesSearch(emptyLabel, search)) && (
               <li>
                 <button
                   type="button"
@@ -210,7 +212,7 @@ export default function CategorySelect({
                   className={`category-select-option category-select-option-filter${value === option.id ? ' active' : ''}`}
                   onClick={() => pick(option.id)}
                 >
-                  {option.label}
+                  {search.trim() ? <SearchHighlight text={option.label} query={search} /> : option.label}
                 </button>
               </li>
             ))}
@@ -218,7 +220,9 @@ export default function CategorySelect({
             {tree ? (
               treeSections.map(({ root, subs, showRootAsOption }) => (
                 <li key={root.id} className="category-select-group">
-                  <div className="category-select-group-label">{root.name}</div>
+                  <div className="category-select-group-label">
+                    {search.trim() ? <SearchHighlight text={root.name} query={search} /> : root.name}
+                  </div>
                   {showRootAsOption && subs.length > 0 && (
                     <button
                       type="button"
@@ -227,7 +231,7 @@ export default function CategorySelect({
                       className={`category-select-option${value === root.id ? ' active' : ''}`}
                       onClick={() => pick(root.id)}
                     >
-                      {root.name}
+                      {search.trim() ? <SearchHighlight text={root.name} query={search} /> : root.name}
                     </button>
                   )}
                   {subs.length === 0 ? (
@@ -238,7 +242,7 @@ export default function CategorySelect({
                       className={`category-select-option${value === root.id ? ' active' : ''}`}
                       onClick={() => pick(root.id)}
                     >
-                      {root.name}
+                      {search.trim() ? <SearchHighlight text={root.name} query={search} /> : root.name}
                     </button>
                   ) : (
                     subs.map((sub) => (
@@ -250,7 +254,7 @@ export default function CategorySelect({
                         className={`category-select-option category-select-option-sub${value === sub.id ? ' active' : ''}`}
                         onClick={() => pick(sub.id)}
                       >
-                        {sub.name}
+                        {search.trim() ? <SearchHighlight text={sub.name} query={search} /> : sub.name}
                       </button>
                     ))
                   )}
@@ -266,7 +270,7 @@ export default function CategorySelect({
                     className={`category-select-option${value === cat.id ? ' active' : ''}`}
                     onClick={() => pick(cat.id)}
                   >
-                    {cat.name}
+                    {search.trim() ? <SearchHighlight text={cat.name} query={search} /> : cat.name}
                   </button>
                 </li>
               ))

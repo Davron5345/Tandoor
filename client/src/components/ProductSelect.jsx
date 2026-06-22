@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { formatMoney } from '../api';
 import { IconImage } from './ActionIcons';
+import SearchHighlight from './SearchHighlight';
 import {
   buildProductPickGroups,
   filterProductPickGroups,
@@ -238,7 +239,13 @@ export default function ProductSelect({
                   {isGrouped && (
                     <div className="product-select-group-header">
                       <ProductThumb product={group.product} compact />
-                      <span className="product-select-group-title">{group.product.name}</span>
+                      <span className="product-select-group-title">
+                        {search.trim() ? (
+                          <SearchHighlight text={group.product.name} query={search} />
+                        ) : (
+                          group.product.name
+                        )}
+                      </span>
                       {group.product.category_name && (
                         <span className="product-select-group-meta">{group.product.category_name}</span>
                       )}
@@ -265,7 +272,13 @@ export default function ProductSelect({
                               <ProductThumb product={option.product} variant={option.variant} compact />
                             )}
                             <span className="product-select-option-text">
-                              <span className="product-select-name">{option.label}</span>
+                              <span className="product-select-name">
+                                {search.trim() ? (
+                                  <SearchHighlight text={option.label} query={search} />
+                                ) : (
+                                  option.label
+                                )}
+                              </span>
                             </span>
                             <OptionMeta product={option.product} variant={option.variant} />
                           </button>

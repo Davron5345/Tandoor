@@ -1,4 +1,6 @@
 import { useMemo, useState } from 'react';
+import { textMatchesSearch } from '../utils/searchNormalize';
+import SearchHighlight from './SearchHighlight';
 
 export default function SupplierMultiSelect({
   suppliers,
@@ -13,17 +15,17 @@ export default function SupplierMultiSelect({
   const selectedSet = useMemo(() => new Set(value), [value]);
 
   const matchingSuppliers = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return suppliers.filter((s) => !q || s.name.toLowerCase().includes(q));
+    const q = search.trim();
+    return suppliers.filter((s) => !q || textMatchesSearch(s.name, q));
   }, [suppliers, search]);
 
   const displaySuppliers = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = search.trim();
     return suppliers
       .filter((s) => {
         if (selectedSet.has(s.id)) return true;
         if (!q) return true;
-        return s.name.toLowerCase().includes(q);
+        return textMatchesSearch(s.name, q);
       })
       .sort((a, b) => {
         const aSelected = selectedSet.has(a.id);
@@ -123,7 +125,7 @@ export default function SupplierMultiSelect({
                 onChange={() => toggle(s.id)}
                 disabled={disabled}
               />
-              <span>{s.name}</span>
+              <span>{search.trim() ? <SearchHighlight text={s.name} query={search} /> : s.name}</span>
             </label>
           ))
         )}

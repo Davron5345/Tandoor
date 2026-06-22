@@ -8,6 +8,8 @@ import { useBranch } from '../BranchContext';
 import BranchChip from '../components/BranchChip';
 import { todayLocalIso } from '../utils/date';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
+import { textMatchesSearch } from '../utils/searchNormalize';
+import SearchHighlight from '../components/SearchHighlight';
 
 const emptySideForm = {
   amountInput: '',
@@ -131,9 +133,9 @@ function CashierSideForm({
   }, [form.comment]);
 
   const filteredSuppliers = useMemo(() => {
-    const q = supplierSearch.trim().toLowerCase();
+    const q = supplierSearch.trim();
     if (!q) return suppliers;
-    return suppliers.filter((s) => s.name.toLowerCase().includes(q));
+    return suppliers.filter((s) => textMatchesSearch(s.name, q));
   }, [suppliers, supplierSearch]);
 
   const recentSuppliers = useMemo(
@@ -241,7 +243,11 @@ function CashierSideForm({
                   disabled={disabled}
                   onClick={() => selectSupplier(supplier.id)}
                 >
-                  {supplier.name}
+                  {supplierSearch.trim() ? (
+                    <SearchHighlight text={supplier.name} query={supplierSearch} />
+                  ) : (
+                    supplier.name
+                  )}
                 </button>
               ))}
             </div>
@@ -265,7 +271,11 @@ function CashierSideForm({
                   disabled={disabled}
                   onClick={() => selectSupplier(supplier.id)}
                 >
-                  {supplier.name}
+                  {supplierSearch.trim() ? (
+                    <SearchHighlight text={supplier.name} query={supplierSearch} />
+                  ) : (
+                    supplier.name
+                  )}
                 </button>
               ))}
             </div>

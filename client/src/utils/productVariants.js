@@ -194,8 +194,7 @@ export function productPickMeta(product, variant = null) {
 }
 
 export function filterProductPickOptions(options, search) {
-  const q = search.trim().toLowerCase();
-  if (!q) return options;
+  if (!(search || '').trim()) return options;
   return options.filter((option) => {
     const hay = [
       option.label,
@@ -204,8 +203,8 @@ export function filterProductPickOptions(options, search) {
       option.product?.category_name,
       option.product?.parent_category_name,
       option.variant?.name,
-    ].filter(Boolean).join(' ').toLowerCase();
-    return hay.includes(q);
+    ].filter(Boolean).join(' ');
+    return textMatchesSearch(hay, search);
   });
 }
 
@@ -254,8 +253,7 @@ export function buildProductPickGroups(products) {
 }
 
 export function filterProductPickGroups(groups, search) {
-  const q = search.trim().toLowerCase();
-  if (!q) return groups;
+  if (!(search || '').trim()) return groups;
 
   return groups
     .map((group) => {
@@ -265,11 +263,11 @@ export function filterProductPickGroups(groups, search) {
         group.product.barcode,
         group.product.category_name,
         group.product.parent_category_name,
-      ].filter(Boolean).join(' ').toLowerCase();
-      const parentMatch = parentHay.includes(q);
+      ].filter(Boolean).join(' ');
+      const parentMatch = textMatchesSearch(parentHay, search);
       const options = parentMatch
         ? group.options
-        : group.options.filter((option) => option.searchText.includes(q));
+        : group.options.filter((option) => textMatchesSearch(option.searchText, search));
       if (!options.length) return null;
       return { ...group, options };
     })

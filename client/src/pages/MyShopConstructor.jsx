@@ -16,6 +16,8 @@ import {
   createEmptyLayout,
   getBlockMeta,
 } from '../utils/myShopLayout';
+import { textMatchesSearch } from '../utils/searchNormalize';
+import SearchHighlight from '../components/SearchHighlight';
 
 function Toggle({ label, checked, onChange }) {
   return (
@@ -158,10 +160,10 @@ export default function MyShopConstructor() {
   const categoriesById = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
 
   const filteredCategories = useMemo(() => {
-    const q = categorySearch.trim().toLowerCase();
+    const q = categorySearch.trim();
     return categories
       .filter((category) => (category.product_count || 0) > 0 || products.some((p) => p.category_id === category.id))
-      .filter((category) => !q || category.name.toLowerCase().includes(q))
+      .filter((category) => !q || textMatchesSearch(category.name, q))
       .sort((a, b) => a.name.localeCompare(b.name, 'ru'));
   }, [categories, categorySearch, products]);
 
@@ -396,7 +398,13 @@ export default function MyShopConstructor() {
                       {imageUrl ? <img src={imageUrl} alt="" /> : <IconImage />}
                     </div>
                     <div className="myshop-constructor-category-meta">
-                      <strong>{category.name}</strong>
+                      <strong>
+                        {categorySearch.trim() ? (
+                          <SearchHighlight text={category.name} query={categorySearch} />
+                        ) : (
+                          category.name
+                        )}
+                      </strong>
                       <span>{count} товаров</span>
                     </div>
                     {inSelected && <span className="myshop-constructor-category-check">✓</span>}

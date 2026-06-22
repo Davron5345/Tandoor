@@ -5,6 +5,8 @@ import { DOC_TYPE_LABELS } from '../permissions';
 import { useBranch } from '../BranchContext';
 import BranchChip from '../components/BranchChip';
 import { todayLocalIso } from '../utils/date';
+import { textMatchesSearch } from '../utils/searchNormalize';
+import SearchHighlight from '../components/SearchHighlight';
 
 function formatQty(n) {
   const value = Number(n) || 0;
@@ -160,7 +162,7 @@ function StockReport() {
   }, [rows]);
 
   const filteredRows = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = search.trim();
     return rows.filter((row) => {
       if (categoryId && row.category_id !== categoryId) return false;
       if (!q) return true;
@@ -169,8 +171,8 @@ function StockReport() {
         row.category_name,
         row.department_name,
         row.unit,
-      ].filter(Boolean).join(' ').toLowerCase();
-      return haystack.includes(q);
+      ].filter(Boolean).join(' ');
+      return textMatchesSearch(haystack, q);
     });
   }, [rows, search, categoryId]);
 
@@ -393,7 +395,9 @@ function StockReport() {
                       <span className="dept-badge">{row.department_name}</span>
                     </td>
                   )}
-                  <td className="product-name">{row.name}</td>
+                  <td className="product-name">
+                    {search.trim() ? <SearchHighlight text={row.name} query={search} /> : row.name}
+                  </td>
                   <td className="category-cell">{row.category_name || '—'}</td>
                   <td className="col-unit">{row.unit}</td>
                   <td className="col-num">{formatQty(row.stock)}</td>
@@ -593,9 +597,9 @@ function CounterpartyDebtReport({ kind }) {
 
   const rows = useMemo(() => {
     const list = report?.rows || [];
-    const q = search.trim().toLowerCase();
+    const q = search.trim();
     if (!q) return list;
-    return list.filter((r) => [r.name, r.phone, r.email].some((v) => (v || '').toLowerCase().includes(q)));
+    return list.filter((r) => [r.name, r.phone, r.email].some((v) => textMatchesSearch(v, q)));
   }, [report, search]);
 
   const totalBalance = useMemo(
@@ -702,11 +706,21 @@ function CounterpartyDebtReport({ kind }) {
                 <tr key={row.id}>
                   <td className="col-index">{index + 1}</td>
                   <td className="debt-name-cell">
-                    <strong>{row.name}</strong>
+                    <strong>
+                      {search.trim() ? <SearchHighlight text={row.name} query={search} /> : row.name}
+                    </strong>
                   </td>
                   <td className="debt-contact-cell">
-                    {row.phone && <span>{row.phone}</span>}
-                    {row.email && <span className="debt-email">{row.email}</span>}
+                    {row.phone && (
+                      <span>
+                        {search.trim() ? <SearchHighlight text={row.phone} query={search} /> : row.phone}
+                      </span>
+                    )}
+                    {row.email && (
+                      <span className="debt-email">
+                        {search.trim() ? <SearchHighlight text={row.email} query={search} /> : row.email}
+                      </span>
+                    )}
                     {!row.phone && !row.email && '—'}
                   </td>
                   <td className="col-num">{formatMoney(row.charged)}</td>
