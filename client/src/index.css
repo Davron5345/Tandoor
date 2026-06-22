@@ -6618,6 +6618,10 @@ tr.product-row-highlight td:first-child {
   color: var(--rashod);
 }
 
+.cashier-kpi-opening .value {
+  color: var(--text);
+}
+
 .cashier-kpi-balance .value {
   color: var(--primary);
 }

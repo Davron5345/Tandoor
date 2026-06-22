@@ -36,6 +36,19 @@ export function registerFinanceRoutes(app) {
     }
   });
 
+  app.get('/api/payments/shift-summary', requireAnyPermission(
+    'cashier.view', 'cashier.edit', 'cashier.delete',
+    'payments.view', 'payments.edit',
+  ), attachBranch, (req, res) => {
+    try {
+      const date = req.query.date;
+      if (!date) return res.status(400).json({ error: 'Укажите date' });
+      res.json(svc.getCashShiftSummary(req.branchId, date));
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
   app.get('/api/payments', requireAnyPermission(
     'cashier.view', 'cashier.edit', 'cashier.delete',
     'payments.view', 'payments.edit',

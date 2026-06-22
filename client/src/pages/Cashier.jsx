@@ -487,6 +487,12 @@ export default function Cashier() {
   const [payments, setPayments] = useState([]);
   const [paymentsLoadError, setPaymentsLoadError] = useState('');
   const [paymentsLoaded, setPaymentsLoaded] = useState(false);
+  const [shiftSummary, setShiftSummary] = useState({
+    opening_balance: 0,
+    income: 0,
+    expense: 0,
+    closing_balance: 0,
+  });
   const [incomeArticles, setIncomeArticles] = useState([]);
   const [expenseArticles, setExpenseArticles] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
@@ -552,9 +558,21 @@ export default function Cashier() {
     }
   }, [branchId]);
 
+  const loadShiftSummary = useCallback(async () => {
+    try {
+      const data = await api.getCashShiftSummary(shiftDate);
+      setShiftSummary(data);
+    } catch (err) {
+      console.error(err);
+    }
+  }, [shiftDate, branchId]);
+
   const load = useCallback(async (options = {}) => {
     const { silent = false } = options;
     loadPayments({ silent }).catch((err) => {
+      if (!silent) console.error(err);
+    });
+    loadShiftSummary().catch((err) => {
       if (!silent) console.error(err);
     });
 
@@ -577,9 +595,10 @@ export default function Cashier() {
       console.error(err);
       setSuppliers([]);
     }
-  }, [branchId, loadPayments, show]);
+  }, [branchId, loadPayments, loadShiftSummary, show]);
 
   useEffect(() => { load(); }, [load, branchId]);
+  useEffect(() => { loadShiftSummary(); }, [loadShiftSummary]);
   useAutoRefresh(() => load({ silent: true }), [load, branchId], { enabled: !editingPayment });
 
   useEffect(() => {
@@ -642,16 +661,6 @@ export default function Cashier() {
     const fromPrefs = Array.isArray(prefs.recentSuppliers) ? prefs.recentSuppliers : [];
     return [...new Set([...fromToday, ...fromPrefs])].slice(0, 5);
   }, [payments, branchId]);
-
-  const todayIncome = useMemo(
-    () => todayPayments.filter((p) => isIncomeType(p.type)).reduce((s, p) => s + (p.amount || 0), 0),
-    [todayPayments],
-  );
-
-  const todayExpense = useMemo(
-    () => todayPayments.filter((p) => !isIncomeType(p.type)).reduce((s, p) => s + (p.amount || 0), 0),
-    [todayPayments],
-  );
 
   const focusAmount = (side) => {
     window.requestAnimationFrame(() => {
@@ -809,17 +818,21 @@ export default function Cashier() {
           </label>
 
           <div className="cashier-kpi-inline">
+            <div className="cashier-kpi-pill cashier-kpi-opening">
+              <span className="label">На начало</span>
+              <span className="value">{formatMoney(shiftSummary.opening_balance)}</span>
+            </div>
             <div className="cashier-kpi-pill cashier-kpi-income">
               <span className="label">Приход</span>
-              <span className="value">{formatMoney(todayIncome)}</span>
+              <span className="value">{formatMoney(shiftSummary.income)}</span>
             </div>
             <div className="cashier-kpi-pill cashier-kpi-expense">
               <span className="label">Расход</span>
-              <span className="value">{formatMoney(todayExpense)}</span>
+              <span className="value">{formatMoney(shiftSummary.expense)}</span>
             </div>
             <div className="cashier-kpi-pill cashier-kpi-balance">
-              <span className="label">Остаток</span>
-              <span className="value">{formatMoney(todayIncome - todayExpense)}</span>
+              <span className="label">На конец</span>
+              <span className="value">{formatMoney(shiftSummary.closing_balance)}</span>
             </div>
           </div>
         </div>
@@ -1006,11 +1019,15 @@ export default function Cashier() {
             {todayPayments.length > 0 && (
               <tfoot>
                 <tr className="report-total-row">
-                  <td colSpan={5}>Итого за день</td>
+                  <td colSpan={5}>
+                    На начало {formatMoney(shiftSummary.opening_balance)}
+                    {' · '}
+                    приход +{formatMoney(shiftSummary.income)}
+                    {' · '}
+                    расход −{formatMoney(shiftSummary.expense)}
+                  </td>
                   <td className="col-num">
-                    <span className="text-income">+{formatMoney(todayIncome)}</span>
-                    {' / '}
-                    <span className="text-expense">−{formatMoney(todayExpense)}</span>
+                    На конец {formatMoney(shiftSummary.closing_balance)}
                   </td>
                   {(canEdit || canDelete) && <td />}
                 </tr>

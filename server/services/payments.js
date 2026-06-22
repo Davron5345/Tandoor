@@ -12,6 +12,7 @@ import {
   assertCashArticleForPayment,
   isPurchaseArticleId,
 } from '../cashArticles.js';
+import { getConfirmedOpeningTotals } from './openingBalanceDocuments.js';
 
 export {
   getCashArticles,
@@ -21,7 +22,74 @@ export {
   deleteCashArticle,
 };
 
+const INCOME_TYPES = ['customer_income', 'other_income'];
+const EXPENSE_TYPES = ['supplier_payment', 'other_expense'];
+
 const { queryAll, queryOne, run } = db;
+
+function branchPaymentFilterSql(alias = '') {
+  const col = alias ? `${alias}.` : '';
+  return `(${col}branch_id = ? OR (${col}branch_id IS NULL AND ? = ?))`;
+}
+
+function sumPaymentsForRange(branchId, { beforeDate = null, onDate = null } = {}) {
+  const opening = getConfirmedOpeningTotals(branchId);
+  const params = [
+    ...INCOME_TYPES,
+    ...EXPENSE_TYPES,
+    branchId,
+    branchId,
+    DEFAULT_BRANCH_ID,
+  ];
+  let dateSql = '';
+  if (beforeDate) {
+    dateSql = ' AND date < ?';
+    params.push(beforeDate);
+  } else if (onDate) {
+    dateSql = ' AND date = ?';
+    params.push(onDate);
+  }
+  if (opening.start_date && (beforeDate || onDate)) {
+    const rangeStart = opening.start_date;
+    const rangeEnd = beforeDate || onDate;
+    if (!rangeEnd || rangeEnd > rangeStart) {
+      dateSql += ' AND date >= ?';
+      params.push(rangeStart);
+    }
+  }
+
+  const row = queryOne(
+    `SELECT
+      COALESCE(SUM(CASE WHEN type IN (${INCOME_TYPES.map(() => '?').join(',')}) THEN amount ELSE 0 END), 0) as income,
+      COALESCE(SUM(CASE WHEN type IN (${EXPENSE_TYPES.map(() => '?').join(',')}) THEN amount ELSE 0 END), 0) as expense
+     FROM payments
+     WHERE ${branchPaymentFilterSql()}
+     ${dateSql}`,
+    params,
+  );
+  return {
+    income: row?.income || 0,
+    expense: row?.expense || 0,
+    net: (row?.income || 0) - (row?.expense || 0),
+  };
+}
+
+export function getCashShiftSummary(branchId = DEFAULT_BRANCH_ID, shiftDate) {
+  if (!shiftDate) throw new Error('Укажите дату смены');
+  const opening = getConfirmedOpeningTotals(branchId);
+  const before = sumPaymentsForRange(branchId, { beforeDate: shiftDate });
+  const day = sumPaymentsForRange(branchId, { onDate: shiftDate });
+  const openingBalance = (opening.cash || 0) + before.net;
+  const closingBalance = openingBalance + day.income - day.expense;
+
+  return {
+    date: shiftDate,
+    opening_balance: openingBalance,
+    income: day.income,
+    expense: day.expense,
+    closing_balance: closingBalance,
+  };
+}
 
 function generatePaymentNumber(branchId = DEFAULT_BRANCH_ID) {
   const rows = queryAll('SELECT number FROM payments WHERE branch_id = ? OR (branch_id IS NULL AND ? = ?)', [branchId, branchId, DEFAULT_BRANCH_ID]);

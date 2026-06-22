@@ -21,7 +21,7 @@ after(() => {
 
 test('getPayments includes legacy NULL branch_id for main', async () => {
   const { default: db, initDb } = await import('../db.js');
-  const { getPayments, createPayment } = await import('../services/payments.js');
+  const { getPayments } = await import('../services/payments.js');
   const { v4: uuidv4 } = await import('uuid');
 
   await initDb();
@@ -36,4 +36,32 @@ test('getPayments includes legacy NULL branch_id for main', async () => {
 
   const otherPayments = getPayments('other-branch');
   assert.equal(otherPayments.length, 0);
+});
+
+test('getCashShiftSummary carries closing balance to next day opening', async () => {
+  const { default: db, initDb } = await import('../db.js');
+  const { getCashShiftSummary } = await import('../services/payments.js');
+  const { v4: uuidv4 } = await import('uuid');
+
+  await initDb();
+  db.run(
+    `INSERT INTO payments (id, number, type, amount, date, branch_id, article_id)
+     VALUES (?, '101', 'other_income', 500000, '2026-06-22', 'main', 'ca_inc_other')`,
+    [uuidv4()],
+  );
+  db.run(
+    `INSERT INTO payments (id, number, type, amount, date, branch_id, article_id)
+     VALUES (?, '102', 'other_expense', 100000, '2026-06-22', 'main', 'ca_exp_other')`,
+    [uuidv4()],
+  );
+
+  const day1 = getCashShiftSummary('main', '2026-06-22');
+  assert.equal(day1.opening_balance, 1000);
+  assert.equal(day1.income, 500000);
+  assert.equal(day1.expense, 100000);
+  assert.equal(day1.closing_balance, 401000);
+
+  const day2 = getCashShiftSummary('main', '2026-06-23');
+  assert.equal(day2.opening_balance, 401000);
+  assert.equal(day2.closing_balance, 401000);
 });

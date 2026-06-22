@@ -39,6 +39,7 @@ export {
 
 export {
   getPayments,
+  getCashShiftSummary,
   getCashArticles,
   getCashArticlesAll,
   createCashArticle,
