@@ -99,7 +99,7 @@ export function changePassword(userId, currentPassword, newPassword, keepToken =
   return getUserPayload(updated);
 }
 
-export function getUsers(requester, branchId = null) {
+export function getUsers(requester, branchId = null, { allBranches = false } = {}) {
   let sql = `
     SELECT u.id, u.username, u.name, u.role, u.active, u.created_at, u.branch_id,
            b.name as branch_name
@@ -108,7 +108,7 @@ export function getUsers(requester, branchId = null) {
   `;
   const params = [];
   if (requester?.role === 'admin') {
-    if (branchId) {
+    if (!allBranches && branchId) {
       sql += ' WHERE u.branch_id = ? OR u.role = ?';
       params.push(branchId, 'admin');
     }

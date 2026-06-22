@@ -103,7 +103,8 @@ export function registerOrgRoutes(app) {
   });
 
   app.get('/api/users', requirePermission('users.view'), attachBranch, (req, res) => {
-    res.json(getUsers(req.user, req.branchId));
+    const allBranches = req.user.role === 'admin' && req.query.all_branches === '1';
+    res.json(getUsers(req.user, req.branchId, { allBranches }));
   });
 
   app.post('/api/users', requirePermission('users.edit'), (req, res) => {

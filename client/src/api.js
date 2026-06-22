@@ -32,7 +32,7 @@ async function request(path, options = {}) {
   if (nativeToken) headers.Authorization = `Bearer ${nativeToken}`;
 
   let url = `${getApiBaseUrl()}/api${path}`;
-  if (activeBranchId) {
+  if (activeBranchId && !options.skipBranch) {
     const sep = url.includes('?') ? '&' : '?';
     url += `${sep}branch_id=${encodeURIComponent(activeBranchId)}`;
   }
@@ -110,7 +110,10 @@ export const api = {
     body: JSON.stringify({ matrix }),
   }),
 
-  getUsers: () => request('/users'),
+  getUsers: (opts = {}) => request(
+    opts.allBranches ? '/users?all_branches=1' : '/users',
+    opts.allBranches ? { skipBranch: true } : {},
+  ),
   createUser: (data) => request('/users', { method: 'POST', body: JSON.stringify(data) }),
   updateUser: (id, data) => request(`/users/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteUser: (id) => request(`/users/${id}`, { method: 'DELETE' }),
