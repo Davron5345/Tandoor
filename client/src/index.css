@@ -6354,17 +6354,27 @@ tr.product-row-highlight td:first-child {
 
 .app-cashier-mode .cashier-page {
   width: 100%;
-  gap: 10px;
+  gap: 8px;
 }
 
 .app-cashier-mode .cashier-app-bar {
-  margin-bottom: 10px;
+  margin-bottom: 8px;
   padding: 8px 14px;
   border-radius: 10px;
 }
 
 .app-cashier-mode .cashier-top {
-  padding: 4px 2px 0;
+  padding: 0 2px;
+  align-items: flex-start;
+  gap: 6px 12px;
+}
+
+.app-cashier-mode .cashier-top-controls {
+  align-items: flex-start;
+}
+
+.app-cashier-mode .cashier-kpi-inline {
+  align-items: stretch;
 }
 
 .app-cashier-mode .cashier-split {
@@ -6521,9 +6531,9 @@ tr.product-row-highlight td:first-child {
 .cashier-top {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 10px 16px;
+  gap: 8px 16px;
 }
 
 .cashier-head {
@@ -6543,9 +6553,9 @@ tr.product-row-highlight td:first-child {
 .cashier-top-controls {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
+  align-items: flex-start;
   justify-content: flex-end;
-  gap: 10px 14px;
+  gap: 8px 12px;
   flex: 1 1 420px;
 }
 
@@ -6582,11 +6592,13 @@ tr.product-row-highlight td:first-child {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  align-items: flex-end;
+  align-items: stretch;
 }
 
 .cashier-reconcile-btn {
-  align-self: flex-end;
+  align-self: stretch;
+  display: inline-flex;
+  align-items: center;
   white-space: nowrap;
 }
 
@@ -6740,6 +6752,8 @@ tr.product-row-highlight td:first-child {
   font-size: 11px;
   color: var(--text-muted);
   white-space: nowrap;
+  line-height: 1.2;
+  padding-top: 2px;
 }
 
 .cashier-supplier-chips {
