@@ -10,6 +10,7 @@ import { createCorsOptions } from './corsConfig.js';
 import { authRequired } from './middleware.js';
 import { registerApiRoutes } from './routes/index.js';
 import { createProtectedUploadsRouter } from './uploadsMiddleware.js';
+import { isServerReady } from './readiness.js';
 
 dotenv.config();
 
@@ -43,6 +44,14 @@ export function createApp() {
 
   app.use(cors(createCorsOptions()));
   app.use(express.json());
+
+  app.use((req, res, next) => {
+    if (!isServerReady() && req.path.startsWith('/api') && req.path !== '/api/health') {
+      return res.status(503).json({ error: 'Сервер запускается, подождите несколько секунд' });
+    }
+    next();
+  });
+
   app.use('/uploads', createProtectedUploadsRouter());
 
   const productImageUpload = createProductImageUpload();

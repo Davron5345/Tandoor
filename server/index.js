@@ -8,6 +8,7 @@ import { initTelegram } from './telegram.js';
 import { initWebPush } from './push.js';
 import * as svc from './services.js';
 import { createApp } from './app.js';
+import { setServerReady } from './readiness.js';
 
 dotenv.config();
 
@@ -15,21 +16,24 @@ const PORT = Number(process.env.PORT) || 3001;
 const app = createApp();
 
 async function start() {
+  const server = app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 Сервер слушает порт ${PORT}`);
+  });
+
   try {
     console.log('⏳ Инициализация базы данных...');
     await db.initDb();
     departments.migrateDepartmentStockSync();
     initPermissions(db);
     seedDefaultUsers();
+    setServerReady();
     console.log(`✅ База готова: ${dbPath}`);
   } catch (err) {
     console.error('❌ Ошибка инициализации БД:', err);
+    if (err?.stack) console.error(err.stack);
+    server.close();
     process.exit(1);
   }
-
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Сервер слушает порт ${PORT}`);
-  });
 
   if (process.env.NODE_ENV !== 'production') {
     console.log('👤 Логины: admin/admin123, sklad/sklad123, kassir/kassir123');
@@ -52,5 +56,6 @@ async function start() {
 
 start().catch((err) => {
   console.error('Ошибка запуска:', err);
+  if (err?.stack) console.error(err.stack);
   process.exit(1);
 });

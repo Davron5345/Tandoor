@@ -15,10 +15,16 @@ import {
 } from '../sessions.js';
 import { buildOpenApiSpec, renderApiDocsHtml } from '../openapi.js';
 import { getAppVersion } from '../appVersion.js';
+import { isServerReady } from '../readiness.js';
 
 export function registerAuthRoutes(app, { authRequired }) {
   app.get('/api/health', (_, res) => {
-    res.json({ ok: true, telegram: isTelegramEnabled() });
+    const ready = isServerReady();
+    res.status(200).json({
+      ok: ready,
+      ready,
+      telegram: ready ? isTelegramEnabled() : false,
+    });
   });
 
   app.get('/api/app-version', (_, res) => {

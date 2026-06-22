@@ -291,7 +291,9 @@ export async function initDb() {
   seedIfEmpty();
   saveDb();
 
-  if (existsSync(dbPath) && statSync(dbPath).size > 0) {
+  const skipStartupBackup = process.env.SKIP_STARTUP_BACKUP === 'true'
+    || process.env.RAILWAY_ENVIRONMENT;
+  if (!skipStartupBackup && existsSync(dbPath) && statSync(dbPath).size > 0) {
     backupDatabaseFile('startup');
   }
 
@@ -1590,6 +1592,8 @@ function migrateCashArticlesSurplusShortage() {
   const done = queryOne("SELECT value FROM settings WHERE key = 'cash_articles_surplus_v1'");
   if (done) return;
 
+  ensureMainBranchExists();
+
   const extraArticles = DEFAULT_CASH_ARTICLES.filter(
     (a) => a.code === 'inc_surplus' || a.code === 'exp_shortage',
   );
@@ -1624,6 +1628,13 @@ function uuidv4() {
   });
 }
 
+function ensureMainBranchExists() {
+  const mainExists = queryOne('SELECT id FROM branches WHERE id = ?', ['main']);
+  if (!mainExists) {
+    run('INSERT INTO branches (id, name, address, active) VALUES (?, ?, ?, 1)', ['main', 'Главный филиал', '']);
+  }
+}
+
 function migrateRolesBranch() {
   const cols = queryAll('PRAGMA table_info(roles)').map((c) => c.name);
   if (!cols.includes('branch_id')) {
@@ -1633,9 +1644,11 @@ function migrateRolesBranch() {
   const done = queryOne("SELECT value FROM settings WHERE key = 'roles_branch_v1'");
   if (done) return;
 
+  ensureMainBranchExists();
   run("UPDATE roles SET branch_id = NULL WHERE id = 'admin'");
 
   const validBranchIds = new Set(queryAll('SELECT id FROM branches').map((b) => b.id));
+  validBranchIds.add('main');
   const roles = queryAll("SELECT id FROM roles WHERE id != 'admin'");
   for (const { id } of roles) {
     const branchRows = queryAll(
@@ -1650,7 +1663,11 @@ function migrateRolesBranch() {
       const [firstBranch, ...otherBranches] = branchRows.map((r) => r.branch_id);
       run('UPDATE roles SET branch_id = ? WHERE id = ?', [firstBranch, id]);
       for (const branchId of otherBranches) {
-        cloneRoleForBranch(id, branchId);
+        try {
+          cloneRoleForBranch(id, branchId);
+        } catch (err) {
+          console.error(`⚠️ Роль ${id} / филиал ${branchId}: ${err.message}`);
+        }
       }
     }
   }
@@ -1660,11 +1677,15 @@ function migrateRolesBranch() {
 }
 
 function cloneRoleForBranch(roleId, branchId) {
+  if (!branchId) throw new Error('Не указан филиал');
+  ensureMainBranchExists();
+
   let newId = `${roleId}_${branchId}`.replace(/[^a-z0-9_]/g, '_').slice(0, 32);
   let suffix = 1;
   while (queryOne('SELECT id FROM roles WHERE id = ?', [newId])) {
-    newId = `${roleId}_${branchId}_${suffix}`.slice(0, 32);
+    newId = `${roleId}_${branchId}_${suffix}`.replace(/[^a-z0-9_]/g, '_').slice(0, 32);
     suffix += 1;
+    if (suffix > 100) throw new Error('Не удалось сгенерировать уникальный код роли');
   }
 
   const src = queryOne('SELECT label, description, is_system FROM roles WHERE id = ?', [roleId]);
