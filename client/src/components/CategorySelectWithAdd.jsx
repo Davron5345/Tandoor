@@ -1,9 +1,11 @@
 import { useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { api } from '../api';
 import CategorySelect from './CategorySelect';
-import { IconButton, IconPlus } from './ActionIcons';
+import Modal, { ModalCancelButton } from './Modal';
+import { IconPlus } from './ActionIcons';
 
-const emptyQuickForm = { name: '', parent_id: '' };
+const emptyForm = { name: '', parent_id: '', sort_order: 0 };
 
 export default function CategorySelectWithAdd({
   categories,
@@ -15,9 +17,9 @@ export default function CategorySelectWithAdd({
   canAdd = true,
   className = '',
 }) {
-  const [adding, setAdding] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [quickForm, setQuickForm] = useState(emptyQuickForm);
+  const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState('');
 
   const rootCategories = useMemo(
@@ -25,24 +27,25 @@ export default function CategorySelectWithAdd({
     [categories],
   );
 
-  const closeQuickAdd = () => {
-    setAdding(false);
-    setQuickForm(emptyQuickForm);
+  const closeModal = () => {
+    setModalOpen(false);
+    setForm(emptyForm);
     setError('');
   };
 
-  const openQuickAdd = () => {
+  const openModal = () => {
     const current = categories.find((c) => c.id === value);
-    setQuickForm({
+    setForm({
       name: '',
       parent_id: current?.parent_id || (current && !current.parent_id ? current.id : ''),
+      sort_order: categories.length + 1,
     });
     setError('');
-    setAdding(true);
+    setModalOpen(true);
   };
 
   const saveCategory = async () => {
-    const name = quickForm.name.trim();
+    const name = form.name.trim();
     if (!name) {
       setError('Укажите название категории');
       return;
@@ -52,11 +55,12 @@ export default function CategorySelectWithAdd({
     try {
       const created = await api.createProductCategory({
         name,
-        parent_id: quickForm.parent_id || null,
+        parent_id: form.parent_id || null,
+        sort_order: form.sort_order,
       });
       onChange(created.id);
       onCategoryCreated?.(created);
-      closeQuickAdd();
+      closeModal();
     } catch (e) {
       setError(e.message || 'Не удалось создать категорию');
     } finally {
@@ -75,57 +79,69 @@ export default function CategorySelectWithAdd({
           disabled={disabled}
         />
         {canAdd && !disabled && (
-          <IconButton
+          <button
+            type="button"
+            className="category-select-add-btn"
             title="Добавить категорию"
-            className="category-select-with-add-btn"
-            onClick={openQuickAdd}
+            aria-label="Добавить категорию"
+            onClick={openModal}
           >
             <IconPlus />
-          </IconButton>
+          </button>
         )}
       </div>
 
-      {adding && (
-        <div className="category-quick-add">
-          <div className="category-quick-add-grid">
+      {modalOpen && createPortal(
+        <Modal
+          title={form.parent_id ? 'Новая подкатегория' : 'Новая категория'}
+          onClose={closeModal}
+          footer={(
+            <>
+              <ModalCancelButton disabled={saving} />
+              <button type="button" className="btn btn-primary" onClick={saveCategory} disabled={saving}>
+                {saving ? 'Сохранение…' : 'Сохранить'}
+              </button>
+            </>
+          )}
+        >
+          <div className="form-grid">
             <div className="form-group">
-              <label>Название категории *</label>
+              <label>Название *</label>
               <input
                 autoFocus
-                value={quickForm.name}
-                onChange={(e) => setQuickForm({ ...quickForm, name: e.target.value })}
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     e.preventDefault();
                     saveCategory();
                   }
-                  if (e.key === 'Escape') closeQuickAdd();
                 }}
-                placeholder="Например, Go'shtlar"
               />
             </div>
             <div className="form-group">
               <label>Родительская категория</label>
               <CategorySelect
                 categories={rootCategories}
-                value={quickForm.parent_id || ''}
-                onChange={(parent_id) => setQuickForm({ ...quickForm, parent_id })}
+                value={form.parent_id || ''}
+                onChange={(parent_id) => setForm({ ...form, parent_id })}
                 tree={false}
-                includeEmpty
                 emptyLabel="— верхний уровень —"
+              />
+              <small className="form-hint">Выберите категорию, чтобы создать подкатегорию</small>
+            </div>
+            <div className="form-group">
+              <label>Порядок сортировки</label>
+              <input
+                type="number"
+                value={form.sort_order}
+                onChange={(e) => setForm({ ...form, sort_order: +e.target.value })}
               />
             </div>
           </div>
-          {error && <p className="category-quick-add-error">{error}</p>}
-          <div className="category-quick-add-actions">
-            <button type="button" className="btn btn-ghost btn-sm" onClick={closeQuickAdd} disabled={saving}>
-              Отмена
-            </button>
-            <button type="button" className="btn btn-primary btn-sm" onClick={saveCategory} disabled={saving}>
-              {saving ? 'Сохранение…' : 'Создать'}
-            </button>
-          </div>
-        </div>
+          {error && <p className="form-error">{error}</p>}
+        </Modal>,
+        document.body,
       )}
     </div>
   );
