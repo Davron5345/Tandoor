@@ -1,3 +1,5 @@
+import { logVisit } from './visitLog.js';
+
 const WINDOW_MS = 15 * 60 * 1000;
 const MAX_ATTEMPTS = 10;
 const attempts = new Map();
@@ -19,6 +21,11 @@ export function loginRateLimit(req, res, next) {
   attempts.set(key, entry);
 
   if (entry.count > MAX_ATTEMPTS) {
+    logVisit(req, 'auth.login_failed', {
+      username: req.body?.username,
+      success: false,
+      meta: { reason: 'rate_limit' },
+    });
     return res.status(429).json({
       error: 'Слишком много попыток входа. Повторите через 15 минут.',
     });

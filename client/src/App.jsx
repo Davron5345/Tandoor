@@ -14,6 +14,7 @@ import Roles from './pages/Roles';
 import Branches from './pages/Branches';
 import Departments from './pages/Departments';
 import AuditLog from './pages/AuditLog';
+import SecurityAdmin from './pages/SecurityAdmin';
 import Razdelka from './pages/Razdelka';
 import DishSales from './pages/DishSales';
 import Calculations from './pages/Calculations';
@@ -251,7 +252,7 @@ function AppContent() {
 
     const staffPathsLocal = [
       ...(canViewUsersLocal ? ['/employees'] : []),
-      ...(isAdminUser ? ['/roles', '/branches', '/departments', '/audit-log'] : []),
+      ...(isAdminUser ? ['/roles', '/branches', '/departments', '/security', '/audit-log'] : []),
     ];
 
     const path = location.pathname;
@@ -344,7 +345,7 @@ function AppContent() {
 
   const staffPaths = [
     ...(canViewUsers ? ['/employees'] : []),
-    ...(isAdmin ? ['/roles', '/branches', '/departments', '/audit-log'] : []),
+    ...(isAdmin ? ['/roles', '/branches', '/departments', '/security', '/audit-log'] : []),
   ];
 
   const firstNavPath = ((user.role === 'cashier' && canViewCashier) ? '/cashier'
@@ -642,6 +643,14 @@ function AppContent() {
                 )}
                 {isAdmin && (
                   <NavLink
+                    to="/security"
+                    className={({ isActive }) => `nav-link nav-link-sub${isActive ? ' active' : ''}`}
+                  >
+                    Сеансы и безопасность
+                  </NavLink>
+                )}
+                {isAdmin && (
+                  <NavLink
                     to="/audit-log"
                     className={({ isActive }) => `nav-link nav-link-sub${isActive ? ' active' : ''}`}
                   >
@@ -745,6 +754,7 @@ function AppContent() {
           <Route path="/roles" element={isAdmin ? <Roles /> : <Navigate to={firstNavPath} />} />
           <Route path="/branches" element={isAdmin ? <Branches /> : <Navigate to={firstNavPath} />} />
           <Route path="/departments" element={isAdmin ? <Departments /> : <Navigate to={firstNavPath} />} />
+          <Route path="/security" element={isAdmin ? <SecurityAdmin /> : <Navigate to={firstNavPath} />} />
           <Route path="/audit-log" element={isAdmin ? <AuditLog /> : <Navigate to={firstNavPath} />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>

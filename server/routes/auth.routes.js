@@ -4,6 +4,13 @@ import { loginRateLimit } from '../loginRateLimit.js';
 import { isTelegramEnabled } from '../telegram.js';
 import { setSessionCookie, clearSessionCookie } from '../sessionCookie.js';
 import { logAudit } from '../auditLog.js';
+import { logVisit } from '../visitLog.js';
+import { extractRequestDevice } from '../deviceInfo.js';
+import {
+  listActiveSessions,
+  getSessionById,
+  revokeSessionById,
+} from '../sessions.js';
 import { buildOpenApiSpec, renderApiDocsHtml } from '../openapi.js';
 import { getAppVersion } from '../appVersion.js';
 
@@ -26,16 +33,24 @@ export function registerAuthRoutes(app, { authRequired }) {
   });
 
   app.post('/api/auth/login', loginRateLimit, (req, res) => {
+    const { username, password, remember } = req.body || {};
     try {
-      const { username, password } = req.body;
-      const { token, user } = login(username, password);
-      setSessionCookie(res, token);
+      const rememberSession = !!remember;
+      const { token, user } = login(username, password, { remember: rememberSession, req });
+      setSessionCookie(res, token, { remember: rememberSession });
+      const device = extractRequestDevice(req);
       logAudit({ user, headers: req.headers, socket: req.socket }, 'auth.login', {
-        meta: { username: user.username },
+        meta: { username: user.username, device_label: device.deviceLabel, ip: device.ip },
       });
+      logVisit(req, 'auth.login', { username: user.username, user_id: user.id, success: true });
       res.json({ user });
     } catch (e) {
-      res.status(401).json({ error: e.message });
+      if (e.code === 'DEVICE_BLOCKED') {
+        logVisit(req, 'auth.login_blocked', { username, success: false });
+        return res.status(403).json({ error: e.message });
+      }
+      logVisit(req, 'auth.login_failed', { username, success: false });
+      return res.status(401).json({ error: e.message });
     }
   });
 
@@ -48,6 +63,26 @@ export function registerAuthRoutes(app, { authRequired }) {
 
   app.get('/api/auth/me', (req, res) => {
     res.json(req.user);
+  });
+
+  app.get('/api/auth/sessions', (req, res) => {
+    res.json(listActiveSessions({ user_id: req.user.id, ...req.query }, req.token));
+  });
+
+  app.delete('/api/auth/sessions/:id', (req, res) => {
+    try {
+      const session = getSessionById(req.params.id);
+      if (!session || session.user_id !== req.user.id) {
+        return res.status(404).json({ error: 'Сеанс не найден' });
+      }
+      if (session.token === req.token) {
+        return res.status(400).json({ error: 'Нельзя завершить текущий сеанс. Используйте «Выйти».' });
+      }
+      revokeSessionById(req.params.id, req, { via: 'self' });
+      res.json({ ok: true });
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
   });
 
   app.post('/api/auth/change-password', (req, res) => {
@@ -63,6 +98,7 @@ export function registerAuthRoutes(app, { authRequired }) {
 
   app.post('/api/auth/logout', (req, res) => {
     logAudit(req, 'auth.logout');
+    logVisit(req, 'auth.logout', { success: true });
     logout(req.token);
     clearSessionCookie(res);
     res.json({ ok: true });

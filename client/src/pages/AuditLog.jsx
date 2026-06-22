@@ -2,14 +2,6 @@ import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { DOC_TYPE_LABELS } from '../permissions';
 
-const ACTION_LABELS = {
-  'auth.login': 'Вход',
-  'auth.logout': 'Выход',
-  'auth.change_password': 'Смена пароля',
-  'document.confirm': 'Проведение документа',
-  'document.cancel': 'Отмена документа',
-};
-
 function formatDateTime(value) {
   if (!value) return '—';
   const str = String(value);
@@ -40,6 +32,9 @@ function formatDetails(row) {
     if (row.meta.number) {
       parts.push(`№ ${row.meta.number}`);
     }
+    if (row.meta.device_label) {
+      parts.push(row.meta.device_label);
+    }
     if (row.meta.via) {
       parts.push(`(${row.meta.via})`);
     }
@@ -58,12 +53,17 @@ const emptyFilters = {
 
 export default function AuditLog() {
   const [items, setItems] = useState([]);
+  const [actions, setActions] = useState([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState(emptyFilters);
   const [draft, setDraft] = useState(emptyFilters);
+
+  useEffect(() => {
+    api.getAuditActions().then(setActions).catch(() => {});
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -115,8 +115,8 @@ export default function AuditLog() {
               onChange={(e) => setDraft((f) => ({ ...f, action: e.target.value }))}
             >
               <option value="">Все</option>
-              {Object.entries(ACTION_LABELS).map(([value, label]) => (
-                <option key={value} value={value}>{label}</option>
+              {actions.map((item) => (
+                <option key={item.value} value={item.value}>{item.label}</option>
               ))}
             </select>
           </label>
@@ -170,7 +170,7 @@ export default function AuditLog() {
                 <tr key={row.id}>
                   <td>{formatDateTime(row.created_at)}</td>
                   <td>{row.username || '—'}</td>
-                  <td>{row.action_label || ACTION_LABELS[row.action] || row.action}</td>
+                  <td>{row.action_label || row.action}</td>
                   <td>{formatDetails(row)}</td>
                   <td>{row.ip || '—'}</td>
                 </tr>
@@ -182,8 +182,8 @@ export default function AuditLog() {
           </table>
         </div>
         {pages > 1 && (
-          <div className="table-pagination" style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '12px 16px', justifyContent: 'flex-end' }}>
-            <span style={{ color: 'var(--text-muted)', fontSize: 14 }}>
+          <div className="table-pagination security-pagination">
+            <span>
               {total} записей · стр. {page} из {pages}
             </span>
             <button type="button" className="btn btn-ghost" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>

@@ -17,6 +17,7 @@ export default function Login() {
   const { theme, toggleTheme } = useTheme();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPass, setShowPass] = useState(false);
@@ -26,7 +27,10 @@ export default function Login() {
     setError('');
     setLoading(true);
     try {
-      await login(username.trim(), password);
+      const formData = new FormData(e.currentTarget);
+      const loginName = String(formData.get('username') || username).trim();
+      const loginPassword = String(formData.get('password') || password);
+      await login(loginName, loginPassword, rememberMe);
     } catch (err) {
       setError(err.message || 'Ошибка входа');
     } finally {
@@ -55,8 +59,10 @@ export default function Login() {
         <form onSubmit={submit}>
           {error && <div className="alert alert-error">{error}</div>}
           <div className="form-group">
-            <label>Логин</label>
+            <label htmlFor="login-username">Логин</label>
             <input
+              id="login-username"
+              name="username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               autoComplete="username"
@@ -65,9 +71,11 @@ export default function Login() {
             />
           </div>
           <div className="form-group">
-            <label>Пароль</label>
+            <label htmlFor="login-password">Пароль</label>
             <div className="login-password-field">
               <input
+                id="login-password"
+                name="password"
                 type={showPass ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -86,6 +94,14 @@ export default function Login() {
               </button>
             </div>
           </div>
+          <label className="login-remember">
+            <input
+              type="checkbox"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+            />
+            <span>Запомнить меня на 7 дней</span>
+          </label>
           <button type="submit" className="btn btn-primary login-btn" disabled={loading}>
             {loading ? 'Вход...' : 'Войти'}
           </button>

@@ -46,7 +46,7 @@ test('login sets HttpOnly session cookie and hides token from body', async () =>
   const res = await fetch(`${baseUrl}/api/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username: 'admin', password: 'admin123' }),
+    body: JSON.stringify({ username: 'admin', password: 'admin123', remember: true }),
   });
 
   assert.equal(res.status, 200);
@@ -57,6 +57,7 @@ test('login sets HttpOnly session cookie and hides token from body', async () =>
   const setCookie = res.headers.get('set-cookie') || '';
   assert.match(setCookie, new RegExp(`${SESSION_COOKIE}=`));
   assert.match(setCookie, /HttpOnly/i);
+  assert.match(setCookie, /Max-Age=/i);
 
   const meRes = await fetch(`${baseUrl}/api/auth/me`, {
     headers: { cookie: setCookie.split(';')[0] },
@@ -64,6 +65,19 @@ test('login sets HttpOnly session cookie and hides token from body', async () =>
   assert.equal(meRes.status, 200);
   const me = await meRes.json();
   assert.equal(me.username, 'admin');
+});
+
+test('login without remember uses session cookie without Max-Age', async () => {
+  const res = await fetch(`${baseUrl}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: 'admin', password: 'admin123', remember: false }),
+  });
+
+  assert.equal(res.status, 200);
+  const setCookie = res.headers.get('set-cookie') || '';
+  assert.match(setCookie, new RegExp(`${SESSION_COOKIE}=`));
+  assert.doesNotMatch(setCookie, /Max-Age=/i);
 });
 
 test('logout clears session cookie', async () => {

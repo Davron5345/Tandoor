@@ -46,14 +46,14 @@ async function publicRequest(path, options = {}) {
 }
 
 export const api = {
-  login: async (username, password) => {
+  login: async (username, password, remember = false) => {
     let res;
     try {
       res = await fetch(`${API}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ username, password, remember: !!remember }),
       });
     } catch {
       throw new Error('Сервер недоступен. Запустите: npm run dev');
@@ -281,6 +281,44 @@ export const api = {
     return normalizeListResponse(data);
   },
   getAuditActions: () => request('/admin/audit-log/actions'),
+
+  getAdminSessions: async (params = {}) => {
+    const clean = Object.fromEntries(
+      Object.entries({ page: 1, limit: 50, ...params }).filter(([, v]) => v !== '' && v != null),
+    );
+    const q = new URLSearchParams(clean).toString();
+    return normalizeListResponse(await request(`/admin/sessions?${q}`));
+  },
+  revokeAdminSession: (id) => request(`/admin/sessions/${id}`, { method: 'DELETE' }),
+  revokeUserSessions: (userId) => request(`/admin/sessions/user/${userId}`, { method: 'DELETE' }),
+  blockSessionDevice: (sessionId, reason) => request(`/admin/sessions/${sessionId}/block-device`, {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
+  }),
+  getBlockedDevices: async (params = {}) => {
+    const clean = Object.fromEntries(
+      Object.entries({ page: 1, limit: 50, ...params }).filter(([, v]) => v !== '' && v != null),
+    );
+    const q = new URLSearchParams(clean).toString();
+    return normalizeListResponse(await request(`/admin/devices/blocked?${q}`));
+  },
+  unblockDevice: (id) => request(`/admin/devices/blocked/${id}`, { method: 'DELETE' }),
+  getVisitLog: async (params = {}) => {
+    const clean = Object.fromEntries(
+      Object.entries({ page: 1, limit: 50, ...params }).filter(([, v]) => v !== '' && v != null),
+    );
+    const q = new URLSearchParams(clean).toString();
+    return normalizeListResponse(await request(`/admin/visits?${q}`));
+  },
+  getVisitActions: () => request('/admin/visits/actions'),
+  getMySessions: async (params = {}) => {
+    const clean = Object.fromEntries(
+      Object.entries({ page: 1, limit: 50, ...params }).filter(([, v]) => v !== '' && v != null),
+    );
+    const q = new URLSearchParams(clean).toString();
+    return normalizeListResponse(await request(`/auth/sessions?${q}`));
+  },
+  revokeMySession: (id) => request(`/auth/sessions/${id}`, { method: 'DELETE' }),
 };
 
 export function formatMoney(n) {

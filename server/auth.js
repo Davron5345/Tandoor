@@ -3,10 +3,15 @@ import { v4 as uuidv4 } from 'uuid';
 import db from './db.js';
 import { getUserPayload, roleExists } from './permissions.js';
 import { getBranch } from './branches.js';
+import {
+  cleanExpiredSessions,
+  createSession,
+  resolveAuthFromToken,
+  revokeUserSessions,
+} from './sessions.js';
 
 const { queryAll, queryOne, run } = db;
 
-const SESSION_DAYS = 7;
 const MIN_PASSWORD_LENGTH = 8;
 const WEAK_PASSWORDS = new Set(['admin123', 'sklad123', 'kassir123', 'password', '12345678']);
 
@@ -36,10 +41,10 @@ export function verifyPassword(password, stored) {
 }
 
 function cleanSessions() {
-  run(`DELETE FROM sessions WHERE expires_at < datetime('now')`);
+  cleanExpiredSessions();
 }
 
-export function login(username, password) {
+export function login(username, password, options = {}) {
   cleanSessions();
   const loginName = (username || '').trim().toLowerCase();
   const pass = (password || '').trim();
@@ -48,15 +53,9 @@ export function login(username, password) {
     throw new Error('Неверный логин или пароль');
   }
 
+  const remember = !!options.remember;
   const token = uuidv4();
-  const sessionId = uuidv4();
-  const expires = new Date();
-  expires.setDate(expires.getDate() + SESSION_DAYS);
-
-  run(`
-    INSERT INTO sessions (id, user_id, token, expires_at)
-    VALUES (?, ?, ?, ?)
-  `, [sessionId, user.id, token, expires.toISOString().slice(0, 19).replace('T', ' ')]);
+  createSession(user, token, { req: options.req, remember });
 
   return { token, user: getUserPayload(user) };
 }
@@ -67,14 +66,7 @@ export function logout(token) {
 }
 
 export function getUserByToken(token) {
-  if (!token) return null;
-  cleanSessions();
-  const row = queryOne(`
-    SELECT u.* FROM users u
-    JOIN sessions s ON s.user_id = u.id
-    WHERE s.token = ? AND s.expires_at >= datetime('now') AND u.active = 1
-  `, [token]);
-  return row ? getUserPayload(row) : null;
+  return resolveAuthFromToken(token)?.user || null;
 }
 
 export function changePassword(userId, currentPassword, newPassword, keepToken = null) {
@@ -98,9 +90,9 @@ export function changePassword(userId, currentPassword, newPassword, keepToken =
   );
 
   if (keepToken) {
-    run('DELETE FROM sessions WHERE user_id = ? AND token != ?', [userId, keepToken]);
+    revokeUserSessions(userId, keepToken);
   } else {
-    run('DELETE FROM sessions WHERE user_id = ?', [userId]);
+    revokeUserSessions(userId);
   }
 
   const updated = queryOne('SELECT * FROM users WHERE id = ?', [userId]);
@@ -244,7 +236,7 @@ export function updateUser(id, data) {
   }
 
   if (data.active === false) {
-    run('DELETE FROM sessions WHERE user_id = ?', [id]);
+    revokeUserSessions(id);
   }
 
   return queryOne('SELECT id, username, name, role, active, created_at FROM users WHERE id = ?', [id]);
@@ -254,7 +246,7 @@ export function deleteUser(id) {
   const user = queryOne('SELECT * FROM users WHERE id = ?', [id]);
   if (!user) throw new Error('Сотрудник не найден');
   if (isProtectedAdmin(user)) throw new Error('Нельзя удалить главного администратора');
-  run('DELETE FROM sessions WHERE user_id = ?', [id]);
+  revokeUserSessions(id);
   run('DELETE FROM users WHERE id = ?', [id]);
 }
 

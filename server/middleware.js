@@ -1,12 +1,17 @@
 import { hasPermission } from './permissions.js';
-import { getUserByToken } from './auth.js';
+import { resolveAuthFromToken, touchSessionIfNeeded } from './sessions.js';
 import { resolveBranchId } from './branches.js';
 import { getSessionTokenFromRequest } from './sessionCookie.js';
 
 export function authOptional(req, res, next) {
   const token = getSessionTokenFromRequest(req);
-  req.user = getUserByToken(token) || null;
+  const auth = resolveAuthFromToken(token);
+  req.user = auth?.user || null;
   req.token = token || null;
+  req.session = auth?.session || null;
+  if (token && req.user) {
+    touchSessionIfNeeded(token);
+  }
   next();
 }
 

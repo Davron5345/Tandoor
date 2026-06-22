@@ -342,6 +342,9 @@ function migrateSchema() {
   migrateDocumentHistoryRetention();
   migrateMustChangePassword();
   migrateAuditLog();
+  migrateSessionsMeta();
+  migrateBlockedDevices();
+  migrateVisitLog();
   migrateProductBranches();
   migrateProductBranchesBackfill();
   migrateShopOrders();
@@ -639,6 +642,69 @@ function migrateProductBranches() {
   }
 
   run("INSERT OR REPLACE INTO settings (key, value) VALUES ('product_branches_v1', '1')");
+}
+
+function migrateVisitLog() {
+  run(`
+    CREATE TABLE IF NOT EXISTS visit_log (
+      id TEXT PRIMARY KEY,
+      user_id TEXT,
+      username TEXT,
+      action TEXT NOT NULL,
+      success INTEGER DEFAULT 1,
+      ip TEXT,
+      user_agent TEXT,
+      device_id TEXT,
+      device_label TEXT,
+      details TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+  run('CREATE INDEX IF NOT EXISTS idx_visit_log_created ON visit_log(created_at DESC)');
+  run('CREATE INDEX IF NOT EXISTS idx_visit_log_action ON visit_log(action)');
+  run('CREATE INDEX IF NOT EXISTS idx_visit_log_username ON visit_log(username)');
+}
+
+function migrateBlockedDevices() {
+  run(`
+    CREATE TABLE IF NOT EXISTS blocked_devices (
+      id TEXT PRIMARY KEY,
+      device_id TEXT NOT NULL UNIQUE,
+      user_id TEXT,
+      ip TEXT,
+      device_label TEXT,
+      user_agent TEXT,
+      blocked_by TEXT,
+      reason TEXT,
+      blocked_at TEXT DEFAULT (datetime('now')),
+      expires_at TEXT
+    )
+  `);
+  run('CREATE INDEX IF NOT EXISTS idx_blocked_devices_device ON blocked_devices(device_id)');
+}
+
+function migrateSessionsMeta() {
+  const done = queryOne("SELECT value FROM settings WHERE key = 'sessions_meta_v1'");
+  if (done) return;
+
+  const cols = queryAll('PRAGMA table_info(sessions)').map((c) => c.name);
+  const adds = [
+    ['ip', 'TEXT'],
+    ['user_agent', 'TEXT'],
+    ['device_label', 'TEXT'],
+    ['device_id', 'TEXT'],
+    ['last_seen_at', 'TEXT'],
+    ['remember', 'INTEGER DEFAULT 0'],
+  ];
+  for (const [name, type] of adds) {
+    if (!cols.includes(name)) {
+      run(`ALTER TABLE sessions ADD COLUMN ${name} ${type}`);
+    }
+  }
+  run('CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)');
+  run('CREATE INDEX IF NOT EXISTS idx_sessions_device ON sessions(device_id)');
+  run("UPDATE sessions SET last_seen_at = created_at WHERE last_seen_at IS NULL");
+  run("INSERT OR REPLACE INTO settings (key, value) VALUES ('sessions_meta_v1', '1')");
 }
 
 function migrateAuditLog() {

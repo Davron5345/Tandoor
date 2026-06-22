@@ -1,7 +1,7 @@
 const SESSION_COOKIE = 'warehouse_session';
 const SESSION_MAX_AGE_SEC = 7 * 24 * 60 * 60;
 
-export { SESSION_COOKIE };
+export { SESSION_COOKIE, SESSION_MAX_AGE_SEC };
 
 function isSecureCookie() {
   return process.env.NODE_ENV === 'production' && process.env.COOKIE_SECURE !== 'false';
@@ -28,14 +28,16 @@ export function getSessionTokenFromRequest(req) {
   return cookies[SESSION_COOKIE] || null;
 }
 
-export function setSessionCookie(res, token) {
+export function setSessionCookie(res, token, { remember = false } = {}) {
   const parts = [
     `${SESSION_COOKIE}=${encodeURIComponent(token)}`,
     'Path=/',
     'HttpOnly',
     'SameSite=Lax',
-    `Max-Age=${SESSION_MAX_AGE_SEC}`,
   ];
+  if (remember) {
+    parts.push(`Max-Age=${SESSION_MAX_AGE_SEC}`);
+  }
   if (isSecureCookie()) parts.push('Secure');
   res.setHeader('Set-Cookie', parts.join('; '));
 }
