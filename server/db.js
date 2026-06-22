@@ -115,8 +115,12 @@ export async function initDb() {
   const SQL = await initSqlJs();
 
   if (existsSync(dbPath)) {
-    const buffer = readFileSync(dbPath);
-    db = new SQL.Database(buffer);
+    try {
+      const buffer = readFileSync(dbPath);
+      db = new SQL.Database(buffer);
+    } catch (e) {
+      throw new Error(`Не удалось открыть БД (${dbPath}): ${e.message}`);
+    }
   } else {
     db = new SQL.Database();
   }

@@ -15,14 +15,16 @@ import {
 } from '../sessions.js';
 import { buildOpenApiSpec, renderApiDocsHtml } from '../openapi.js';
 import { getAppVersion } from '../appVersion.js';
-import { isServerReady } from '../readiness.js';
+import { isServerReady, getServerInitError } from '../readiness.js';
 
 export function registerAuthRoutes(app, { authRequired }) {
   app.get('/api/health', (_, res) => {
     const ready = isServerReady();
+    const initError = getServerInitError();
     res.status(200).json({
       ok: ready,
       ready,
+      error: initError,
       telegram: ready ? isTelegramEnabled() : false,
     });
   });
