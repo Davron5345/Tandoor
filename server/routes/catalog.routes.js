@@ -36,6 +36,10 @@ export function registerCatalogRoutes(app, { productImageUpload }) {
     }
   });
 
+  app.get('/api/products/kind-counts', requireAnyPermission('products.view', 'myshop.view', 'myshop.edit'), (req, res) => {
+    res.json(svc.getProductKindCounts(req.query));
+  });
+
   app.get('/api/products', requireAnyPermission('products.view', 'myshop.view', 'myshop.edit'), attachBranch, (req, res) => {
     res.json(svc.getProducts({ ...req.query, branch_id: req.branchId }));
   });

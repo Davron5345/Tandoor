@@ -238,6 +238,24 @@ export function getProducts(filters = {}) {
   return paginateList(result, pagination);
 }
 
+export function getProductKindCounts(filters = {}) {
+  const archivedOnly = filters.archived === '1' || filters.archived === 1 ? 1 : 0;
+  const rows = queryAll(`
+    SELECT COALESCE(NULLIF(product_kind, ''), 'goods') as kind, COUNT(*) as count
+    FROM products
+    WHERE COALESCE(archived, 0) = ?
+    GROUP BY kind
+  `, [archivedOnly]);
+
+  const counts = { all: 0 };
+  for (const row of rows) {
+    const kind = normalizeProductKind(row.kind);
+    counts[kind] = row.count;
+    counts.all += row.count;
+  }
+  return counts;
+}
+
 export function getProductCategories() {
   return queryAll(`
     SELECT pc.*,

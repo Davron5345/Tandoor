@@ -24,6 +24,13 @@ export const PRODUCT_KIND_LABELS_PLURAL = {
   [PRODUCT_KIND_DISH]: 'Готовые блюда',
 };
 
+export const PRODUCT_KIND_LABELS_SHORT = {
+  [PRODUCT_KIND_GOODS]: 'Товары',
+  [PRODUCT_KIND_RAW]: 'Сырьё',
+  [PRODUCT_KIND_SEMI]: 'Полуфабр.',
+  [PRODUCT_KIND_DISH]: 'Блюда',
+};
+
 export const INGREDIENT_KINDS = [PRODUCT_KIND_RAW, PRODUCT_KIND_SEMI];
 export const DISH_OUTPUT_KINDS = [PRODUCT_KIND_DISH];
 export const RAZDELKA_OUTPUT_KINDS = [PRODUCT_KIND_SEMI, PRODUCT_KIND_GOODS];

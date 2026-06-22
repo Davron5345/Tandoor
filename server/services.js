@@ -20,6 +20,7 @@ export {
 
 export {
   getProducts,
+  getProductKindCounts,
   getProductCategories,
   createProductCategory,
   updateProductCategory,

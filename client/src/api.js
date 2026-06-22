@@ -165,6 +165,10 @@ export const api = {
     if (params.page || params.limit) return normalizeListResponse(data);
     return Array.isArray(data) ? data : data.items;
   },
+  getProductKindCounts: (params = {}) => {
+    const q = new URLSearchParams(params).toString();
+    return request(`/products/kind-counts${q ? `?${q}` : ''}`);
+  },
   getMyShopLayout: () => request('/myshop/layout'),
   saveMyShopLayout: (data) => request('/myshop/layout', { method: 'PUT', body: JSON.stringify(data) }),
   getShopSettings: () => request('/shop/settings'),

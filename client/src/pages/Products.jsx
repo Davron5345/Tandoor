@@ -18,6 +18,7 @@ import {
   getVariantDisplayName,
   getVariantPrimaryImage,
 } from '../utils/productVariants';
+import ProductKindFilter from '../components/ProductKindFilter';
 import SupplierMultiSelect from '../components/SupplierMultiSelect';
 import ProductBranchSettings, {
   mapBranchSettingsFromApi,
@@ -33,7 +34,6 @@ import { IconImage } from '../components/ActionIcons';
 import {
   PRODUCT_KIND_GOODS,
   PRODUCT_KIND_LABELS,
-  PRODUCT_KIND_LABELS_PLURAL,
   PRODUCT_KINDS,
   productKindLabel,
 } from '../productKinds';
@@ -359,6 +359,7 @@ export default function Products() {
   const [sortDir, setSortDir] = useState('asc');
   const [catalogCount, setCatalogCount] = useState(0);
   const [archiveCount, setArchiveCount] = useState(0);
+  const [kindCounts, setKindCounts] = useState({});
   const { show, Toast } = useToast();
   const { user } = useAuth();
   const { branchId, branches, isAdmin } = useBranch();
@@ -450,8 +451,9 @@ export default function Products() {
       api.getProducts({ ...countParams, archived: '1' }),
       api.getProductCategories(),
       api.getCounterparties('supplier'),
+      api.getProductKindCounts({ archived: listView === 'archive' ? '1' : '0' }),
     ])
-      .then(([p, catalogRes, archiveRes, c, s]) => {
+      .then(([p, catalogRes, archiveRes, c, s, kindStats]) => {
         if (searching || Array.isArray(p)) {
           setProducts(Array.isArray(p) ? p : p.items || []);
           setProductPages(1);
@@ -465,6 +467,7 @@ export default function Products() {
         setArchiveCount(Array.isArray(archiveRes) ? archiveRes.length : (archiveRes.total ?? 0));
         setCategories(c);
         setSuppliers(s);
+        setKindCounts(kindStats || {});
       })
       .catch(console.error);
   }, [filterCategory, filterSupplier, filterKind, productPage, productPageSize, sortKey, sortDir, search, listView, branchId]);
@@ -1084,43 +1087,62 @@ export default function Products() {
         )}
       </div>
 
-      <div className="tabs products-kind-tabs">
-        <button
-          type="button"
-          className={`tab${!filterKind ? ' active' : ''}`}
-          onClick={() => setFilterKind('')}
-        >
-          Все
-        </button>
-        {PRODUCT_KINDS.map((kindId) => (
-          <button
-            key={kindId}
-            type="button"
-            className={`tab${filterKind === kindId ? ' active' : ''}`}
-            onClick={() => setFilterKind(kindId)}
-          >
-            {PRODUCT_KIND_LABELS_PLURAL[kindId]}
-          </button>
-        ))}
-      </div>
+      <div className="card products-toolbar">
+        <div className="products-toolbar-top">
+          <div className="segmented-control products-view-switch">
+            <button
+              type="button"
+              className={`segmented-control-btn${listView === 'catalog' ? ' active' : ''}`}
+              onClick={() => setListView('catalog')}
+            >
+              Справочник
+              <span className="segmented-control-count">{catalogCount}</span>
+            </button>
+            <button
+              type="button"
+              className={`segmented-control-btn${listView === 'archive' ? ' active' : ''}`}
+              onClick={() => setListView('archive')}
+            >
+              Архив
+              <span className="segmented-control-count">{archiveCount}</span>
+            </button>
+          </div>
+        </div>
 
-      <div className="tabs products-list-tabs">
-        <button
-          type="button"
-          className={`tab${listView === 'catalog' ? ' active' : ''}`}
-          onClick={() => setListView('catalog')}
-        >
-          Справочник
-          <span className="tab-count">{catalogCount}</span>
-        </button>
-        <button
-          type="button"
-          className={`tab${listView === 'archive' ? ' active' : ''}`}
-          onClick={() => setListView('archive')}
-        >
-          Архив
-          <span className="tab-count">{archiveCount}</span>
-        </button>
+        <ProductKindFilter
+          value={filterKind}
+          onChange={setFilterKind}
+          counts={kindCounts}
+        />
+
+        <div className="filters products-toolbar-filters">
+          <input
+            type="search"
+            placeholder="Поиск по названию, штрих-коду, артикулу..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          <CategorySelect
+            categories={categories}
+            value={filterCategory}
+            onChange={setFilterCategory}
+            includeEmpty
+            emptyLabel="Все категории"
+            extraOptions={categoryFilterExtras}
+            className="category-select-filter"
+          />
+          <CategorySelect
+            categories={supplierOptions}
+            value={filterSupplier}
+            onChange={setFilterSupplier}
+            tree={false}
+            includeEmpty
+            emptyLabel="Все поставщики"
+            extraOptions={supplierFilterExtras}
+            searchPlaceholder="Поиск поставщика..."
+            className="category-select-filter"
+          />
+        </div>
       </div>
 
       {listView === 'archive' && (
@@ -1128,35 +1150,6 @@ export default function Products() {
           Здесь товары, которые убрали из справочника. Их можно вернуть обратно. Товары из документов удалить нельзя — только архивировать.
         </p>
       )}
-
-      <div className="filters">
-        <input
-          type="search"
-          placeholder="Поиск по названию, штрих-коду, артикулу..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-        <CategorySelect
-          categories={categories}
-          value={filterCategory}
-          onChange={setFilterCategory}
-          includeEmpty
-          emptyLabel="Все категории"
-          extraOptions={categoryFilterExtras}
-          className="category-select-filter"
-        />
-        <CategorySelect
-          categories={supplierOptions}
-          value={filterSupplier}
-          onChange={setFilterSupplier}
-          tree={false}
-          includeEmpty
-          emptyLabel="Все поставщики"
-          extraOptions={supplierFilterExtras}
-          searchPlaceholder="Поиск поставщика..."
-          className="category-select-filter"
-        />
-      </div>
 
       {visibleListRows.length === 0 ? (
         <div className="card">
