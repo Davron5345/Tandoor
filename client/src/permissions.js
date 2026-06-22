@@ -82,14 +82,34 @@ const FULL_APP_PERMISSIONS = [
   'counterparties.edit',
 ];
 
+/** Права, совместимые с упрощённым экраном кассы (без бокового меню). */
+const CASHIER_UI_ALLOWED = new Set([
+  'cashier.view',
+  'cashier.edit',
+  'cashier.delete',
+  'dashboard.view',
+  'counterparties.view',
+  'documents.view',
+  'reports.view',
+]);
+
+function isCashierRoleId(role) {
+  if (!role || role === 'admin' || role === 'accountant' || role === 'warehouse') return false;
+  if (role === 'cashier' || role === 'kassa_mahalla') return true;
+  if (role.startsWith('cashier_') || role.startsWith('kassa_')) return true;
+  return false;
+}
+
 /** Упрощённый интерфейс кассы без бокового меню (встроенная и кастомные кассовые роли). */
 export function isCashierOnlyLayout(user) {
   if (!user) return false;
-  if (user.role === 'admin' || user.role === 'accountant' || user.role === 'warehouse') return false;
-  if (user.role === 'cashier') return true;
+  if (user.role === 'admin') return false;
+  if (isCashierRoleId(user.role)) return true;
   if (!hasAnyPermission(user, ['cashier.view', 'cashier.edit'])) return false;
   if (hasAnyPermission(user, FULL_APP_PERMISSIONS)) return false;
-  return true;
+  const perms = user.permissions?.filter((p) => p !== '*') || [];
+  if (!perms.length) return false;
+  return perms.every((p) => CASHIER_UI_ALLOWED.has(p));
 }
 
 export const PAYMENT_TYPES = {
