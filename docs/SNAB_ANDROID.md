@@ -10,10 +10,25 @@
 
 ## Сборка APK
 
+### Вариант А — скачать готовый (рекомендуется)
+
+1. Откройте репозиторий на GitHub → вкладка **Actions**
+2. Выберите workflow **Android APK** → последний успешный запуск
+3. Внизу страницы — **Artifacts** → скачайте `snabzenie-debug-apk`
+4. В архиве файл `app-debug.apk` — раздайте сотрудникам
+
+Запуск сборки вручную: Actions → Android APK → **Run workflow**.
+
+### Вариант Б — собрать на своём ПК
+
+Нужны **Android Studio** и **JDK** (идут в комплекте со Studio).
+
 ```bash
 npm run setup
 npm run android:apk
 ```
+
+На Windows также: `powershell -File scripts/build-android.ps1`
 
 Готовый файл:
 

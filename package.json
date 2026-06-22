@@ -21,7 +21,7 @@
     "perms:verify": "node server/scripts/verify-cashier-perms.mjs",
     "cap:sync": "npm run build && npx cap sync android",
     "android:open": "npx cap open android",
-    "android:apk": "npm run cap:sync && cd android && gradlew.bat assembleDebug",
+    "android:apk": "node scripts/build-android.mjs",
     "test": "node --test server/test/**/*.test.js",
     "test:e2e": "playwright test",
     "test:e2e:install": "playwright install chromium",
