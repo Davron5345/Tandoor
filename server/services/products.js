@@ -291,22 +291,64 @@ function assertValidParent(categoryId, parentId) {
   return parentId;
 }
 
+function normalizeNameKey(name) {
+  return (name || '').trim().toLowerCase();
+}
+
 function assertUniqueCategoryName(name, parentId, excludeId = null) {
-  const row = excludeId
-    ? queryOne(
-      `SELECT id FROM product_categories
-       WHERE name = ? COLLATE NOCASE
-         AND COALESCE(parent_id, '') = COALESCE(?, '')
-         AND id != ?`,
-      [name, parentId || null, excludeId],
-    )
-    : queryOne(
-      `SELECT id FROM product_categories
-       WHERE name = ? COLLATE NOCASE
-         AND COALESCE(parent_id, '') = COALESCE(?, '')`,
-      [name, parentId || null],
+  const normalized = normalizeNameKey(name);
+  const categories = excludeId
+    ? queryAll('SELECT id, name, parent_id FROM product_categories WHERE id != ?', [excludeId])
+    : queryAll('SELECT id, name, parent_id FROM product_categories');
+
+  const sameLevel = categories.find(
+    (cat) => normalizeNameKey(cat.name) === normalized
+      && (cat.parent_id || '') === (parentId || ''),
+  );
+  if (sameLevel) {
+    throw new Error(parentId
+      ? 'Подкатегория с таким названием уже есть в этой категории'
+      : 'Категория верхнего уровня с таким названием уже есть');
+  }
+
+  if (parentId) {
+    const rootDup = categories.find(
+      (cat) => normalizeNameKey(cat.name) === normalized && !cat.parent_id,
     );
-  if (row) throw new Error('Категория с таким названием уже есть на этом уровне');
+    if (rootDup) {
+      throw new Error('Такое название уже используется в категории верхнего уровня');
+    }
+    return;
+  }
+
+  const subDup = categories.find(
+    (cat) => normalizeNameKey(cat.name) === normalized && !!cat.parent_id,
+  );
+  if (subDup) {
+    throw new Error('Такое название уже используется в подкатегории');
+  }
+}
+
+function assertUniqueProductName(name, excludeId = null) {
+  const normalized = normalizeNameKey(name);
+  const products = excludeId
+    ? queryAll('SELECT id, name FROM products WHERE COALESCE(archived, 0) = 0 AND id != ?', [excludeId])
+    : queryAll('SELECT id, name FROM products WHERE COALESCE(archived, 0) = 0');
+
+  if (products.some((product) => normalizeNameKey(product.name) === normalized)) {
+    throw new Error('Товар с таким наименованием уже существует');
+  }
+}
+
+function assertUniqueVariantNames(variants) {
+  const seen = new Set();
+  for (const variant of variants) {
+    const key = variant.name.trim().toLowerCase();
+    if (seen.has(key)) {
+      throw new Error(`Вариант «${variant.name}» повторяется в этом товаре`);
+    }
+    seen.add(key);
+  }
 }
 
 export function createProductCategory(data) {
@@ -434,7 +476,7 @@ function normalizeProductPayload(data) {
 
 function normalizeVariantsInput(variants) {
   if (!Array.isArray(variants)) return [];
-  return variants.map((v, idx) => {
+  const normalized = variants.map((v, idx) => {
     const name = (v.name || '').trim();
     if (!name) throw new Error('Укажите название варианта');
     if (v.price === '' || v.price == null || Number.isNaN(Number(v.price))) {
@@ -454,6 +496,8 @@ function normalizeVariantsInput(variants) {
       sort_order: idx,
     };
   });
+  assertUniqueVariantNames(normalized);
+  return normalized;
 }
 
 function syncProductStockFromVariants(productId, branchId = DEFAULT_BRANCH_ID) {
@@ -692,6 +736,7 @@ function setProductSuppliers(productId, supplierIds = [], branchId = DEFAULT_BRA
 
 export function createProduct(data) {
   const payload = normalizeProductPayload(data);
+  assertUniqueProductName(payload.name);
   payload.barcode = assertUniqueBarcode(payload.barcode);
 
   const id = uuidv4();
@@ -728,6 +773,7 @@ export function createProduct(data) {
 
 export function updateProduct(id, data, branchId = DEFAULT_BRANCH_ID, options = {}) {
   const payload = normalizeProductPayload(data);
+  assertUniqueProductName(payload.name, id);
   payload.barcode = assertUniqueBarcode(payload.barcode, id);
 
   if (!options.isAdmin && !payload.has_variants) {

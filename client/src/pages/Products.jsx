@@ -809,6 +809,17 @@ export default function Products() {
       return;
     }
 
+    const trimmedName = form.name.trim();
+    const duplicateProduct = products.find(
+      (p) => !p.archived
+        && p.name?.trim().toLowerCase() === trimmedName.toLowerCase()
+        && p.id !== (modal === 'create' ? null : modal),
+    );
+    if (duplicateProduct) {
+      show('Товар с таким наименованием уже существует', 'error');
+      return;
+    }
+
     try {
       const payload = {
         name: form.name,

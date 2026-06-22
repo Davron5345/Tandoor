@@ -226,18 +226,27 @@ export function validateVariants(variants, show) {
     return false;
   }
 
+  const seen = new Set();
   for (const variant of variants) {
-    if (!variant.name.trim()) {
+    const name = variant.name.trim();
+    if (!name) {
       show('Укажите название варианта', 'error');
       return false;
     }
+    const key = name.toLowerCase();
+    if (seen.has(key)) {
+      show(`Вариант «${name}» повторяется в этом товаре`, 'error');
+      return false;
+    }
+    seen.add(key);
+
     const price = parsePriceInput(variant.price);
     if (price == null || Number.isNaN(price)) {
-      show(`Укажите цену варианта «${variant.name.trim() || 'без названия'}»`, 'error');
+      show(`Укажите цену варианта «${name || 'без названия'}»`, 'error');
       return false;
     }
     if (price < 0) {
-      show(`Цена варианта «${variant.name.trim()}» не может быть отрицательной`, 'error');
+      show(`Цена варианта «${name}» не может быть отрицательной`, 'error');
       return false;
     }
   }
