@@ -15,10 +15,6 @@ const PORT = Number(process.env.PORT) || 3001;
 const app = createApp();
 
 async function start() {
-  const server = app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Сервер слушает порт ${PORT}`);
-  });
-
   try {
     console.log('⏳ Инициализация базы данных...');
     await db.initDb();
@@ -28,9 +24,12 @@ async function start() {
     console.log(`✅ База готова: ${dbPath}`);
   } catch (err) {
     console.error('❌ Ошибка инициализации БД:', err);
-    server.close();
     process.exit(1);
   }
+
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 Сервер слушает порт ${PORT}`);
+  });
 
   if (process.env.NODE_ENV !== 'production') {
     console.log('👤 Логины: admin/admin123, sklad/sklad123, kassir/kassir123');

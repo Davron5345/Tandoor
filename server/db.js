@@ -1635,12 +1635,13 @@ function migrateRolesBranch() {
 
   run("UPDATE roles SET branch_id = NULL WHERE id = 'admin'");
 
+  const validBranchIds = new Set(queryAll('SELECT id FROM branches').map((b) => b.id));
   const roles = queryAll("SELECT id FROM roles WHERE id != 'admin'");
   for (const { id } of roles) {
     const branchRows = queryAll(
       'SELECT DISTINCT branch_id FROM users WHERE role = ? AND branch_id IS NOT NULL',
       [id],
-    );
+    ).filter((row) => validBranchIds.has(row.branch_id));
     if (branchRows.length === 0) {
       run("UPDATE roles SET branch_id = 'main' WHERE id = ?", [id]);
     } else if (branchRows.length === 1) {
