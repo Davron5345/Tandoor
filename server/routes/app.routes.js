@@ -5,6 +5,7 @@ import { getAppVersion } from '../appVersion.js';
 import { dataDir } from '../dbBackup.js';
 
 const GITHUB_APK_BUILD_URL = 'https://github.com/Davron5345/Tandoor/actions/workflows/android-apk.yml';
+const DEFAULT_GITHUB_APK_URL = 'https://github.com/Davron5345/Tandoor/releases/latest/download/snabzenie.apk';
 
 function getSnabApkPath() {
   if (process.env.SNAB_APK_PATH) return process.env.SNAB_APK_PATH;
@@ -20,16 +21,33 @@ function getPublicBaseUrl(req) {
   return `${proto}://${host}`;
 }
 
+function resolveApkDownloadUrl(req, apkOnDisk) {
+  const base = getPublicBaseUrl(req);
+  if (apkOnDisk) return `${base}/api/public/snab-apk`;
+  return process.env.SNAB_APK_URL || DEFAULT_GITHUB_APK_URL;
+}
+
 export function registerAppRoutes(app) {
+  app.get('/api/public/snab-apk', (req, res) => {
+    const apkPath = getSnabApkPath();
+    if (existsSync(apkPath)) {
+      return res.download(apkPath, 'snabzenie.apk');
+    }
+    const target = process.env.SNAB_APK_URL || DEFAULT_GITHUB_APK_URL;
+    return res.redirect(target);
+  });
+
   app.get('/api/app/snab-install', requirePermission('shop_orders.view'), (req, res) => {
     const base = getPublicBaseUrl(req);
     const apkPath = getSnabApkPath();
     const apkOnDisk = existsSync(apkPath);
+    const apkUrl = resolveApkDownloadUrl(req, apkOnDisk);
 
     res.json({
       mobileUrl: `${base}/snab`,
       mobilePath: '/snab',
-      apkUrl: apkOnDisk ? `${base}/api/app/snab-apk` : (process.env.SNAB_APK_URL || null),
+      apkUrl,
+      apkDownloadUrl: apkUrl,
       apkOnServer: apkOnDisk,
       githubBuildUrl: GITHUB_APK_BUILD_URL,
       version: getAppVersion(),
@@ -39,10 +57,7 @@ export function registerAppRoutes(app) {
   app.get('/api/app/snab-apk', requirePermission('shop_orders.view'), (req, res) => {
     const apkPath = getSnabApkPath();
     if (!existsSync(apkPath)) {
-      return res.status(404).json({
-        error: 'APK не загружен на сервер. Соберите в GitHub Actions или укажите SNAB_APK_URL.',
-        githubBuildUrl: GITHUB_APK_BUILD_URL,
-      });
+      return res.redirect(process.env.SNAB_APK_URL || DEFAULT_GITHUB_APK_URL);
     }
     res.download(apkPath, 'snabzenie.apk');
   });

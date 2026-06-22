@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import { api, getApiBaseUrl } from '../api';
+import { api } from '../api';
+
+const FALLBACK_APK_URL = 'https://github.com/Davron5345/Tandoor/releases/latest/download/snabzenie.apk';
 
 function qrImageUrl(url) {
   return `https://api.qrserver.com/v1/create-qr-code/?size=180x180&margin=8&data=${encodeURIComponent(url)}`;
@@ -30,14 +32,15 @@ export default function SnabAppPanel() {
       .then(setInfo)
       .catch(() => {
         const origin = typeof window !== 'undefined' ? window.location.origin : '';
-        setInfo({ mobileUrl: `${origin}/snab`, apkUrl: null, apkOnServer: false });
+        setInfo({
+          mobileUrl: `${origin}/snab`,
+          apkUrl: FALLBACK_APK_URL,
+        });
       });
   }, []);
 
   const mobileUrl = info?.mobileUrl || (typeof window !== 'undefined' ? `${window.location.origin}/snab` : '/snab');
-  const apkHref = info?.apkOnServer
-    ? `${getApiBaseUrl()}/api/app/snab-apk`
-    : info?.apkUrl;
+  const apkHref = info?.apkUrl || info?.apkDownloadUrl || FALLBACK_APK_URL;
 
   const handleCopy = useCallback(async (label, text) => {
     try {
@@ -60,7 +63,7 @@ export default function SnabAppPanel() {
       <div className="snab-app-panel-head">
         <div>
           <h2>Приложение «Снабжение»</h2>
-          <p>Для снабженца: заказы, push-уведомления и фоновая геолокация без Play Market</p>
+          <p>Снабженец: скачал APK → установил → вошёл → включил геолокацию. Без Play Market.</p>
         </div>
         <button type="button" className="btn btn-ghost btn-sm" onClick={toggleCollapsed}>
           {collapsed ? 'Показать' : 'Свернуть'}
@@ -71,53 +74,46 @@ export default function SnabAppPanel() {
         <div className="snab-app-panel-body">
           <div className="snab-app-panel-grid">
             <section className="snab-app-panel-block snab-app-panel-block--apk">
-              <span className="snab-app-panel-badge">Рекомендуется</span>
-              <h3>Android APK</h3>
+              <span className="snab-app-panel-badge">Для снабженца</span>
+              <h3>Скачать Android APK</h3>
               <p>Фоновый GPS — координаты передаются даже при свёрнутом приложении.</p>
-              <ul className="snab-app-panel-steps">
-                <li>Скачайте и установите APK на телефон снабженца</li>
-                <li>Войдите под его логином</li>
-                <li>Нажмите «Фоновая геолокация» и разрешите доступ «Всегда»</li>
-              </ul>
+              <ol className="snab-app-panel-steps">
+                <li>Отправьте ссылку или QR снабженцу</li>
+                <li>Он устанавливает APK и входит под своим логином</li>
+                <li>Нажимает «Фоновая геолокация» → разрешить «Всегда»</li>
+              </ol>
               <div className="snab-app-panel-actions">
-                {apkHref ? (
-                  <a className="btn btn-primary btn-sm" href={apkHref} download={info?.apkOnServer ? 'snabzenie.apk' : undefined}>
-                    Скачать APK
-                  </a>
-                ) : (
-                  <a
-                    className="btn btn-primary btn-sm"
-                    href={info?.githubBuildUrl || 'https://github.com/Davron5345/Tandoor/actions/workflows/android-apk.yml'}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    Собрать APK (GitHub)
-                  </a>
-                )}
-                {!apkHref && (
-                  <span className="snab-app-panel-hint">
-                    Actions → Android APK → Artifacts → загрузите `snab.apk` в папку data на сервере
-                  </span>
-                )}
+                <a className="btn btn-primary btn-sm" href={apkHref}>
+                  Скачать APK
+                </a>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => handleCopy('apk', apkHref)}>
+                  {copied === 'apk' ? 'Скопировано' : 'Копировать ссылку'}
+                </button>
               </div>
+              <img
+                className="snab-app-panel-qr snab-app-panel-qr--inline"
+                src={qrImageUrl(apkHref)}
+                width={140}
+                height={140}
+                alt="QR для скачивания APK"
+              />
             </section>
 
             <section className="snab-app-panel-block">
-              <h3>PWA в браузере</h3>
-              <p>Без установки APK — только пока приложение открыто.</p>
+              <h3>Веб-версия (PWA)</h3>
+              <p>Без APK — геолокация только при открытом приложении.</p>
               <div className="snab-app-panel-actions">
                 <a className="btn btn-primary btn-sm" href={mobileUrl} target="_blank" rel="noopener noreferrer">
-                  Открыть на телефоне
+                  Открыть /snab
                 </a>
                 <button type="button" className="btn btn-ghost btn-sm" onClick={() => handleCopy('link', mobileUrl)}>
                   {copied === 'link' ? 'Скопировано' : 'Копировать ссылку'}
                 </button>
               </div>
-              <p className="snab-app-panel-note">Chrome → «Установить приложение» или отсканируйте QR</p>
             </section>
 
             <section className="snab-app-panel-block snab-app-panel-block--qr">
-              <h3>QR для телефона</h3>
+              <h3>QR — веб-версия</h3>
               <img
                 className="snab-app-panel-qr"
                 src={qrImageUrl(mobileUrl)}
@@ -131,7 +127,7 @@ export default function SnabAppPanel() {
 
           {info?.version?.version && (
             <p className="snab-app-panel-version">
-              Версия веб-приложения: {String(info.version.version).slice(0, 8)}
+              Версия: {String(info.version.version).slice(0, 8)}
             </p>
           )}
         </div>
@@ -139,3 +135,5 @@ export default function SnabAppPanel() {
     </div>
   );
 }
+
+export { FALLBACK_APK_URL };

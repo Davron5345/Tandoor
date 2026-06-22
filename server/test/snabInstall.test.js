@@ -55,5 +55,13 @@ test('shop orders user can read snab install info', async () => {
   assert.equal(res.status, 200);
   const data = await res.json();
   assert.ok(data.mobileUrl.includes('/snab'));
+  assert.ok(data.apkUrl);
   assert.ok(data.githubBuildUrl);
+});
+
+test('public snab apk redirects to github release', async () => {
+  const res = await fetch(`${baseUrl}/api/public/snab-apk`, { redirect: 'manual' });
+  assert.equal(res.status, 302);
+  const location = res.headers.get('location') || '';
+  assert.ok(location.includes('snabzenie.apk'));
 });

@@ -18,6 +18,7 @@ import {
 } from '../utils/pwaPush';
 import { useStaffLocationPing, requestStaffLocationPermission } from '../hooks/useStaffLocationPing';
 import { isNativeApp, isBackgroundLocationEnabled } from '../utils/nativeApp';
+import { FALLBACK_APK_URL } from '../components/SnabAppPanel';
 
 const STATUS_FILTERS = [
   { value: '', label: 'Все' },
@@ -290,10 +291,15 @@ export default function ShopOrdersMobile() {
                 <span>
                   {isNativeApp()
                     ? 'Разрешите доступ к местоположению «всегда» — администратор видит, где вы находитесь, даже когда приложение свёрнуто. В шторке появится уведомление о трекинге.'
-                    : 'Это полноценное приложение без Play Market — только для ваших сотрудников. Chrome → меню ⋮ → «Установить приложение» или кнопка ниже.'}
+                    : 'Скачайте Android-приложение для фоновой геолокации или установите PWA из Chrome.'}
                 </span>
               </div>
               <div className="warehouse-pwa-setup-actions">
+                {!isNativeApp() && !isStandaloneApp() && (
+                  <a className="btn btn-primary btn-sm" href={FALLBACK_APK_URL}>
+                    Скачать Android APK
+                  </a>
+                )}
                 {!isNativeApp() && installPrompt && (
                   <button type="button" className="btn btn-primary btn-sm" onClick={handleInstall}>
                     Установить приложение

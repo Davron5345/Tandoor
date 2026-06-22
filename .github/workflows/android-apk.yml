@@ -14,6 +14,10 @@ on:
 
 env:
   VITE_API_URL: https://tandoor-production.up.railway.app
+  APK_NAME: snabzenie.apk
+
+permissions:
+  contents: write
 
 jobs:
   build-apk:
@@ -42,22 +46,43 @@ jobs:
 
       - name: Build web assets
         run: npm run build
+        env:
+          VITE_API_URL: ${{ env.VITE_API_URL }}
 
       - name: Sync Capacitor
         run: npx cap sync android
 
+      - name: Prepare Android build
+        run: |
+          chmod +x android/gradlew
+          echo "sdk.dir=${ANDROID_HOME}" > android/local.properties
+
       - name: Build debug APK
         working-directory: android
-        run: ./gradlew assembleDebug --no-daemon -q
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
 
-      - name: Upload APK
+      - name: Rename APK
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk "${{ env.APK_NAME }}"
+
+      - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
           name: snabzenie-debug-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: ${{ env.APK_NAME }}
           retention-days: 90
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: snab-apk-${{ github.run_number }}
+          name: Снабжение APK #${{ github.run_number }}
+          body: |
+            Android-приложение для снабженца (фоновая геолокация).
+            Сервер: ${{ env.VITE_API_URL }}
+          files: ${{ env.APK_NAME }}
+          make_latest: true
 
       - name: Summary
         run: |
-          ls -lh android/app/build/outputs/apk/debug/
-          echo "APK готов — скачайте во вкладке Artifacts этого запуска."
+          ls -lh "${{ env.APK_NAME }}"
+          echo "Скачать: https://github.com/${{ github.repository }}/releases/latest/download/${{ env.APK_NAME }}"

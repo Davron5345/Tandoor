@@ -8681,6 +8681,10 @@ html.public-shop-lock #root {
   line-height: 1.5;
 }
 
+.snab-app-panel-qr--inline {
+  margin-top: 12px;
+}
+
 .snab-app-panel-actions {
   display: flex;
   flex-wrap: wrap;
