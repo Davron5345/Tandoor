@@ -319,6 +319,7 @@ function migrateSchema() {
   migrateRolesAndUsers();
   migrateRolesFlexible();
   migrateBranches();
+  migrateRolesBranch();
   migrateDepartments();
   migrateRazdelka();
   migrateCalculations();
@@ -1590,6 +1591,64 @@ function uuidv4() {
     const v = c === 'x' ? r : (r & 0x3 | 0x8);
     return v.toString(16);
   });
+}
+
+function migrateRolesBranch() {
+  const cols = queryAll('PRAGMA table_info(roles)').map((c) => c.name);
+  if (!cols.includes('branch_id')) {
+    run('ALTER TABLE roles ADD COLUMN branch_id TEXT REFERENCES branches(id)');
+  }
+
+  const done = queryOne("SELECT value FROM settings WHERE key = 'roles_branch_v1'");
+  if (done) return;
+
+  run("UPDATE roles SET branch_id = NULL WHERE id = 'admin'");
+
+  const roles = queryAll("SELECT id FROM roles WHERE id != 'admin'");
+  for (const { id } of roles) {
+    const branchRows = queryAll(
+      'SELECT DISTINCT branch_id FROM users WHERE role = ? AND branch_id IS NOT NULL',
+      [id],
+    );
+    if (branchRows.length === 0) {
+      run("UPDATE roles SET branch_id = 'main' WHERE id = ?", [id]);
+    } else if (branchRows.length === 1) {
+      run('UPDATE roles SET branch_id = ? WHERE id = ?', [branchRows[0].branch_id, id]);
+    } else {
+      const [firstBranch, ...otherBranches] = branchRows.map((r) => r.branch_id);
+      run('UPDATE roles SET branch_id = ? WHERE id = ?', [firstBranch, id]);
+      for (const branchId of otherBranches) {
+        cloneRoleForBranch(id, branchId);
+      }
+    }
+  }
+
+  run("INSERT OR REPLACE INTO settings (key, value) VALUES ('roles_branch_v1', '1')");
+  saveDb();
+}
+
+function cloneRoleForBranch(roleId, branchId) {
+  let newId = `${roleId}_${branchId}`.replace(/[^a-z0-9_]/g, '_').slice(0, 32);
+  let suffix = 1;
+  while (queryOne('SELECT id FROM roles WHERE id = ?', [newId])) {
+    newId = `${roleId}_${branchId}_${suffix}`.slice(0, 32);
+    suffix += 1;
+  }
+
+  const src = queryOne('SELECT label, description, is_system FROM roles WHERE id = ?', [roleId]);
+  if (!src) return;
+
+  run(
+    'INSERT INTO roles (id, label, description, is_system, branch_id) VALUES (?, ?, ?, ?, ?)',
+    [newId, src.label, src.description, src.is_system, branchId],
+  );
+
+  const perms = queryAll('SELECT permission FROM role_permissions WHERE role = ?', [roleId]);
+  for (const { permission } of perms) {
+    run('INSERT OR IGNORE INTO role_permissions (role, permission) VALUES (?, ?)', [newId, permission]);
+  }
+
+  run('UPDATE users SET role = ? WHERE role = ? AND branch_id = ?', [newId, roleId, branchId]);
 }
 
 function migrateRolesFlexible() {

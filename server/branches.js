@@ -13,6 +13,14 @@ function ensureBranchOpeningBalanceRow(branchId) {
 
 export const DEFAULT_BRANCH_ID = 'main';
 
+export function isHeadquartersBranch(branchId) {
+  return branchId === DEFAULT_BRANCH_ID;
+}
+
+export function canViewAllBranches(user, branchId) {
+  return user?.role === 'admin' && isHeadquartersBranch(branchId);
+}
+
 function seedCashArticlesForBranch(branchId) {
   for (const article of DEFAULT_CASH_ARTICLES) {
     const id = cashArticleId(branchId, article.code);

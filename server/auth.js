@@ -1,8 +1,8 @@
 import { scryptSync, randomBytes, timingSafeEqual } from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import db from './db.js';
-import { getUserPayload, roleExists } from './permissions.js';
-import { getBranch } from './branches.js';
+import { getUserPayload, roleExists, assertRoleMatchesBranch } from './permissions.js';
+import { getBranch, canViewAllBranches } from './branches.js';
 import {
   cleanExpiredSessions,
   createSession,
@@ -139,6 +139,7 @@ export function createUser(data) {
   if (data.role !== 'admin') {
     if (!branchId) throw new Error('Укажите филиал для сотрудника');
     if (!getBranch(branchId)) throw new Error('Филиал не найден');
+    assertRoleMatchesBranch(data.role, branchId);
   } else {
     branchId = null;
   }
@@ -216,6 +217,7 @@ export function updateUser(id, data) {
   } else if (data.branch_id !== undefined || data.role) {
     if (!branchId) throw new Error('Укажите филиал для сотрудника');
     if (!getBranch(branchId)) throw new Error('Филиал не найден');
+    assertRoleMatchesBranch(nextRole, branchId);
   }
 
   run(`

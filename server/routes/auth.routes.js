@@ -1,5 +1,7 @@
 import { login, logout, changePassword } from '../auth.js';
-import { getRoles } from '../permissions.js';
+import { getRolesForBranch } from '../permissions.js';
+import { attachBranch } from '../middleware.js';
+import { canViewAllBranches } from '../branches.js';
 import { loginRateLimit } from '../loginRateLimit.js';
 import { isTelegramEnabled } from '../telegram.js';
 import { setSessionCookie, clearSessionCookie } from '../sessionCookie.js';
@@ -105,7 +107,8 @@ export function registerAuthRoutes(app, { authRequired }) {
     res.json({ ok: true });
   });
 
-  app.get('/api/auth/roles', (_, res) => {
-    res.json(getRoles());
+  app.get('/api/auth/roles', authRequired, attachBranch, (req, res) => {
+    const allBranches = canViewAllBranches(req.user, req.branchId);
+    res.json(getRolesForBranch(req.branchId, { allBranches, includeAdmin: allBranches }));
   });
 }

@@ -6,8 +6,10 @@ import {
   roleExists, createRole, updateRole, deleteRole, getRolesWithStats,
   initPermissions, getPermissionsConfig, getRolePermissionsMatrix,
   matrixToPermissions, savePermissionsForRole, getPermissionsForRole,
+  assertRoleBranchAccess,
 } from '../permissions.js';
-import { requireAdmin } from '../middleware.js';
+import { requireAdmin, attachBranch } from '../middleware.js';
+import { canViewAllBranches } from '../branches.js';
 import { seedDefaultUsers } from '../auth.js';
 import * as departments from '../departments.js';
 import { resetTestData } from '../resetTestData.js';
@@ -101,21 +103,24 @@ export function registerAdminRoutes(app) {
     );
   });
 
-  app.post('/api/roles', requireAdmin, (req, res) => {
+  app.post('/api/roles', requireAdmin, attachBranch, (req, res) => {
     try {
-      const role = createRole(db, req.body);
+      const role = createRole(db, { ...req.body, branch_id: req.branchId });
       res.status(201).json(role);
     } catch (e) {
       res.status(400).json({ error: e.message });
     }
   });
 
-  app.get('/api/roles/list', requireAdmin, (_, res) => {
-    res.json(getRolesWithStats(db));
+  app.get('/api/roles/list', requireAdmin, attachBranch, (req, res) => {
+    const allBranches = canViewAllBranches(req.user, req.branchId);
+    res.json(getRolesWithStats(db, { branchId: req.branchId, allBranches }));
   });
 
-  app.put('/api/roles/:id', requireAdmin, (req, res) => {
+  app.put('/api/roles/:id', requireAdmin, attachBranch, (req, res) => {
     try {
+      const allBranches = canViewAllBranches(req.user, req.branchId);
+      assertRoleBranchAccess(req.params.id, req.branchId, { allBranches });
       const role = updateRole(db, req.params.id, req.body);
       res.json(role);
     } catch (e) {
@@ -123,8 +128,10 @@ export function registerAdminRoutes(app) {
     }
   });
 
-  app.delete('/api/roles/:id', requireAdmin, (req, res) => {
+  app.delete('/api/roles/:id', requireAdmin, attachBranch, (req, res) => {
     try {
+      const allBranches = canViewAllBranches(req.user, req.branchId);
+      assertRoleBranchAccess(req.params.id, req.branchId, { allBranches });
       deleteRole(db, req.params.id);
       res.json({ ok: true });
     } catch (e) {
@@ -136,9 +143,15 @@ export function registerAdminRoutes(app) {
     res.json(getPermissionsConfig());
   });
 
-  app.get('/api/roles/:role/permissions', requireAdmin, (req, res) => {
+  app.get('/api/roles/:role/permissions', requireAdmin, attachBranch, (req, res) => {
     const role = req.params.role;
     if (!roleExists(role)) return res.status(404).json({ error: 'Роль не найдена' });
+    const allBranches = canViewAllBranches(req.user, req.branchId);
+    try {
+      assertRoleBranchAccess(role, req.branchId, { allBranches });
+    } catch (e) {
+      return res.status(403).json({ error: e.message });
+    }
     res.json({
       role,
       permissions: getPermissionsForRole(role),
@@ -146,10 +159,12 @@ export function registerAdminRoutes(app) {
     });
   });
 
-  app.put('/api/roles/:role/permissions', requireAdmin, (req, res) => {
+  app.put('/api/roles/:role/permissions', requireAdmin, attachBranch, (req, res) => {
     try {
       const role = req.params.role;
       if (!roleExists(role)) return res.status(404).json({ error: 'Роль не найдена' });
+      const allBranches = canViewAllBranches(req.user, req.branchId);
+      assertRoleBranchAccess(role, req.branchId, { allBranches });
       const permissions = req.body.matrix
         ? matrixToPermissions(req.body.matrix)
         : req.body.permissions;

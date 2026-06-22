@@ -1,4 +1,5 @@
 import db from './db.js';
+import { DEFAULT_BRANCH_ID } from './branches.js';
 
 const SYSTEM_ADMIN = 'admin';
 
@@ -172,23 +173,91 @@ function mapRoleRow(row) {
     label: row.label,
     description: row.description || '',
     isSystem: !!row.is_system,
+    branchId: row.branch_id || null,
   };
 }
 
-function seedDefaultRoles(db) {
+function seedDefaultRoles(dbInstance) {
   for (const [id, data] of Object.entries(BUILTIN_ROLES)) {
-    db.run(
-      'INSERT INTO roles (id, label, description, is_system) VALUES (?, ?, ?, ?)',
-      [id, data.label, data.description, id === SYSTEM_ADMIN ? 1 : 0],
+    const branchId = id === SYSTEM_ADMIN ? null : DEFAULT_BRANCH_ID;
+    dbInstance.run(
+      'INSERT INTO roles (id, label, description, is_system, branch_id) VALUES (?, ?, ?, ?, ?)',
+      [id, data.label, data.description, id === SYSTEM_ADMIN ? 1 : 0, branchId],
     );
   }
 }
 
-export function initRoles(db) {
-  const rows = db.queryAll('SELECT id, label, description, is_system FROM roles ORDER BY is_system DESC, label');
+export function getRoleBranchId(roleId) {
+  return getRoles()[roleId]?.branchId ?? null;
+}
+
+export function assertRoleMatchesBranch(roleId, branchId) {
+  if (roleId === SYSTEM_ADMIN) return;
+  const roleBranch = getRoleBranchId(roleId);
+  if (roleBranch && branchId && roleBranch !== branchId) {
+    throw new Error('Роль принадлежит другому филиалу');
+  }
+}
+
+export function assertRoleBranchAccess(roleId, branchId, { allBranches = false } = {}) {
+  if (roleId === SYSTEM_ADMIN) return;
+  if (allBranches) return;
+  const roleBranch = getRoleBranchId(roleId);
+  if (roleBranch && roleBranch !== branchId) {
+    throw new Error('Роль принадлежит другому филиалу');
+  }
+}
+
+export function getRolesForBranch(branchId, { allBranches = false, includeAdmin = false } = {}) {
+  const roles = getRoles();
+  const filtered = {};
+  for (const [id, meta] of Object.entries(roles)) {
+    if (id === SYSTEM_ADMIN) {
+      if (includeAdmin) filtered[id] = meta;
+      continue;
+    }
+    if (allBranches || meta.branchId === branchId) {
+      filtered[id] = meta;
+    }
+  }
+  return filtered;
+}
+
+const BRANCH_ROLE_TEMPLATE_IDS = ['cashier', 'accountant', 'warehouse'];
+
+export function seedBranchRoles(dbInstance, branchId) {
+  if (!branchId || branchId === DEFAULT_BRANCH_ID) return;
+
+  for (const templateId of BRANCH_ROLE_TEMPLATE_IDS) {
+    const newId = `${templateId}_${branchId}`.replace(/[^a-z0-9_]/g, '_').slice(0, 32);
+    if (dbInstance.queryOne('SELECT id FROM roles WHERE id = ?', [newId])) continue;
+
+    const templateRow = dbInstance.queryOne('SELECT label, description FROM roles WHERE id = ?', [templateId]);
+    const template = templateRow || BUILTIN_ROLES[templateId];
+    if (!template) continue;
+
+    dbInstance.run(
+      'INSERT INTO roles (id, label, description, is_system, branch_id) VALUES (?, ?, ?, 0, ?)',
+      [newId, template.label, template.description || '', branchId],
+    );
+
+    const perms = getPermissionsForRole(templateId);
+    for (const perm of perms) {
+      dbInstance.run('INSERT OR IGNORE INTO role_permissions (role, permission) VALUES (?, ?)', [newId, perm]);
+    }
+  }
+
+  initRoles(dbInstance);
+  permissionsCache = loadRolePermissionsFromDb(dbInstance);
+}
+
+export function initRoles(dbInstance) {
+  const rows = dbInstance.queryAll(
+    'SELECT id, label, description, is_system, branch_id FROM roles ORDER BY is_system DESC, label',
+  );
   if (rows.length === 0) {
-    seedDefaultRoles(db);
-    return initRoles(db);
+    seedDefaultRoles(dbInstance);
+    return initRoles(dbInstance);
   }
 
   rolesCache = {};
@@ -198,6 +267,7 @@ export function initRoles(db) {
       label: role.label,
       description: role.description,
       isSystem: role.isSystem,
+      branchId: role.branchId,
     };
   }
 }
@@ -210,6 +280,41 @@ export function getRole(id) {
   const meta = getRoles()[id];
   if (!meta) return null;
   return { id, ...meta };
+}
+
+export function getRolesWithStats(dbInstance, { branchId = null, allBranches = false } = {}) {
+  const userCounts = dbInstance.queryAll(
+    'SELECT role, branch_id, COUNT(*) as c FROM users GROUP BY role, branch_id',
+  );
+  const branchNames = Object.fromEntries(
+    dbInstance.queryAll('SELECT id, name FROM branches').map((b) => [b.id, b.name]),
+  );
+
+  let entries = Object.entries(getRoles());
+  if (allBranches) {
+    // headquarters: all roles
+  } else if (branchId) {
+    entries = entries.filter(([id, meta]) => id !== SYSTEM_ADMIN && meta.branchId === branchId);
+  }
+
+  return entries.map(([id, meta]) => {
+    let userCount = 0;
+    if (allBranches) {
+      userCount = userCounts.filter((u) => u.role === id).reduce((sum, u) => sum + u.c, 0);
+    } else {
+      userCount = userCounts.find((u) => u.role === id && u.branch_id === branchId)?.c || 0;
+    }
+    return {
+      id,
+      label: meta.label,
+      description: meta.description,
+      isSystem: meta.isSystem,
+      branchId: meta.branchId,
+      branchName: meta.branchId ? (branchNames[meta.branchId] || meta.branchId) : null,
+      userCount,
+      protected: id === SYSTEM_ADMIN,
+    };
+  });
 }
 
 export function roleExists(role) {
@@ -238,39 +343,33 @@ export function slugFromLabel(label) {
   return normalizeRoleId(result.replace(/_+/g, '_'));
 }
 
-export function getRolesWithStats(db) {
-  const counts = db.queryAll('SELECT role, COUNT(*) as c FROM users GROUP BY role');
-  const countMap = Object.fromEntries(counts.map((r) => [r.role, r.c]));
-
-  return Object.entries(getRoles()).map(([id, meta]) => ({
-    id,
-    label: meta.label,
-    description: meta.description,
-    isSystem: meta.isSystem,
-    userCount: countMap[id] || 0,
-    protected: id === SYSTEM_ADMIN,
-  }));
-}
-
-export function createRole(db, data) {
-  const id = normalizeRoleId(data.id) || slugFromLabel(data.label);
+export function createRole(dbInstance, data) {
+  let id = normalizeRoleId(data.id) || slugFromLabel(data.label);
   if (!id) throw new Error('Укажите название или код роли');
   if (id === SYSTEM_ADMIN) throw new Error('Нельзя создать роль admin');
-  if (roleExists(id)) throw new Error('Роль с таким кодом уже существует');
+
+  const branchId = (data.branch_id || '').trim();
+  if (!branchId) throw new Error('Укажите филиал для роли');
+
+  if (roleExists(id)) {
+    const suffixed = `${id}_${branchId}`.replace(/[^a-z0-9_]/g, '_').slice(0, 32);
+    if (!roleExists(suffixed)) id = suffixed;
+    else throw new Error('Роль с таким кодом уже существует');
+  }
 
   const label = (data.label || '').trim();
   if (!label) throw new Error('Укажите название роли');
 
-  db.run(
-    'INSERT INTO roles (id, label, description, is_system) VALUES (?, ?, ?, 0)',
-    [id, label, (data.description || '').trim()],
+  dbInstance.run(
+    'INSERT INTO roles (id, label, description, is_system, branch_id) VALUES (?, ?, ?, 0, ?)',
+    [id, label, (data.description || '').trim(), branchId],
   );
-  initRoles(db);
+  initRoles(dbInstance);
 
   const copyFrom = data.copyFrom && data.copyFrom !== SYSTEM_ADMIN ? data.copyFrom : null;
   if (copyFrom && roleExists(copyFrom)) {
     const perms = getPermissionsForRole(copyFrom);
-    if (perms.length) savePermissionsForRole(db, id, perms);
+    if (perms.length) savePermissionsForRole(dbInstance, id, perms);
   }
 
   return getRole(id);

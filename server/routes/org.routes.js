@@ -3,6 +3,8 @@ import { getUsers, createUser, updateUser, deleteUser } from '../auth.js';
 import { requirePermission, requireAdmin, attachBranch } from '../middleware.js';
 import * as branches from '../branches.js';
 import * as departments from '../departments.js';
+import db from '../db.js';
+import { seedBranchRoles } from '../permissions.js';
 
 export function registerOrgRoutes(app) {
   app.get('/api/stats', requirePermission('dashboard.view'), attachBranch, (req, res) => {
@@ -44,7 +46,9 @@ export function registerOrgRoutes(app) {
 
   app.post('/api/branches', requireAdmin, (req, res) => {
     try {
-      res.status(201).json(branches.enrichBranch(branches.createBranch(req.body)));
+      const branch = branches.createBranch(req.body);
+      seedBranchRoles(db, branch.id);
+      res.status(201).json(branches.enrichBranch(branch));
     } catch (e) {
       res.status(400).json({ error: e.message });
     }
@@ -103,7 +107,7 @@ export function registerOrgRoutes(app) {
   });
 
   app.get('/api/users', requirePermission('users.view'), attachBranch, (req, res) => {
-    const allBranches = req.user.role === 'admin' && req.query.all_branches === '1';
+    const allBranches = branches.canViewAllBranches(req.user, req.branchId);
     res.json(getUsers(req.user, req.branchId, { allBranches }));
   });
 

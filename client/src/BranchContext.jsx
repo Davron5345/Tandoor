@@ -58,6 +58,7 @@ export function BranchProvider({ children }) {
   );
 
   const branchId = isAdmin ? activeBranchId : user?.branch_id;
+  const isHeadquarters = branchId === 'main';
   const branchName = isAdmin
     ? (activeBranch?.name || 'Филиал')
     : (user?.branch_name || 'Филиал');
@@ -71,6 +72,7 @@ export function BranchProvider({ children }) {
       branches,
       branchId,
       branchName,
+      isHeadquarters,
       activeBranchId: branchId,
       setActiveBranchId,
       isAdmin,

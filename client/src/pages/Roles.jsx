@@ -3,10 +3,12 @@ import { api } from '../api';
 import Modal, { useToast } from '../components/Modal';
 import PermissionsMatrix from '../components/PermissionsMatrix';
 import { slugFromLabel } from '../utils/roleSlug';
+import { useBranch } from '../BranchContext';
 
 const emptyRole = { id: '', label: '', description: '', copyFrom: '' };
 
 export default function Roles() {
+  const { branchId, isHeadquarters, branchName } = useBranch();
   const [rolesList, setRolesList] = useState([]);
   const [permConfig, setPermConfig] = useState(null);
   const [matrix, setMatrix] = useState({});
@@ -38,7 +40,7 @@ export default function Roles() {
       .catch(console.error);
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [branchId]);
 
   const openCreateRole = () => {
     setRoleForm({ ...emptyRole, copyFrom: editableRoles[0]?.id || 'cashier' });
@@ -223,7 +225,9 @@ export default function Roles() {
         <div className="card-header">
           <strong>Список ролей</strong>
           <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>
-            Кассир1, Бухгалтер, Директор и другие
+            {isHeadquarters
+              ? 'Головной офис Asosiy: все роли всех филиалов'
+              : `Роли филиала «${branchName}»`}
           </span>
         </div>
         <div className="table-wrap">
@@ -232,6 +236,7 @@ export default function Roles() {
               <tr>
                 <th>Название</th>
                 <th>Код</th>
+                {isHeadquarters && <th>Филиал</th>}
                 <th>Сотрудников</th>
                 <th></th>
               </tr>
@@ -247,6 +252,7 @@ export default function Roles() {
                     )}
                   </td>
                   <td><code>{role.id}</code></td>
+                  {isHeadquarters && <td>{role.branchName || '—'}</td>}
                   <td>{role.userCount}</td>
                   <td>
                     <div className="btn-group">

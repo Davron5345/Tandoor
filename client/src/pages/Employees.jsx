@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api } from '../api';
 import Modal, { useToast } from '../components/Modal';
 import { useAuth } from '../AuthContext';
@@ -10,7 +10,7 @@ const emptyUser = { username: '', password: '', name: '', role: 'warehouse', bra
 
 export default function Employees() {
   const { user } = useAuth();
-  const { branches } = useBranch();
+  const { branches, branchId, isHeadquarters, branchName } = useBranch();
   const canEdit = hasPermission(user, 'users.edit');
 
   const [users, setUsers] = useState([]);
@@ -21,15 +21,24 @@ export default function Employees() {
 
   const activeBranches = branches.filter((b) => b.active);
 
-  const isAdmin = user?.role === 'admin';
+  const availableRoles = useMemo(() => {
+    const targetBranch = userForm.role === 'admin' ? null : (userForm.branch_id || branchId);
+    return Object.fromEntries(
+      Object.entries(roles).filter(([id, meta]) => {
+        if (id === 'admin') return isHeadquarters;
+        if (!targetBranch) return true;
+        return meta.branchId === targetBranch;
+      }),
+    );
+  }, [roles, userForm.branch_id, userForm.role, branchId, isHeadquarters]);
 
   const load = () => {
-    api.getUsers({ allBranches: isAdmin }).then(setUsers).catch(console.error);
+    api.getUsers().then(setUsers).catch(console.error);
     api.getRoles().then(setRoles).catch(console.error);
   };
 
-  useEffect(() => { load(); }, [isAdmin]);
-  useAutoRefresh(load, [isAdmin], { enabled: !userModal });
+  useEffect(() => { load(); }, [branchId]);
+  useAutoRefresh(load, [branchId], { enabled: !userModal });
 
   const openCreateUser = () => {
     const defaultRole = Object.keys(roles).find((k) => k !== 'admin') || 'warehouse';
@@ -111,6 +120,11 @@ export default function Employees() {
           <button type="button" className="btn btn-primary" onClick={openCreateUser}>+ Добавить сотрудника</button>
         )}
       </div>
+      {!isHeadquarters && (
+        <p className="form-hint" style={{ marginBottom: 12 }}>
+          Показаны сотрудники филиала «{branchName}». Переключите на Asosiy, чтобы видеть всех.
+        </p>
+      )}
 
       <div className="card">
         <div className="table-wrap">
@@ -195,7 +209,7 @@ export default function Employees() {
                 onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}
                 disabled={isProtectedForm && userModal !== 'create'}
               >
-                {Object.entries(roles).map(([k, r]) => (
+                {Object.entries(availableRoles).map(([k, r]) => (
                   <option key={k} value={k}>{r.label}</option>
                 ))}
               </select>
