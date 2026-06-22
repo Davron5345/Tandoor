@@ -4958,7 +4958,11 @@ input[type='number']::-webkit-inner-spin-button {
 .products-table .col-stock { width: 72px; }
 .products-table .col-suppliers { width: 12%; min-width: 100px; }
 .products-table .col-shop { width: 72px; }
-.products-table .col-actions { width: 112px; }
+.products-table .col-actions { width: 174px; min-width: 174px; }
+
+.products-table .btn-group-icons {
+  flex-wrap: nowrap;
+}
 
 .products-table thead th {
   position: sticky;
