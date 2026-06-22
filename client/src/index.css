@@ -6331,6 +6331,7 @@ tr.product-row-highlight td:first-child {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  width: 100%;
   overflow: visible;
 }
 
@@ -6341,7 +6342,69 @@ tr.product-row-highlight td:first-child {
 .app-cashier-mode .main {
   margin-left: 0;
   width: 100%;
-  padding-top: 16px;
+  max-width: none;
+  padding: 10px clamp(10px, 1.5vw, 20px) 16px;
+}
+
+.app-cashier-mode .main-content {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+}
+
+.app-cashier-mode .cashier-page {
+  width: 100%;
+  gap: 10px;
+}
+
+.app-cashier-mode .cashier-app-bar {
+  margin-bottom: 10px;
+  padding: 8px 14px;
+  border-radius: 10px;
+}
+
+.app-cashier-mode .cashier-top {
+  padding: 4px 2px 0;
+}
+
+.app-cashier-mode .cashier-split {
+  gap: 14px;
+}
+
+.app-cashier-mode .cashier-panel {
+  padding: 12px 14px;
+}
+
+.app-cashier-mode .cashier-history.card {
+  margin-bottom: 0;
+}
+
+@media (min-width: 1100px) {
+  .app-cashier-mode .cashier-top-controls {
+    flex: 0 1 auto;
+  }
+
+  .app-cashier-mode .cashier-kpi-inline {
+    flex-wrap: nowrap;
+  }
+
+  .app-cashier-mode .cashier-kpi-pill {
+    min-width: 118px;
+  }
+}
+
+@media (min-width: 1500px) {
+  .app-cashier-mode .cashier-split {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .app-cashier-mode .cashier-form-grid {
+    grid-template-columns: minmax(140px, 200px) minmax(0, 1fr);
+  }
+
+  .app-cashier-mode .cashier-form-grid.has-supplier {
+    grid-template-columns: minmax(140px, 200px) minmax(0, 1fr) minmax(0, 1fr);
+  }
 }
 
 .cashier-app-bar {
