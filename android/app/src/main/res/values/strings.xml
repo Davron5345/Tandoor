@@ -1,0 +1,10 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Снабжение</string>
+    <string name="title_activity_main">Снабжение</string>
+    <string name="package_name">com.tandoor.snab</string>
+    <string name="custom_url_scheme">com.tandoor.snab</string>
+    <string name="capacitor_background_geolocation_notification_channel_name">Геолокация снабженца</string>
+    <string name="capacitor_background_geolocation_notification_icon">mipmap/ic_launcher</string>
+    <string name="capacitor_background_geolocation_notification_color">#2563eb</string>
+</resources>

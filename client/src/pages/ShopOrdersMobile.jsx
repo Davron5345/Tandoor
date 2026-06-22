@@ -17,6 +17,7 @@ import {
   subscribeToOrderPush,
 } from '../utils/pwaPush';
 import { useStaffLocationPing, requestStaffLocationPermission } from '../hooks/useStaffLocationPing';
+import { isNativeApp, isBackgroundLocationEnabled } from '../utils/nativeApp';
 
 const STATUS_FILTERS = [
   { value: '', label: 'Все' },
@@ -57,7 +58,9 @@ export default function ShopOrdersMobile() {
   const [installPrompt, setInstallPrompt] = useState(null);
   const [pushState, setPushState] = useState({ supported: false, subscribed: false, standalone: false });
   const [pushLoading, setPushLoading] = useState(false);
-  const [locationEnabled, setLocationEnabled] = useState(false);
+  const [locationEnabled, setLocationEnabled] = useState(() => (
+    isNativeApp() && isBackgroundLocationEnabled()
+  ));
   const [locationLoading, setLocationLoading] = useState(false);
   const [dismissSetup, setDismissSetup] = useState(() => {
     try { return localStorage.getItem('warehouse-pwa-setup-dismiss') === '1'; } catch { return false; }
@@ -167,7 +170,9 @@ export default function ShopOrdersMobile() {
     try {
       await requestStaffLocationPermission();
       setLocationEnabled(true);
-      setNotice('Геолокация включена — администратор видит ваше местоположение');
+      setNotice(isNativeApp()
+        ? 'Фоновая геолокация включена — координаты передаются даже при свёрнутом приложении'
+        : 'Геолокация включена — администратор видит ваше местоположение');
     } catch (err) {
       setNotice(err.message || 'Разрешите доступ к геолокации в настройках телефона');
     } finally {
@@ -181,8 +186,13 @@ export default function ShopOrdersMobile() {
   };
 
   const showSetupBanner = !dismissSetup && (
-    !pushState.standalone && !isStandaloneApp()
-    || (isPushSupported() && pushState.permission !== 'granted')
+    isNativeApp()
+      ? !locationEnabled
+      : (
+        !pushState.standalone && !isStandaloneApp()
+        || (isPushSupported() && pushState.permission !== 'granted')
+        || !locationEnabled
+      )
   );
 
   const openOrder = async (order) => {
@@ -276,26 +286,27 @@ export default function ShopOrdersMobile() {
           {showSetupBanner && (
             <div className="warehouse-pwa-setup">
               <div className="warehouse-pwa-setup-text">
-                <strong>Установите приложение «Снабжение»</strong>
+                <strong>{isNativeApp() ? 'Включите фоновую геолокацию' : 'Установите приложение «Снабжение»'}</strong>
                 <span>
-                  Это полноценное приложение без Play Market — только для ваших сотрудников.
-                  Chrome → меню ⋮ → «Установить приложение» или кнопка ниже.
+                  {isNativeApp()
+                    ? 'Разрешите доступ к местоположению «всегда» — администратор видит, где вы находитесь, даже когда приложение свёрнуто. В шторке появится уведомление о трекинге.'
+                    : 'Это полноценное приложение без Play Market — только для ваших сотрудников. Chrome → меню ⋮ → «Установить приложение» или кнопка ниже.'}
                 </span>
               </div>
               <div className="warehouse-pwa-setup-actions">
-                {installPrompt && (
+                {!isNativeApp() && installPrompt && (
                   <button type="button" className="btn btn-primary btn-sm" onClick={handleInstall}>
                     Установить приложение
                   </button>
                 )}
-                {isPushSupported() && pushState.permission !== 'granted' && (
+                {!isNativeApp() && isPushSupported() && pushState.permission !== 'granted' && (
                   <button type="button" className="btn btn-primary btn-sm" onClick={handleEnablePush} disabled={pushLoading}>
                     {pushLoading ? '...' : 'Уведомления'}
                   </button>
                 )}
                 {!locationEnabled && (
                   <button type="button" className="btn btn-primary btn-sm" onClick={handleEnableLocation} disabled={locationLoading}>
-                    {locationLoading ? '...' : 'Геолокация'}
+                    {locationLoading ? '...' : (isNativeApp() ? 'Фоновая геолокация' : 'Геолокация')}
                   </button>
                 )}
                 <button type="button" className="btn btn-ghost btn-sm" onClick={dismissSetupBanner}>
@@ -305,7 +316,11 @@ export default function ShopOrdersMobile() {
             </div>
           )}
 
-          {isStandaloneApp() && (
+          {isNativeApp() && locationEnabled && (
+            <div className="warehouse-pwa-installed-badge">Фоновое отслеживание включено</div>
+          )}
+
+          {!isNativeApp() && isStandaloneApp() && (
             <div className="warehouse-pwa-installed-badge">Приложение установлено</div>
           )}
 

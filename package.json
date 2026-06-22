@@ -19,6 +19,9 @@
     "db:restore": "node server/scripts/db-restore.mjs",
     "vapid:generate": "node server/scripts/generate-vapid.mjs",
     "perms:verify": "node server/scripts/verify-cashier-perms.mjs",
+    "cap:sync": "npm run build && npx cap sync android",
+    "android:open": "npx cap open android",
+    "android:apk": "npm run cap:sync && cd android && gradlew.bat assembleDebug",
     "test": "node --test server/test/**/*.test.js",
     "test:e2e": "playwright test",
     "test:e2e:install": "playwright install chromium",
@@ -26,6 +29,10 @@
     "lint": "eslint server client/src e2e --max-warnings 0"
   },
   "dependencies": {
+    "@capacitor-community/background-geolocation": "^1.2.26",
+    "@capacitor/android": "^7.2.0",
+    "@capacitor/core": "^7.2.0",
+    "@capacitor/local-notifications": "^7.0.1",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
@@ -36,6 +43,7 @@
     "web-push": "^3.6.7"
   },
   "devDependencies": {
+    "@capacitor/cli": "^7.2.0",
     "@eslint/js": "^9.17.0",
     "@playwright/test": "^1.51.0",
     "concurrently": "^9.1.2",

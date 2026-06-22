@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { api } from '../api';
+import { isNativeApp, isBackgroundLocationEnabled } from '../utils/nativeApp';
 
 const PING_INTERVAL_MS = 3 * 60 * 1000;
 
@@ -23,6 +24,18 @@ export function useStaffLocationPing(enabled = true) {
   useEffect(() => {
     if (!enabled) return undefined;
 
+    if (isNativeApp()) {
+      if (!isBackgroundLocationEnabled()) {
+        return undefined;
+      }
+      import('../services/backgroundLocation.js').then((mod) => {
+        if (!mod.isBackgroundTrackingActive()) {
+          mod.startBackgroundLocationTracking().catch(() => {});
+        }
+      }).catch(() => {});
+      return undefined;
+    }
+
     const ping = async () => {
       if (document.hidden || busyRef.current) return;
       busyRef.current = true;
@@ -35,7 +48,7 @@ export function useStaffLocationPing(enabled = true) {
           source: 'pwa',
         });
       } catch {
-        // пользователь мог отклонить геолокацию — не мешаем работе
+        // пользователь мог отклонить геолокацию
       } finally {
         busyRef.current = false;
       }
@@ -56,6 +69,12 @@ export function useStaffLocationPing(enabled = true) {
 }
 
 export async function requestStaffLocationPermission() {
+  if (isNativeApp()) {
+    const { startBackgroundLocationTracking } = await import('../services/backgroundLocation.js');
+    await startBackgroundLocationTracking();
+    return { ok: true };
+  }
+
   const pos = await getCurrentPosition();
   return api.sendStaffLocation({
     latitude: pos.coords.latitude,
@@ -63,4 +82,10 @@ export async function requestStaffLocationPermission() {
     accuracy: pos.coords.accuracy,
     source: 'pwa',
   });
+}
+
+export async function stopStaffLocationTracking() {
+  if (!isNativeApp()) return;
+  const { stopBackgroundLocationTracking } = await import('../services/backgroundLocation.js');
+  await stopBackgroundLocationTracking();
 }

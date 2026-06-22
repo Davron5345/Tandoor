@@ -43,7 +43,8 @@ export function registerAuthRoutes(app, { authRequired }) {
         meta: { username: user.username, device_label: device.deviceLabel, ip: device.ip },
       });
       logVisit(req, 'auth.login', { username: user.username, user_id: user.id, success: true });
-      res.json({ user });
+      const wantsNativeToken = req.headers['x-native-client'] === '1' || !!req.body?.native;
+      res.json(wantsNativeToken ? { user, token } : { user });
     } catch (e) {
       if (e.code === 'DEVICE_BLOCKED') {
         logVisit(req, 'auth.login_blocked', { username, success: false });

@@ -441,7 +441,8 @@ function LocationsTab() {
       </div>
 
       <p className="security-locations-hint">
-        Показываются сотрудники, у которых открыто приложение «Снабжение» и разрешена геолокация (данные за последние 24 часа).
+        Сотрудники с включённой геолокацией в приложении «Снабжение» (PWA или Android APK).
+        Фоновый режим — в нативном приложении. Данные за последние 24 часа.
       </p>
 
       <div className="card">
@@ -453,12 +454,13 @@ function LocationsTab() {
                 <th>Филиал</th>
                 <th>Обновлено</th>
                 <th>Точность</th>
+                <th>Источник</th>
                 <th>Координаты</th>
                 <th />
               </tr>
             </thead>
             <tbody>
-              {loading && <tr><td colSpan={6} className="empty">Загрузка...</td></tr>}
+              {loading && <tr><td colSpan={7} className="empty">Загрузка...</td></tr>}
               {!loading && items.map((row) => (
                 <tr key={row.user_id}>
                   <td>
@@ -470,6 +472,7 @@ function LocationsTab() {
                   <td>{row.branch_name || '—'}</td>
                   <td>{formatDateTime(row.recorded_at)}</td>
                   <td>{row.accuracy != null ? `±${Math.round(row.accuracy)} м` : '—'}</td>
+                  <td>{row.source === 'android_bg' ? 'Android (фон)' : 'PWA'}</td>
                   <td className="security-coords">
                     {Number(row.latitude).toFixed(5)}, {Number(row.longitude).toFixed(5)}
                   </td>
@@ -486,7 +489,7 @@ function LocationsTab() {
                 </tr>
               ))}
               {!loading && items.length === 0 && (
-                <tr><td colSpan={6} className="empty">Нет данных о местоположении</td></tr>
+                <tr><td colSpan={7} className="empty">Нет данных о местоположении</td></tr>
               )}
             </tbody>
           </table>

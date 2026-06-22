@@ -8,3 +8,8 @@ playwright-report/
 .env
 *.db
 .DS_Store
+android/.gradle/
+android/app/build/
+android/build/
+android/local.properties
+android/.idea/

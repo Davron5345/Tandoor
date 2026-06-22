@@ -1,4 +1,10 @@
-const API = '/api';
+import {
+  getApiBaseUrl,
+  getNativeSessionToken,
+  isNativeApp,
+  setNativeSessionToken,
+} from './utils/nativeApp';
+
 let activeBranchId = null;
 
 export function normalizeListResponse(data) {
@@ -20,8 +26,10 @@ export function setActiveBranchId(id) {
 
 async function request(path, options = {}) {
   const headers = { 'Content-Type': 'application/json', ...options.headers };
+  const nativeToken = getNativeSessionToken();
+  if (nativeToken) headers.Authorization = `Bearer ${nativeToken}`;
 
-  let url = `${API}${path}`;
+  let url = `${getApiBaseUrl()}/api${path}`;
   if (activeBranchId) {
     const sep = url.includes('?') ? '&' : '?';
     url += `${sep}branch_id=${encodeURIComponent(activeBranchId)}`;
@@ -37,7 +45,7 @@ async function request(path, options = {}) {
 
 async function publicRequest(path, options = {}) {
   const headers = { 'Content-Type': 'application/json', ...options.headers };
-  const res = await fetch(`${API}${path}`, { ...options, headers }).catch(() => {
+  const res = await fetch(`${getApiBaseUrl()}/api${path}`, { ...options, headers }).catch(() => {
     throw new Error('Сервер недоступен. Проверьте подключение к интернету.');
   });
   const data = await res.json().catch(() => ({}));
@@ -47,22 +55,42 @@ async function publicRequest(path, options = {}) {
 
 export const api = {
   login: async (username, password, remember = false) => {
+    const native = isNativeApp();
     let res;
     try {
-      res = await fetch(`${API}/auth/login`, {
+      res = await fetch(`${getApiBaseUrl()}/api/auth/login`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(native ? { 'X-Native-Client': '1' } : {}),
+        },
         credentials: 'include',
-        body: JSON.stringify({ username, password, remember: !!remember }),
+        body: JSON.stringify({
+          username,
+          password,
+          remember: !!remember,
+          native,
+        }),
       });
     } catch {
       throw new Error('Сервер недоступен. Запустите: npm run dev');
     }
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || 'Неверный логин или пароль');
+    if (data.token) setNativeSessionToken(data.token);
     return data;
   },
-  logout: () => request('/auth/logout', { method: 'POST' }),
+  logout: async () => {
+    try {
+      if (isNativeApp()) {
+        const { stopBackgroundLocationTracking } = await import('./services/backgroundLocation.js');
+        await stopBackgroundLocationTracking();
+      }
+      await request('/auth/logout', { method: 'POST' });
+    } finally {
+      setNativeSessionToken('');
+    }
+  },
   changePassword: (current_password, new_password) => request('/auth/change-password', {
     method: 'POST',
     body: JSON.stringify({ current_password, new_password }),
@@ -212,7 +240,7 @@ export const api = {
     if (activeBranchId) params.set('branch_id', activeBranchId);
     if (variantId) params.set('variant_id', variantId);
     const qs = params.toString();
-    const url = `${API}/products/${productId}/images${qs ? `?${qs}` : ''}`;
+    const url = `${getApiBaseUrl()}/api/products/${productId}/images${qs ? `?${qs}` : ''}`;
 
     const res = await fetch(url, { method: 'POST', credentials: 'include', body: form });
     const data = await res.json().catch(() => ({}));

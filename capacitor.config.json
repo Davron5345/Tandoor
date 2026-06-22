@@ -1,0 +1,13 @@
+{
+  "appId": "com.tandoor.snab",
+  "appName": "Снабжение",
+  "webDir": "client/dist",
+  "android": {
+    "useLegacyBridge": true
+  },
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    }
+  }
+}
