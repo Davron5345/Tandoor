@@ -112,9 +112,56 @@ export function buildProductListRows(products) {
   return rows;
 }
 
+export function productListRowSearchHaystack(row) {
+  const { product, variant, kind } = row;
+  if (kind === 'variant' && variant) {
+    return [
+      getVariantDisplayName(product, variant),
+      variant.name,
+      product.name,
+      variant.barcode,
+      product.barcode,
+      product.sku,
+    ].filter(Boolean).join(' ').toLowerCase();
+  }
+  return [
+    product.name,
+    product.barcode,
+    product.sku,
+  ].filter(Boolean).join(' ').toLowerCase();
+}
+
+export function productListRowMatchesSearch(row, search) {
+  const q = (search || '').trim().toLowerCase();
+  if (!q) return true;
+  return productListRowSearchHaystack(row).includes(q);
+}
+
+/** При поиске оставляет только совпадающие строки; для товаров с вариантами — только варианты */
+export function filterProductListRowsBySearch(rows, search) {
+  const q = (search || '').trim().toLowerCase();
+  if (!q) return rows;
+  return rows.filter((row) => {
+    if (row.kind === 'variant') {
+      return productListRowMatchesSearch(row, q);
+    }
+    if (row.product.has_variants) return false;
+    return productListRowMatchesSearch(row, q);
+  });
+}
+
 /** Нумерация: 1, 2, 2.1, 2.2 … для видимых строк списка */
 export function buildProductRowNumbers(rows, startProductIndex = 0) {
   const numbers = new Map();
+  const hasParentRows = rows.some((row) => row.kind === 'product');
+
+  if (!hasParentRows) {
+    rows.forEach((row, idx) => {
+      numbers.set(row.rowKey, String(startProductIndex + idx + 1));
+    });
+    return numbers;
+  }
+
   let productIndex = startProductIndex;
   const parentNumByProductId = new Map();
   const variantCountByProduct = new Map();

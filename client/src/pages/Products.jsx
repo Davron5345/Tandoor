@@ -15,8 +15,10 @@ import ProductVariantEditor, {
 import {
   buildProductListRows,
   buildProductRowNumbers,
+  filterProductListRowsBySearch,
   getVariantDisplayName,
   getVariantPrimaryImage,
+  productListRowMatchesSearch,
 } from '../utils/productVariants';
 import ProductKindFilter from '../components/ProductKindFilter';
 import SupplierMultiSelect from '../components/SupplierMultiSelect';
@@ -512,18 +514,7 @@ export default function Products() {
   const filteredProducts = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return products;
-    return products.filter((p) => {
-      const productHay = [
-        p.name,
-        p.barcode,
-        p.sku,
-      ].filter(Boolean).join(' ').toLowerCase();
-      if (productHay.includes(q)) return true;
-      if (p.has_variants) {
-        return (p.variants || []).some((v) => `${p.name} ${v.name}`.toLowerCase().includes(q));
-      }
-      return false;
-    });
+    return products.filter((p) => buildProductListRows([p]).some((row) => productListRowMatchesSearch(row, q)));
   }, [products, search]);
 
   const isSearching = search.trim().length > 0;
@@ -552,12 +543,15 @@ export default function Products() {
   }, [sortedProducts, highlightedProductId, listView, sortKey]);
 
   const visibleListRows = useMemo(() => {
-    if (isSearching) return displayListRows;
-    return displayListRows.filter((row) => {
-      if (row.kind !== 'variant') return true;
-      return expandedProductIds.has(row.product.id);
-    });
-  }, [displayListRows, expandedProductIds, isSearching]);
+    const q = search.trim();
+    if (!q) {
+      return displayListRows.filter((row) => {
+        if (row.kind !== 'variant') return true;
+        return expandedProductIds.has(row.product.id);
+      });
+    }
+    return filterProductListRowsBySearch(displayListRows, q);
+  }, [displayListRows, expandedProductIds, search]);
 
   const rowNumbers = useMemo(() => {
     const startIndex = isSearching ? 0 : (productPage - 1) * productPageSize;
