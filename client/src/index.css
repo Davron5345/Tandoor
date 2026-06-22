@@ -8595,6 +8595,143 @@ html.public-shop-lock #root {
   min-width: 180px;
 }
 
+.snab-app-panel {
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+
+.snab-app-panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
+  background: color-mix(in srgb, var(--primary) 6%, var(--surface));
+}
+
+.snab-app-panel-head h2 {
+  margin: 0 0 4px;
+  font-size: 1.05rem;
+}
+
+.snab-app-panel-head p {
+  margin: 0;
+  font-size: var(--font-sm);
+  color: var(--text-muted);
+}
+
+.snab-app-panel.is-collapsed .snab-app-panel-head {
+  border-bottom: none;
+}
+
+.snab-app-panel-body {
+  padding: 16px 18px 18px;
+}
+
+.snab-app-panel-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.snab-app-panel-block {
+  position: relative;
+  padding: 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+  background: color-mix(in srgb, var(--surface2) 60%, var(--surface));
+}
+
+.snab-app-panel-block--apk {
+  border-color: color-mix(in srgb, var(--primary) 35%, transparent);
+  background: color-mix(in srgb, var(--primary) 8%, var(--surface));
+}
+
+.snab-app-panel-badge {
+  display: inline-block;
+  margin-bottom: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: color-mix(in srgb, var(--primary) 18%, var(--surface));
+  color: var(--primary);
+}
+
+.snab-app-panel-block h3 {
+  margin: 0 0 6px;
+  font-size: var(--font-md);
+}
+
+.snab-app-panel-block p {
+  margin: 0 0 10px;
+  font-size: var(--font-sm);
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.snab-app-panel-steps {
+  margin: 0 0 12px;
+  padding-left: 18px;
+  font-size: var(--font-sm);
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.snab-app-panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.snab-app-panel-hint {
+  font-size: var(--font-xs);
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.snab-app-panel-note {
+  margin: 10px 0 0;
+  font-size: var(--font-xs);
+  color: var(--text-muted);
+}
+
+.snab-app-panel-block--qr {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.snab-app-panel-qr {
+  border-radius: var(--radius-sm);
+  background: #fff;
+  margin-bottom: 8px;
+}
+
+.snab-app-panel-url {
+  display: block;
+  font-size: 11px;
+  word-break: break-all;
+  color: var(--text-muted);
+}
+
+.snab-app-panel-version {
+  margin: 14px 0 0;
+  font-size: var(--font-xs);
+  color: var(--text-muted);
+}
+
+@media (max-width: 960px) {
+  .snab-app-panel-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .shop-order-status {
   display: inline-flex;
   align-items: center;

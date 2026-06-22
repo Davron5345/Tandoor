@@ -6,6 +6,7 @@ import { hasPermission } from '../permissions';
 import { useAuth } from '../AuthContext';
 import { useBranch } from '../BranchContext';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
+import SnabAppPanel from '../components/SnabAppPanel';
 
 const STATUS_OPTIONS = [
   { value: '', label: 'Все статусы' },
@@ -89,11 +90,13 @@ export default function ShopOrders() {
           <p className="page-subtitle">{branchName} · заявки сотрудников на продукты для кухни</p>
         </div>
         <div className="btn-group">
-          <a href="/warehouse/orders" target="_blank" rel="noreferrer" className="btn btn-ghost btn-sm">
-            Мобильная версия
+          <a href="/snab" target="_blank" rel="noreferrer" className="btn btn-primary btn-sm">
+            Открыть приложение
           </a>
         </div>
       </div>
+
+      <SnabAppPanel />
 
       <div className="card shop-orders-card">
         <div className="shop-orders-toolbar">

@@ -5,6 +5,8 @@ import {
   setNativeSessionToken,
 } from './utils/nativeApp';
 
+export { getApiBaseUrl };
+
 let activeBranchId = null;
 
 export function normalizeListResponse(data) {
@@ -368,6 +370,8 @@ export const api = {
     ).toString();
     return request(`/admin/staff-locations${q ? `?${q}` : ''}`);
   },
+
+  getSnabInstallInfo: () => request('/app/snab-install'),
 };
 
 export function formatMoney(n) {
