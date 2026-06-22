@@ -108,9 +108,9 @@ function ArticleChips({ side, articles, value, onChange, disabled }) {
   );
 }
 
-function expenseCounterpartyKind(articleId, purchaseArticleId, clientDebtArticleId) {
+function counterpartyKindForArticle(articleId, { purchaseArticleId, clientDebtArticleId, debtReturnArticleId }) {
   if (articleId === purchaseArticleId) return 'supplier';
-  if (articleId === clientDebtArticleId) return 'client';
+  if (articleId === clientDebtArticleId || articleId === debtReturnArticleId) return 'client';
   return null;
 }
 
@@ -129,10 +129,13 @@ function CashierSideForm({
   counterpartySearchRef,
   purchaseArticleId,
   clientDebtArticleId,
+  debtReturnArticleId,
 }) {
-  const counterpartyKind = side === 'expense'
-    ? expenseCounterpartyKind(form.article_id, purchaseArticleId, clientDebtArticleId)
-    : null;
+  const counterpartyKind = counterpartyKindForArticle(form.article_id, {
+    purchaseArticleId,
+    clientDebtArticleId,
+    debtReturnArticleId,
+  });
   const counterpartyItems = counterpartyKind === 'supplier' ? suppliers : clients;
   const [showComment, setShowComment] = useState(Boolean(form.comment));
 
@@ -141,8 +144,9 @@ function CashierSideForm({
   }, [form.comment]);
 
   const selectArticle = (article_id) => {
-    const prevKind = expenseCounterpartyKind(form.article_id, purchaseArticleId, clientDebtArticleId);
-    const nextKind = expenseCounterpartyKind(article_id, purchaseArticleId, clientDebtArticleId);
+    const articleCtx = { purchaseArticleId, clientDebtArticleId, debtReturnArticleId };
+    const prevKind = counterpartyKindForArticle(form.article_id, articleCtx);
+    const nextKind = counterpartyKindForArticle(article_id, articleCtx);
     const next = {
       ...form,
       article_id,
@@ -279,18 +283,19 @@ function paymentSide(payment) {
   return isIncomeType(payment.type) ? 'income' : 'expense';
 }
 
-function buildPaymentPayload(side, form, purchaseArticleId, clientDebtArticleId) {
+function buildPaymentPayload(side, form, purchaseArticleId, clientDebtArticleId, debtReturnArticleId) {
   const amount = parsePriceInput(form.amountInput);
   const isPurchase = side === 'expense' && purchaseArticleId && form.article_id === purchaseArticleId;
   const isClientDebt = side === 'expense' && clientDebtArticleId && form.article_id === clientDebtArticleId;
+  const isDebtReturn = side === 'income' && debtReturnArticleId && form.article_id === debtReturnArticleId;
   return {
     type: side === 'income'
-      ? 'other_income'
+      ? (isDebtReturn ? 'customer_income' : 'other_income')
       : (isPurchase ? 'supplier_payment' : 'other_expense'),
     amount,
     date: form.date,
     article_id: form.article_id,
-    counterparty_id: (isPurchase || isClientDebt) ? form.counterparty_id : null,
+    counterparty_id: (isPurchase || isClientDebt || isDebtReturn) ? form.counterparty_id : null,
     comment: form.comment.trim(),
   };
 }
@@ -306,6 +311,7 @@ function CashierEditModal({
   onSave,
   purchaseArticleId,
   clientDebtArticleId,
+  debtReturnArticleId,
 }) {
   const side = paymentSide(payment);
   const articles = side === 'income' ? incomeArticles : expenseArticles;
@@ -316,9 +322,8 @@ function CashierEditModal({
     comment: payment.comment || '',
     date: payment.date,
   });
-  const counterpartyKind = side === 'expense'
-    ? expenseCounterpartyKind(form.article_id, purchaseArticleId, clientDebtArticleId)
-    : null;
+  const articleCtx = { purchaseArticleId, clientDebtArticleId, debtReturnArticleId };
+  const counterpartyKind = counterpartyKindForArticle(form.article_id, articleCtx);
   const counterpartyItems = counterpartyKind === 'supplier' ? suppliers : clients;
 
   const save = () => {
@@ -327,7 +332,7 @@ function CashierEditModal({
     if (!form.article_id) return { error: 'Выберите статью' };
     if (counterpartyKind === 'supplier' && !form.counterparty_id) return { error: 'Выберите поставщика' };
     if (counterpartyKind === 'client' && !form.counterparty_id) return { error: 'Выберите клиента' };
-    return { payload: buildPaymentPayload(side, form, purchaseArticleId, clientDebtArticleId) };
+    return { payload: buildPaymentPayload(side, form, purchaseArticleId, clientDebtArticleId, debtReturnArticleId) };
   };
 
   return (
@@ -372,8 +377,8 @@ function CashierEditModal({
             articles={articles}
             value={form.article_id}
             onChange={(article_id) => {
-              const prevKind = expenseCounterpartyKind(form.article_id, purchaseArticleId, clientDebtArticleId);
-              const nextKind = expenseCounterpartyKind(article_id, purchaseArticleId, clientDebtArticleId);
+              const prevKind = counterpartyKindForArticle(form.article_id, articleCtx);
+              const nextKind = counterpartyKindForArticle(article_id, articleCtx);
               setForm({
                 ...form,
                 article_id,
@@ -387,8 +392,8 @@ function CashierEditModal({
             value={form.article_id}
             onChange={(e) => {
               const article_id = e.target.value;
-              const prevKind = expenseCounterpartyKind(form.article_id, purchaseArticleId, clientDebtArticleId);
-              const nextKind = expenseCounterpartyKind(article_id, purchaseArticleId, clientDebtArticleId);
+              const prevKind = counterpartyKindForArticle(form.article_id, articleCtx);
+              const nextKind = counterpartyKindForArticle(article_id, articleCtx);
               setForm({
                 ...form,
                 article_id,
@@ -558,6 +563,7 @@ export default function Cashier() {
   const [sortDir, setSortDir] = useState('desc');
   const incomeAmountRef = useRef(null);
   const expenseAmountRef = useRef(null);
+  const incomeCounterpartySearchRef = useRef(null);
   const expenseSupplierSearchRef = useRef(null);
   const { show, Toast } = useToast();
   const { user } = useAuth();
@@ -693,6 +699,11 @@ export default function Cashier() {
     [expenseArticles],
   );
 
+  const debtReturnArticleId = useMemo(
+    () => incomeArticles.find((a) => a.code === 'inc_debt_return')?.id ?? null,
+    [incomeArticles],
+  );
+
   const todayPayments = useMemo(
     () => payments.filter((p) => p.date === shiftDate),
     [payments, shiftDate],
@@ -727,13 +738,22 @@ export default function Cashier() {
 
   const rememberPrefs = (side, form) => {
     if (side === 'income') {
-      savePrefs(branchId, { incomeArticle: form.article_id });
+      const patch = { incomeArticle: form.article_id };
+      if (form.counterparty_id && debtReturnArticleId && form.article_id === debtReturnArticleId) {
+        patch.counterpartyId = form.counterparty_id;
+        patch.clientId = form.counterparty_id;
+      }
+      savePrefs(branchId, patch);
       return;
     }
     const patch = { expenseArticle: form.article_id };
     if (form.counterparty_id) {
       patch.counterpartyId = form.counterparty_id;
-      const kind = expenseCounterpartyKind(form.article_id, purchaseArticleId, clientDebtArticleId);
+      const kind = counterpartyKindForArticle(form.article_id, {
+        purchaseArticleId,
+        clientDebtArticleId,
+        debtReturnArticleId,
+      });
       if (kind === 'supplier') patch.supplierId = form.counterparty_id;
       if (kind === 'client') patch.clientId = form.counterparty_id;
     }
@@ -759,14 +779,15 @@ export default function Cashier() {
     }
     const isPurchase = side === 'expense' && purchaseArticleId && form.article_id === purchaseArticleId;
     const isClientDebt = side === 'expense' && clientDebtArticleId && form.article_id === clientDebtArticleId;
+    const isDebtReturn = side === 'income' && debtReturnArticleId && form.article_id === debtReturnArticleId;
     if (isPurchase && !form.counterparty_id) {
       show('Выберите поставщика', 'error');
       expenseSupplierSearchRef.current?.focus();
       return;
     }
-    if (isClientDebt && !form.counterparty_id) {
+    if ((isClientDebt || isDebtReturn) && !form.counterparty_id) {
       show('Выберите клиента', 'error');
-      expenseSupplierSearchRef.current?.focus();
+      (isDebtReturn ? incomeCounterpartySearchRef : expenseSupplierSearchRef).current?.focus();
       return;
     }
 
@@ -774,12 +795,12 @@ export default function Cashier() {
     try {
       const created = await api.createPayment({
         type: side === 'income'
-          ? 'other_income'
+          ? (isDebtReturn ? 'customer_income' : 'other_income')
           : (isPurchase ? 'supplier_payment' : 'other_expense'),
         amount,
         date: shiftDate,
         article_id: form.article_id,
-        counterparty_id: (isPurchase || isClientDebt) ? form.counterparty_id : undefined,
+        counterparty_id: (isPurchase || isClientDebt || isDebtReturn) ? form.counterparty_id : undefined,
         comment: form.comment.trim(),
       });
       rememberPrefs(side, form);
@@ -912,12 +933,15 @@ export default function Cashier() {
             side="income"
             title="Кассовый приход"
             articles={incomeArticles}
+            clients={clients}
             form={incomeForm}
             setForm={setIncomeForm}
             saving={savingSide === 'income'}
             canEdit={canWriteShift}
             onSubmit={submitSide('income')}
             amountRef={incomeAmountRef}
+            counterpartySearchRef={incomeCounterpartySearchRef}
+            debtReturnArticleId={debtReturnArticleId}
           />
           <CashierSideForm
             side="expense"
@@ -1130,6 +1154,7 @@ export default function Cashier() {
           onSave={saveEditedPayment}
           purchaseArticleId={purchaseArticleId}
           clientDebtArticleId={clientDebtArticleId}
+          debtReturnArticleId={debtReturnArticleId}
         />
       )}
     </div>

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { textMatchesSearch } from '../utils/searchNormalize';
 import SearchHighlight from './SearchHighlight';
 
@@ -14,7 +15,9 @@ export default function CounterpartySearchSelect({
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [highlightIndex, setHighlightIndex] = useState(0);
+  const [dropdownStyle, setDropdownStyle] = useState(null);
   const wrapRef = useRef(null);
+  const dropdownRef = useRef(null);
 
   const selected = useMemo(() => items.find((i) => i.id === value), [items, value]);
 
@@ -28,6 +31,7 @@ export default function CounterpartySearchSelect({
     setOpen(false);
     setSearch('');
     setHighlightIndex(0);
+    setDropdownStyle(null);
   };
 
   const pick = (id) => {
@@ -35,19 +39,45 @@ export default function CounterpartySearchSelect({
     close();
   };
 
+  const updateDropdownPosition = () => {
+    const input = wrapRef.current?.querySelector('input');
+    if (!input) return;
+    const rect = input.getBoundingClientRect();
+    const maxHeight = Math.min(280, Math.max(160, window.innerHeight - rect.bottom - 16));
+    setDropdownStyle({
+      position: 'fixed',
+      top: rect.bottom + 4,
+      left: rect.left,
+      width: rect.width,
+      maxHeight,
+      zIndex: 1200,
+    });
+  };
+
   useEffect(() => {
     if (!open) return undefined;
+    updateDropdownPosition();
+
     const onDoc = (e) => {
-      if (!wrapRef.current?.contains(e.target)) close();
+      const target = e.target;
+      if (wrapRef.current?.contains(target) || dropdownRef.current?.contains(target)) return;
+      close();
     };
     const onKey = (e) => {
       if (e.key === 'Escape') close();
     };
+    const onRelayout = () => updateDropdownPosition();
+
     document.addEventListener('mousedown', onDoc);
     window.addEventListener('keydown', onKey);
+    window.addEventListener('resize', onRelayout);
+    window.addEventListener('scroll', onRelayout, true);
+
     return () => {
       document.removeEventListener('mousedown', onDoc);
       window.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', onRelayout);
+      window.removeEventListener('scroll', onRelayout, true);
     };
   }, [open]);
 
@@ -60,7 +90,10 @@ export default function CounterpartySearchSelect({
   const onInputKeyDown = (e) => {
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      if (!open) setOpen(true);
+      if (!open) {
+        setOpen(true);
+        updateDropdownPosition();
+      }
       setHighlightIndex((i) => Math.min(i + 1, Math.max(0, filtered.length - 1)));
       return;
     }
@@ -74,6 +107,34 @@ export default function CounterpartySearchSelect({
       pick(filtered[highlightIndex].id);
     }
   };
+
+  const dropdown = open && dropdownStyle ? (
+    <ul
+      ref={dropdownRef}
+      className="counterparty-search-select-dropdown"
+      style={dropdownStyle}
+      role="listbox"
+    >
+      {filtered.length === 0 ? (
+        <li className="counterparty-search-select-empty">Не найдено</li>
+      ) : (
+        filtered.map((item, index) => (
+          <li key={item.id}>
+            <button
+              type="button"
+              role="option"
+              aria-selected={value === item.id}
+              className={`counterparty-search-select-option${value === item.id ? ' selected' : ''}${highlightIndex === index ? ' highlighted' : ''}`}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => pick(item.id)}
+            >
+              {search.trim() ? <SearchHighlight text={item.name} query={search} /> : item.name}
+            </button>
+          </li>
+        ))
+      )}
+    </ul>
+  ) : null;
 
   return (
     <div
@@ -95,33 +156,13 @@ export default function CounterpartySearchSelect({
         onFocus={() => {
           setOpen(true);
           setSearch('');
+          updateDropdownPosition();
         }}
         onKeyDown={onInputKeyDown}
         disabled={disabled}
         autoComplete="off"
       />
-      {open && (
-        <ul className="counterparty-search-select-dropdown" role="listbox">
-          {filtered.length === 0 ? (
-            <li className="counterparty-search-select-empty">Не найдено</li>
-          ) : (
-            filtered.map((item, index) => (
-              <li key={item.id}>
-                <button
-                  type="button"
-                  role="option"
-                  aria-selected={value === item.id}
-                  className={`counterparty-search-select-option${value === item.id ? ' selected' : ''}${highlightIndex === index ? ' highlighted' : ''}`}
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => pick(item.id)}
-                >
-                  {search.trim() ? <SearchHighlight text={item.name} query={search} /> : item.name}
-                </button>
-              </li>
-            ))
-          )}
-        </ul>
-      )}
+      {dropdown && createPortal(dropdown, document.body)}
     </div>
   );
 }

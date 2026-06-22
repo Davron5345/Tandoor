@@ -6703,6 +6703,7 @@ tr.product-row-highlight td:first-child {
   gap: 10px;
   padding: 14px 16px;
   min-height: 100%;
+  overflow: visible;
 }
 
 .cashier-panel-income {
@@ -6993,6 +6994,10 @@ tr.product-row-highlight td:first-child {
   position: relative;
 }
 
+.counterparty-search-select.is-open {
+  z-index: 2;
+}
+
 .counterparty-search-select-input {
   width: 100%;
   padding: 9px 12px;
@@ -7015,20 +7020,15 @@ tr.product-row-highlight td:first-child {
 }
 
 .counterparty-search-select-dropdown {
-  position: absolute;
-  z-index: 40;
-  left: 0;
-  right: 0;
-  top: calc(100% + 4px);
-  max-height: 240px;
-  overflow-y: auto;
   margin: 0;
   padding: 4px;
   list-style: none;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+  overflow-y: auto;
+  box-sizing: border-box;
 }
 
 .counterparty-search-select-option {

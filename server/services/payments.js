@@ -12,6 +12,7 @@ import {
   assertCashArticleForPayment,
   isPurchaseArticleId,
   isClientDebtArticleId,
+  isDebtReturnArticleId,
 } from '../cashArticles.js';
 import { getConfirmedOpeningTotals } from './openingBalanceDocuments.js';
 
@@ -158,6 +159,16 @@ function assertClientDebtPayment(data, payBranchId) {
   assertCounterpartyBranch(data.counterparty_id, payBranchId);
 }
 
+function assertDebtReturnPayment(data, payBranchId) {
+  if (!isDebtReturnArticleId(data.article_id)) return;
+  if (!data.counterparty_id) throw new Error('Выберите клиента');
+  if (data.type !== 'customer_income') throw new Error('Для статьи «Возврат долга» нужен приход от клиента');
+  const cp = queryOne('SELECT id, type FROM counterparties WHERE id = ?', [data.counterparty_id]);
+  if (!cp) throw new Error('Клиент не найден');
+  if (cp.type !== 'client') throw new Error('Укажите клиента');
+  assertCounterpartyBranch(data.counterparty_id, payBranchId, 'rashod');
+}
+
 function assertPaymentBranchAccess(paymentBranchId, requestedBranchId) {
   if (!requestedBranchId) return;
   if (paymentBranchId && paymentBranchId !== requestedBranchId) {
@@ -208,6 +219,7 @@ export function createPayment(data, userId = null, branchId = DEFAULT_BRANCH_ID,
   assertCashArticleForPayment(data.article_id, data.type, payBranchId);
   assertPurchasePayment(data, payBranchId);
   assertClientDebtPayment(data, payBranchId);
+  assertDebtReturnPayment(data, payBranchId);
   assertPaymentDocumentLink(data.document_id || null, data.type, payBranchId, data.counterparty_id || null);
 
   if (data.counterparty_id) {
@@ -256,6 +268,7 @@ export function updatePayment(id, data, branchId = DEFAULT_BRANCH_ID, userRole =
   assertCashArticleForPayment(articleId, payType, payBranchId);
   assertPurchasePayment({ ...data, article_id: articleId, type: payType, counterparty_id: counterpartyId }, payBranchId);
   assertClientDebtPayment({ ...data, article_id: articleId, type: payType, counterparty_id: counterpartyId }, payBranchId);
+  assertDebtReturnPayment({ ...data, article_id: articleId, type: payType, counterparty_id: counterpartyId }, payBranchId);
   assertPaymentDocumentLink(documentId, payType, payBranchId, counterpartyId);
   if (counterpartyId) {
     let typeCheck = null;

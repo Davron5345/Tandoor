@@ -14,12 +14,14 @@ export const LEGACY_ARTICLE_CODES = {
 export const SURPLUS_ARTICLE_CODE = 'inc_surplus';
 export const SHORTAGE_ARTICLE_CODE = 'exp_shortage';
 export const CLIENT_DEBT_ARTICLE_CODE = 'exp_client_debt';
+export const DEBT_RETURN_ARTICLE_CODE = 'inc_debt_return';
 
 export const DEFAULT_CASH_ARTICLES = [
   { code: 'inc_sales', name: 'Выручка', direction: 'income', sort_order: 1 },
   { code: 'inc_return', name: 'Возврат', direction: 'income', sort_order: 2 },
   { code: 'inc_other', name: 'Прочий приход', direction: 'income', sort_order: 3 },
   { code: SURPLUS_ARTICLE_CODE, name: 'Излишек', direction: 'income', sort_order: 4 },
+  { code: DEBT_RETURN_ARTICLE_CODE, name: 'Возврат долга', direction: 'income', sort_order: 5 },
   { code: PURCHASE_ARTICLE_CODE, name: 'Закуп', direction: 'expense', sort_order: 1 },
   { code: 'exp_salary', name: 'Зарплата', direction: 'expense', sort_order: 2 },
   { code: 'exp_rent', name: 'Аренда', direction: 'expense', sort_order: 3 },
