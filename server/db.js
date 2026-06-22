@@ -304,6 +304,73 @@ export async function initDb() {
   return db;
 }
 
+function ensureMainBranchExists() {
+  const mainExists = queryOne('SELECT id FROM branches WHERE id = ?', ['main']);
+  if (!mainExists) {
+    run('INSERT INTO branches (id, name, address, active) VALUES (?, ?, ?, 1)', ['main', 'Главный филиал', '']);
+  }
+}
+
+function sanitizeOrphanBranchReferences() {
+  ensureMainBranchExists();
+  const validIds = new Set(queryAll('SELECT id FROM branches').map((b) => b.id));
+  validIds.add('main');
+
+  const targets = [
+    ['users', 'branch_id'],
+    ['documents', 'branch_id'],
+    ['documents', 'from_branch_id'],
+    ['documents', 'to_branch_id'],
+    ['payments', 'branch_id'],
+    ['roles', 'branch_id'],
+    ['cash_articles', 'branch_id'],
+    ['counterparties', 'branch_id'],
+    ['departments', 'branch_id'],
+    ['product_branch_stock', 'branch_id'],
+    ['branch_opening_balances', 'branch_id'],
+  ];
+
+  for (const [table, column] of targets) {
+    const cols = queryAll(`PRAGMA table_info(${table})`).map((c) => c.name);
+    if (!cols.includes(column)) continue;
+    const orphans = queryAll(
+      `SELECT DISTINCT ${column} as bid FROM ${table} WHERE ${column} IS NOT NULL AND ${column} != ''`,
+    );
+    for (const { bid } of orphans) {
+      if (!validIds.has(bid)) {
+        console.warn(`⚠️ ${table}.${column}: неизвестный филиал «${bid}» → main`);
+        run(`UPDATE ${table} SET ${column} = 'main' WHERE ${column} = ?`, [bid]);
+      }
+    }
+  }
+
+  const roleCols = queryAll('PRAGMA table_info(users)').map((c) => c.name);
+  if (roleCols.includes('role')) {
+    const badUsers = queryAll(`
+      SELECT DISTINCT u.role FROM users u
+      LEFT JOIN roles r ON r.id = u.role
+      WHERE u.role IS NOT NULL AND u.role != '' AND r.id IS NULL
+    `);
+    for (const { role } of badUsers) {
+      const fallback = queryOne("SELECT id FROM roles WHERE id = 'cashier'")
+        || queryOne("SELECT id FROM roles WHERE id != 'admin' ORDER BY id LIMIT 1");
+      if (fallback) {
+        console.warn(`⚠️ users.role: несуществующая роль «${role}» → ${fallback.id}`);
+        run('UPDATE users SET role = ? WHERE role = ?', [fallback.id, role]);
+      }
+    }
+  }
+
+  const payCols = queryAll('PRAGMA table_info(payments)').map((c) => c.name);
+  if (payCols.includes('article_id')) {
+    run(`
+      UPDATE payments SET article_id = NULL
+      WHERE article_id IS NOT NULL
+        AND article_id NOT IN (SELECT id FROM cash_articles)
+    `);
+  }
+}
+
 function migrateSchema() {
   const cols = queryAll('PRAGMA table_info(documents)');
   const names = cols.map((c) => c.name);
@@ -325,6 +392,7 @@ function migrateSchema() {
   migrateRolesAndUsers();
   migrateRolesFlexible();
   migrateBranches();
+  sanitizeOrphanBranchReferences();
   migrateRolesBranch();
   migrateDepartments();
   migrateRazdelka();
@@ -365,6 +433,7 @@ function migrateSchema() {
   migrateShopOrderDocument();
   migrateCalculationKind();
   migrateProductKind();
+  sanitizeOrphanBranchReferences();
 }
 
 function migrateCalculationKind() {
@@ -1542,6 +1611,8 @@ function migrateCashArticlesBranch() {
   const done = queryOne("SELECT value FROM settings WHERE key = 'cash_articles_branch_v1'");
   if (done) return;
 
+  ensureMainBranchExists();
+
   const cols = queryAll('PRAGMA table_info(cash_articles)').map((c) => c.name);
   if (!cols.includes('branch_id')) {
     run('ALTER TABLE cash_articles ADD COLUMN branch_id TEXT REFERENCES branches(id)');
@@ -1630,13 +1701,6 @@ function uuidv4() {
     const v = c === 'x' ? r : (r & 0x3 | 0x8);
     return v.toString(16);
   });
-}
-
-function ensureMainBranchExists() {
-  const mainExists = queryOne('SELECT id FROM branches WHERE id = ?', ['main']);
-  if (!mainExists) {
-    run('INSERT INTO branches (id, name, address, active) VALUES (?, ?, ?, 1)', ['main', 'Главный филиал', '']);
-  }
 }
 
 function migrateRolesBranch() {
