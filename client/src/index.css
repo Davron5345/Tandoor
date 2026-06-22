@@ -1594,6 +1594,18 @@ textarea::placeholder {
   background: var(--bg);
   color: var(--text);
   transition: border-color 0.15s, box-shadow 0.15s;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.stock-search-input::-webkit-search-decoration,
+.stock-search-input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  display: none;
+}
+
+.stock-search-input::-ms-clear {
+  display: none;
 }
 
 .stock-search-input:focus {
