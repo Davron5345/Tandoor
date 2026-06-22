@@ -296,7 +296,7 @@ export default function ShopOrdersMobile() {
               </div>
               <div className="warehouse-pwa-setup-actions">
                 {!isNativeApp() && !isStandaloneApp() && (
-                  <a className="btn btn-primary btn-sm" href={FALLBACK_APK_URL}>
+                  <a className="btn btn-primary btn-sm" href={`${window.location.origin}${FALLBACK_APK_URL}`}>
                     Скачать Android APK
                   </a>
                 )}

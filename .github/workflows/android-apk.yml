@@ -21,6 +21,7 @@ permissions:
 
 jobs:
   build-apk:
+    if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -41,6 +42,22 @@ jobs:
       - name: Install SDK components
         run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
 
+      - name: Cache signing keystore
+        uses: actions/cache@v4
+        id: keystore
+        with:
+          path: android/snab-release.keystore
+          key: snab-keystore-v1
+
+      - name: Generate signing keystore
+        if: steps.keystore.outputs.cache-hit != 'true'
+        run: |
+          keytool -genkeypair -v \
+            -keystore android/snab-release.keystore \
+            -alias snab -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass "tandoor-snab-2026" -keypass "tandoor-snab-2026" \
+            -dname "CN=Snab, OU=Tandoor, C=UZ"
+
       - name: Install dependencies
         run: npm run setup
 
@@ -57,12 +74,20 @@ jobs:
           chmod +x android/gradlew
           echo "sdk.dir=${ANDROID_HOME}" > android/local.properties
 
-      - name: Build debug APK
+      - name: Build release APK
         working-directory: android
-        run: ./gradlew assembleDebug --no-daemon --stacktrace
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
 
-      - name: Rename APK
-        run: cp android/app/build/outputs/apk/debug/app-debug.apk "${{ env.APK_NAME }}"
+      - name: Verify APK
+        run: |
+          cp android/app/build/outputs/apk/release/app-release.apk "${{ env.APK_NAME }}"
+          ls -lh "${{ env.APK_NAME }}"
+          unzip -t "${{ env.APK_NAME }}"
+
+      - name: Copy APK for site hosting
+        run: |
+          mkdir -p client/public/downloads
+          cp "${{ env.APK_NAME }}" client/public/downloads/snabzenie.apk
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
@@ -79,10 +104,19 @@ jobs:
           body: |
             Android-приложение для снабженца (фоновая геолокация).
             Сервер: ${{ env.VITE_API_URL }}
+            Установка: скачайте в Chrome (не через Telegram).
           files: ${{ env.APK_NAME }}
           make_latest: true
 
+      - name: Deploy APK to Railway via git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add client/public/downloads/snabzenie.apk
+          git diff --staged --quiet || git commit -m "Обновить snabzenie.apk [skip ci]"
+          git push
+
       - name: Summary
         run: |
-          ls -lh "${{ env.APK_NAME }}"
-          echo "Скачать: https://github.com/${{ github.repository }}/releases/latest/download/${{ env.APK_NAME }}"
+          echo "Скачать с сайта: ${{ env.VITE_API_URL }}/downloads/snabzenie.apk"
+          echo "GitHub: https://github.com/${{ github.repository }}/releases/latest/download/${{ env.APK_NAME }}"

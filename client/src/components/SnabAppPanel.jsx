@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api';
 
-const FALLBACK_APK_URL = 'https://github.com/Davron5345/Tandoor/releases/latest/download/snabzenie.apk';
+const FALLBACK_APK_URL = '/downloads/snabzenie.apk';
 
 function qrImageUrl(url) {
   return `https://api.qrserver.com/v1/create-qr-code/?size=180x180&margin=8&data=${encodeURIComponent(url)}`;
@@ -40,7 +40,9 @@ export default function SnabAppPanel() {
   }, []);
 
   const mobileUrl = info?.mobileUrl || (typeof window !== 'undefined' ? `${window.location.origin}/snab` : '/snab');
-  const apkHref = info?.apkUrl || info?.apkDownloadUrl || FALLBACK_APK_URL;
+  const apkHref = info?.apkDownloadUrl || info?.apkUrl || (
+    typeof window !== 'undefined' ? `${window.location.origin}${FALLBACK_APK_URL}` : FALLBACK_APK_URL
+  );
 
   const handleCopy = useCallback(async (label, text) => {
     try {
@@ -78,9 +80,10 @@ export default function SnabAppPanel() {
               <h3>Скачать Android APK</h3>
               <p>Фоновый GPS — координаты передаются даже при свёрнутом приложении.</p>
               <ol className="snab-app-panel-steps">
-                <li>Отправьте ссылку или QR снабженцу</li>
-                <li>Он устанавливает APK и входит под своим логином</li>
-                <li>Нажимает «Фоновая геолокация» → разрешить «Всегда»</li>
+                <li><strong>Не устанавливайте из Telegram</strong> — файл может повредиться</li>
+                <li>Откройте ссылку в <strong>Chrome</strong> на телефоне и скачайте APK</li>
+                <li>Если была старая версия — сначала удалите приложение «Снабжение»</li>
+                <li>Установите, войдите, включите «Фоновая геолокация»</li>
               </ol>
               <div className="snab-app-panel-actions">
                 <a className="btn btn-primary btn-sm" href={apkHref}>

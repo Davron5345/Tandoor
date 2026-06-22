@@ -49,7 +49,14 @@ export function createApp() {
   registerApiRoutes(app, { authRequired, productImageUpload });
 
   const clientDist = join(__dirname, '..', 'client', 'dist');
-  app.use(express.static(clientDist));
+  app.use(express.static(clientDist, {
+    setHeaders(res, filePath) {
+      if (filePath.endsWith('.apk')) {
+        res.setHeader('Content-Type', 'application/vnd.android.package-archive');
+        res.setHeader('Content-Disposition', 'attachment; filename="snabzenie.apk"');
+      }
+    },
+  }));
   app.get('*', (req, res) => {
     if (req.path.startsWith('/api')) {
       return res.status(404).json({ error: 'Not found' });
