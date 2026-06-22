@@ -103,7 +103,7 @@ function SessionsTab() {
 
   return (
     <>
-      <Toast />
+      {Toast}
       <div className="card filter-panel">
         <div className="filter-panel-row">
           <label className="filter-field">
@@ -233,7 +233,7 @@ function BlockedTab() {
 
   return (
     <>
-      <Toast />
+      {Toast}
       <div className="card">
         <div className="table-wrap">
           <table>
