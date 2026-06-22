@@ -1,4 +1,5 @@
 import { formatMoney } from '../api';
+import { textMatchesSearch } from './searchNormalize';
 
 export function encodeProductPick(productId, variantId = null) {
   if (!productId) return '';
@@ -132,9 +133,8 @@ export function productListRowSearchHaystack(row) {
 }
 
 export function productListRowMatchesSearch(row, search) {
-  const q = (search || '').trim().toLowerCase();
-  if (!q) return true;
-  return productListRowSearchHaystack(row).includes(q);
+  if (!(search || '').trim()) return true;
+  return textMatchesSearch(productListRowSearchHaystack(row), search);
 }
 
 /** При поиске оставляет только совпадающие строки; для товаров с вариантами — только варианты */
