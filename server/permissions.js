@@ -889,6 +889,9 @@ export function canAccessDocumentType(role, type) {
   if (type === 'peremeshchenie') return hasPermission(role, 'documents.transfer');
   if (type === 'razdelka') return hasPermission(role, 'documents.razdelka');
   if (type === 'dish_sale') return hasPermission(role, 'documents.dish_sale');
+  if (type === 'opening_balance') {
+    return hasPermission(role, 'opening_balance.view') || hasPermission(role, 'documents.view');
+  }
   return hasPermission(role, 'documents.view');
 }
 

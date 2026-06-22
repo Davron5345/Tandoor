@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { api, formatMoney, formatDate, formatPriceInput, parsePriceInput, STATUS_LABELS, ACTION_LABELS } from '../api';
 import Modal, { useToast, ModalCancelButton } from '../components/Modal';
@@ -119,6 +120,7 @@ export default function Documents({ defaultType }) {
   useFormDraft(draftKey, draftPayload, Boolean(modal));
   const isFormDirty = useFormDirty(draftPayload, draftKey);
   const { show, Toast } = useToast();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { branches, branchId } = useBranch();
   const activeBranches = branches.filter((b) => b.active);
@@ -585,7 +587,11 @@ export default function Documents({ defaultType }) {
     }
   };
 
-  const openEdit = async (id) => {
+  const openEdit = async (id, docType) => {
+    if (docType === 'opening_balance') {
+      navigate('/opening-balance');
+      return;
+    }
     const doc = await api.getDocument(id);
     const loadedForm = {
       ...doc,
@@ -944,6 +950,8 @@ export default function Documents({ defaultType }) {
             <option value="return_customer">Возврат от клиента</option>
             <option value="peremeshchenie">Перемещение</option>
             <option value="razdelka">Разделка</option>
+            <option value="dish_sale">Продажа блюд</option>
+            <option value="opening_balance">Начальное сальдо</option>
           </select>
           <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
             <option value="">Все статусы</option>
@@ -985,7 +993,7 @@ export default function Documents({ defaultType }) {
                     <div className="btn-group btn-group-icons doc-actions">
                       <IconButton
                         title={isReadOnly ? 'Просмотр' : 'Открыть'}
-                        onClick={() => openEdit(d.id)}
+                        onClick={() => openEdit(d.id, d.type)}
                       >
                         <IconEye />
                       </IconButton>

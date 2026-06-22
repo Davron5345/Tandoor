@@ -1,11 +1,7 @@
 import { hasPermission, canAccessDocumentType } from './permissions.js';
 
 export function filterDocumentsForUser(docs, role) {
-  if (
-    hasPermission(role, 'documents.view')
-    && hasPermission(role, 'documents.prihod')
-    && hasPermission(role, 'documents.rashod')
-  ) {
+  if (hasPermission(role, 'documents.view')) {
     return docs;
   }
   return docs.filter((d) => canAccessDocumentType(role, d.type));

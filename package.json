@@ -17,6 +17,7 @@
     "db:verify": "node server/scripts/db-verify.mjs",
     "db:list-backups": "node server/scripts/db-list-backups.mjs",
     "db:restore": "node server/scripts/db-restore.mjs",
+    "db:reset-operations": "node server/scripts/reset-operational-data.mjs",
     "vapid:generate": "node server/scripts/generate-vapid.mjs",
     "perms:verify": "node server/scripts/verify-cashier-perms.mjs",
     "cap:sync": "npm run build && npx cap sync android",

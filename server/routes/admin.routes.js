@@ -13,6 +13,7 @@ import { canViewAllBranches } from '../branches.js';
 import { seedDefaultUsers } from '../auth.js';
 import * as departments from '../departments.js';
 import { resetTestData } from '../resetTestData.js';
+import { resetOperationalData } from '../resetOperationalData.js';
 import { getAuditLog, AUDIT_ACTION_LABELS } from '../auditLog.js';
 import {
   listActiveSessions,
@@ -176,6 +177,25 @@ export function registerAdminRoutes(app) {
       });
     } catch (e) {
       res.status(400).json({ error: e.message });
+    }
+  });
+
+  app.post('/api/admin/reset-operational-data', requireAdmin, (req, res) => {
+    try {
+      if (req.body?.confirm !== 'RESET_OPERATIONS') {
+        return res.status(400).json({
+          error: 'Опасная операция. Передайте confirm: "RESET_OPERATIONS" в теле запроса.',
+        });
+      }
+      if (process.env.NODE_ENV === 'production' && process.env.ALLOW_DATA_RESET !== 'true') {
+        return res.status(403).json({
+          error: 'Сброс данных в production отключён. Установите ALLOW_DATA_RESET=true',
+        });
+      }
+      const result = resetOperationalData();
+      res.json({ ok: true, ...result });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
     }
   });
 
