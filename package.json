@@ -22,6 +22,7 @@
     "cap:sync": "npm run build && npx cap sync android",
     "android:open": "npx cap open android",
     "android:apk": "node scripts/build-android.mjs",
+    "icons:generate": "node scripts/generate-app-icons.mjs",
     "test": "node --test server/test/**/*.test.js",
     "test:e2e": "playwright test",
     "test:e2e:install": "playwright install chromium",
@@ -50,6 +51,7 @@
     "eslint": "^9.17.0",
     "eslint-plugin-react": "^7.37.3",
     "eslint-plugin-react-hooks": "^5.1.0",
-    "globals": "^15.14.0"
+    "globals": "^15.14.0",
+    "sharp": "^0.35.2"
   }
 }

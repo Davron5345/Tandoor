@@ -1,6 +1,6 @@
 {
   "appId": "com.tandoor.snab",
-  "appName": "Снабжение",
+  "appName": "Mahalla Снабжение",
   "webDir": "client/dist",
   "android": {
     "useLegacyBridge": true

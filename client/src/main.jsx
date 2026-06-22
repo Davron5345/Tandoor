@@ -8,6 +8,7 @@ import { ThemeProvider } from './ThemeContext';
 import { AuthProvider } from './AuthContext';
 import { BranchProvider } from './BranchContext';
 import AppUpdateManager from './components/AppUpdateManager';
+import RootEntry from './RootEntry';
 import './index.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
@@ -29,6 +30,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
               </AuthProvider>
             )}
           />
+          <Route path="/" element={<RootEntry />} />
           <Route
             path="*"
             element={(
