@@ -4696,6 +4696,7 @@ input[type='number']::-webkit-inner-spin-button {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  overflow: visible;
 }
 
 .products-toolbar-top {
@@ -4707,6 +4708,12 @@ input[type='number']::-webkit-inner-spin-button {
 
 .products-toolbar-filters {
   margin-bottom: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  align-items: center;
 }
 
 .segmented-control {
@@ -4767,6 +4774,7 @@ input[type='number']::-webkit-inner-spin-button {
 .kind-filter-menu {
   position: relative;
   flex-shrink: 0;
+  align-self: center;
 }
 
 .kind-filter-trigger {

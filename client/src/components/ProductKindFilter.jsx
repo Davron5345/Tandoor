@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { IconFilter } from './ActionIcons';
 import { PRODUCT_KINDS, PRODUCT_KIND_LABELS_PLURAL } from '../productKinds';
 
@@ -11,6 +12,8 @@ export default function ProductKindFilter({ value, onChange, counts = {} }) {
   const [open, setOpen] = useState(false);
   const [dropdownStyle, setDropdownStyle] = useState(null);
   const wrapRef = useRef(null);
+  const triggerRef = useRef(null);
+  const dropdownRef = useRef(null);
 
   const items = useMemo(() => [
     { id: '', label: 'Все виды' },
@@ -24,8 +27,8 @@ export default function ProductKindFilter({ value, onChange, counts = {} }) {
   const isFiltered = Boolean(value);
 
   const updateDropdownPosition = () => {
-    if (!wrapRef.current) return;
-    const rect = wrapRef.current.getBoundingClientRect();
+    if (!triggerRef.current) return;
+    const rect = triggerRef.current.getBoundingClientRect();
     setDropdownStyle({
       position: 'fixed',
       top: rect.bottom + 4,
@@ -48,24 +51,66 @@ export default function ProductKindFilter({ value, onChange, counts = {} }) {
   useEffect(() => {
     if (!open) return undefined;
 
+    updateDropdownPosition();
+
     const onDocClick = (e) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target)) close();
+      const target = e.target;
+      if (
+        wrapRef.current?.contains(target)
+        || dropdownRef.current?.contains(target)
+      ) return;
+      close();
     };
     const onKeyDown = (e) => {
       if (e.key === 'Escape') close();
     };
+    const onRelayout = () => updateDropdownPosition();
 
     document.addEventListener('mousedown', onDocClick);
     window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('resize', onRelayout);
+    window.addEventListener('scroll', onRelayout, true);
     return () => {
       document.removeEventListener('mousedown', onDocClick);
       window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('resize', onRelayout);
+      window.removeEventListener('scroll', onRelayout, true);
     };
   }, [open]);
 
-  useEffect(() => {
-    if (open) updateDropdownPosition();
-  }, [open]);
+  const dropdown = open && dropdownStyle ? (
+    <div
+      ref={dropdownRef}
+      className="kind-filter-dropdown"
+      style={dropdownStyle}
+    >
+      <div className="kind-filter-dropdown-title">Вид номенклатуры</div>
+      <ul className="kind-filter-list" role="listbox">
+        {items.map((item) => {
+          const active = (value || '') === item.id;
+          const count = item.id ? counts[item.id] : counts.all;
+          const countLabel = formatCount(count);
+
+          return (
+            <li key={item.id || 'all'}>
+              <button
+                type="button"
+                role="option"
+                aria-selected={active}
+                className={`kind-filter-option${active ? ' active' : ''}`}
+                onClick={() => pick(item.id)}
+              >
+                <span>{item.label}</span>
+                {countLabel != null && (
+                  <span className="kind-filter-option-count">{countLabel}</span>
+                )}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  ) : null;
 
   return (
     <div
@@ -73,47 +118,26 @@ export default function ProductKindFilter({ value, onChange, counts = {} }) {
       className={`kind-filter-menu${open ? ' kind-filter-menu-open' : ''}${isFiltered ? ' kind-filter-menu-active' : ''}`}
     >
       <button
+        ref={triggerRef}
         type="button"
         className="kind-filter-trigger"
         title={isFiltered ? `Фильтр: ${activeItem.label}` : 'Фильтр по виду'}
         aria-label="Фильтр по виду номенклатуры"
         aria-haspopup="listbox"
         aria-expanded={open}
-        onClick={() => setOpen((prev) => !prev)}
+        onClick={() => {
+          if (open) {
+            close();
+            return;
+          }
+          setOpen(true);
+        }}
       >
         <IconFilter />
         {isFiltered && <span className="kind-filter-trigger-dot" aria-hidden />}
       </button>
 
-      {open && (
-        <div className="kind-filter-dropdown" style={dropdownStyle || undefined}>
-          <div className="kind-filter-dropdown-title">Вид номенклатуры</div>
-          <ul className="kind-filter-list" role="listbox">
-            {items.map((item) => {
-              const active = (value || '') === item.id;
-              const count = item.id ? counts[item.id] : counts.all;
-              const countLabel = formatCount(count);
-
-              return (
-                <li key={item.id || 'all'}>
-                  <button
-                    type="button"
-                    role="option"
-                    aria-selected={active}
-                    className={`kind-filter-option${active ? ' active' : ''}`}
-                    onClick={() => pick(item.id)}
-                  >
-                    <span>{item.label}</span>
-                    {countLabel != null && (
-                      <span className="kind-filter-option-count">{countLabel}</span>
-                    )}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      )}
+      {dropdown && createPortal(dropdown, document.body)}
     </div>
   );
 }
