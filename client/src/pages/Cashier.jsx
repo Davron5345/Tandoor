@@ -8,8 +8,7 @@ import { useBranch } from '../BranchContext';
 import BranchChip from '../components/BranchChip';
 import { todayLocalIso } from '../utils/date';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
-import { textMatchesSearch } from '../utils/searchNormalize';
-import SearchHighlight from '../components/SearchHighlight';
+import CounterpartySearchSelect from '../components/CounterpartySearchSelect';
 
 const emptySideForm = {
   amountInput: '',
@@ -109,62 +108,53 @@ function ArticleChips({ side, articles, value, onChange, disabled }) {
   );
 }
 
+function expenseCounterpartyKind(articleId, purchaseArticleId, clientDebtArticleId) {
+  if (articleId === purchaseArticleId) return 'supplier';
+  if (articleId === clientDebtArticleId) return 'client';
+  return null;
+}
+
 function CashierSideForm({
   side,
   title,
   articles,
   suppliers = [],
-  recentSupplierIds = [],
+  clients = [],
   form,
   setForm,
   saving,
   canEdit,
   onSubmit,
   amountRef,
-  supplierSearchRef,
+  counterpartySearchRef,
   purchaseArticleId,
+  clientDebtArticleId,
 }) {
-  const needsSupplier = side === 'expense' && purchaseArticleId && form.article_id === purchaseArticleId;
-  const [supplierSearch, setSupplierSearch] = useState('');
+  const counterpartyKind = side === 'expense'
+    ? expenseCounterpartyKind(form.article_id, purchaseArticleId, clientDebtArticleId)
+    : null;
+  const counterpartyItems = counterpartyKind === 'supplier' ? suppliers : clients;
   const [showComment, setShowComment] = useState(Boolean(form.comment));
 
   useEffect(() => {
     if (form.comment) setShowComment(true);
   }, [form.comment]);
 
-  const filteredSuppliers = useMemo(() => {
-    const q = supplierSearch.trim();
-    if (!q) return suppliers;
-    return suppliers.filter((s) => textMatchesSearch(s.name, q));
-  }, [suppliers, supplierSearch]);
-
-  const recentSuppliers = useMemo(
-    () => recentSupplierIds
-      .map((id) => suppliers.find((s) => s.id === id))
-      .filter(Boolean),
-    [recentSupplierIds, suppliers],
-  );
-
-  const showRecentRow = !supplierSearch && recentSuppliers.length > 0 && suppliers.length > 8;
-  const useChipList = filteredSuppliers.length > 0 && filteredSuppliers.length <= 8;
-
   const selectArticle = (article_id) => {
+    const prevKind = expenseCounterpartyKind(form.article_id, purchaseArticleId, clientDebtArticleId);
+    const nextKind = expenseCounterpartyKind(article_id, purchaseArticleId, clientDebtArticleId);
     const next = {
       ...form,
       article_id,
-      counterparty_id: article_id === purchaseArticleId ? form.counterparty_id : '',
+      counterparty_id: nextKind && nextKind === prevKind ? form.counterparty_id : '',
     };
     setForm(next);
 
     window.requestAnimationFrame(() => {
-      if (article_id === purchaseArticleId && !next.counterparty_id) {
-        supplierSearchRef?.current?.focus();
+      if (nextKind && !next.counterparty_id) {
+        counterpartySearchRef?.current?.focus();
       }
     });
-  };
-
-  const selectSupplier = (counterparty_id) => {
-    setForm({ ...form, counterparty_id });
   };
 
   const disabled = !canEdit || saving;
@@ -176,7 +166,7 @@ function CashierSideForm({
     >
       <div className="cashier-panel-head">
         <h2>{title}</h2>
-        {form.amountInput && form.article_id && (!needsSupplier || form.counterparty_id) && (
+        {form.amountInput && form.article_id && (!counterpartyKind || form.counterparty_id) && (
           <span className="cashier-panel-ready">готово к проведению</span>
         )}
       </div>
@@ -229,71 +219,21 @@ function CashierSideForm({
         </select>
       </div>
 
-      {needsSupplier && (
+      {counterpartyKind && (
         <div className="cashier-field cashier-field-supplier">
-          <span>Поставщик *</span>
-          {showRecentRow && (
-            <div className="cashier-supplier-chips cashier-supplier-recent">
-              <span className="cashier-supplier-recent-label">Недавние:</span>
-              {recentSuppliers.map((supplier) => (
-                <button
-                  key={supplier.id}
-                  type="button"
-                  className={`cashier-supplier-chip${form.counterparty_id === supplier.id ? ' selected' : ''}`}
-                  disabled={disabled}
-                  onClick={() => selectSupplier(supplier.id)}
-                >
-                  {supplierSearch.trim() ? (
-                    <SearchHighlight text={supplier.name} query={supplierSearch} />
-                  ) : (
-                    supplier.name
-                  )}
-                </button>
-              ))}
-            </div>
-          )}
-          <input
-            ref={supplierSearchRef}
-            type="search"
-            className="cashier-supplier-search"
-            placeholder="Найти поставщика…"
-            value={supplierSearch}
-            onChange={(e) => setSupplierSearch(e.target.value)}
+          <span>{counterpartyKind === 'supplier' ? 'Поставщик' : 'Клиент'} *</span>
+          <CounterpartySearchSelect
+            items={counterpartyItems}
+            value={form.counterparty_id}
+            onChange={(counterparty_id) => setForm({ ...form, counterparty_id })}
             disabled={disabled}
+            placeholder={counterpartyKind === 'supplier' ? 'Найти поставщика…' : 'Найти клиента…'}
+            inputRef={counterpartySearchRef}
           />
-          {useChipList ? (
-            <div className="cashier-supplier-chips">
-              {filteredSuppliers.map((supplier) => (
-                <button
-                  key={supplier.id}
-                  type="button"
-                  className={`cashier-supplier-chip${form.counterparty_id === supplier.id ? ' selected' : ''}`}
-                  disabled={disabled}
-                  onClick={() => selectSupplier(supplier.id)}
-                >
-                  {supplierSearch.trim() ? (
-                    <SearchHighlight text={supplier.name} query={supplierSearch} />
-                  ) : (
-                    supplier.name
-                  )}
-                </button>
-              ))}
-            </div>
-          ) : (
-            <select
-              value={form.counterparty_id}
-              onChange={(e) => selectSupplier(e.target.value)}
-              disabled={disabled}
-              required
-            >
-              <option value="">— выберите —</option>
-              {filteredSuppliers.map((supplier) => (
-                <option key={supplier.id} value={supplier.id}>{supplier.name}</option>
-              ))}
-            </select>
-          )}
-          {filteredSuppliers.length === 0 && (
-            <span className="cashier-field-hint">Поставщики не найдены</span>
+          {counterpartyItems.length === 0 && (
+            <span className="cashier-field-hint">
+              {counterpartyKind === 'supplier' ? 'Поставщики не найдены' : 'Клиенты не найдены'}
+            </span>
           )}
         </div>
       )}
@@ -326,7 +266,7 @@ function CashierSideForm({
         <button
           type="submit"
           className={`btn btn-primary cashier-submit btn-${side}`}
-          disabled={disabled || !form.article_id || (needsSupplier && !form.counterparty_id)}
+          disabled={disabled || !form.article_id || (counterpartyKind && !form.counterparty_id)}
         >
           {saving ? 'Сохранение…' : (side === 'income' ? 'Провести приход' : 'Провести расход')}
         </button>
@@ -339,9 +279,10 @@ function paymentSide(payment) {
   return isIncomeType(payment.type) ? 'income' : 'expense';
 }
 
-function buildPaymentPayload(side, form, purchaseArticleId) {
+function buildPaymentPayload(side, form, purchaseArticleId, clientDebtArticleId) {
   const amount = parsePriceInput(form.amountInput);
   const isPurchase = side === 'expense' && purchaseArticleId && form.article_id === purchaseArticleId;
+  const isClientDebt = side === 'expense' && clientDebtArticleId && form.article_id === clientDebtArticleId;
   return {
     type: side === 'income'
       ? 'other_income'
@@ -349,7 +290,7 @@ function buildPaymentPayload(side, form, purchaseArticleId) {
     amount,
     date: form.date,
     article_id: form.article_id,
-    counterparty_id: isPurchase ? form.counterparty_id : null,
+    counterparty_id: (isPurchase || isClientDebt) ? form.counterparty_id : null,
     comment: form.comment.trim(),
   };
 }
@@ -359,10 +300,12 @@ function CashierEditModal({
   incomeArticles,
   expenseArticles,
   suppliers,
+  clients,
   canEditPast,
   onClose,
   onSave,
   purchaseArticleId,
+  clientDebtArticleId,
 }) {
   const side = paymentSide(payment);
   const articles = side === 'income' ? incomeArticles : expenseArticles;
@@ -373,14 +316,18 @@ function CashierEditModal({
     comment: payment.comment || '',
     date: payment.date,
   });
-  const needsSupplier = side === 'expense' && purchaseArticleId && form.article_id === purchaseArticleId;
+  const counterpartyKind = side === 'expense'
+    ? expenseCounterpartyKind(form.article_id, purchaseArticleId, clientDebtArticleId)
+    : null;
+  const counterpartyItems = counterpartyKind === 'supplier' ? suppliers : clients;
 
   const save = () => {
     const amount = parsePriceInput(form.amountInput);
     if (!amount || amount <= 0) return { error: 'Укажите сумму больше нуля' };
     if (!form.article_id) return { error: 'Выберите статью' };
-    if (needsSupplier && !form.counterparty_id) return { error: 'Выберите поставщика' };
-    return { payload: buildPaymentPayload(side, form, purchaseArticleId) };
+    if (counterpartyKind === 'supplier' && !form.counterparty_id) return { error: 'Выберите поставщика' };
+    if (counterpartyKind === 'client' && !form.counterparty_id) return { error: 'Выберите клиента' };
+    return { payload: buildPaymentPayload(side, form, purchaseArticleId, clientDebtArticleId) };
   };
 
   return (
@@ -424,21 +371,30 @@ function CashierEditModal({
             side={side}
             articles={articles}
             value={form.article_id}
-            onChange={(article_id) => setForm({
-              ...form,
-              article_id,
-              counterparty_id: article_id === purchaseArticleId ? form.counterparty_id : '',
-            })}
+            onChange={(article_id) => {
+              const prevKind = expenseCounterpartyKind(form.article_id, purchaseArticleId, clientDebtArticleId);
+              const nextKind = expenseCounterpartyKind(article_id, purchaseArticleId, clientDebtArticleId);
+              setForm({
+                ...form,
+                article_id,
+                counterparty_id: nextKind && nextKind === prevKind ? form.counterparty_id : '',
+              });
+            }}
             disabled={false}
           />
           <select
             className="cashier-article-select cashier-article-select-visible"
             value={form.article_id}
-            onChange={(e) => setForm({
-              ...form,
-              article_id: e.target.value,
-              counterparty_id: e.target.value === purchaseArticleId ? form.counterparty_id : '',
-            })}
+            onChange={(e) => {
+              const article_id = e.target.value;
+              const prevKind = expenseCounterpartyKind(form.article_id, purchaseArticleId, clientDebtArticleId);
+              const nextKind = expenseCounterpartyKind(article_id, purchaseArticleId, clientDebtArticleId);
+              setForm({
+                ...form,
+                article_id,
+                counterparty_id: nextKind && nextKind === prevKind ? form.counterparty_id : '',
+              });
+            }}
           >
             <option value="">— выберите —</option>
             {articles.map((article) => (
@@ -446,18 +402,15 @@ function CashierEditModal({
             ))}
           </select>
         </div>
-        {needsSupplier && (
+        {counterpartyKind && (
           <div className="form-group full">
-            <label>Поставщик *</label>
-            <select
+            <label>{counterpartyKind === 'supplier' ? 'Поставщик' : 'Клиент'} *</label>
+            <CounterpartySearchSelect
+              items={counterpartyItems}
               value={form.counterparty_id}
-              onChange={(e) => setForm({ ...form, counterparty_id: e.target.value })}
-            >
-              <option value="">— выберите —</option>
-              {suppliers.map((supplier) => (
-                <option key={supplier.id} value={supplier.id}>{supplier.name}</option>
-              ))}
-            </select>
+              onChange={(counterparty_id) => setForm({ ...form, counterparty_id })}
+              placeholder={counterpartyKind === 'supplier' ? 'Найти поставщика…' : 'Найти клиента…'}
+            />
           </div>
         )}
         <div className="form-group">
@@ -595,6 +548,7 @@ export default function Cashier() {
   const [incomeArticles, setIncomeArticles] = useState([]);
   const [expenseArticles, setExpenseArticles] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
+  const [clients, setClients] = useState([]);
   const [shiftDate, setShiftDate] = useState(todayIso());
   const [incomeForm, setIncomeForm] = useState(emptySideForm);
   const [expenseForm, setExpenseForm] = useState(emptySideForm);
@@ -632,7 +586,7 @@ export default function Cashier() {
     setExpenseForm((prev) => ({
       ...prev,
       article_id: prefs.expenseArticle || prev.article_id,
-      counterparty_id: prefs.supplierId || prev.counterparty_id,
+      counterparty_id: prefs.counterpartyId || prefs.supplierId || prefs.clientId || prev.counterparty_id,
     }));
   }, [branchId]);
 
@@ -688,11 +642,16 @@ export default function Cashier() {
     }
 
     try {
-      const supplierList = await api.getCounterparties('supplier');
+      const [supplierList, clientList] = await Promise.all([
+        api.getCounterparties('supplier'),
+        api.getCounterparties('client'),
+      ]);
       setSuppliers(supplierList);
+      setClients(clientList);
     } catch (err) {
       console.error(err);
       setSuppliers([]);
+      setClients([]);
     }
   }, [branchId, loadPayments, loadShiftSummary, show]);
 
@@ -729,6 +688,11 @@ export default function Cashier() {
     [expenseArticles],
   );
 
+  const clientDebtArticleId = useMemo(
+    () => expenseArticles.find((a) => a.code === 'exp_client_debt')?.id ?? null,
+    [expenseArticles],
+  );
+
   const todayPayments = useMemo(
     () => payments.filter((p) => p.date === shiftDate),
     [payments, shiftDate],
@@ -749,18 +713,6 @@ export default function Cashier() {
     return list;
   }, [todayPayments, sortKey, sortDir]);
 
-  const recentSupplierIds = useMemo(() => {
-    const prefs = loadPrefs(branchId);
-    const fromToday = [];
-    for (const p of payments) {
-      if (p.counterparty_id && p.type === 'supplier_payment' && !fromToday.includes(p.counterparty_id)) {
-        fromToday.push(p.counterparty_id);
-      }
-    }
-    const fromPrefs = Array.isArray(prefs.recentSuppliers) ? prefs.recentSuppliers : [];
-    return [...new Set([...fromToday, ...fromPrefs])].slice(0, 5);
-  }, [payments, branchId]);
-
   const focusAmount = (side) => {
     window.requestAnimationFrame(() => {
       (side === 'income' ? incomeAmountRef : expenseAmountRef).current?.focus();
@@ -780,9 +732,10 @@ export default function Cashier() {
     }
     const patch = { expenseArticle: form.article_id };
     if (form.counterparty_id) {
-      patch.supplierId = form.counterparty_id;
-      const prev = loadPrefs(branchId).recentSuppliers || [];
-      patch.recentSuppliers = [form.counterparty_id, ...prev.filter((id) => id !== form.counterparty_id)].slice(0, 5);
+      patch.counterpartyId = form.counterparty_id;
+      const kind = expenseCounterpartyKind(form.article_id, purchaseArticleId, clientDebtArticleId);
+      if (kind === 'supplier') patch.supplierId = form.counterparty_id;
+      if (kind === 'client') patch.clientId = form.counterparty_id;
     }
     savePrefs(branchId, patch);
   };
@@ -805,8 +758,14 @@ export default function Cashier() {
       return;
     }
     const isPurchase = side === 'expense' && purchaseArticleId && form.article_id === purchaseArticleId;
+    const isClientDebt = side === 'expense' && clientDebtArticleId && form.article_id === clientDebtArticleId;
     if (isPurchase && !form.counterparty_id) {
       show('Выберите поставщика', 'error');
+      expenseSupplierSearchRef.current?.focus();
+      return;
+    }
+    if (isClientDebt && !form.counterparty_id) {
+      show('Выберите клиента', 'error');
       expenseSupplierSearchRef.current?.focus();
       return;
     }
@@ -820,7 +779,7 @@ export default function Cashier() {
         amount,
         date: shiftDate,
         article_id: form.article_id,
-        counterparty_id: isPurchase ? form.counterparty_id : undefined,
+        counterparty_id: (isPurchase || isClientDebt) ? form.counterparty_id : undefined,
         comment: form.comment.trim(),
       });
       rememberPrefs(side, form);
@@ -965,15 +924,16 @@ export default function Cashier() {
             title="Кассовый расход"
             articles={expenseArticles}
             suppliers={suppliers}
-            recentSupplierIds={recentSupplierIds}
+            clients={clients}
             form={expenseForm}
             setForm={setExpenseForm}
             saving={savingSide === 'expense'}
             canEdit={canWriteShift}
             onSubmit={submitSide('expense')}
             amountRef={expenseAmountRef}
-            supplierSearchRef={expenseSupplierSearchRef}
+            counterpartySearchRef={expenseSupplierSearchRef}
             purchaseArticleId={purchaseArticleId}
+            clientDebtArticleId={clientDebtArticleId}
           />
         </div>
         ) : (
@@ -1164,10 +1124,12 @@ export default function Cashier() {
           incomeArticles={incomeArticles}
           expenseArticles={expenseArticles}
           suppliers={suppliers}
+          clients={clients}
           canEditPast={canEditPast}
           onClose={() => setEditingPayment(null)}
           onSave={saveEditedPayment}
           purchaseArticleId={purchaseArticleId}
+          clientDebtArticleId={clientDebtArticleId}
         />
       )}
     </div>

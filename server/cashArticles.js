@@ -8,6 +8,7 @@ import {
   LEGACY_ARTICLE_CODES,
   DEFAULT_CASH_ARTICLES,
   PURCHASE_ARTICLE_CODE,
+  CLIENT_DEBT_ARTICLE_CODE,
   cashArticleId,
 } from './cashArticleDefaults.js';
 
@@ -21,6 +22,11 @@ export function isPurchaseArticleId(articleId) {
   if (!articleId) return false;
   if (articleId === 'ca_exp_purchase') return true;
   return articleId.endsWith(`__${PURCHASE_ARTICLE_CODE}`);
+}
+
+export function isClientDebtArticleId(articleId) {
+  if (!articleId) return false;
+  return articleId.endsWith(`__${CLIENT_DEBT_ARTICLE_CODE}`);
 }
 
 export function seedCashArticlesForBranch(branchId = DEFAULT_BRANCH_ID) {
