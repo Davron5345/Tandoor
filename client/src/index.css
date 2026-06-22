@@ -6582,6 +6582,70 @@ tr.product-row-highlight td:first-child {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  align-items: flex-end;
+}
+
+.cashier-reconcile-btn {
+  align-self: flex-end;
+  white-space: nowrap;
+}
+
+.cashier-reconcile {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.cashier-reconcile-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+}
+
+.cashier-reconcile-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.cashier-reconcile-field input {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.cashier-reconcile-diff {
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.cashier-reconcile-diff.match {
+  background: color-mix(in srgb, var(--prihod) 12%, var(--surface));
+  color: var(--prihod);
+}
+
+.cashier-reconcile-diff.surplus {
+  background: color-mix(in srgb, var(--prihod) 12%, var(--surface));
+  color: var(--prihod);
+}
+
+.cashier-reconcile-diff.shortage {
+  background: color-mix(in srgb, var(--rashod) 12%, var(--surface));
+  color: var(--rashod);
 }
 
 .cashier-kpi-pill {

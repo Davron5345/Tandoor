@@ -340,6 +340,7 @@ function migrateSchema() {
   migrateVariantDepartmentStockV2();
   migrateCashArticles();
   migrateCashArticlesBranch();
+  migrateCashArticlesSurplusShortage();
   migrateDocumentHistoryRetention();
   migrateMustChangePassword();
   migrateAuditLog();
@@ -1583,6 +1584,36 @@ function migrateCashArticlesBranch() {
   } finally {
     db.run('PRAGMA foreign_keys = ON');
   }
+}
+
+function migrateCashArticlesSurplusShortage() {
+  const done = queryOne("SELECT value FROM settings WHERE key = 'cash_articles_surplus_v1'");
+  if (done) return;
+
+  const extraArticles = DEFAULT_CASH_ARTICLES.filter(
+    (a) => a.code === 'inc_surplus' || a.code === 'exp_shortage',
+  );
+
+  const branchIds = new Set(queryAll('SELECT id FROM branches').map((b) => b.id));
+  for (const row of queryAll('SELECT DISTINCT branch_id as id FROM cash_articles WHERE branch_id IS NOT NULL')) {
+    branchIds.add(row.id);
+  }
+  if (!branchIds.size) branchIds.add('main');
+
+  for (const branchId of branchIds) {
+    for (const article of extraArticles) {
+      const id = cashArticleId(branchId, article.code);
+      run(
+        `INSERT OR IGNORE INTO cash_articles
+          (id, name, direction, sort_order, active, branch_id, code)
+         VALUES (?, ?, ?, ?, 1, ?, ?)`,
+        [id, article.name, article.direction, article.sort_order, branchId, article.code],
+      );
+    }
+  }
+
+  run("INSERT OR REPLACE INTO settings (key, value) VALUES ('cash_articles_surplus_v1', '1')");
+  saveDb();
 }
 
 function uuidv4() {

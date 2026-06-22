@@ -483,10 +483,109 @@ function CashierEditModal({
   );
 }
 
+function CashReconciliationModal({
+  shiftDate,
+  expectedClosing,
+  incomeArticles,
+  expenseArticles,
+  canWrite,
+  onClose,
+  onPosted,
+  showToast,
+}) {
+  const [countedInput, setCountedInput] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const counted = parsePriceInput(countedInput) || 0;
+  const hasCounted = countedInput.trim() !== '' && counted >= 0;
+  const diff = hasCounted ? counted - expectedClosing : 0;
+  const surplusArticle = incomeArticles.find((a) => a.code === 'inc_surplus');
+  const shortageArticle = expenseArticles.find((a) => a.code === 'exp_shortage');
+  const comment = `Сверка кассы за ${formatDate(shiftDate)}`;
+
+  const postAdjustment = async (side) => {
+    const amount = Math.abs(diff);
+    if (amount < 0.005) return;
+    const article = side === 'income' ? surplusArticle : shortageArticle;
+    if (!article) {
+      showToast('Статья не найдена — обновите страницу', 'error');
+      return;
+    }
+    setSaving(true);
+    try {
+      await api.createPayment({
+        type: side === 'income' ? 'other_income' : 'other_expense',
+        amount,
+        date: shiftDate,
+        article_id: article.id,
+        comment,
+      });
+      showToast(side === 'income' ? 'Излишек проведён' : 'Недостача проведена');
+      onPosted();
+      onClose();
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal
+      title="Сверка кассы"
+      onClose={onClose}
+      footer={(
+        <>
+          <button type="button" className="btn btn-ghost" onClick={onClose} disabled={saving}>Отмена</button>
+          {hasCounted && diff > 0.005 && canWrite && (
+            <button type="button" className="btn btn-income" onClick={() => postAdjustment('income')} disabled={saving || !surplusArticle}>
+              Провести излишек
+            </button>
+          )}
+          {hasCounted && diff < -0.005 && canWrite && (
+            <button type="button" className="btn btn-expense" onClick={() => postAdjustment('expense')} disabled={saving || !shortageArticle}>
+              Провести недостачу
+            </button>
+          )}
+        </>
+      )}
+    >
+      <div className="cashier-reconcile">
+        <p className="form-hint">
+          Пересчитайте наличные в кассе и введите фактическую сумму. Система сравнит её с остатком по учёту.
+        </p>
+        <div className="cashier-reconcile-row">
+          <span>По учёту на конец дня</span>
+          <strong>{formatMoney(expectedClosing)}</strong>
+        </div>
+        <label className="cashier-reconcile-field">
+          <span>Фактически в кассе</span>
+          <input
+            type="text"
+            inputMode="numeric"
+            value={countedInput}
+            onChange={(e) => setCountedInput(formatPriceInput(e.target.value))}
+            placeholder="0"
+            autoFocus
+          />
+        </label>
+        {hasCounted && (
+          <div className={`cashier-reconcile-diff${diff > 0.005 ? ' surplus' : diff < -0.005 ? ' shortage' : ' match'}`}>
+            {Math.abs(diff) < 0.005 && <span>Совпадает с учётом</span>}
+            {diff > 0.005 && <span>Излишек: {formatMoney(diff)}</span>}
+            {diff < -0.005 && <span>Недостача: {formatMoney(Math.abs(diff))}</span>}
+          </div>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
 export default function Cashier() {
   const [payments, setPayments] = useState([]);
   const [paymentsLoadError, setPaymentsLoadError] = useState('');
   const [paymentsLoaded, setPaymentsLoaded] = useState(false);
+  const [reconcileOpen, setReconcileOpen] = useState(false);
   const [shiftSummary, setShiftSummary] = useState({
     opening_balance: 0,
     income: 0,
@@ -732,7 +831,7 @@ export default function Cashier() {
         if (exists) return prev;
         return [created, ...prev];
       });
-      loadPayments().catch(console.error);
+      load({ silent: true }).catch(console.error);
       focusAmount(side);
     } catch (err) {
       show(err.message, 'error');
@@ -834,6 +933,15 @@ export default function Cashier() {
               <span className="label">На конец</span>
               <span className="value">{formatMoney(shiftSummary.closing_balance)}</span>
             </div>
+            {canWriteShift && (
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm cashier-reconcile-btn"
+                onClick={() => setReconcileOpen(true)}
+              >
+                Сверка кассы
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -1036,6 +1144,19 @@ export default function Cashier() {
           </table>
         </div>
       </div>
+
+      {reconcileOpen && (
+        <CashReconciliationModal
+          shiftDate={shiftDate}
+          expectedClosing={shiftSummary.closing_balance}
+          incomeArticles={incomeArticles}
+          expenseArticles={expenseArticles}
+          canWrite={canWriteShift}
+          onClose={() => setReconcileOpen(false)}
+          onPosted={() => load({ silent: true })}
+          showToast={show}
+        />
+      )}
 
       {editingPayment && (
         <CashierEditModal
