@@ -59,6 +59,8 @@ export default function Calculations() {
     api.getProducts().then(setProducts).catch(console.error);
   }, [branchId], { enabled: !modal });
 
+  const isRecipe = form.kind === 'recipe';
+
   const sourceProductKeys = useMemo(
     () => new Set(
       form.sources
@@ -77,8 +79,6 @@ export default function Calculations() {
     () => filterProductsByKinds(products, INGREDIENT_KINDS),
     [products],
   );
-
-  const isRecipe = form.kind === 'recipe';
 
   const openCreate = () => {
     setForm({ ...emptyForm, sources: [{ ...emptySourceLine }], items: [{ ...emptyLine }] });
