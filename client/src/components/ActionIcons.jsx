@@ -51,6 +51,16 @@ export function IconFilter() {
   );
 }
 
+export function IconColumns() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="3" y="4" width="4" height="16" rx="1" fill="none" stroke="currentColor" strokeWidth="1.8" />
+      <rect x="10" y="4" width="4" height="16" rx="1" fill="none" stroke="currentColor" strokeWidth="1.8" />
+      <rect x="17" y="4" width="4" height="16" rx="1" fill="none" stroke="currentColor" strokeWidth="1.8" />
+    </svg>
+  );
+}
+
 export function AddRowButton({ onClick, disabled = false, label = 'Строка' }) {
   return (
     <button

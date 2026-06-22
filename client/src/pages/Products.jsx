@@ -21,6 +21,7 @@ import {
   productListRowMatchesSearch,
 } from '../utils/productVariants';
 import ProductKindFilter from '../components/ProductKindFilter';
+import ProductTableColumnsMenu from '../components/ProductTableColumnsMenu';
 import SearchHighlight from '../components/SearchHighlight';
 import SupplierMultiSelect from '../components/SupplierMultiSelect';
 import ProductBranchSettings, {
@@ -40,6 +41,11 @@ import {
   PRODUCT_KINDS,
   productKindLabel,
 } from '../productKinds';
+import {
+  isProductColumnVisible,
+  PRODUCT_TABLE_COLUMNS,
+  readProductTableColumns,
+} from '../utils/productTableColumns';
 
 const UNITS = ['шт', 'кг', 'г', 'л', 'мл', 'м', 'м²', 'м³', 'уп', 'пач', 'кор'];
 
@@ -289,47 +295,45 @@ function ProductListPhoto({ product, variant = null }) {
 function ProductTable({
   items,
   renderRow,
-  showShopColumn = false,
+  columnVisible,
   sortKey,
   sortDir,
   onSort,
 }) {
   if (items.length === 0) return null;
+
+  const columns = PRODUCT_TABLE_COLUMNS.filter((col) => columnVisible(col.id));
+
   return (
     <div className="table-wrap products-table-scroll">
       <table className="products-table">
         <colgroup>
-          <col className="col-num" />
-          <col className="col-photo" />
-          <col className="col-name" />
-          <col className="col-kind" />
-          <col className="col-category" />
-          <col className="col-sku" />
-          <col className="col-unit" />
-          <col className="col-weight" />
-          <col className="col-weight" />
-          <col className="col-price" />
-          <col className="col-stock" />
-          <col className="col-suppliers" />
-          {showShopColumn && <col className="col-shop" />}
-          <col className="col-actions" />
+          {columns.map((col) => (
+            <col key={col.id} className={col.colClass} />
+          ))}
         </colgroup>
         <thead>
           <tr>
-            <th className="product-list-num-col">№</th>
-            <th className="product-list-photo-col">Фото</th>
-            <SortHeader label="Наименование" sortKey="name" activeKey={sortKey} direction={sortDir} onSort={onSort} />
-            <SortHeader label="Вид" sortKey="product_kind" activeKey={sortKey} direction={sortDir} onSort={onSort} />
-            <SortHeader label="Категория" sortKey="category_name" activeKey={sortKey} direction={sortDir} onSort={onSort} />
-            <SortHeader label="Артикул" sortKey="sku" activeKey={sortKey} direction={sortDir} onSort={onSort} />
-            <SortHeader label="Ед." sortKey="unit" activeKey={sortKey} direction={sortDir} onSort={onSort} className="col-unit" />
-            <SortHeader label="Нетто" sortKey="net_weight" activeKey={sortKey} direction={sortDir} onSort={onSort} className="col-num" />
-            <SortHeader label="Брутто" sortKey="gross_weight" activeKey={sortKey} direction={sortDir} onSort={onSort} className="col-num" />
-            <SortHeader label="Цена" sortKey="price" activeKey={sortKey} direction={sortDir} onSort={onSort} className="col-num" />
-            <SortHeader label="Остаток" sortKey="stock" activeKey={sortKey} direction={sortDir} onSort={onSort} className="col-num" />
-            <th>Поставщики</th>
-            {showShopColumn && <th className="product-list-shop-col">Магазин</th>}
-            <th></th>
+            {columns.map((col) => {
+              if (col.sortKey) {
+                return (
+                  <SortHeader
+                    key={col.id}
+                    label={col.label}
+                    sortKey={col.sortKey}
+                    activeKey={sortKey}
+                    direction={sortDir}
+                    onSort={onSort}
+                    className={col.sortThClass || ''}
+                  />
+                );
+              }
+              return (
+                <th key={col.id} className={col.thClass || ''}>
+                  {col.id === 'actions' ? '' : col.label}
+                </th>
+              );
+            })}
           </tr>
         </thead>
         <tbody>
@@ -371,7 +375,13 @@ export default function Products() {
   const [listView, setListView] = useState('catalog');
   const [archivedVariants, setArchivedVariants] = useState([]);
   const [togglingShopVisible, setTogglingShopVisible] = useState(null);
+  const [visibleColumns, setVisibleColumns] = useState(() => readProductTableColumns());
   const showShopColumn = canEdit && listView === 'catalog';
+
+  const columnVisible = useCallback(
+    (columnId) => isProductColumnVisible(visibleColumns, columnId, { showShopColumn }),
+    [visibleColumns, showShopColumn],
+  );
 
   const productId = modal && modal !== 'create' ? modal : null;
   const draftKey = formDraftKey('products', modal);
@@ -975,9 +985,11 @@ export default function Products() {
             {rowNumber}
           </span>
         </td>
-        <td className="product-list-photo-col">
-          <ProductListPhoto product={p} variant={variant} />
-        </td>
+        {columnVisible('photo') && (
+          <td className="product-list-photo-col">
+            <ProductListPhoto product={p} variant={variant} />
+          </td>
+        )}
         <td>
           <div className="product-list-name">
             {hasVariants ? (
@@ -1009,28 +1021,44 @@ export default function Products() {
             </div>
           )}
         </td>
-        <td>{isVariant ? '—' : (p.product_kind_label || productKindLabel(p.product_kind))}</td>
-        <td>{isVariant ? '—' : formatCategory(p)}</td>
-        <td>{isVariant ? '—' : (p.sku || '—')}</td>
-        <td>{p.unit}</td>
-        <td>{isVariant ? '—' : formatWeight(p.net_weight)}</td>
-        <td>{isVariant ? '—' : formatWeight(p.gross_weight)}</td>
-        <td>{isVariant ? formatMoney(variant.price) : formatProductPrice(p)}</td>
-        <td>{isVariant ? (variant.stock ?? 0) : p.stock}</td>
-        <td>
-          {isVariant ? (
-            <span className="product-meta">—</span>
-          ) : p.suppliers?.length > 0 ? (
-            <div className="supplier-tags">
-              {p.suppliers.map((s) => (
-                <span key={s.id} className="supplier-tag">{s.name}</span>
-              ))}
-            </div>
-          ) : (
-            <span className="product-meta">—</span>
-          )}
-        </td>
-        {showShopColumn && (
+        {columnVisible('kind') && (
+          <td>{isVariant ? '—' : (p.product_kind_label || productKindLabel(p.product_kind))}</td>
+        )}
+        {columnVisible('category') && (
+          <td>{isVariant ? '—' : formatCategory(p)}</td>
+        )}
+        {columnVisible('sku') && (
+          <td>{isVariant ? '—' : (p.sku || '—')}</td>
+        )}
+        {columnVisible('unit') && <td>{p.unit}</td>}
+        {columnVisible('net_weight') && (
+          <td>{isVariant ? '—' : formatWeight(p.net_weight)}</td>
+        )}
+        {columnVisible('gross_weight') && (
+          <td>{isVariant ? '—' : formatWeight(p.gross_weight)}</td>
+        )}
+        {columnVisible('price') && (
+          <td>{isVariant ? formatMoney(variant.price) : formatProductPrice(p)}</td>
+        )}
+        {columnVisible('stock') && (
+          <td>{isVariant ? (variant.stock ?? 0) : p.stock}</td>
+        )}
+        {columnVisible('suppliers') && (
+          <td>
+            {isVariant ? (
+              <span className="product-meta">—</span>
+            ) : p.suppliers?.length > 0 ? (
+              <div className="supplier-tags">
+                {p.suppliers.map((s) => (
+                  <span key={s.id} className="supplier-tag">{s.name}</span>
+                ))}
+              </div>
+            ) : (
+              <span className="product-meta">—</span>
+            )}
+          </td>
+        )}
+        {columnVisible('shop') && (
           <td className="product-list-shop-col">
             {!isVariant && canEdit ? (
               <label
@@ -1156,6 +1184,11 @@ export default function Products() {
             searchPlaceholder="Поиск поставщика..."
             className="category-select-filter"
           />
+          <ProductTableColumnsMenu
+            visibleColumns={visibleColumns}
+            onChange={setVisibleColumns}
+            showShopColumn={showShopColumn}
+          />
         </div>
       </div>
 
@@ -1179,7 +1212,7 @@ export default function Products() {
           <ProductTable
             items={visibleListRows}
             renderRow={renderListRow}
-            showShopColumn={showShopColumn}
+            columnVisible={columnVisible}
             sortKey={sortKey}
             sortDir={sortDir}
             onSort={handleSort}
