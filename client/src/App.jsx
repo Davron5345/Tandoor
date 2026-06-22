@@ -716,31 +716,7 @@ function AppContent() {
       )}
 
       <main className="main">
-        {isCashierLayout ? (
-          <header className="cashier-app-bar">
-            <div className="cashier-app-bar-brand">
-              <span className="cashier-app-bar-icon" aria-hidden><IconNavCashier /></span>
-              <div>
-                <strong>Касса</strong>
-                {branchName && <span>{branchName}</span>}
-              </div>
-            </div>
-            <div className="cashier-app-bar-actions">
-              <button
-                type="button"
-                className="theme-toggle"
-                onClick={toggleTheme}
-                title={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
-                aria-label={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
-              >
-                {theme === 'dark' ? <IconNavSun /> : <IconNavMoon />}
-              </button>
-              <button type="button" className="btn btn-ghost btn-sm" onClick={logout}>
-                Выйти
-              </button>
-            </div>
-          </header>
-        ) : (
+        {!isCashierLayout && (
         <div className="main-topbar">
           <button
             type="button"

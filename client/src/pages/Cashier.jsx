@@ -4,7 +4,9 @@ import Modal, { useToast } from '../components/Modal';
 import { IconButton, IconEdit, IconTrash } from '../components/ActionIcons';
 import { canModifyPaymentDate, canWriteCashierShift, getCashierViewMinDate, hasAnyPermission, isCashierOnlyLayout } from '../permissions';
 import { useAuth } from '../AuthContext';
+import { useTheme } from '../ThemeContext';
 import { useBranch } from '../BranchContext';
+import { IconNavCashier, IconNavMoon, IconNavSun } from '../components/NavIcons';
 import BranchChip from '../components/BranchChip';
 import { todayLocalIso } from '../utils/date';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
@@ -566,8 +568,10 @@ export default function Cashier() {
   const incomeCounterpartySearchRef = useRef(null);
   const expenseSupplierSearchRef = useRef(null);
   const { show, Toast } = useToast();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const { branchName, branchId } = useBranch();
+  const cashierOnly = isCashierOnlyLayout(user);
   const canEdit = hasAnyPermission(user, ['cashier.edit', 'payments.edit']);
   const canDelete = hasAnyPermission(user, ['cashier.delete', 'payments.delete']);
   const canEditPast = hasAnyPermission(user, ['cashier.edit_past', 'payments.edit_past']);
@@ -858,73 +862,106 @@ export default function Cashier() {
     return dates[0] || null;
   }, [payments, shiftDate]);
 
+  const shiftToolbar = (
+    <>
+      <label className="cashier-date-field">
+        <span>Дата смены</span>
+        <div className="cashier-date-wrap">
+          <input
+            type="date"
+            value={shiftDate}
+            min={minShiftDate}
+            max={maxShiftDate}
+            onChange={(e) => handleShiftDateChange(e.target.value)}
+          />
+          {!isToday && (
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm cashier-today-btn"
+              onClick={() => setShiftDate(todayIso())}
+            >
+              Сегодня
+            </button>
+          )}
+        </div>
+      </label>
+
+      <div className="cashier-kpi-inline">
+        <div className="cashier-kpi-pill cashier-kpi-opening">
+          <span className="label">На начало</span>
+          <span className="value">{formatMoney(shiftSummary.opening_balance)}</span>
+        </div>
+        <div className="cashier-kpi-pill cashier-kpi-income">
+          <span className="label">Приход</span>
+          <span className="value">{formatMoney(shiftSummary.income)}</span>
+        </div>
+        <div className="cashier-kpi-pill cashier-kpi-expense">
+          <span className="label">Расход</span>
+          <span className="value">{formatMoney(shiftSummary.expense)}</span>
+        </div>
+        <div className="cashier-kpi-pill cashier-kpi-balance">
+          <span className="label">На конец</span>
+          <span className="value">{formatMoney(shiftSummary.closing_balance)}</span>
+        </div>
+        {canWriteShift && (
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm cashier-reconcile-btn"
+            onClick={() => setReconcileOpen(true)}
+          >
+            Сверка кассы
+          </button>
+        )}
+      </div>
+    </>
+  );
+
   return (
     <div className="cashier-page">
       {Toast}
 
-      <div className="cashier-top">
-        <div className="cashier-head">
-          {!isCashierOnlyLayout(user) && (
-            <>
-              <h1>Касса</h1>
-              <BranchChip>{branchName}</BranchChip>
-            </>
-          )}
-          <span className="cashier-hotkeys">Alt+1 приход · Alt+2 расход · Enter — провести</span>
-        </div>
-
-        <div className="cashier-top-controls">
-          <label className="cashier-date-field">
-            <span>Дата смены</span>
-            <div className="cashier-date-wrap">
-              <input
-                type="date"
-                value={shiftDate}
-                min={minShiftDate}
-                max={maxShiftDate}
-                onChange={(e) => handleShiftDateChange(e.target.value)}
-              />
-              {!isToday && (
-                <button
-                  type="button"
-                  className="btn btn-ghost btn-sm cashier-today-btn"
-                  onClick={() => setShiftDate(todayIso())}
-                >
-                  Сегодня
-                </button>
-              )}
+      {cashierOnly ? (
+        <>
+          <header className="cashier-unified-bar">
+            <div className="cashier-app-bar-brand">
+              <span className="cashier-app-bar-icon" aria-hidden><IconNavCashier /></span>
+              <div>
+                <strong>Касса</strong>
+                {branchName && <span>{branchName}</span>}
+              </div>
             </div>
-          </label>
-
-          <div className="cashier-kpi-inline">
-            <div className="cashier-kpi-pill cashier-kpi-opening">
-              <span className="label">На начало</span>
-              <span className="value">{formatMoney(shiftSummary.opening_balance)}</span>
+            <div className="cashier-unified-bar-center">
+              {shiftToolbar}
             </div>
-            <div className="cashier-kpi-pill cashier-kpi-income">
-              <span className="label">Приход</span>
-              <span className="value">{formatMoney(shiftSummary.income)}</span>
-            </div>
-            <div className="cashier-kpi-pill cashier-kpi-expense">
-              <span className="label">Расход</span>
-              <span className="value">{formatMoney(shiftSummary.expense)}</span>
-            </div>
-            <div className="cashier-kpi-pill cashier-kpi-balance">
-              <span className="label">На конец</span>
-              <span className="value">{formatMoney(shiftSummary.closing_balance)}</span>
-            </div>
-            {canWriteShift && (
+            <div className="cashier-app-bar-actions">
               <button
                 type="button"
-                className="btn btn-ghost btn-sm cashier-reconcile-btn"
-                onClick={() => setReconcileOpen(true)}
+                className="theme-toggle"
+                onClick={toggleTheme}
+                title={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
+                aria-label={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
               >
-                Сверка кассы
+                {theme === 'dark' ? <IconNavSun /> : <IconNavMoon />}
               </button>
-            )}
+              <button type="button" className="btn btn-ghost btn-sm" onClick={logout}>
+                Выйти
+              </button>
+            </div>
+          </header>
+          <span className="cashier-hotkeys cashier-unified-hotkeys">Alt+1 приход · Alt+2 расход · Enter — провести</span>
+        </>
+      ) : (
+        <div className="cashier-top">
+          <div className="cashier-head">
+            <h1>Касса</h1>
+            <BranchChip>{branchName}</BranchChip>
+            <span className="cashier-hotkeys">Alt+1 приход · Alt+2 расход · Enter — провести</span>
+          </div>
+          <div className="cashier-top-controls">
+            {shiftToolbar}
           </div>
         </div>
-      </div>
+      )}
 
       {canEdit ? (
         canWriteShift ? (

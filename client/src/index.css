@@ -6354,12 +6354,89 @@ tr.product-row-highlight td:first-child {
 
 .app-cashier-mode .cashier-page {
   width: 100%;
-  gap: 8px;
+  gap: 6px;
 }
 
-.app-cashier-mode .cashier-app-bar {
-  margin-bottom: 8px;
+.cashier-unified-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  margin-bottom: 0;
   padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.cashier-unified-bar-center {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 10px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.cashier-unified-bar .cashier-app-bar-brand {
+  flex-shrink: 0;
+}
+
+.cashier-unified-bar .cashier-app-bar-actions {
+  flex-shrink: 0;
+}
+
+.cashier-unified-bar .cashier-app-bar-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+}
+
+.cashier-unified-bar .cashier-app-bar-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.cashier-unified-bar .cashier-date-field {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  text-transform: none;
+  font-size: 12px;
+}
+
+.cashier-unified-bar .cashier-date-field > span {
+  white-space: nowrap;
+}
+
+.cashier-unified-bar .cashier-kpi-inline {
+  align-items: center;
+  flex-wrap: nowrap;
+}
+
+.cashier-unified-bar .cashier-kpi-pill {
+  min-width: 88px;
+  padding: 5px 10px;
+}
+
+.cashier-unified-bar .cashier-kpi-pill .label {
+  font-size: 10px;
+}
+
+.cashier-unified-bar .cashier-kpi-pill .value {
+  font-size: 13px;
+}
+
+.cashier-unified-hotkeys {
+  display: block;
+  margin: 0 0 4px;
+  padding: 0 4px;
+  font-size: 11px;
+}
+
+.app-cashier-mode .cashier-unified-bar {
   border-radius: 10px;
 }
 
@@ -6394,12 +6471,26 @@ tr.product-row-highlight td:first-child {
     flex: 0 1 auto;
   }
 
-  .app-cashier-mode .cashier-kpi-inline {
+  .app-cashier-mode .cashier-kpi-inline,
+  .cashier-unified-bar .cashier-kpi-inline {
     flex-wrap: nowrap;
   }
 
-  .app-cashier-mode .cashier-kpi-pill {
-    min-width: 118px;
+  .app-cashier-mode .cashier-kpi-pill,
+  .cashier-unified-bar .cashier-kpi-pill {
+    min-width: 100px;
+  }
+}
+
+@media (max-width: 1099px) {
+  .cashier-unified-bar {
+    flex-wrap: wrap;
+  }
+
+  .cashier-unified-bar-center {
+    order: 3;
+    width: 100%;
+    justify-content: flex-start;
   }
 }
 
