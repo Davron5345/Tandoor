@@ -29,7 +29,7 @@ import { api } from './api';
 import { useTheme } from './ThemeContext';
 import { useAuth } from './AuthContext';
 import { useBranch } from './BranchContext';
-import { hasPermission, hasAnyPermission } from './permissions';
+import { hasPermission, hasAnyPermission, isCashierOnlyLayout } from './permissions';
 import {
   IconNavHome,
   IconNavDocuments,
@@ -282,7 +282,7 @@ function AppContent() {
   }
 
   const isAdmin = user.role === 'admin';
-  const isCashierLayout = user.role === 'cashier';
+  const isCashierLayout = isCashierOnlyLayout(user);
   const canViewUsers = hasPermission(user, 'users.view');
   const showStaffGroup = canViewUsers || isAdmin;
 
@@ -349,7 +349,7 @@ function AppContent() {
     ...(isAdmin ? ['/roles', '/branches', '/departments', '/security', '/audit-log'] : []),
   ];
 
-  const firstNavPath = ((user.role === 'cashier' && canViewCashier) ? '/cashier'
+  const firstNavPath = ((isCashierLayout && canViewCashier) ? '/cashier'
     : canViewDashboard ? '/'
     : (canViewCashier ? '/cashier' : null)
     || docPaths[0]

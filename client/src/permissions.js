@@ -49,6 +49,49 @@ export function hasAnyPermission(user, permissions) {
   return permissions.some((p) => hasPermission(user, p));
 }
 
+/** Права, при которых нужен полный интерфейс со складом, документами и админкой. */
+const FULL_APP_PERMISSIONS = [
+  'cashier.edit_past',
+  'payments.edit_past',
+  'payments.view',
+  'payments.edit',
+  'payments.delete',
+  'cash_articles.view',
+  'cash_articles.edit',
+  'products.view',
+  'products.edit',
+  'calculations.view',
+  'calculations.edit',
+  'shop_orders.view',
+  'shop_orders.edit',
+  'myshop.view',
+  'myshop.edit',
+  'documents.prihod',
+  'documents.rashod',
+  'documents.transfer',
+  'documents.razdelka',
+  'documents.dish_sale',
+  'documents.edit',
+  'documents.confirm',
+  'documents.delete',
+  'opening_balance.view',
+  'opening_balance.edit',
+  'users.view',
+  'users.edit',
+  'telegram.view',
+  'counterparties.edit',
+];
+
+/** Упрощённый интерфейс кассы без бокового меню (встроенная и кастомные кассовые роли). */
+export function isCashierOnlyLayout(user) {
+  if (!user) return false;
+  if (user.role === 'admin' || user.role === 'accountant' || user.role === 'warehouse') return false;
+  if (user.role === 'cashier') return true;
+  if (!hasAnyPermission(user, ['cashier.view', 'cashier.edit'])) return false;
+  if (hasAnyPermission(user, FULL_APP_PERMISSIONS)) return false;
+  return true;
+}
+
 export const PAYMENT_TYPES = {
   supplier_payment: 'Оплата поставщику',
   customer_income: 'Оплата от клиента',

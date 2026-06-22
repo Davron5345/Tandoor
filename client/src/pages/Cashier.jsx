@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, formatDate, formatMoney, formatPriceInput, parsePriceInput } from '../api';
 import Modal, { useToast } from '../components/Modal';
 import { IconButton, IconEdit, IconTrash } from '../components/ActionIcons';
-import { canModifyPaymentDate, canWriteCashierShift, getCashierViewMinDate, hasAnyPermission } from '../permissions';
+import { canModifyPaymentDate, canWriteCashierShift, getCashierViewMinDate, hasAnyPermission, isCashierOnlyLayout } from '../permissions';
 import { useAuth } from '../AuthContext';
 import { useBranch } from '../BranchContext';
 import BranchChip from '../components/BranchChip';
@@ -776,7 +776,7 @@ export default function Cashier() {
 
       <div className="cashier-top">
         <div className="cashier-head">
-          {user.role !== 'cashier' && (
+          {!isCashierOnlyLayout(user) && (
             <>
               <h1>Касса</h1>
               <BranchChip>{branchName}</BranchChip>
