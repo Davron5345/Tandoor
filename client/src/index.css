@@ -2287,8 +2287,8 @@ textarea::placeholder {
 
 .modal-product {
   width: min(100%, 960px);
-  height: min(82vh, 82dvh);
-  max-height: min(82vh, 82dvh);
+  height: min(92vh, 92dvh);
+  max-height: min(92vh, 92dvh);
 }
 
 .modal-product .modal-body {
@@ -2296,6 +2296,10 @@ textarea::placeholder {
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
+}
+
+.modal-product .product-card-tab-panels {
+  overflow: visible;
 }
 
 .modal-wide .modal-body:has(.product-card-tabs) {
@@ -4146,11 +4150,40 @@ input[type='number']::-webkit-inner-spin-button {
   opacity: 0.75;
 }
 
-.supplier-picker-list {
-  max-height: 240px;
+.supplier-list.supplier-picker-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 2px 16px;
+  max-height: none;
+  overflow: visible;
+  padding: 10px 12px;
+}
+
+.supplier-picker-list .supplier-option {
+  padding: 6px 8px;
+  min-width: 0;
+}
+
+.supplier-picker-list .supplier-option span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .supplier-list.supplier-picker-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 480px) {
+  .supplier-list.supplier-picker-list {
+    grid-template-columns: 1fr;
+  }
 }
 
 .supplier-picker-empty {
+  grid-column: 1 / -1;
   padding: 16px 8px;
   text-align: center;
   color: var(--text-muted);
