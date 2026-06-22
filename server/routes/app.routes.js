@@ -60,6 +60,7 @@ export function registerAppRoutes(app) {
       mobilePath: '/snab',
       apkUrl,
       apkDownloadUrl: apkUrl,
+      githubApkUrl: process.env.SNAB_APK_URL || DEFAULT_GITHUB_APK_URL,
       apkOnServer: existsSync(apkPath),
       githubBuildUrl: GITHUB_APK_BUILD_URL,
       version: getAppVersion(),

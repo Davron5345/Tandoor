@@ -43,6 +43,7 @@ export default function SnabAppPanel() {
   const apkHref = info?.apkDownloadUrl || info?.apkUrl || (
     typeof window !== 'undefined' ? `${window.location.origin}${FALLBACK_APK_URL}` : FALLBACK_APK_URL
   );
+  const githubApkHref = info?.githubApkUrl || 'https://github.com/Davron5345/Tandoor/releases/latest/download/snabzenie.apk';
 
   const handleCopy = useCallback(async (label, text) => {
     try {
@@ -64,7 +65,7 @@ export default function SnabAppPanel() {
     <div className={`card snab-app-panel${collapsed ? ' is-collapsed' : ''}`}>
       <div className="snab-app-panel-head">
         <div>
-          <h2>Приложение «Снабжение»</h2>
+          <h2>Приложение «Mahalla Снабжение»</h2>
           <p>Снабженец: скачал APK → установил → вошёл → включил геолокацию. Без Play Market.</p>
         </div>
         <button type="button" className="btn btn-ghost btn-sm" onClick={toggleCollapsed}>
@@ -81,13 +82,26 @@ export default function SnabAppPanel() {
               <p>Фоновый GPS — координаты передаются даже при свёрнутом приложении.</p>
               <ol className="snab-app-panel-steps">
                 <li><strong>Не устанавливайте из Telegram</strong> — файл может повредиться</li>
-                <li>Откройте ссылку в <strong>Chrome</strong> на телефоне и скачайте APK</li>
-                <li>Если была старая версия — сначала удалите приложение «Снабжение»</li>
+                <li>Откройте ссылку в <strong>Chrome</strong> на телефоне и скачайте APK (~7 МБ)</li>
+                <li>Если была старая версия — сначала удалите «Mahalla Снабжение» или «Снабжение»</li>
                 <li>Установите, войдите, включите «Фоновая геолокация»</li>
               </ol>
+              <details className="snab-app-panel-xiaomi">
+                <summary>Ошибка «Установщик пакетов сбой» (Xiaomi / Redmi)</summary>
+                <ol className="snab-app-panel-steps">
+                  <li>Удалите файл <code>snabzenie.apk</code> из «Загрузок»</li>
+                  <li>Настройки → Приложения → показать все → <strong>Установщик пакетов</strong> → Память → <strong>Очистить кэш и данные</strong></li>
+                  <li>Перезагрузите телефон</li>
+                  <li>Скачайте заново в Chrome и откройте через приложение <strong>Файлы</strong> (не из уведомления)</li>
+                  <li>Если не помогло — скачайте с <strong>GitHub</strong> (запасная ссылка ниже)</li>
+                </ol>
+              </details>
               <div className="snab-app-panel-actions">
                 <a className="btn btn-primary btn-sm" href={apkHref}>
                   Скачать APK
+                </a>
+                <a className="btn btn-ghost btn-sm" href={githubApkHref}>
+                  GitHub (запасная)
                 </a>
                 <button type="button" className="btn btn-ghost btn-sm" onClick={() => handleCopy('apk', apkHref)}>
                   {copied === 'apk' ? 'Скопировано' : 'Копировать ссылку'}
