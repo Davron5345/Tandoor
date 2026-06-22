@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { api, formatMoney, formatPriceInput, parsePriceInput } from '../api';
 import Modal, { useToast, ModalCancelButton } from '../components/Modal';
 import CategorySelect from '../components/CategorySelect';
+import CategorySelectWithAdd from '../components/CategorySelectWithAdd';
 import ProductMediaCubes, { revokePendingImages, uploadPendingProductImages } from '../components/ProductMediaCubes';
 import ProductVariantEditor, {
   buildVariantsPayload,
@@ -408,6 +409,17 @@ export default function Products() {
       return next;
     });
   };
+
+  const refreshCategories = useCallback(async () => {
+    try {
+      const c = await api.getProductCategories();
+      setCategories(c);
+      return c;
+    } catch (e) {
+      console.error(e);
+      return null;
+    }
+  }, []);
 
   const supplierOptions = useMemo(
     () => suppliers.map((s) => ({ id: s.id, name: s.name })),
@@ -1286,11 +1298,17 @@ export default function Products() {
                     </div>
                     <div className="form-group">
                       <label>Категория *</label>
-                      <CategorySelect
+                      <CategorySelectWithAdd
                         categories={categories}
                         value={form.category_id}
                         onChange={(category_id) => setForm({ ...form, category_id })}
                         selectedId={form.category_id}
+                        canAdd={canEdit}
+                        disabled={!canEdit}
+                        onCategoryCreated={async () => {
+                          await refreshCategories();
+                          show('Категория добавлена');
+                        }}
                       />
                     </div>
                     <div className="form-group">
