@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, formatDate, formatMoney, formatPriceInput, parsePriceInput } from '../api';
 import Modal, { useToast } from '../components/Modal';
 import { IconButton, IconEdit, IconTrash } from '../components/ActionIcons';
-import { canModifyPaymentDate, hasAnyPermission } from '../permissions';
+import { canModifyPaymentDate, canWriteCashierShift, getCashierViewMinDate, hasAnyPermission } from '../permissions';
 import { useAuth } from '../AuthContext';
 import { useBranch } from '../BranchContext';
 import BranchChip from '../components/BranchChip';
@@ -506,7 +506,17 @@ export default function Cashier() {
   const canEdit = hasAnyPermission(user, ['cashier.edit', 'payments.edit']);
   const canDelete = hasAnyPermission(user, ['cashier.delete', 'payments.delete']);
   const canEditPast = hasAnyPermission(user, ['cashier.edit_past', 'payments.edit_past']);
-  const canWriteShift = canEdit && (shiftDate === todayIso() || canEditPast);
+  const canWriteShift = canWriteCashierShift(user, shiftDate);
+  const minShiftDate = canEditPast ? undefined : getCashierViewMinDate();
+  const maxShiftDate = todayIso();
+
+  const handleShiftDateChange = (value) => {
+    if (!value) return;
+    let next = value;
+    if (!canEditPast && minShiftDate && next < minShiftDate) next = minShiftDate;
+    if (next > maxShiftDate) next = maxShiftDate;
+    setShiftDate(next);
+  };
 
   const applySavedPrefs = useCallback(() => {
     const prefs = loadPrefs(branchId);
@@ -766,8 +776,12 @@ export default function Cashier() {
 
       <div className="cashier-top">
         <div className="cashier-head">
-          <h1>Касса</h1>
-          <BranchChip>{branchName}</BranchChip>
+          {user.role !== 'cashier' && (
+            <>
+              <h1>Касса</h1>
+              <BranchChip>{branchName}</BranchChip>
+            </>
+          )}
           <span className="cashier-hotkeys">Alt+1 приход · Alt+2 расход · Enter — провести</span>
         </div>
 
@@ -778,7 +792,9 @@ export default function Cashier() {
               <input
                 type="date"
                 value={shiftDate}
-                onChange={(e) => setShiftDate(e.target.value)}
+                min={minShiftDate}
+                max={maxShiftDate}
+                onChange={(e) => handleShiftDateChange(e.target.value)}
               />
               {!isToday && (
                 <button
@@ -842,7 +858,7 @@ export default function Cashier() {
         ) : (
           <div className="card cashier-shift-notice">
             <div className="empty">
-              Ввод операций за {formatDate(shiftDate)} недоступен. Переключитесь на сегодня или обратитесь к администратору.
+              Ввод операций за {formatDate(shiftDate)} недоступен. Кассир может проводить операции только за сегодня.
             </div>
           </div>
         )
@@ -856,7 +872,9 @@ export default function Cashier() {
           <span className="report-meta">{todayPayments.length} записей</span>
         </div>
         {!canEditPast && !isToday && (
-          <p className="cashier-history-hint">Редактирование прошлых дат доступно администратору и бухгалтеру</p>
+          <p className="cashier-history-hint">
+            Просмотр за последние 3 дня. Ввод и редактирование — только за сегодня. Для прошлых дат обратитесь к бухгалтеру или администратору.
+          </p>
         )}
         {paymentsLoadError && (
           <p className="cashier-history-hint cashier-history-error">

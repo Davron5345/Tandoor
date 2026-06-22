@@ -282,6 +282,7 @@ function AppContent() {
   }
 
   const isAdmin = user.role === 'admin';
+  const isCashierLayout = user.role === 'cashier';
   const canViewUsers = hasPermission(user, 'users.view');
   const showStaffGroup = canViewUsers || isAdmin;
 
@@ -387,7 +388,8 @@ function AppContent() {
   };
 
   return (
-    <div className={`app${sidebarCollapsed ? ' sidebar-collapsed' : ''}${isMyShopStore ? ' app-myshop-mode' : ''}${isMyShopConstructor ? ' app-myshop-constructor-mode' : ''}`}>
+    <div className={`app${sidebarCollapsed ? ' sidebar-collapsed' : ''}${isCashierLayout ? ' app-cashier-mode' : ''}${isMyShopStore ? ' app-myshop-mode' : ''}${isMyShopConstructor ? ' app-myshop-constructor-mode' : ''}`}>
+      {!isCashierLayout && (
       <aside className="sidebar">
         <div className="sidebar-panel">
         <div className="sidebar-header">
@@ -711,8 +713,34 @@ function AppContent() {
         </div>
         </div>
       </aside>
+      )}
 
       <main className="main">
+        {isCashierLayout ? (
+          <header className="cashier-app-bar">
+            <div className="cashier-app-bar-brand">
+              <span className="cashier-app-bar-icon" aria-hidden><IconNavCashier /></span>
+              <div>
+                <strong>Касса</strong>
+                {branchName && <span>{branchName}</span>}
+              </div>
+            </div>
+            <div className="cashier-app-bar-actions">
+              <button
+                type="button"
+                className="theme-toggle"
+                onClick={toggleTheme}
+                title={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
+                aria-label={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
+              >
+                {theme === 'dark' ? <IconNavSun /> : <IconNavMoon />}
+              </button>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={logout}>
+                Выйти
+              </button>
+            </div>
+          </header>
+        ) : (
         <div className="main-topbar">
           <button
             type="button"
@@ -726,7 +754,11 @@ function AppContent() {
             <span>{sidebarCollapsed ? 'Меню' : 'Свернуть'}</span>
           </button>
         </div>
+        )}
         <div className="main-content">
+        {isCashierLayout && location.pathname !== '/cashier' ? (
+          <Navigate to="/cashier" replace />
+        ) : (
         <Routes key={branchId || 'default'}>
           <Route path="/" element={canViewDashboard ? <Dashboard /> : <Navigate to={firstNavPath} />} />
           <Route path="/prihod" element={hasPermission(user, 'documents.prihod') ? <Documents key="prihod" defaultType="prihod" /> : <Navigate to="/" />} />
@@ -758,6 +790,7 @@ function AppContent() {
           <Route path="/audit-log" element={isAdmin ? <AuditLog /> : <Navigate to={firstNavPath} />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
+        )}
         </div>
       </main>
     </div>

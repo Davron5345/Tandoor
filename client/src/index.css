@@ -6334,6 +6334,70 @@ tr.product-row-highlight td:first-child {
   overflow: visible;
 }
 
+.app-cashier-mode {
+  --sidebar-width: 0px;
+}
+
+.app-cashier-mode .main {
+  margin-left: 0;
+  width: 100%;
+  padding-top: 16px;
+}
+
+.cashier-app-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.cashier-app-bar-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.cashier-app-bar-brand strong {
+  display: block;
+  font-size: 1rem;
+  line-height: 1.2;
+}
+
+.cashier-app-bar-brand span {
+  display: block;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.cashier-app-bar-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--primary) 12%, var(--surface));
+  color: var(--primary);
+}
+
+.cashier-app-bar-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.cashier-app-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
 .cashier-table-wrap {
   overflow: visible;
 }
