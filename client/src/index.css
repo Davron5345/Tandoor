@@ -5308,8 +5308,43 @@ input[type='number']::-webkit-inner-spin-button {
   white-space: nowrap;
 }
 
-.security-row-current {
+.security-table {
+  table-layout: fixed;
+}
+
+.security-table .security-col-status {
+  width: 150px;
+}
+
+.security-table .security-col-actions {
+  width: 220px;
+}
+
+.security-status-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.security-actions-inner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.security-row-current td {
   background: color-mix(in srgb, var(--primary) 8%, transparent);
+}
+
+.security-table tr.security-row-current:hover td {
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+}
+
+.security-row-current {
+  background: none;
 }
 
 .btn-sm {

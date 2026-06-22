@@ -50,21 +50,23 @@ function SessionsTab() {
   const [draft, setDraft] = useState({ username: '', ip: '' });
   const { show, Toast } = useToast();
 
-  const load = useCallback(() => {
-    setLoading(true);
-    api.getAdminSessions({ ...filters, page, limit: 50 })
+  const load = useCallback((options = {}) => {
+    const { silent = false } = options;
+    if (!silent) setLoading(true);
+    return api.getAdminSessions({ ...filters, page, limit: 50 })
       .then((result) => {
         setItems(result.items);
         setTotal(result.total);
-        setPage(result.page);
         setPages(result.pages);
       })
       .catch((e) => show(e.message, 'error'))
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (!silent) setLoading(false);
+      });
   }, [filters, page, show]);
 
   useEffect(() => { load(); }, [load]);
-  useAutoRefresh(load, [filters, page]);
+  useAutoRefresh(() => load({ silent: true }), [filters, page], { intervalMs: 60_000 });
 
   const revoke = async (id) => {
     if (!window.confirm('Завершить этот сеанс?')) return;
@@ -133,7 +135,7 @@ function SessionsTab() {
 
       <div className="card">
         <div className="table-wrap">
-          <table>
+          <table className="security-table">
             <thead>
               <tr>
                 <th>Пользователь</th>
@@ -141,13 +143,15 @@ function SessionsTab() {
                 <th>IP</th>
                 <th>Вход</th>
                 <th>Активность</th>
-                <th>Статус</th>
-                <th />
+                <th className="security-col-status">Статус</th>
+                <th className="security-col-actions">Действия</th>
               </tr>
             </thead>
             <tbody>
-              {loading && <tr><td colSpan={7} className="empty">Загрузка...</td></tr>}
-              {!loading && items.map((row) => (
+              {loading && items.length === 0 && (
+                <tr><td colSpan={7} className="empty">Загрузка...</td></tr>
+              )}
+              {items.map((row) => (
                 <tr key={row.id} className={row.is_current ? 'security-row-current' : ''}>
                   <td>
                     <strong>{row.username}</strong>
@@ -159,31 +163,35 @@ function SessionsTab() {
                   <td>{row.ip || '—'}</td>
                   <td>{formatDateTime(row.created_at)}</td>
                   <td>{formatDateTime(row.last_seen_at)}</td>
-                  <td>
-                    {row.is_current && <span className="badge badge-primary">Текущий</span>}
-                    {!row.is_current && row.is_active && <span className="badge badge-success">Онлайн</span>}
-                    {!row.is_current && !row.is_active && <span className="badge badge-muted">Неактивен</span>}
-                    {row.remember && <span className="badge badge-muted">7 дней</span>}
+                  <td className="security-col-status">
+                    <div className="security-status-badges">
+                      {row.is_current && <span className="badge badge-primary">Текущий</span>}
+                      {!row.is_current && row.is_active && <span className="badge badge-success">Онлайн</span>}
+                      {!row.is_current && !row.is_active && <span className="badge badge-muted">Неактивен</span>}
+                      {row.remember && <span className="badge badge-muted">7 дней</span>}
+                    </div>
                   </td>
-                  <td className="security-actions">
-                    {!row.is_current && (
-                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => revoke(row.id)}>
-                        Завершить
+                  <td className="security-col-actions">
+                    <div className="security-actions-inner">
+                      {!row.is_current && (
+                        <button type="button" className="btn btn-ghost btn-sm" onClick={() => revoke(row.id)}>
+                          Завершить
+                        </button>
+                      )}
+                      {row.device_id && (
+                        <button type="button" className="btn btn-ghost btn-sm btn-danger-text" onClick={() => blockDevice(row)}>
+                          Заблокировать
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => revokeAllForUser(row.user_id, row.username)}
+                        title="Завершить все сеансы пользователя"
+                      >
+                        Все сеансы
                       </button>
-                    )}
-                    {row.device_id && (
-                      <button type="button" className="btn btn-ghost btn-sm btn-danger-text" onClick={() => blockDevice(row)}>
-                        Заблокировать
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      className="btn btn-ghost btn-sm"
-                      onClick={() => revokeAllForUser(row.user_id, row.username)}
-                      title="Завершить все сеансы пользователя"
-                    >
-                      Все сеансы
-                    </button>
+                    </div>
                   </td>
                 </tr>
               ))}
