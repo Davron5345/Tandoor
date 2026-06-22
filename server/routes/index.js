@@ -10,6 +10,7 @@ import { registerPublicShopRoutes } from './publicShop.routes.js';
 import { registerShopOrdersRoutes } from './shopOrders.routes.js';
 import { registerOpeningBalanceRoutes } from './openingBalance.routes.js';
 import { registerPublicPushRoutes, registerPushRoutes } from './push.routes.js';
+import { registerStaffRoutes } from './staff.routes.js';
 
 export function registerApiRoutes(app, deps = {}) {
   registerPublicShopRoutes(app);
@@ -23,6 +24,7 @@ export function registerApiRoutes(app, deps = {}) {
   registerFinanceRoutes(app);
   registerShopOrdersRoutes(app);
   registerPushRoutes(app);
+  registerStaffRoutes(app);
   registerOpeningBalanceRoutes(app);
   registerTelegramRoutes(app);
 }

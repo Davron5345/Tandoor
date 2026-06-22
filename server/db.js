@@ -346,6 +346,7 @@ function migrateSchema() {
   migrateBlockedDevices();
   migrateVisitLog();
   migratePushSubscriptions();
+  migrateStaffLocations();
   migrateProductBranches();
   migrateProductBranchesBackfill();
   migrateShopOrders();
@@ -643,6 +644,34 @@ function migrateProductBranches() {
   }
 
   run("INSERT OR REPLACE INTO settings (key, value) VALUES ('product_branches_v1', '1')");
+}
+
+function migrateStaffLocations() {
+  run(`
+    CREATE TABLE IF NOT EXISTS staff_locations (
+      user_id TEXT PRIMARY KEY,
+      branch_id TEXT,
+      latitude REAL NOT NULL,
+      longitude REAL NOT NULL,
+      accuracy REAL,
+      recorded_at TEXT DEFAULT (datetime('now')),
+      source TEXT DEFAULT 'pwa',
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+  run(`
+    CREATE TABLE IF NOT EXISTS staff_location_history (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      branch_id TEXT,
+      latitude REAL NOT NULL,
+      longitude REAL NOT NULL,
+      accuracy REAL,
+      recorded_at TEXT DEFAULT (datetime('now')),
+      source TEXT DEFAULT 'pwa'
+    )
+  `);
+  run('CREATE INDEX IF NOT EXISTS idx_staff_location_history_user ON staff_location_history(user_id, recorded_at DESC)');
 }
 
 function migratePushSubscriptions() {

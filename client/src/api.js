@@ -329,6 +329,17 @@ export const api = {
     method: 'POST',
     body: JSON.stringify({ endpoint }),
   }),
+
+  sendStaffLocation: (data) => request('/staff/location', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
+  getStaffLocations: (params = {}) => {
+    const q = new URLSearchParams(
+      Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null)),
+    ).toString();
+    return request(`/admin/staff-locations${q ? `?${q}` : ''}`);
+  },
 };
 
 export function formatMoney(n) {

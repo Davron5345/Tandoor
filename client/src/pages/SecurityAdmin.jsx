@@ -5,6 +5,7 @@ import { useAutoRefresh } from '../hooks/useAutoRefresh';
 
 const TABS = [
   { id: 'sessions', label: 'Активные сеансы' },
+  { id: 'locations', label: 'Где сотрудники' },
   { id: 'blocked', label: 'Заблокированные устройства' },
   { id: 'visits', label: 'Журнал посещений' },
 ];
@@ -401,6 +402,100 @@ function VisitsTab() {
   );
 }
 
+function LocationsTab() {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [username, setUsername] = useState('');
+  const [draft, setDraft] = useState('');
+
+  const load = useCallback(() => {
+    setLoading(true);
+    api.getStaffLocations(username ? { username } : {})
+      .then(setItems)
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, [username]);
+
+  useEffect(() => { load(); }, [load]);
+  useAutoRefresh(load, [username], { intervalMs: 60_000 });
+
+  return (
+    <>
+      <div className="card filter-panel">
+        <div className="filter-panel-row">
+          <label className="filter-field">
+            Сотрудник
+            <input
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              placeholder="Логин"
+            />
+          </label>
+          <button type="button" className="btn btn-primary" onClick={() => setUsername(draft.trim())}>
+            Применить
+          </button>
+          <button type="button" className="btn btn-ghost" onClick={() => { setDraft(''); setUsername(''); }}>
+            Сбросить
+          </button>
+        </div>
+      </div>
+
+      <p className="security-locations-hint">
+        Показываются сотрудники, у которых открыто приложение «Снабжение» и разрешена геолокация (данные за последние 24 часа).
+      </p>
+
+      <div className="card">
+        <div className="table-wrap">
+          <table className="security-table">
+            <thead>
+              <tr>
+                <th>Сотрудник</th>
+                <th>Филиал</th>
+                <th>Обновлено</th>
+                <th>Точность</th>
+                <th>Координаты</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {loading && <tr><td colSpan={6} className="empty">Загрузка...</td></tr>}
+              {!loading && items.map((row) => (
+                <tr key={row.user_id}>
+                  <td>
+                    <strong>{row.username}</strong>
+                    {row.user_name && row.user_name !== row.username && (
+                      <div className="text-muted-sm">{row.user_name}</div>
+                    )}
+                  </td>
+                  <td>{row.branch_name || '—'}</td>
+                  <td>{formatDateTime(row.recorded_at)}</td>
+                  <td>{row.accuracy != null ? `±${Math.round(row.accuracy)} м` : '—'}</td>
+                  <td className="security-coords">
+                    {Number(row.latitude).toFixed(5)}, {Number(row.longitude).toFixed(5)}
+                  </td>
+                  <td>
+                    <a
+                      className="btn btn-ghost btn-sm"
+                      href={row.maps_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      На карте
+                    </a>
+                  </td>
+                </tr>
+              ))}
+              {!loading && items.length === 0 && (
+                <tr><td colSpan={6} className="empty">Нет данных о местоположении</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </>
+  );
+}
+
 export default function SecurityAdmin() {
   const [tab, setTab] = useState('sessions');
 
@@ -424,6 +519,7 @@ export default function SecurityAdmin() {
       </div>
 
       {tab === 'sessions' && <SessionsTab />}
+      {tab === 'locations' && <LocationsTab />}
       {tab === 'blocked' && <BlockedTab />}
       {tab === 'visits' && <VisitsTab />}
     </div>

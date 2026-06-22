@@ -1,6 +1,6 @@
 {
   "name": "Снабжение — заказы",
-  "short_name": "Заказы",
+  "short_name": "Снабжение",
   "description": "Мобильное приложение снабженца для приёма заявок",
   "start_url": "/warehouse/orders",
   "scope": "/",

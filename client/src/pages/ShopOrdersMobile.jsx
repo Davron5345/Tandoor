@@ -16,6 +16,7 @@ import {
   isStandaloneApp,
   subscribeToOrderPush,
 } from '../utils/pwaPush';
+import { useStaffLocationPing, requestStaffLocationPermission } from '../hooks/useStaffLocationPing';
 
 const STATUS_FILTERS = [
   { value: '', label: 'Все' },
@@ -56,6 +57,8 @@ export default function ShopOrdersMobile() {
   const [installPrompt, setInstallPrompt] = useState(null);
   const [pushState, setPushState] = useState({ supported: false, subscribed: false, standalone: false });
   const [pushLoading, setPushLoading] = useState(false);
+  const [locationEnabled, setLocationEnabled] = useState(false);
+  const [locationLoading, setLocationLoading] = useState(false);
   const [dismissSetup, setDismissSetup] = useState(() => {
     try { return localStorage.getItem('warehouse-pwa-setup-dismiss') === '1'; } catch { return false; }
   });
@@ -81,6 +84,8 @@ export default function ShopOrdersMobile() {
     [statusFilter, branchId],
     { enabled: canView && view === 'list', intervalMs: 60_000 },
   );
+
+  useStaffLocationPing(canView && view === 'list');
 
   useEffect(() => {
     const html = document.documentElement;
@@ -154,6 +159,19 @@ export default function ShopOrdersMobile() {
       setNotice(err.message || 'Не удалось включить уведомления');
     } finally {
       setPushLoading(false);
+    }
+  };
+
+  const handleEnableLocation = async () => {
+    setLocationLoading(true);
+    try {
+      await requestStaffLocationPermission();
+      setLocationEnabled(true);
+      setNotice('Геолокация включена — администратор видит ваше местоположение');
+    } catch (err) {
+      setNotice(err.message || 'Разрешите доступ к геолокации в настройках телефона');
+    } finally {
+      setLocationLoading(false);
     }
   };
 
@@ -258,18 +276,26 @@ export default function ShopOrdersMobile() {
           {showSetupBanner && (
             <div className="warehouse-pwa-setup">
               <div className="warehouse-pwa-setup-text">
-                <strong>Установите приложение на телефон</strong>
-                <span>Без Play Market — только для сотрудников. Откройте в Chrome → «Установить» или «На главный экран».</span>
+                <strong>Установите приложение «Снабжение»</strong>
+                <span>
+                  Это полноценное приложение без Play Market — только для ваших сотрудников.
+                  Chrome → меню ⋮ → «Установить приложение» или кнопка ниже.
+                </span>
               </div>
               <div className="warehouse-pwa-setup-actions">
                 {installPrompt && (
                   <button type="button" className="btn btn-primary btn-sm" onClick={handleInstall}>
-                    Установить
+                    Установить приложение
                   </button>
                 )}
                 {isPushSupported() && pushState.permission !== 'granted' && (
                   <button type="button" className="btn btn-primary btn-sm" onClick={handleEnablePush} disabled={pushLoading}>
-                    {pushLoading ? '...' : 'Включить уведомления'}
+                    {pushLoading ? '...' : 'Уведомления'}
+                  </button>
+                )}
+                {!locationEnabled && (
+                  <button type="button" className="btn btn-primary btn-sm" onClick={handleEnableLocation} disabled={locationLoading}>
+                    {locationLoading ? '...' : 'Геолокация'}
                   </button>
                 )}
                 <button type="button" className="btn btn-ghost btn-sm" onClick={dismissSetupBanner}>
@@ -277,6 +303,10 @@ export default function ShopOrdersMobile() {
                 </button>
               </div>
             </div>
+          )}
+
+          {isStandaloneApp() && (
+            <div className="warehouse-pwa-installed-badge">Приложение установлено</div>
           )}
 
           <div className="warehouse-orders-mobile-filters" role="tablist" aria-label="Фильтр по статусу">
