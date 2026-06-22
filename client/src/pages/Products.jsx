@@ -1109,13 +1109,12 @@ export default function Products() {
           </div>
         </div>
 
-        <ProductKindFilter
-          value={filterKind}
-          onChange={setFilterKind}
-          counts={kindCounts}
-        />
-
         <div className="filters products-toolbar-filters">
+          <ProductKindFilter
+            value={filterKind}
+            onChange={setFilterKind}
+            counts={kindCounts}
+          />
           <input
             type="search"
             placeholder="Поиск по названию, штрих-коду, артикулу..."

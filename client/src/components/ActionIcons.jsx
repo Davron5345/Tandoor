@@ -41,6 +41,16 @@ export function IconPlus() {
   );
 }
 
+export function IconFilter() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4 6h16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M7 12h10" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M10 18h4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export function AddRowButton({ onClick, disabled = false, label = 'Строка' }) {
   return (
     <button
