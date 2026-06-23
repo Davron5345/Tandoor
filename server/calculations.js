@@ -4,8 +4,8 @@ import { DEFAULT_BRANCH_ID } from './branches.js';
 import {
   assertProductKindById,
   DISH_OUTPUT_KINDS,
-  INGREDIENT_KINDS,
-  RAZDELKA_OUTPUT_KINDS,
+  CALC_INPUT_KINDS,
+  SEMI_OUTPUT_KINDS,
 } from './productKinds.js';
 
 export const CALC_KIND_RAZDELKA = 'razdelka';
@@ -336,14 +336,14 @@ export function createCalculation(data, branchId = DEFAULT_BRANCH_ID) {
   }));
   items.forEach(assertCalcLine);
   if (kind === CALC_KIND_RECIPE) {
-    sources.forEach((s) => assertProductKindById(s.product_id, INGREDIENT_KINDS, 'ингредиент'));
+    sources.forEach((s) => assertProductKindById(s.product_id, CALC_INPUT_KINDS, 'сырьё, полуфабрикат или товар'));
     items.filter((item) => !item.is_waste).forEach((item) => {
       assertProductKindById(item.product_id, DISH_OUTPUT_KINDS, 'готовое блюдо');
     });
   } else {
-    sources.forEach((s) => assertProductKindById(s.product_id, INGREDIENT_KINDS, 'сырьё или полуфабрикат'));
+    sources.forEach((s) => assertProductKindById(s.product_id, CALC_INPUT_KINDS, 'сырьё, полуфабрикат или товар'));
     items.filter((item) => !item.is_waste).forEach((item) => {
-      assertProductKindById(item.product_id, RAZDELKA_OUTPUT_KINDS, 'полуфабрикат или товар');
+      assertProductKindById(item.product_id, SEMI_OUTPUT_KINDS, 'полуфабрикат');
     });
   }
   if (kind === CALC_KIND_RECIPE && !items.some((item) => !item.is_waste)) {
@@ -399,14 +399,14 @@ export function updateCalculation(id, data, branchId = DEFAULT_BRANCH_ID) {
   sources.forEach((s) => assertCalcLine(s));
   items.forEach(assertCalcLine);
   if (kind === CALC_KIND_RECIPE) {
-    sources.forEach((s) => assertProductKindById(s.product_id, INGREDIENT_KINDS, 'ингредиент'));
+    sources.forEach((s) => assertProductKindById(s.product_id, CALC_INPUT_KINDS, 'сырьё, полуфабрикат или товар'));
     items.filter((item) => !item.is_waste).forEach((item) => {
       assertProductKindById(item.product_id, DISH_OUTPUT_KINDS, 'готовое блюдо');
     });
   } else {
-    sources.forEach((s) => assertProductKindById(s.product_id, INGREDIENT_KINDS, 'сырьё или полуфабрикат'));
+    sources.forEach((s) => assertProductKindById(s.product_id, CALC_INPUT_KINDS, 'сырьё, полуфабрикат или товар'));
     items.filter((item) => !item.is_waste).forEach((item) => {
-      assertProductKindById(item.product_id, RAZDELKA_OUTPUT_KINDS, 'полуфабрикат или товар');
+      assertProductKindById(item.product_id, SEMI_OUTPUT_KINDS, 'полуфабрикат');
     });
   }
   if (kind === CALC_KIND_RECIPE && !items.some((item) => !item.is_waste)) {

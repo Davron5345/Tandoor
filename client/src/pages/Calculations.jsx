@@ -10,14 +10,13 @@ import { useFormDirty } from '../hooks/useFormDirty';
 import { hasPermission } from '../permissions';
 import { AddRowButton } from '../components/ActionIcons';
 import {
-  filterProductsByKinds,
   CALC_KIND_RAZDELKA,
   CALC_KIND_RECIPE,
   CALCULATION_KIND_OPTIONS,
   calculationKindLabel,
+  CALC_INPUT_KINDS,
   DISH_OUTPUT_KINDS,
-  INGREDIENT_KINDS,
-  RAZDELKA_OUTPUT_KINDS,
+  SEMI_OUTPUT_KINDS,
 } from '../productKinds';
 import {
   encodeProductPick,
@@ -53,18 +52,18 @@ export default function Calculations() {
     api.getCalculations().then(setList).catch(console.error);
   };
 
+  const loadProducts = () => api.getProducts({ admin_list: '1', archived: '0' }).then(setProducts).catch(console.error);
+
   useEffect(() => { load(); }, [branchId]);
-  useEffect(() => {
-    api.getProducts().then(setProducts).catch(console.error);
-  }, [branchId]);
+  useEffect(() => { loadProducts(); }, [branchId]);
   useAutoRefresh(() => {
     load();
-    api.getProducts().then(setProducts).catch(console.error);
+    loadProducts();
   }, [branchId], { enabled: !modal });
 
   const isRecipe = form.kind === CALC_KIND_RECIPE;
 
-  const outputProductKinds = isRecipe ? DISH_OUTPUT_KINDS : RAZDELKA_OUTPUT_KINDS;
+  const outputProductKinds = isRecipe ? DISH_OUTPUT_KINDS : SEMI_OUTPUT_KINDS;
 
   const sourceProductKeys = useMemo(
     () => new Set(
@@ -73,11 +72,6 @@ export default function Calculations() {
         .map((s) => encodeProductPick(s.product_id, s.variant_id)),
     ),
     [form.sources],
-  );
-
-  const inputProductsForCalc = useMemo(
-    () => filterProductsByKinds(products, INGREDIENT_KINDS),
-    [products],
   );
 
   const openCreate = () => {
@@ -429,13 +423,12 @@ export default function Calculations() {
                         <tr key={`src-${idx}`}>
                           <td>
                             <ProductSelect
-                              products={inputProductsForCalc}
-                              allProducts={products}
-                              kinds={INGREDIENT_KINDS}
+                              products={products}
+                              kinds={CALC_INPUT_KINDS}
                               value={encodeProductPick(source.product_id, source.variant_id)}
                               onChange={(pickValue) => updateSourcePick(idx, pickValue)}
                               disabled={!canEdit}
-                              placeholder="Выберите сырьё..."
+                              placeholder="Сырьё, полуфабрикат, товар..."
                             />
                           </td>
                           <td className="col-num">
