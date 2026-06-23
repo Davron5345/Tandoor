@@ -1,12 +1,11 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { api } from '../api';
-import { formatUzPhone } from '../phoneFormat';
 import Modal, { ModalCancelButton } from './Modal';
 import SupplierMultiSelect from './SupplierMultiSelect';
+import CounterpartyFormFields, { emptyCounterpartyForm } from './CounterpartyFormFields';
 import { IconPlus } from './ActionIcons';
-
-const emptyForm = { name: '', phone: '' };
+import { useFormDirty } from '../hooks/useFormDirty';
 
 export default function SupplierMultiSelectWithAdd({
   suppliers,
@@ -18,17 +17,18 @@ export default function SupplierMultiSelectWithAdd({
 }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState(emptyForm);
+  const [form, setForm] = useState(emptyCounterpartyForm);
   const [error, setError] = useState('');
+  const isFormDirty = useFormDirty(form, modalOpen ? 'supplier-create' : null);
 
   const closeModal = () => {
     setModalOpen(false);
-    setForm(emptyForm);
+    setForm(emptyCounterpartyForm);
     setError('');
   };
 
   const openModal = () => {
-    setForm(emptyForm);
+    setForm(emptyCounterpartyForm);
     setError('');
     setModalOpen(true);
   };
@@ -36,24 +36,20 @@ export default function SupplierMultiSelectWithAdd({
   const saveSupplier = async () => {
     const name = form.name.trim();
     if (!name) {
-      setError('Укажите название поставщика');
+      setError('Укажите название');
       return;
     }
     setSaving(true);
     setError('');
     try {
-      const created = await api.createCounterparty({
-        name,
-        type: 'supplier',
-        phone: form.phone.trim() || '',
-      });
+      const created = await api.createCounterparty({ ...form, name, type: 'supplier' });
       onSupplierCreated?.(created);
       if (!value.includes(created.id)) {
         onChange([...value, created.id]);
       }
       closeModal();
     } catch (e) {
-      setError(e.message || 'Не удалось создать поставщика');
+      setError(e.message || 'Не удалось создать контрагента');
     } finally {
       setSaving(false);
     }
@@ -84,7 +80,8 @@ export default function SupplierMultiSelectWithAdd({
 
       {modalOpen && createPortal(
         <Modal
-          title="Новый поставщик"
+          title="Новый контрагент"
+          dirty={isFormDirty}
           onClose={closeModal}
           footer={(
             <>
@@ -95,30 +92,7 @@ export default function SupplierMultiSelectWithAdd({
             </>
           )}
         >
-          <div className="form-grid">
-            <div className="form-group full">
-              <label>Название *</label>
-              <input
-                autoFocus
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    saveSupplier();
-                  }
-                }}
-              />
-            </div>
-            <div className="form-group full">
-              <label>Телефон</label>
-              <input
-                value={form.phone}
-                onChange={(e) => setForm({ ...form, phone: formatUzPhone(e.target.value) })}
-                placeholder="+998 __ ___ __ __"
-              />
-            </div>
-          </div>
+          <CounterpartyFormFields form={form} setForm={setForm} lockType="supplier" />
           {error && <p className="form-error">{error}</p>}
         </Modal>,
         document.body,
