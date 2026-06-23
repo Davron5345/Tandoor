@@ -11,12 +11,13 @@ import { hasPermission } from '../permissions';
 import { AddRowButton } from '../components/ActionIcons';
 import {
   filterProductsByKinds,
+  CALC_KIND_RAZDELKA,
+  CALC_KIND_RECIPE,
+  CALCULATION_KIND_OPTIONS,
+  calculationKindLabel,
   DISH_OUTPUT_KINDS,
   INGREDIENT_KINDS,
-  PRODUCT_KIND_LABELS,
-  PRODUCT_KIND_LABELS_PLURAL,
-  PRODUCT_KINDS,
-  RAZDELKA_OUTPUT_KINDS,
+  SEMI_OUTPUT_KINDS,
 } from '../productKinds';
 import {
   encodeProductPick,
@@ -27,7 +28,7 @@ const emptyLine = { product_id: '', variant_id: null, quantity: 0, price: 0 };
 const emptySourceLine = { product_id: '', variant_id: null, quantity: 1 };
 const emptyForm = {
   name: '',
-  kind: 'razdelka',
+  kind: CALC_KIND_RAZDELKA,
   source_product_id: '',
   base_quantity: 1,
   active: true,
@@ -61,7 +62,9 @@ export default function Calculations() {
     api.getProducts().then(setProducts).catch(console.error);
   }, [branchId], { enabled: !modal });
 
-  const isRecipe = form.kind === 'recipe';
+  const isRecipe = form.kind === CALC_KIND_RECIPE;
+
+  const outputProductKinds = isRecipe ? DISH_OUTPUT_KINDS : SEMI_OUTPUT_KINDS;
 
   const sourceProductKeys = useMemo(
     () => new Set(
@@ -73,8 +76,8 @@ export default function Calculations() {
   );
 
   const outputProducts = useMemo(
-    () => filterProductsByKinds(products, isRecipe ? DISH_OUTPUT_KINDS : RAZDELKA_OUTPUT_KINDS),
-    [products, isRecipe],
+    () => filterProductsByKinds(products, outputProductKinds),
+    [products, outputProductKinds],
   );
 
   const inputProductsForCalc = useMemo(
@@ -92,7 +95,7 @@ export default function Calculations() {
     setForm({
       id: calc.id,
       name: calc.name,
-      kind: calc.kind === 'recipe' ? 'recipe' : 'razdelka',
+      kind: calc.kind === CALC_KIND_RECIPE ? CALC_KIND_RECIPE : CALC_KIND_RAZDELKA,
       source_product_id: calc.source_product_id,
       base_quantity: calc.base_quantity || 1,
       active: !!calc.active,
@@ -208,7 +211,7 @@ export default function Calculations() {
 
       const payload = {
         name: form.name.trim(),
-        kind: form.kind === 'recipe' ? 'recipe' : 'razdelka',
+        kind: form.kind === CALC_KIND_RECIPE ? CALC_KIND_RECIPE : CALC_KIND_RAZDELKA,
         source_product_id: sources[0].product_id,
         source_variant_id: sources[0].variant_id || null,
         base_quantity: sources[0].quantity || 1,
@@ -278,9 +281,9 @@ export default function Calculations() {
       </div>
 
       <p className="page-hint">
-        Шаблон разделки или рецепт блюда: укажите ингредиенты/сырьё и выход.
-        Для рецепта блюда в выходе укажите готовое блюдо — при продаже ингредиенты спишутся автоматически.
-        Количество в выходе разделки необязательно — фактические кг вводятся в разделке. Отметьте «Отход» для позиций без стоимости.
+        Укажите назначение: калькуляция для полуфабриката (разделка сырья) или для готовой продукции (рецепт блюда).
+        Во входе — сырьё и полуфабрикаты, в выходе — полуфабрикаты или готовые блюда соответственно.
+        Для полуфабриката долю в кг можно не указывать — фактический вес вводится в разделке.
       </p>
 
       <div className="card">
@@ -288,7 +291,7 @@ export default function Calculations() {
           <table>
             <thead>
               <tr>
-                <th>Тип</th>
+                <th>Назначение</th>
                 <th>Название</th>
                 <th>Сырьё</th>
                 <th>База</th>
@@ -300,7 +303,7 @@ export default function Calculations() {
             <tbody>
               {list.map((c) => (
                 <tr key={c.id}>
-                  <td>{c.kind === 'recipe' ? 'Рецепт' : 'Разделка'}</td>
+                  <td>{calculationKindLabel(c.kind)}</td>
                   <td><strong>{c.name}</strong></td>
                   <td>{c.source_product_name}</td>
                   <td>{c.base_quantity} {c.source_unit || 'шт'}</td>
@@ -313,7 +316,7 @@ export default function Calculations() {
                   <td>
                     <div className="btn-group">
                       <button type="button" className="btn btn-sm btn-ghost" onClick={() => openEdit(c.id)}>Открыть</button>
-                      {hasPermission(user, 'documents.razdelka') && c.active && c.kind !== 'recipe' && (
+                      {hasPermission(user, 'documents.razdelka') && c.active && c.kind !== CALC_KIND_RECIPE && (
                         <button
                           type="button"
                           className="btn btn-sm btn-primary"
@@ -373,14 +376,19 @@ export default function Calculations() {
                 />
               </div>
               <div className="form-group calc-field-status">
-                <label>Тип</label>
+                <label>Назначение</label>
                 <select
                   value={form.kind}
                   disabled={!canEdit || modal === 'edit'}
-                  onChange={(e) => setForm({ ...form, kind: e.target.value })}
+                  onChange={(e) => setForm({
+                    ...form,
+                    kind: e.target.value,
+                    items: [{ ...emptyLine }],
+                  })}
                 >
-                  <option value="razdelka">Разделка</option>
-                  <option value="recipe">Рецепт блюда</option>
+                  {CALCULATION_KIND_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
                 </select>
               </div>
               <div className="form-group calc-field-status">
@@ -466,7 +474,7 @@ export default function Calculations() {
 
               <section className="calc-panel calc-panel-out">
                 <div className="doc-modal-items-header">
-                  <h3>{isRecipe ? 'Блюдо (выход)' : 'Выход — продукция'}</h3>
+                  <h3>{isRecipe ? 'Готовая продукция (выход)' : 'Полуфабрикаты (выход)'}</h3>
                   {canEdit && <AddRowButton onClick={addItem} />}
                 </div>
                 <div className="table-wrap items-table doc-items-table calc-items-table doc-modal-items-scroll">
@@ -489,11 +497,11 @@ export default function Calculations() {
                             <ProductSelect
                               products={outputProducts}
                               allProducts={products}
-                              kinds={isRecipe ? DISH_OUTPUT_KINDS : RAZDELKA_OUTPUT_KINDS}
+                              kinds={outputProductKinds}
                               value={encodeProductPick(item.product_id, item.variant_id)}
                               onChange={(pickValue) => updateItemPick(idx, pickValue)}
                               disabled={!canEdit}
-                              placeholder="Продукция..."
+                              placeholder={isRecipe ? 'Готовое блюдо...' : 'Полуфабрикат...'}
                             />
                           </td>
                           <td className="col-num">
@@ -549,7 +557,9 @@ export default function Calculations() {
                   </table>
                 </div>
                 <p className="calc-panel-hint">
-                  Долю можно не указывать — фактический вес вводится в разделке. Отметьте «Отход» для позиций без стоимости.
+                  {isRecipe
+                    ? 'Укажите готовое блюдо и число порций на партию — при продаже ингредиенты спишутся автоматически.'
+                    : 'Долю можно не указывать — фактический вес вводится в разделке. Отметьте «Отход» для позиций без стоимости.'}
                 </p>
               </section>
             </div>

@@ -33,8 +33,21 @@ export const PRODUCT_KIND_LABELS_SHORT = {
 
 export const INGREDIENT_KINDS = [PRODUCT_KIND_RAW, PRODUCT_KIND_SEMI];
 export const DISH_OUTPUT_KINDS = [PRODUCT_KIND_DISH];
+export const SEMI_OUTPUT_KINDS = [PRODUCT_KIND_SEMI];
 export const RAZDELKA_OUTPUT_KINDS = [PRODUCT_KIND_SEMI, PRODUCT_KIND_GOODS];
 export const MYSHOP_KINDS = [PRODUCT_KIND_RAW, PRODUCT_KIND_SEMI];
+
+export const CALC_KIND_RAZDELKA = 'razdelka';
+export const CALC_KIND_RECIPE = 'recipe';
+
+export const CALCULATION_KIND_OPTIONS = [
+  { value: CALC_KIND_RAZDELKA, label: 'Полуфабрикат' },
+  { value: CALC_KIND_RECIPE, label: 'Готовая продукция' },
+];
+
+export function calculationKindLabel(kind) {
+  return kind === CALC_KIND_RECIPE ? 'Готовая продукция' : 'Полуфабрикат';
+}
 
 export function productKindLabel(kind) {
   return PRODUCT_KIND_LABELS[kind] || PRODUCT_KIND_LABELS[PRODUCT_KIND_GOODS];
