@@ -465,45 +465,6 @@ function AppContent() {
               </NavGroup>
             )}
 
-            {showMyShopGroup && (
-              <NavGroup
-                groupId="myshop"
-                icon={IconNavShop}
-                label="MyShop"
-                paths={myshopPaths}
-                isOpen={openNavGroup === 'myshop'}
-                onToggle={toggleNavGroup}
-                sidebarCollapsed={sidebarCollapsed}
-                {...navGroupFlyoutProps('myshop')}
-              >
-                {canViewMyShop && (
-                  <NavLink
-                    to="/myshop"
-                    end
-                    className={({ isActive }) => `nav-link nav-link-sub${isActive ? ' active' : ''}`}
-                  >
-                    Витрина
-                  </NavLink>
-                )}
-                {canEditMyShop && (
-                  <NavLink
-                    to="/myshop/constructor"
-                    className={({ isActive }) => `nav-link nav-link-sub${isActive ? ' active' : ''}`}
-                  >
-                    Конструктор
-                  </NavLink>
-                )}
-                {canViewShopOrders && (
-                  <NavLink
-                    to="/shop-orders"
-                    className={({ isActive }) => `nav-link nav-link-sub${isActive ? ' active' : ''}`}
-                  >
-                    Заявки
-                  </NavLink>
-                )}
-              </NavGroup>
-            )}
-
             {canViewCashier && (
               <NavLink
                 to="/cashier"
@@ -644,6 +605,48 @@ function AppContent() {
                   </NavLink>
                 )}
               </NavGroup>
+            )}
+
+            {showMyShopGroup && (
+              <>
+                <div className="nav-divider" aria-hidden="true" />
+                <NavGroup
+                  groupId="myshop"
+                  icon={IconNavShop}
+                  label="MyShop"
+                  paths={myshopPaths}
+                  isOpen={openNavGroup === 'myshop'}
+                  onToggle={toggleNavGroup}
+                  sidebarCollapsed={sidebarCollapsed}
+                  {...navGroupFlyoutProps('myshop')}
+                >
+                  {canViewMyShop && (
+                    <NavLink
+                      to="/myshop"
+                      end
+                      className={({ isActive }) => `nav-link nav-link-sub${isActive ? ' active' : ''}`}
+                    >
+                      Витрина
+                    </NavLink>
+                  )}
+                  {canEditMyShop && (
+                    <NavLink
+                      to="/myshop/constructor"
+                      className={({ isActive }) => `nav-link nav-link-sub${isActive ? ' active' : ''}`}
+                    >
+                      Конструктор
+                    </NavLink>
+                  )}
+                  {canViewShopOrders && (
+                    <NavLink
+                      to="/shop-orders"
+                      className={({ isActive }) => `nav-link nav-link-sub${isActive ? ' active' : ''}`}
+                    >
+                      Заявки
+                    </NavLink>
+                  )}
+                </NavGroup>
+              </>
             )}
           </nav>
         </div>
