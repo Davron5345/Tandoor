@@ -1023,10 +1023,10 @@ export default function Products() {
           )}
         </td>
         {columnVisible('kind') && (
-          <td>{isVariant ? '—' : (p.product_kind_label || productKindLabel(p.product_kind))}</td>
+          <td>{p.product_kind_label || productKindLabel(p.product_kind)}</td>
         )}
         {columnVisible('category') && (
-          <td>{isVariant ? '—' : formatCategory(p)}</td>
+          <td>{formatCategory(p)}</td>
         )}
         {columnVisible('sku') && (
           <td>{isVariant ? '—' : (p.sku || '—')}</td>
