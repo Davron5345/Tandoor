@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
-import { api, formatMoney, formatDate, formatPriceInput, parsePriceInput, STATUS_LABELS, ACTION_LABELS } from '../api';
+import { api, formatMoney, formatDate, formatPriceInput, parsePriceInput, parseQuantityInput, normalizeQuantityInput, STATUS_LABELS, ACTION_LABELS } from '../api';
 import Modal, { useToast, ModalCancelButton } from '../components/Modal';
 import CategorySelect from '../components/CategorySelect';
 import ProductSelect from '../components/ProductSelect';
@@ -665,7 +665,7 @@ export default function Documents({ defaultType }) {
   };
 
   const total = form.items.reduce(
-    (s, i) => s + (Number(i.quantity) || 0) * (Number(i.price) || 0),
+    (s, i) => s + (parseQuantityInput(i.quantity) ?? 0) * (Number(i.price) || 0),
     0,
   );
 
@@ -673,7 +673,7 @@ export default function Documents({ defaultType }) {
     if (form.type !== 'peremeshchenie' || isReadOnly || form.status !== 'draft') return [];
     const fromDepartment = isDepartmentTransfer && form.from_department_id;
     return form.items.flatMap((item, idx) => {
-      if (!item.product_id || !(Number(item.quantity) > 0)) return [];
+      if (!item.product_id || !(parseQuantityInput(item.quantity) > 0)) return [];
       const catalog = selectableProducts.length ? selectableProducts : products;
       const resolved = resolvePickFromProducts(
         catalog,
@@ -682,12 +682,13 @@ export default function Documents({ defaultType }) {
       const { product, variant } = resolved;
       if (!product || product.stock == null) return [];
       const stock = getPickStock(product, variant);
-      if (Number(item.quantity) <= stock) return [];
+      const qty = parseQuantityInput(item.quantity);
+      if (qty <= stock) return [];
       return [{
         idx,
         name: variant ? `${product.name} — ${variant.name}` : product.name,
         stock,
-        quantity: item.quantity,
+        quantity: qty,
         unit: product.unit || 'шт',
         fromDepartment,
       }];
@@ -747,7 +748,7 @@ export default function Documents({ defaultType }) {
         show('Добавьте хотя бы один товар', 'error');
         return;
       }
-      if (items.some((i) => !(Number(i.quantity) > 0))) {
+      if (items.some((i) => !(parseQuantityInput(i.quantity) > 0))) {
         show('Укажите количество больше нуля', 'error');
         return;
       }
@@ -789,7 +790,7 @@ export default function Documents({ defaultType }) {
         items: items.map((i) => ({
           product_id: i.product_id,
           variant_id: i.variant_id || null,
-          quantity: Number(i.quantity) || 0,
+          quantity: parseQuantityInput(i.quantity) ?? 0,
           price: Number(i.price) || 0,
         })),
       };
@@ -1463,12 +1464,11 @@ export default function Documents({ defaultType }) {
                         </td>
                         <td>
                           <input
-                            type="number"
-                            min="0"
-                            step="0.01"
+                            type="text"
+                            inputMode="decimal"
                             value={item.quantity}
                             disabled={isReadOnly}
-                            onChange={(e) => updateItem(idx, 'quantity', e.target.value)}
+                            onChange={(e) => updateItem(idx, 'quantity', normalizeQuantityInput(e.target.value))}
                           />
                           {rowTransferWarning && (
                             <span className="razdelka-stock-row-warning">
@@ -1485,7 +1485,7 @@ export default function Documents({ defaultType }) {
                             onChange={(e) => updateItem(idx, 'price', parsePriceInput(e.target.value) ?? 0)}
                           />
                         </td>
-                        <td>{formatMoney((Number(item.quantity) || 0) * (Number(item.price) || 0))}</td>
+                        <td>{formatMoney((parseQuantityInput(item.quantity) ?? 0) * (Number(item.price) || 0))}</td>
                         <td className="doc-items-actions-col">
                           {canEdit && (
                             <div className="doc-items-row-actions">

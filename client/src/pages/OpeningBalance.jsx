@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  api, formatDate, formatMoney, formatPriceInput, parsePriceInput, STATUS_LABELS,
+  api, formatDate, formatMoney, formatPriceInput, parsePriceInput, normalizeQuantityInput, parseQuantityInput, STATUS_LABELS,
 } from '../api';
 import Modal, { useToast, ModalCancelButton } from '../components/Modal';
 import { useAuth } from '../AuthContext';
@@ -97,7 +97,7 @@ function lineBadgeClass(type) {
 
 function lineTotal(line) {
   if (line.line_type === 'stock') {
-    return (Number(line.quantity) || 0) * (Number(line.unit_cost) || 0);
+    return (parseQuantityInput(line.quantity) ?? 0) * (Number(line.unit_cost) || 0);
   }
   return Number(line.amount) || 0;
 }
@@ -246,7 +246,7 @@ export default function OpeningBalance() {
       const lines = [...f.lines];
       lines[index] = { ...lines[index], ...patch };
       if (lines[index].line_type === 'stock') {
-        lines[index].amount = (Number(lines[index].quantity) || 0) * (Number(lines[index].unit_cost) || 0);
+        lines[index].amount = (parseQuantityInput(lines[index].quantity) ?? 0) * (Number(lines[index].unit_cost) || 0);
       }
       return { ...f, lines };
     });
@@ -308,7 +308,7 @@ export default function OpeningBalance() {
           variant_id: l.variant_id || null,
           department_id: l.department_id || '',
           counterparty_id: l.counterparty_id || '',
-          quantity: l.quantity || 0,
+          quantity: parseQuantityInput(l.quantity) ?? 0,
           unit_cost: l.unit_cost || 0,
           amount: l.amount || 0,
           comment: l.comment || '',
@@ -342,7 +342,7 @@ export default function OpeningBalance() {
       const lines = [...f.lines];
       lines[index] = { ...lines[index], ...patch };
       if (lines[index].line_type === 'stock') {
-        lines[index].amount = (Number(lines[index].quantity) || 0) * (Number(lines[index].unit_cost) || 0);
+        lines[index].amount = (parseQuantityInput(lines[index].quantity) ?? 0) * (Number(lines[index].unit_cost) || 0);
       }
       return { ...f, lines };
     });
@@ -377,7 +377,7 @@ export default function OpeningBalance() {
         variant_id: l.variant_id || null,
         department_id: l.department_id || '',
         counterparty_id: l.counterparty_id || '',
-        quantity: l.quantity || 0,
+        quantity: parseQuantityInput(l.quantity) ?? 0,
         unit_cost: l.unit_cost || 0,
         amount: l.amount || 0,
         comment: l.comment || '',
@@ -528,12 +528,11 @@ export default function OpeningBalance() {
         <td className="col-num">
           {line.line_type === 'stock' && !readOnly ? (
             <input
-              type="number"
-              min="0"
-              step="any"
+              type="text"
+              inputMode="decimal"
               className="input-compact input-num"
               value={line.quantity}
-              onChange={(e) => onUpdate(index, { quantity: parseFloat(e.target.value) || 0 })}
+              onChange={(e) => onUpdate(index, { quantity: normalizeQuantityInput(e.target.value) })}
             />
           ) : line.line_type === 'stock' ? formatQty(line.quantity) : '—'}
         </td>

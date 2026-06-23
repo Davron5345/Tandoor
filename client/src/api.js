@@ -399,6 +399,25 @@ export function parsePriceInput(value) {
   return Number(digits);
 }
 
+/** Sanitize quantity while typing: digits and one decimal separator (. or ,). */
+export function normalizeQuantityInput(value) {
+  if (value === '' || value == null) return '';
+  let raw = String(value).replace(',', '.');
+  raw = raw.replace(/[^\d.]/g, '');
+  const dotIndex = raw.indexOf('.');
+  if (dotIndex !== -1) {
+    raw = `${raw.slice(0, dotIndex + 1)}${raw.slice(dotIndex + 1).replace(/\./g, '')}`;
+  }
+  return raw;
+}
+
+export function parseQuantityInput(value) {
+  const raw = normalizeQuantityInput(value);
+  if (raw === '' || raw === '.') return null;
+  const num = Number(raw);
+  return Number.isFinite(num) ? num : null;
+}
+
 export function formatDate(d) {
   if (!d) return '—';
   const str = String(d).slice(0, 10);

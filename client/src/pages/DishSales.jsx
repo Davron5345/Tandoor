@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { api, formatMoney, formatDate, STATUS_LABELS } from '../api';
+import { api, formatMoney, formatDate, STATUS_LABELS, normalizeQuantityInput, parseQuantityInput } from '../api';
 import Modal, { useToast } from '../components/Modal';
 import { useAuth } from '../AuthContext';
 import { useBranch } from '../BranchContext';
@@ -164,7 +164,10 @@ export default function DishSales() {
     }));
   };
 
-  const totalRevenue = form.items.reduce((s, line) => s + (Number(line.quantity) || 0) * (Number(line.price) || 0), 0);
+  const totalRevenue = form.items.reduce(
+    (s, line) => s + (parseQuantityInput(line.quantity) ?? 0) * (Number(line.price) || 0),
+    0,
+  );
   const totalCost = Object.values(lineCosts).reduce((s, row) => s + (row?.total_cost || 0), 0);
 
   const save = async (confirm) => {
@@ -172,7 +175,7 @@ export default function DishSales() {
       show('Выберите склад списания ингредиентов', 'error');
       return;
     }
-    if (!form.items.some((line) => line.product_id && line.quantity > 0)) {
+    if (!form.items.some((line) => line.product_id && (parseQuantityInput(line.quantity) ?? 0) > 0)) {
       show('Добавьте хотя бы одно блюдо', 'error');
       return;
     }
@@ -186,7 +189,7 @@ export default function DishSales() {
       items: form.items.filter((line) => line.product_id).map((line) => ({
         product_id: line.product_id,
         variant_id: line.variant_id,
-        quantity: Number(line.quantity),
+        quantity: parseQuantityInput(line.quantity) ?? 0,
         price: Number(line.price),
         calculation_id: line.calculation_id || undefined,
       })),
@@ -370,7 +373,7 @@ export default function DishSales() {
                 </thead>
                 <tbody>
                   {form.items.map((line, index) => {
-                    const amount = (Number(line.quantity) || 0) * (Number(line.price) || 0);
+                    const amount = (parseQuantityInput(line.quantity) ?? 0) * (Number(line.price) || 0);
                     const cost = lineCosts[index];
                     return (
                       <tr key={index}>
@@ -390,14 +393,13 @@ export default function DishSales() {
                         </td>
                         <td>
                           <input
-                            type="number"
-                            min="0"
-                            step="0.001"
+                            type="text"
+                            inputMode="decimal"
                             className="col-num"
                             disabled={isReadOnly}
                             value={line.quantity}
                             onChange={(e) => {
-                              setLine(index, { quantity: e.target.value });
+                              setLine(index, { quantity: normalizeQuantityInput(e.target.value) });
                               setTimeout(() => refreshLineCost(index), 0);
                             }}
                           />

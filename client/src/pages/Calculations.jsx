@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api, formatPriceInput, parsePriceInput } from '../api';
+import { api, formatPriceInput, parsePriceInput, normalizeQuantityInput, parseQuantityInput } from '../api';
 import Modal, { useToast, ModalCancelButton } from '../components/Modal';
 import ProductSelect from '../components/ProductSelect';
 import { useAuth } from '../AuthContext';
@@ -181,7 +181,7 @@ export default function Calculations() {
         show('Укажите название', 'error');
         return;
       }
-      const sources = form.sources.filter((s) => s.product_id && s.quantity > 0);
+      const sources = form.sources.filter((s) => s.product_id && (parseQuantityInput(s.quantity) ?? 0) > 0);
       if (sources.length === 0) {
         show('Добавьте сырьё (вход)', 'error');
         return;
@@ -203,18 +203,18 @@ export default function Calculations() {
         kind: form.kind === CALC_KIND_RECIPE ? CALC_KIND_RECIPE : CALC_KIND_RAZDELKA,
         source_product_id: sources[0].product_id,
         source_variant_id: sources[0].variant_id || null,
-        base_quantity: sources[0].quantity || 1,
+        base_quantity: parseQuantityInput(sources[0].quantity) || 1,
         active: form.active,
         comment: form.comment || '',
         sources: sources.map((s) => ({
           product_id: s.product_id,
           variant_id: s.variant_id || null,
-          quantity: s.quantity,
+          quantity: parseQuantityInput(s.quantity) ?? 0,
         })),
         items: items.map((i) => ({
           product_id: i.product_id,
           variant_id: i.variant_id || null,
-          quantity: Number(i.quantity) || 0,
+          quantity: parseQuantityInput(i.quantity) ?? 0,
           price: i.price || 0,
           is_waste: !!i.is_waste,
         })),
@@ -356,12 +356,11 @@ export default function Calculations() {
               <div className="form-group calc-field-base">
                 <label>База (1-я позиция)</label>
                 <input
-                  type="number"
-                  min="0.001"
-                  step="0.001"
-                  value={form.sources[0]?.quantity || form.base_quantity}
+                  type="text"
+                  inputMode="decimal"
+                  value={form.sources[0]?.quantity ?? form.base_quantity}
                   disabled={!canEdit}
-                  onChange={(e) => updateSource(0, 'quantity', +e.target.value)}
+                  onChange={(e) => updateSource(0, 'quantity', normalizeQuantityInput(e.target.value))}
                 />
               </div>
               <div className="form-group calc-field-kind">
@@ -433,12 +432,11 @@ export default function Calculations() {
                           </td>
                           <td className="col-num">
                             <input
-                              type="number"
-                              min="0.001"
-                              step="0.001"
+                              type="text"
+                              inputMode="decimal"
                               value={source.quantity}
                               disabled={!canEdit}
-                              onChange={(e) => updateSource(idx, 'quantity', +e.target.value)}
+                              onChange={(e) => updateSource(idx, 'quantity', normalizeQuantityInput(e.target.value))}
                             />
                           </td>
                           <td className="doc-items-actions-col">
@@ -493,13 +491,12 @@ export default function Calculations() {
                           </td>
                           <td className="col-num">
                             <input
-                              type="number"
-                              min="0"
-                              step="0.001"
-                              value={item.quantity || ''}
+                              type="text"
+                              inputMode="decimal"
+                              value={item.quantity ?? ''}
                               placeholder="—"
                               disabled={!canEdit}
-                              onChange={(e) => updateItem(idx, 'quantity', +e.target.value)}
+                              onChange={(e) => updateItem(idx, 'quantity', normalizeQuantityInput(e.target.value))}
                             />
                           </td>
                           {!isRecipe && (
