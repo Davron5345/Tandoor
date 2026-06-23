@@ -68,9 +68,10 @@ export default function ProductSelect({
 
   const catalog = allProducts.length ? allProducts : products;
   const visibleProducts = useMemo(() => {
-    if (!kinds?.length) return products;
-    return products.filter((p) => kinds.includes(p.product_kind || 'goods'));
-  }, [products, kinds]);
+    const pool = catalog;
+    if (!kinds?.length) return products.length ? products : pool;
+    return pool.filter((p) => kinds.includes(p.product_kind || 'goods'));
+  }, [catalog, products, kinds]);
   const groups = useMemo(() => buildProductPickGroups(visibleProducts), [visibleProducts]);
   const filteredGroups = useMemo(
     () => filterProductPickGroups(groups, search),

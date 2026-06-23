@@ -17,7 +17,7 @@ import {
   calculationKindLabel,
   DISH_OUTPUT_KINDS,
   INGREDIENT_KINDS,
-  SEMI_OUTPUT_KINDS,
+  RAZDELKA_OUTPUT_KINDS,
 } from '../productKinds';
 import {
   encodeProductPick,
@@ -64,7 +64,7 @@ export default function Calculations() {
 
   const isRecipe = form.kind === CALC_KIND_RECIPE;
 
-  const outputProductKinds = isRecipe ? DISH_OUTPUT_KINDS : SEMI_OUTPUT_KINDS;
+  const outputProductKinds = isRecipe ? DISH_OUTPUT_KINDS : RAZDELKA_OUTPUT_KINDS;
 
   const sourceProductKeys = useMemo(
     () => new Set(
@@ -73,11 +73,6 @@ export default function Calculations() {
         .map((s) => encodeProductPick(s.product_id, s.variant_id)),
     ),
     [form.sources],
-  );
-
-  const outputProducts = useMemo(
-    () => filterProductsByKinds(products, outputProductKinds),
-    [products, outputProductKinds],
   );
 
   const inputProductsForCalc = useMemo(
@@ -495,8 +490,7 @@ export default function Calculations() {
                         <tr key={idx} className={item.is_waste ? 'calc-row-waste' : ''}>
                           <td>
                             <ProductSelect
-                              products={outputProducts}
-                              allProducts={products}
+                              products={products}
                               kinds={outputProductKinds}
                               value={encodeProductPick(item.product_id, item.variant_id)}
                               onChange={(pickValue) => updateItemPick(idx, pickValue)}

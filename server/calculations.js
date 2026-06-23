@@ -5,7 +5,6 @@ import {
   assertProductKindById,
   DISH_OUTPUT_KINDS,
   INGREDIENT_KINDS,
-  SEMI_OUTPUT_KINDS,
   RAZDELKA_OUTPUT_KINDS,
 } from './productKinds.js';
 
@@ -344,7 +343,7 @@ export function createCalculation(data, branchId = DEFAULT_BRANCH_ID) {
   } else {
     sources.forEach((s) => assertProductKindById(s.product_id, INGREDIENT_KINDS, 'сырьё или полуфабрикат'));
     items.filter((item) => !item.is_waste).forEach((item) => {
-      assertProductKindById(item.product_id, SEMI_OUTPUT_KINDS, 'полуфабрикат');
+      assertProductKindById(item.product_id, RAZDELKA_OUTPUT_KINDS, 'полуфабрикат или товар');
     });
   }
   if (kind === CALC_KIND_RECIPE && !items.some((item) => !item.is_waste)) {
@@ -407,7 +406,7 @@ export function updateCalculation(id, data, branchId = DEFAULT_BRANCH_ID) {
   } else {
     sources.forEach((s) => assertProductKindById(s.product_id, INGREDIENT_KINDS, 'сырьё или полуфабрикат'));
     items.filter((item) => !item.is_waste).forEach((item) => {
-      assertProductKindById(item.product_id, SEMI_OUTPUT_KINDS, 'полуфабрикат');
+      assertProductKindById(item.product_id, RAZDELKA_OUTPUT_KINDS, 'полуфабрикат или товар');
     });
   }
   if (kind === CALC_KIND_RECIPE && !items.some((item) => !item.is_waste)) {
