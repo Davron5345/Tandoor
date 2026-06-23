@@ -35,10 +35,8 @@ import {
   IconNavHome,
   IconNavDocuments,
   IconNavCatalog,
-  IconNavShop,
   IconNavReports,
-  IconNavCashier,
-  IconNavPayments,
+  IconNavSettings,
   IconNavTelegram,
   IconNavAdmin,
   IconNavWarehouse,
@@ -221,13 +219,17 @@ function AppContent() {
     const canViewProductsLocal = hasPermission(user, 'products.view');
     const canViewDocumentsLocal = hasPermission(user, 'documents.view');
     const canViewCashArticlesLocal = hasPermission(user, 'cash_articles.view');
+    const canViewCashierLocal = hasAnyPermission(user, ['cashier.view', 'cashier.edit', 'payments.view', 'payments.edit']);
 
     const docNavLocal = [
       { to: '/prihod', perm: 'documents.prihod' },
+      { to: '/return-supplier', perm: 'documents.rashod' },
+      { to: '/return-customer', perm: 'documents.rashod' },
       { to: '/transfer', perm: 'documents.transfer' },
       { to: '/razdelka', perm: 'documents.razdelka' },
       { to: '/dish-sales', perm: 'documents.dish_sale' },
       { to: '/calculations', perm: 'calculations.view' },
+      { to: '/payments', perm: 'payments.view' },
     ].filter((item) => hasPermission(user, item.perm));
 
     const catalogPathsLocal = [
@@ -236,10 +238,11 @@ function AppContent() {
       ...(canViewCashArticlesLocal ? ['/cash-articles'] : []),
     ];
 
-    const myshopPathsLocal = [
+    const settingsPathsLocal = [
+      ...(canViewCashierLocal ? ['/cashier'] : []),
       ...(hasPermission(user, 'myshop.view') ? ['/myshop'] : []),
-      ...(hasPermission(user, 'shop_orders.view') ? ['/shop-orders'] : []),
       ...(hasPermission(user, 'myshop.edit') ? ['/myshop/constructor'] : []),
+      ...(hasPermission(user, 'shop_orders.view') ? ['/shop-orders'] : []),
     ];
 
     const reportPathsLocal = [
@@ -260,14 +263,14 @@ function AppContent() {
     const path = location.pathname;
     if (docPathsLocal.length && pathInGroup(path, docPathsLocal)) {
       setOpenNavGroup('documents');
-    } else if (myshopPathsLocal.length && pathInGroup(path, myshopPathsLocal)) {
-      setOpenNavGroup('myshop');
     } else if (catalogPathsLocal.length && pathInGroup(path, catalogPathsLocal)) {
       setOpenNavGroup('catalog');
     } else if (reportPathsLocal.length && pathInGroup(path, reportPathsLocal)) {
       setOpenNavGroup('reports');
     } else if ((canViewUsersLocal || isAdminUser) && pathInGroup(path, staffPathsLocal)) {
       setOpenNavGroup('admin');
+    } else if (settingsPathsLocal.length && pathInGroup(path, settingsPathsLocal)) {
+      setOpenNavGroup('settings');
     }
   }, [user, location.pathname]);
 
@@ -314,6 +317,7 @@ function AppContent() {
     { to: '/razdelka', label: 'Разделка', perm: 'documents.razdelka' },
     { to: '/dish-sales', label: 'Продажа блюд', perm: 'documents.dish_sale' },
     { to: '/calculations', label: 'Калькуляции', perm: 'calculations.view' },
+    { to: '/payments', label: 'Банк', perm: 'payments.view' },
   ].filter((item) => hasPermission(user, item.perm));
 
   const catalogNav = [
@@ -328,13 +332,15 @@ function AppContent() {
 
   const catalogPaths = catalogNav.map((item) => item.to);
 
-  const myshopPaths = [
-    ...(canViewMyShop ? ['/myshop'] : []),
-    ...(canViewShopOrders ? ['/shop-orders'] : []),
-    ...(canEditMyShop ? ['/myshop/constructor'] : []),
+  const settingsNav = [
+    ...(canViewCashier ? [{ to: '/cashier', label: 'Окно кассира' }] : []),
+    ...(canViewMyShop ? [{ to: '/myshop', label: 'MyShop' }] : []),
+    ...(canEditMyShop ? [{ to: '/myshop/constructor', label: 'Конструктор' }] : []),
+    ...(canViewShopOrders ? [{ to: '/shop-orders', label: 'Заявки' }] : []),
   ];
 
-  const showMyShopGroup = canViewMyShop || canEditMyShop || canViewShopOrders || canEditShopOrders;
+  const settingsPaths = settingsNav.map((item) => item.to);
+  const showSettingsGroup = settingsNav.length > 0;
 
   const reportNav = [
     ...(canViewDocuments ? [{ to: '/documents', label: 'Журнал документов', perm: 'documents.view' }] : []),
@@ -465,26 +471,6 @@ function AppContent() {
               </NavGroup>
             )}
 
-            {canViewCashier && (
-              <NavLink
-                to="/cashier"
-                className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
-                title={sidebarCollapsed ? 'Касса' : undefined}
-              >
-                <NavItemContent icon={IconNavCashier} label="Касса" />
-              </NavLink>
-            )}
-
-            {canViewPayments && (
-              <NavLink
-                to="/payments"
-                className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
-                title={sidebarCollapsed ? 'Оплаты' : undefined}
-              >
-                <NavItemContent icon={IconNavPayments} label="Оплаты" />
-              </NavLink>
-            )}
-
             {catalogNav.length > 0 && (
               <NavGroup
                 groupId="catalog"
@@ -607,44 +593,29 @@ function AppContent() {
               </NavGroup>
             )}
 
-            {showMyShopGroup && (
+            {showSettingsGroup && (
               <>
                 <div className="nav-divider" aria-hidden="true" />
                 <NavGroup
-                  groupId="myshop"
-                  icon={IconNavShop}
-                  label="MyShop"
-                  paths={myshopPaths}
-                  isOpen={openNavGroup === 'myshop'}
+                  groupId="settings"
+                  icon={IconNavSettings}
+                  label="Настройки"
+                  paths={settingsPaths}
+                  isOpen={openNavGroup === 'settings'}
                   onToggle={toggleNavGroup}
                   sidebarCollapsed={sidebarCollapsed}
-                  {...navGroupFlyoutProps('myshop')}
+                  {...navGroupFlyoutProps('settings')}
                 >
-                  {canViewMyShop && (
+                  {settingsNav.map((item) => (
                     <NavLink
-                      to="/myshop"
-                      end
+                      key={item.to}
+                      to={item.to}
+                      end={item.to === '/myshop'}
                       className={({ isActive }) => `nav-link nav-link-sub${isActive ? ' active' : ''}`}
                     >
-                      Витрина
+                      {item.label}
                     </NavLink>
-                  )}
-                  {canEditMyShop && (
-                    <NavLink
-                      to="/myshop/constructor"
-                      className={({ isActive }) => `nav-link nav-link-sub${isActive ? ' active' : ''}`}
-                    >
-                      Конструктор
-                    </NavLink>
-                  )}
-                  {canViewShopOrders && (
-                    <NavLink
-                      to="/shop-orders"
-                      className={({ isActive }) => `nav-link nav-link-sub${isActive ? ' active' : ''}`}
-                    >
-                      Заявки
-                    </NavLink>
-                  )}
+                  ))}
                 </NavGroup>
               </>
             )}

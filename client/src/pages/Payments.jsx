@@ -102,8 +102,8 @@ export default function Payments() {
     <div>
       {Toast}
       <div className="page-header">
-        <h1>Оплаты</h1>
-        {canEdit && <button className="btn btn-primary" onClick={openCreate}>+ Новая оплата</button>}
+        <h1>Банк</h1>
+        {canEdit && <button className="btn btn-primary" onClick={openCreate}>+ Новая операция</button>}
       </div>
 
       <div className="card">
@@ -142,7 +142,7 @@ export default function Payments() {
                 </tr>
               ))}
               {payments.length === 0 && (
-                <tr><td colSpan={7} className="empty">Оплат пока нет</td></tr>
+                <tr><td colSpan={7} className="empty">Операций пока нет</td></tr>
               )}
             </tbody>
           </table>
