@@ -33,10 +33,11 @@ import { useBranch } from './BranchContext';
 import { hasPermission, hasAnyPermission, isCashierOnlyLayout } from './permissions';
 import {
   IconNavHome,
-  IconNavDocuments,
   IconNavCatalog,
-  IconNavReports,
-  IconNavSettings,
+  IconNavShop,
+  IconNavPurchases,
+  IconNavMoney,
+  IconNavProduction,
   IconNavTelegram,
   IconNavAdmin,
   IconNavWarehouse,
@@ -51,6 +52,91 @@ import {
 } from './components/NavIcons';
 
 const SIDEBAR_COLLAPSED_KEY = 'warehouse-sidebar-collapsed';
+
+function filterNavItems(user, items) {
+  return items.filter((item) => !item.perm || hasPermission(user, item.perm));
+}
+
+function buildAppNav(user) {
+  const isAdmin = user.role === 'admin';
+  const canViewProducts = hasPermission(user, 'products.view');
+  const canViewCounterparties = hasPermission(user, 'counterparties.view');
+  const canViewCashArticles = hasPermission(user, 'cash_articles.view');
+  const canViewCashier = hasAnyPermission(user, ['cashier.view', 'cashier.edit', 'payments.view', 'payments.edit']);
+  const canViewUsers = hasPermission(user, 'users.view');
+
+  const purchasesNav = filterNavItems(user, [
+    { to: '/prihod', label: 'Приход', perm: 'documents.prihod' },
+    { to: '/return-supplier', label: 'Возврат поставщику', perm: 'documents.rashod' },
+    { to: '/reports/stock', label: 'Остатки на складе', perm: 'reports.view' },
+    { to: '/reports/returns', label: 'Возвраты поставщикам', perm: 'reports.view' },
+    { to: '/reports/documents', label: 'Документы за период', perm: 'reports.view' },
+    { to: '/documents', label: 'Журнал документов', perm: 'documents.view' },
+  ]);
+
+  const salesNav = filterNavItems(user, [
+    { to: '/dish-sales', label: 'Продажа блюд', perm: 'documents.dish_sale' },
+    { to: '/return-customer', label: 'Возврат от клиента', perm: 'documents.rashod' },
+    { to: '/myshop', label: 'MyShop', perm: 'myshop.view', end: true },
+    { to: '/myshop/constructor', label: 'Конструктор', perm: 'myshop.edit' },
+    { to: '/shop-orders', label: 'Заявки', perm: 'shop_orders.view' },
+  ]);
+
+  const catalogNav = [
+    ...(canViewProducts ? [
+      { to: '/products', label: 'Номенклатура' },
+      { to: '/product-categories', label: 'Категории' },
+      { to: '/units', label: 'Ед. измерения' },
+    ] : []),
+    ...(canViewCounterparties ? [{ to: '/counterparties', label: 'Контрагенты' }] : []),
+    ...(canViewCashArticles ? [{ to: '/cash-articles', label: 'Статьи кассы' }] : []),
+  ];
+
+  const moneyNav = [
+    ...(hasPermission(user, 'payments.view') ? [{ to: '/payments', label: 'Банк' }] : []),
+    ...(canViewCashier ? [{ to: '/cashier', label: 'Окно кассира' }] : []),
+    ...filterNavItems(user, [
+      { to: '/reports/debts/debtors', label: 'Задолженности', perm: 'reports.view' },
+      { to: '/reports/reconciliation', label: 'Акт сверки', perm: 'reports.view' },
+      { to: '/reports/pnl', label: 'P&L', perm: 'reports.view' },
+      { to: '/opening-balance', label: 'Начальное сальдо', perm: 'opening_balance.view' },
+    ]),
+  ];
+
+  const productionNav = filterNavItems(user, [
+    { to: '/razdelka', label: 'Разделка', perm: 'documents.razdelka' },
+    { to: '/calculations', label: 'Калькуляции', perm: 'calculations.view' },
+    { to: '/transfer', label: 'Перемещение', perm: 'documents.transfer' },
+  ]);
+
+  const adminNav = [
+    ...(canViewUsers ? [{ to: '/employees', label: 'Сотрудники' }] : []),
+    ...(isAdmin ? [
+      { to: '/roles', label: 'Роли' },
+      { to: '/branches', label: 'Филиалы' },
+      { to: '/departments', label: 'Отделы' },
+      { to: '/security', label: 'Сеансы и безопасность' },
+      { to: '/audit-log', label: 'Журнал аудита' },
+    ] : []),
+  ];
+
+  const sections = [
+    { id: 'purchases', label: 'Закупки', icon: IconNavPurchases, items: purchasesNav },
+    { id: 'sales', label: 'Продажи', icon: IconNavShop, items: salesNav },
+    { id: 'catalog', label: 'Справочники', icon: IconNavCatalog, items: catalogNav },
+    { id: 'money', label: 'Деньги', icon: IconNavMoney, items: moneyNav },
+    { id: 'production', label: 'Производство', icon: IconNavProduction, items: productionNav },
+    { id: 'admin', label: 'Администрирование', icon: IconNavAdmin, items: adminNav },
+  ].map((section) => ({
+    ...section,
+    paths: section.items.map((item) => item.to),
+  }));
+
+  return {
+    sections,
+    byId: Object.fromEntries(sections.map((section) => [section.id, section])),
+  };
+}
 
 function readSidebarCollapsed() {
   try {
@@ -214,64 +300,10 @@ function AppContent() {
   useEffect(() => {
     if (!user) return;
 
-    const isAdminUser = user.role === 'admin';
-    const canViewUsersLocal = hasPermission(user, 'users.view');
-    const canViewProductsLocal = hasPermission(user, 'products.view');
-    const canViewDocumentsLocal = hasPermission(user, 'documents.view');
-    const canViewCashArticlesLocal = hasPermission(user, 'cash_articles.view');
-    const canViewCashierLocal = hasAnyPermission(user, ['cashier.view', 'cashier.edit', 'payments.view', 'payments.edit']);
-
-    const docNavLocal = [
-      { to: '/prihod', perm: 'documents.prihod' },
-      { to: '/return-supplier', perm: 'documents.rashod' },
-      { to: '/return-customer', perm: 'documents.rashod' },
-      { to: '/transfer', perm: 'documents.transfer' },
-      { to: '/razdelka', perm: 'documents.razdelka' },
-      { to: '/dish-sales', perm: 'documents.dish_sale' },
-      { to: '/calculations', perm: 'calculations.view' },
-      { to: '/payments', perm: 'payments.view' },
-    ].filter((item) => hasPermission(user, item.perm));
-
-    const catalogPathsLocal = [
-      ...(canViewProductsLocal ? ['/products', '/product-categories', '/units'] : []),
-      ...(hasPermission(user, 'counterparties.view') ? ['/counterparties'] : []),
-      ...(canViewCashArticlesLocal ? ['/cash-articles'] : []),
-    ];
-
-    const settingsPathsLocal = [
-      ...(canViewCashierLocal ? ['/cashier'] : []),
-      ...(hasPermission(user, 'myshop.view') ? ['/myshop'] : []),
-      ...(hasPermission(user, 'myshop.edit') ? ['/myshop/constructor'] : []),
-      ...(hasPermission(user, 'shop_orders.view') ? ['/shop-orders'] : []),
-    ];
-
-    const reportPathsLocal = [
-      ...(canViewDocumentsLocal ? ['/documents'] : []),
-      ...(hasPermission(user, 'reports.view') ? ['/reports/stock', '/reports/documents', '/reports/debts', '/reports/reconciliation', '/reports/pnl', '/reports/returns'] : []),
-      ...(hasPermission(user, 'opening_balance.view') ? ['/opening-balance'] : []),
-    ];
-
-    const docPathsLocal = [
-      ...docNavLocal.map((item) => item.to),
-    ];
-
-    const staffPathsLocal = [
-      ...(canViewUsersLocal ? ['/employees'] : []),
-      ...(isAdminUser ? ['/roles', '/branches', '/departments', '/security', '/audit-log'] : []),
-    ];
-
+    const { sections } = buildAppNav(user);
     const path = location.pathname;
-    if (docPathsLocal.length && pathInGroup(path, docPathsLocal)) {
-      setOpenNavGroup('documents');
-    } else if (catalogPathsLocal.length && pathInGroup(path, catalogPathsLocal)) {
-      setOpenNavGroup('catalog');
-    } else if (reportPathsLocal.length && pathInGroup(path, reportPathsLocal)) {
-      setOpenNavGroup('reports');
-    } else if ((canViewUsersLocal || isAdminUser) && pathInGroup(path, staffPathsLocal)) {
-      setOpenNavGroup('admin');
-    } else if (settingsPathsLocal.length && pathInGroup(path, settingsPathsLocal)) {
-      setOpenNavGroup('settings');
-    }
+    const match = sections.find((section) => section.paths.length && pathInGroup(path, section.paths));
+    setOpenNavGroup(match?.id ?? null);
   }, [user, location.pathname]);
 
   if (loading) {
@@ -290,10 +322,7 @@ function AppContent() {
   const isCashierLayout = isCashierOnlyLayout(user);
   const canViewUsers = hasPermission(user, 'users.view');
   const showStaffGroup = canViewUsers || isAdmin;
-
   const canViewProducts = hasPermission(user, 'products.view');
-
-  const canViewDocuments = hasPermission(user, 'documents.view');
   const canViewPayments = hasPermission(user, 'payments.view');
   const canViewCashier = hasAnyPermission(user, ['cashier.view', 'cashier.edit', 'payments.view', 'payments.edit']);
   const canViewCashArticles = hasPermission(user, 'cash_articles.view');
@@ -309,69 +338,15 @@ function AppContent() {
   const isMyShopStore = location.pathname === '/myshop';
   const isMyShopConstructor = location.pathname === '/myshop/constructor';
 
-  const docNav = [
-    { to: '/prihod', label: 'Приход', perm: 'documents.prihod' },
-    { to: '/return-supplier', label: 'Возврат поставщику', perm: 'documents.rashod' },
-    { to: '/return-customer', label: 'Возврат от клиента', perm: 'documents.rashod' },
-    { to: '/transfer', label: 'Перемещение', perm: 'documents.transfer' },
-    { to: '/razdelka', label: 'Разделка', perm: 'documents.razdelka' },
-    { to: '/dish-sales', label: 'Продажа блюд', perm: 'documents.dish_sale' },
-    { to: '/calculations', label: 'Калькуляции', perm: 'calculations.view' },
-    { to: '/payments', label: 'Банк', perm: 'payments.view' },
-  ].filter((item) => hasPermission(user, item.perm));
-
-  const catalogNav = [
-    ...(canViewProducts ? [
-      { to: '/products', label: 'Номенклатура' },
-      { to: '/product-categories', label: 'Категории' },
-      { to: '/units', label: 'Ед. измерения' },
-    ] : []),
-    ...(canViewCounterparties ? [{ to: '/counterparties', label: 'Контрагенты' }] : []),
-    ...(canViewCashArticles ? [{ to: '/cash-articles', label: 'Статьи кассы' }] : []),
-  ];
-
-  const catalogPaths = catalogNav.map((item) => item.to);
-
-  const settingsNav = [
-    ...(canViewCashier ? [{ to: '/cashier', label: 'Окно кассира' }] : []),
-    ...(canViewMyShop ? [{ to: '/myshop', label: 'MyShop' }] : []),
-    ...(canEditMyShop ? [{ to: '/myshop/constructor', label: 'Конструктор' }] : []),
-    ...(canViewShopOrders ? [{ to: '/shop-orders', label: 'Заявки' }] : []),
-  ];
-
-  const settingsPaths = settingsNav.map((item) => item.to);
-  const showSettingsGroup = settingsNav.length > 0;
-
-  const reportNav = [
-    ...(canViewDocuments ? [{ to: '/documents', label: 'Журнал документов', perm: 'documents.view' }] : []),
-    { to: '/reports/stock', label: 'Остатки на складе', perm: 'reports.view' },
-    { to: '/reports/documents', label: 'Документы за период', perm: 'reports.view' },
-    { to: '/reports/debts/debtors', label: 'Задолженности', perm: 'reports.view' },
-    { to: '/reports/reconciliation', label: 'Акт сверки', perm: 'reports.view' },
-    { to: '/reports/pnl', label: 'P&L', perm: 'reports.view' },
-    { to: '/reports/returns', label: 'Возвраты поставщикам', perm: 'reports.view' },
-    { to: '/opening-balance', label: 'Начальное сальдо', perm: 'opening_balance.view' },
-  ].filter((item) => hasPermission(user, item.perm));
-
-  const reportPaths = reportNav.map((item) => item.to);
-
-  const docPaths = docNav.map((item) => item.to);
-
-  const showDocumentsGroup = docPaths.length > 0;
-
-  const staffPaths = [
-    ...(canViewUsers ? ['/employees'] : []),
-    ...(isAdmin ? ['/roles', '/branches', '/departments', '/security', '/audit-log'] : []),
-  ];
+  const appNav = buildAppNav(user);
+  const mainNavSections = appNav.sections.filter((section) => section.id !== 'admin');
+  const adminSection = appNav.byId.admin;
 
   const firstNavPath = ((isCashierLayout && canViewCashier) ? '/cashier'
     : canViewDashboard ? '/'
     : (canViewCashier ? '/cashier' : null)
-    || docPaths[0]
-    || catalogPaths[0]
-    || reportPaths[0]
-    || (canViewPayments ? '/payments' : null)
-    || staffPaths[0]
+    || mainNavSections.find((section) => section.paths.length)?.paths[0]
+    || adminSection.paths[0]
     || '/');
 
   const toggleNavGroup = (groupId) => {
@@ -448,74 +423,32 @@ function AppContent() {
               </NavLink>
             )}
 
-            {showDocumentsGroup && (
-              <NavGroup
-                groupId="documents"
-                icon={IconNavDocuments}
-                label="Документы"
-                paths={docPaths}
-                isOpen={openNavGroup === 'documents'}
-                onToggle={toggleNavGroup}
-                sidebarCollapsed={sidebarCollapsed}
-                {...navGroupFlyoutProps('documents')}
-              >
-                {docNav.map((item) => (
-                  <NavLink
-                    key={item.to}
-                    to={item.to}
-                    className={({ isActive }) => `nav-link nav-link-sub${isActive ? ' active' : ''}`}
-                  >
-                    {item.label}
-                  </NavLink>
-                ))}
-              </NavGroup>
-            )}
-
-            {catalogNav.length > 0 && (
-              <NavGroup
-                groupId="catalog"
-                icon={IconNavCatalog}
-                label="Справочники"
-                paths={catalogPaths}
-                isOpen={openNavGroup === 'catalog'}
-                onToggle={toggleNavGroup}
-                sidebarCollapsed={sidebarCollapsed}
-                {...navGroupFlyoutProps('catalog')}
-              >
-                {catalogNav.map((item) => (
-                  <NavLink
-                    key={item.to}
-                    to={item.to}
-                    className={({ isActive }) => `nav-link nav-link-sub${isActive ? ' active' : ''}`}
-                  >
-                    {item.label}
-                  </NavLink>
-                ))}
-              </NavGroup>
-            )}
-
-            {reportNav.length > 0 && (
-              <NavGroup
-                groupId="reports"
-                icon={IconNavReports}
-                label="Отчёты"
-                paths={reportPaths}
-                isOpen={openNavGroup === 'reports'}
-                onToggle={toggleNavGroup}
-                sidebarCollapsed={sidebarCollapsed}
-                {...navGroupFlyoutProps('reports')}
-              >
-                {reportNav.map((item) => (
-                  <NavLink
-                    key={item.to}
-                    to={item.to}
-                    className={({ isActive }) => `nav-link nav-link-sub${isActive ? ' active' : ''}`}
-                  >
-                    {item.label}
-                  </NavLink>
-                ))}
-              </NavGroup>
-            )}
+            {mainNavSections.map((section) => (
+              section.items.length > 0 && (
+                <NavGroup
+                  key={section.id}
+                  groupId={section.id}
+                  icon={section.icon}
+                  label={section.label}
+                  paths={section.paths}
+                  isOpen={openNavGroup === section.id}
+                  onToggle={toggleNavGroup}
+                  sidebarCollapsed={sidebarCollapsed}
+                  {...navGroupFlyoutProps(section.id)}
+                >
+                  {section.items.map((item) => (
+                    <NavLink
+                      key={item.to}
+                      to={item.to}
+                      end={item.end}
+                      className={({ isActive }) => `nav-link nav-link-sub${isActive ? ' active' : ''}`}
+                    >
+                      {item.label}
+                    </NavLink>
+                  ))}
+                </NavGroup>
+              )
+            ))}
 
             {(canViewTelegram || showStaffGroup) && (
               <div className="nav-divider" aria-hidden="true" />
@@ -531,93 +464,27 @@ function AppContent() {
               </NavLink>
             )}
 
-            {showStaffGroup && (
+            {adminSection.items.length > 0 && (
               <NavGroup
                 groupId="admin"
                 icon={IconNavAdmin}
                 label="Администрирование"
-                paths={staffPaths}
+                paths={adminSection.paths}
                 isOpen={openNavGroup === 'admin'}
                 onToggle={toggleNavGroup}
                 sidebarCollapsed={sidebarCollapsed}
                 {...navGroupFlyoutProps('admin')}
               >
-                {canViewUsers && (
+                {adminSection.items.map((item) => (
                   <NavLink
-                    to="/employees"
+                    key={item.to}
+                    to={item.to}
                     className={({ isActive }) => `nav-link nav-link-sub${isActive ? ' active' : ''}`}
                   >
-                    Сотрудники
+                    {item.label}
                   </NavLink>
-                )}
-                {isAdmin && (
-                  <NavLink
-                    to="/roles"
-                    className={({ isActive }) => `nav-link nav-link-sub${isActive ? ' active' : ''}`}
-                  >
-                    Роли
-                  </NavLink>
-                )}
-                {isAdmin && (
-                  <NavLink
-                    to="/branches"
-                    className={({ isActive }) => `nav-link nav-link-sub${isActive ? ' active' : ''}`}
-                  >
-                    Филиалы
-                  </NavLink>
-                )}
-                {isAdmin && (
-                  <NavLink
-                    to="/departments"
-                    className={({ isActive }) => `nav-link nav-link-sub${isActive ? ' active' : ''}`}
-                  >
-                    Отделы
-                  </NavLink>
-                )}
-                {isAdmin && (
-                  <NavLink
-                    to="/security"
-                    className={({ isActive }) => `nav-link nav-link-sub${isActive ? ' active' : ''}`}
-                  >
-                    Сеансы и безопасность
-                  </NavLink>
-                )}
-                {isAdmin && (
-                  <NavLink
-                    to="/audit-log"
-                    className={({ isActive }) => `nav-link nav-link-sub${isActive ? ' active' : ''}`}
-                  >
-                    Журнал аудита
-                  </NavLink>
-                )}
+                ))}
               </NavGroup>
-            )}
-
-            {showSettingsGroup && (
-              <>
-                <div className="nav-divider" aria-hidden="true" />
-                <NavGroup
-                  groupId="settings"
-                  icon={IconNavSettings}
-                  label="Настройки"
-                  paths={settingsPaths}
-                  isOpen={openNavGroup === 'settings'}
-                  onToggle={toggleNavGroup}
-                  sidebarCollapsed={sidebarCollapsed}
-                  {...navGroupFlyoutProps('settings')}
-                >
-                  {settingsNav.map((item) => (
-                    <NavLink
-                      key={item.to}
-                      to={item.to}
-                      end={item.to === '/myshop'}
-                      className={({ isActive }) => `nav-link nav-link-sub${isActive ? ' active' : ''}`}
-                    >
-                      {item.label}
-                    </NavLink>
-                  ))}
-                </NavGroup>
-              </>
             )}
           </nav>
         </div>

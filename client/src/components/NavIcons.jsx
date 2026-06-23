@@ -82,6 +82,35 @@ export function IconNavSettings() {
   );
 }
 
+export function IconNavProduction() {
+  return (
+    <NavSvg>
+      <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" strokeWidth="1.75" />
+      <path d="M12 2.8v2.2M12 19v2.2M4.9 4.9l1.6 1.6M17.5 17.5l1.6 1.6M2.8 12h2.2M19 12h2.2M4.9 19.1l1.6-1.6M17.5 6.5l1.6-1.6" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+    </NavSvg>
+  );
+}
+
+export function IconNavPurchases() {
+  return (
+    <NavSvg>
+      <path d="M4 8h11l3 4v7a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V8z" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinejoin="round" />
+      <path d="M15 8V5a2 2 0 0 0-2-2H7" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M8 13h6M8 16h4" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+    </NavSvg>
+  );
+}
+
+export function IconNavMoney() {
+  return (
+    <NavSvg>
+      <rect x="3" y="6" width="18" height="12" rx="2" fill="none" stroke="currentColor" strokeWidth="1.75" />
+      <circle cx="12" cy="12" r="2.5" fill="none" stroke="currentColor" strokeWidth="1.75" />
+      <path d="M7 10h.01M17 14h.01" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+    </NavSvg>
+  );
+}
+
 export function IconNavReports() {
   return (
     <NavSvg>
