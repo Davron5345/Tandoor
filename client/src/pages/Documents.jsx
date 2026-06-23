@@ -664,13 +664,16 @@ export default function Documents({ defaultType }) {
     setForm({ ...form, items });
   };
 
-  const total = form.items.reduce((s, i) => s + (i.quantity || 0) * (i.price || 0), 0);
+  const total = form.items.reduce(
+    (s, i) => s + (Number(i.quantity) || 0) * (Number(i.price) || 0),
+    0,
+  );
 
   const transferStockWarnings = useMemo(() => {
     if (form.type !== 'peremeshchenie' || isReadOnly || form.status !== 'draft') return [];
     const fromDepartment = isDepartmentTransfer && form.from_department_id;
     return form.items.flatMap((item, idx) => {
-      if (!item.product_id || !item.quantity) return [];
+      if (!item.product_id || !(Number(item.quantity) > 0)) return [];
       const catalog = selectableProducts.length ? selectableProducts : products;
       const resolved = resolvePickFromProducts(
         catalog,
@@ -679,7 +682,7 @@ export default function Documents({ defaultType }) {
       const { product, variant } = resolved;
       if (!product || product.stock == null) return [];
       const stock = getPickStock(product, variant);
-      if (item.quantity <= stock) return [];
+      if (Number(item.quantity) <= stock) return [];
       return [{
         idx,
         name: variant ? `${product.name} — ${variant.name}` : product.name,
@@ -744,6 +747,10 @@ export default function Documents({ defaultType }) {
         show('Добавьте хотя бы один товар', 'error');
         return;
       }
+      if (items.some((i) => !(Number(i.quantity) > 0))) {
+        show('Укажите количество больше нуля', 'error');
+        return;
+      }
       if (form.type === 'peremeshchenie' && hasTransferStockOverflow) {
         const w = transferStockWarnings[0];
         const where = w.fromDepartment ? 'в отделе' : 'на филиале';
@@ -782,8 +789,8 @@ export default function Documents({ defaultType }) {
         items: items.map((i) => ({
           product_id: i.product_id,
           variant_id: i.variant_id || null,
-          quantity: i.quantity,
-          price: i.price,
+          quantity: Number(i.quantity) || 0,
+          price: Number(i.price) || 0,
         })),
       };
       if (form.type === 'peremeshchenie') {
@@ -1461,7 +1468,7 @@ export default function Documents({ defaultType }) {
                             step="0.01"
                             value={item.quantity}
                             disabled={isReadOnly}
-                            onChange={(e) => updateItem(idx, 'quantity', +e.target.value)}
+                            onChange={(e) => updateItem(idx, 'quantity', e.target.value)}
                           />
                           {rowTransferWarning && (
                             <span className="razdelka-stock-row-warning">
@@ -1478,7 +1485,7 @@ export default function Documents({ defaultType }) {
                             onChange={(e) => updateItem(idx, 'price', parsePriceInput(e.target.value) ?? 0)}
                           />
                         </td>
-                        <td>{formatMoney(item.quantity * item.price)}</td>
+                        <td>{formatMoney((Number(item.quantity) || 0) * (Number(item.price) || 0))}</td>
                         <td className="doc-items-actions-col">
                           {canEdit && (
                             <div className="doc-items-row-actions">
