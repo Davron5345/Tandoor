@@ -64,7 +64,10 @@ export default function CounterpartySearchSelect({
       close();
     };
     const onKey = (e) => {
-      if (e.key === 'Escape') close();
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        close();
+      }
     };
     const onRelayout = () => updateDropdownPosition();
 

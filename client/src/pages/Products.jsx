@@ -23,7 +23,7 @@ import {
 import ProductKindFilter from '../components/ProductKindFilter';
 import ProductTableColumnsMenu from '../components/ProductTableColumnsMenu';
 import SearchHighlight from '../components/SearchHighlight';
-import SupplierMultiSelect from '../components/SupplierMultiSelect';
+import SupplierMultiSelectWithAdd from '../components/SupplierMultiSelectWithAdd';
 import ProductBranchSettings, {
   mapBranchSettingsFromApi,
   serializeBranchSettingsForApi,
@@ -371,6 +371,7 @@ export default function Products() {
   const { user } = useAuth();
   const { branchId, branches, isAdmin } = useBranch();
   const canEdit = hasPermission(user, 'products.edit');
+  const canAddSupplier = hasPermission(user, 'counterparties.edit');
   const [branchSettings, setBranchSettings] = useState([]);
   const [listView, setListView] = useState('catalog');
   const [archivedVariants, setArchivedVariants] = useState([]);
@@ -1439,11 +1440,15 @@ export default function Products() {
                     </div>
                     <div className="form-group full">
                       <label>Поставщики (можно выбрать несколько)</label>
-                      <SupplierMultiSelect
+                      <SupplierMultiSelectWithAdd
                         suppliers={suppliers}
                         value={form.supplier_ids || []}
                         onChange={(supplier_ids) => setForm({ ...form, supplier_ids })}
+                        onSupplierCreated={(created) => {
+                          setSuppliers((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name, 'ru')));
+                        }}
                         disabled={!canEdit}
+                        canAdd={canAddSupplier}
                       />
                     </div>
                   </div>

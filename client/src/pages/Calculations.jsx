@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, formatPriceInput, parsePriceInput } from '../api';
-import Modal, { useToast } from '../components/Modal';
+import Modal, { useToast, ModalCancelButton } from '../components/Modal';
 import ProductSelect from '../components/ProductSelect';
 import { useAuth } from '../AuthContext';
 import { useBranch } from '../BranchContext';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
+import { useFormDirty } from '../hooks/useFormDirty';
 import { hasPermission } from '../permissions';
 import { AddRowButton } from '../components/ActionIcons';
 import {
@@ -45,6 +46,7 @@ export default function Calculations() {
   const { branchId } = useBranch();
   const navigate = useNavigate();
   const canEdit = hasPermission(user, 'calculations.edit');
+  const isFormDirty = useFormDirty(form, modal);
 
   const load = () => {
     api.getCalculations().then(setList).catch(console.error);
@@ -339,10 +341,11 @@ export default function Calculations() {
         <Modal
           className="modal-doc modal-calc"
           title={modal === 'create' ? 'Новая калькуляция' : 'Редактирование калькуляции'}
+          dirty={isFormDirty}
           onClose={() => setModal(null)}
           footer={
             <>
-              <button type="button" className="btn btn-ghost" onClick={() => setModal(null)}>Отмена</button>
+              <ModalCancelButton>Отмена</ModalCancelButton>
               {canEdit && <button type="button" className="btn btn-primary" onClick={save}>Сохранить</button>}
             </>
           }

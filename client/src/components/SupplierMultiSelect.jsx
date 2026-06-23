@@ -9,6 +9,7 @@ export default function SupplierMultiSelect({
   searchPlaceholder = 'Поиск поставщика...',
   emptyMessage = 'Нет поставщиков. Добавьте их в разделе «Контрагенты».',
   disabled = false,
+  addButton = null,
 }) {
   const [search, setSearch] = useState('');
 
@@ -60,21 +61,33 @@ export default function SupplierMultiSelect({
     && matchingSuppliers.every((s) => selectedSet.has(s.id));
 
   if (suppliers.length === 0) {
-    return <p className="product-meta">{emptyMessage}</p>;
+    return (
+      <div className="supplier-picker">
+        {addButton && (
+          <div className="supplier-picker-toolbar supplier-picker-toolbar-add-only">
+            {addButton}
+          </div>
+        )}
+        <p className="product-meta">{emptyMessage}</p>
+      </div>
+    );
   }
 
   return (
     <div className="supplier-picker">
       <div className="supplier-picker-toolbar">
-        <input
-          type="search"
-          className="supplier-picker-search"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder={searchPlaceholder}
-          disabled={disabled}
-          autoComplete="off"
-        />
+        <div className="supplier-picker-search-wrap">
+          <input
+            type="search"
+            className="supplier-picker-search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={searchPlaceholder}
+            disabled={disabled}
+            autoComplete="off"
+          />
+          {addButton}
+        </div>
         <span className="supplier-picker-count">
           {value.length} из {suppliers.length}
         </span>

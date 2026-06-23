@@ -159,7 +159,7 @@ export default function ShopOrders() {
       </div>
 
       {selected && (
-        <Modal title={`Заказ №${selected.number}`} onClose={() => setSelected(null)} wide className="modal-shop-order">
+        <Modal title={`Заказ №${selected.number}`} closeOnBackdrop onClose={() => setSelected(null)} wide className="modal-shop-order">
           <div className="shop-order-detail">
             <div className="shop-order-detail-sticky">
               <div className="shop-order-total">

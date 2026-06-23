@@ -65,7 +65,7 @@ export default function BlockAddModal({ onClose, onSelect }) {
   const singles = Object.entries(BLOCK_TEMPLATES).filter(([, meta]) => meta.group === 'single');
 
   return (
-    <Modal title="Добавление блока меню" onClose={onClose} wide className="myshop-add-modal">
+    <Modal title="Добавление блока меню" closeOnBackdrop onClose={onClose} wide className="myshop-add-modal">
       <div className="myshop-template-section">
         <h3>Готовые шаблоны</h3>
         <div className="myshop-template-grid">

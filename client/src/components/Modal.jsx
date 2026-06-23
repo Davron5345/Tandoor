@@ -30,6 +30,7 @@ export default function Modal({
   wide,
   className = '',
   dirty = false,
+  closeOnBackdrop = false,
 }) {
   const [closePrompt, setClosePrompt] = useState(false);
   const sizeClass = wide ? ' modal-wide' : '';
@@ -73,7 +74,10 @@ export default function Modal({
 
   return (
     <ModalCloseContext.Provider value={{ intentionalClose: requestClose }}>
-      <div className="modal-overlay" onClick={requestClose}>
+      <div
+        className="modal-overlay"
+        onClick={closeOnBackdrop ? requestClose : undefined}
+      >
         <div className={`modal${sizeClass}${extraClass}`} onClick={(e) => e.stopPropagation()}>
           {closePrompt && (
             <div className="modal-close-guard" role="dialog" aria-modal="true">

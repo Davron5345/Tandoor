@@ -901,7 +901,7 @@ export default function Razdelka() {
       )}
 
       {historyModal && (
-        <Modal title="История изменений" onClose={() => setHistoryModal(null)} footer={<button type="button" className="btn btn-ghost" onClick={() => setHistoryModal(null)}>Закрыть</button>}>
+        <Modal title="История изменений" closeOnBackdrop onClose={() => setHistoryModal(null)} footer={<button type="button" className="btn btn-ghost" onClick={() => setHistoryModal(null)}>Закрыть</button>}>
           {history.map((h) => (
             <div key={h.id} className="history-item">
               <strong>{ACTION_LABELS?.[h.action] || h.action}</strong>

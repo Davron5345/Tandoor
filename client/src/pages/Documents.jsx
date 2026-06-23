@@ -1578,7 +1578,7 @@ export default function Documents({ defaultType }) {
       )}
 
       {historyModal && (
-        <Modal title="История изменений" onClose={() => setHistoryModal(null)}>
+        <Modal title="История изменений" closeOnBackdrop onClose={() => setHistoryModal(null)}>
           {history.length === 0 && <div className="empty">История пуста</div>}
           {history.map((h) => (
             <div key={h.id} className="history-item">

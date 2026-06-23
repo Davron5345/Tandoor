@@ -133,7 +133,10 @@ export default function ProductSelect({
       if (!inTrigger && !inDropdown) close();
     };
     const onKeyDown = (e) => {
-      if (e.key === 'Escape') close();
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        close();
+      }
     };
     document.addEventListener('mousedown', onDocClick);
     window.addEventListener('keydown', onKeyDown);
