@@ -39,7 +39,6 @@ import {
   IconNavReports,
   IconNavCashier,
   IconNavPayments,
-  IconNavArticles,
   IconNavTelegram,
   IconNavAdmin,
   IconNavWarehouse,
@@ -221,6 +220,7 @@ function AppContent() {
     const canViewUsersLocal = hasPermission(user, 'users.view');
     const canViewProductsLocal = hasPermission(user, 'products.view');
     const canViewDocumentsLocal = hasPermission(user, 'documents.view');
+    const canViewCashArticlesLocal = hasPermission(user, 'cash_articles.view');
 
     const docNavLocal = [
       { to: '/prihod', perm: 'documents.prihod' },
@@ -233,6 +233,7 @@ function AppContent() {
     const catalogPathsLocal = [
       ...(canViewProductsLocal ? ['/products', '/product-categories', '/units'] : []),
       ...(hasPermission(user, 'counterparties.view') ? ['/counterparties'] : []),
+      ...(canViewCashArticlesLocal ? ['/cash-articles'] : []),
     ];
 
     const myshopPathsLocal = [
@@ -315,10 +316,17 @@ function AppContent() {
     { to: '/calculations', label: 'Калькуляции', perm: 'calculations.view' },
   ].filter((item) => hasPermission(user, item.perm));
 
-  const catalogPaths = [
-    ...(canViewProducts ? ['/products', '/product-categories', '/units'] : []),
-    ...(canViewCounterparties ? ['/counterparties'] : []),
+  const catalogNav = [
+    ...(canViewProducts ? [
+      { to: '/products', label: 'Номенклатура' },
+      { to: '/product-categories', label: 'Категории' },
+      { to: '/units', label: 'Ед. измерения' },
+    ] : []),
+    ...(canViewCounterparties ? [{ to: '/counterparties', label: 'Контрагенты' }] : []),
+    ...(canViewCashArticles ? [{ to: '/cash-articles', label: 'Статьи кассы' }] : []),
   ];
+
+  const catalogPaths = catalogNav.map((item) => item.to);
 
   const myshopPaths = [
     ...(canViewMyShop ? ['/myshop'] : []),
@@ -434,6 +442,29 @@ function AppContent() {
               </NavLink>
             )}
 
+            {showDocumentsGroup && (
+              <NavGroup
+                groupId="documents"
+                icon={IconNavDocuments}
+                label="Документы"
+                paths={docPaths}
+                isOpen={openNavGroup === 'documents'}
+                onToggle={toggleNavGroup}
+                sidebarCollapsed={sidebarCollapsed}
+                {...navGroupFlyoutProps('documents')}
+              >
+                {docNav.map((item) => (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    className={({ isActive }) => `nav-link nav-link-sub${isActive ? ' active' : ''}`}
+                  >
+                    {item.label}
+                  </NavLink>
+                ))}
+              </NavGroup>
+            )}
+
             {showMyShopGroup && (
               <NavGroup
                 groupId="myshop"
@@ -473,30 +504,27 @@ function AppContent() {
               </NavGroup>
             )}
 
-            {showDocumentsGroup && (
-              <NavGroup
-                groupId="documents"
-                icon={IconNavDocuments}
-                label="Документы"
-                paths={docPaths}
-                isOpen={openNavGroup === 'documents'}
-                onToggle={toggleNavGroup}
-                sidebarCollapsed={sidebarCollapsed}
-                {...navGroupFlyoutProps('documents')}
+            {canViewCashier && (
+              <NavLink
+                to="/cashier"
+                className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
+                title={sidebarCollapsed ? 'Касса' : undefined}
               >
-                {docNav.map((item) => (
-                  <NavLink
-                    key={item.to}
-                    to={item.to}
-                    className={({ isActive }) => `nav-link nav-link-sub${isActive ? ' active' : ''}`}
-                  >
-                    {item.label}
-                  </NavLink>
-                ))}
-              </NavGroup>
+                <NavItemContent icon={IconNavCashier} label="Касса" />
+              </NavLink>
             )}
 
-            {catalogPaths.length > 0 && (
+            {canViewPayments && (
+              <NavLink
+                to="/payments"
+                className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
+                title={sidebarCollapsed ? 'Оплаты' : undefined}
+              >
+                <NavItemContent icon={IconNavPayments} label="Оплаты" />
+              </NavLink>
+            )}
+
+            {catalogNav.length > 0 && (
               <NavGroup
                 groupId="catalog"
                 icon={IconNavCatalog}
@@ -507,36 +535,15 @@ function AppContent() {
                 sidebarCollapsed={sidebarCollapsed}
                 {...navGroupFlyoutProps('catalog')}
               >
-                {canViewProducts && (
-                  <>
-                    <NavLink
-                      to="/products"
-                      className={({ isActive }) => `nav-link nav-link-sub${isActive ? ' active' : ''}`}
-                    >
-                      Номенклатура
-                    </NavLink>
-                    <NavLink
-                      to="/product-categories"
-                      className={({ isActive }) => `nav-link nav-link-sub${isActive ? ' active' : ''}`}
-                    >
-                      Категории
-                    </NavLink>
-                    <NavLink
-                      to="/units"
-                      className={({ isActive }) => `nav-link nav-link-sub${isActive ? ' active' : ''}`}
-                    >
-                      Ед. измерения
-                    </NavLink>
-                  </>
-                )}
-                {canViewCounterparties && (
+                {catalogNav.map((item) => (
                   <NavLink
-                    to="/counterparties"
+                    key={item.to}
+                    to={item.to}
                     className={({ isActive }) => `nav-link nav-link-sub${isActive ? ' active' : ''}`}
                   >
-                    Контрагенты
+                    {item.label}
                   </NavLink>
-                )}
+                ))}
               </NavGroup>
             )}
 
@@ -563,38 +570,8 @@ function AppContent() {
               </NavGroup>
             )}
 
-            {(canViewPayments || canViewTelegram || showStaffGroup) && (
+            {(canViewTelegram || showStaffGroup) && (
               <div className="nav-divider" aria-hidden="true" />
-            )}
-
-            {canViewCashier && (
-              <NavLink
-                to="/cashier"
-                className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
-                title={sidebarCollapsed ? 'Касса' : undefined}
-              >
-                <NavItemContent icon={IconNavCashier} label="Касса" />
-              </NavLink>
-            )}
-
-            {canViewPayments && (
-              <NavLink
-                to="/payments"
-                className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
-                title={sidebarCollapsed ? 'Оплаты' : undefined}
-              >
-                <NavItemContent icon={IconNavPayments} label="Оплаты" />
-              </NavLink>
-            )}
-
-            {canViewCashArticles && (
-              <NavLink
-                to="/cash-articles"
-                className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
-                title={sidebarCollapsed ? 'Статьи кассы' : undefined}
-              >
-                <NavItemContent icon={IconNavArticles} label="Статьи кассы" />
-              </NavLink>
             )}
 
             {canViewTelegram && (
