@@ -2364,6 +2364,21 @@ td {
   font-size: var(--font-base);
 }
 
+th.col-index,
+td.col-index {
+  width: 48px;
+  min-width: 48px;
+  max-width: 56px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+td.col-index {
+  color: var(--text-muted);
+  font-size: var(--font-sm);
+}
+
 tr:hover td {
   background: var(--row-hover);
 }

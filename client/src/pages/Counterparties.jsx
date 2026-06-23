@@ -3,6 +3,7 @@ import { api, formatDate } from '../api';
 import Modal, { useToast, ModalCancelButton } from '../components/Modal';
 import CounterpartyFormFields, { emptyCounterpartyForm } from '../components/CounterpartyFormFields';
 import { IconButton, IconEdit, IconTrash } from '../components/ActionIcons';
+import { formatUzPhone } from '../phoneFormat';
 import { useAuth } from '../AuthContext';
 import { useBranch } from '../BranchContext';
 import BranchChip from '../components/BranchChip';
@@ -161,6 +162,7 @@ export default function Counterparties() {
           <table>
             <thead>
               <tr>
+                <th className="col-index">№</th>
                 <th>Название</th>
                 <th>Тип</th>
                 <th>Телефон</th>
@@ -170,8 +172,9 @@ export default function Counterparties() {
               </tr>
             </thead>
             <tbody>
-              {items.map((c) => (
+              {items.map((c, index) => (
                 <tr key={c.id}>
+                  <td className="col-index muted">{index + 1}</td>
                   <td>{c.name}</td>
                   <td>
                     <span className={`badge badge-${c.type}`}>
