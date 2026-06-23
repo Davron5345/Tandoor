@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import Dashboard from './pages/Dashboard';
 import Products from './pages/Products';
 import ProductCategories from './pages/ProductCategories';
+import Units from './pages/Units';
 import Counterparties from './pages/Counterparties';
 import Documents from './pages/Documents';
 import TelegramPage from './pages/Telegram';
@@ -230,7 +231,7 @@ function AppContent() {
     ].filter((item) => hasPermission(user, item.perm));
 
     const catalogPathsLocal = [
-      ...(canViewProductsLocal ? ['/products', '/product-categories'] : []),
+      ...(canViewProductsLocal ? ['/products', '/product-categories', '/units'] : []),
       ...(hasPermission(user, 'counterparties.view') ? ['/counterparties'] : []),
     ];
 
@@ -315,7 +316,7 @@ function AppContent() {
   ].filter((item) => hasPermission(user, item.perm));
 
   const catalogPaths = [
-    ...(canViewProducts ? ['/products', '/product-categories'] : []),
+    ...(canViewProducts ? ['/products', '/product-categories', '/units'] : []),
     ...(canViewCounterparties ? ['/counterparties'] : []),
   ];
 
@@ -519,6 +520,12 @@ function AppContent() {
                       className={({ isActive }) => `nav-link nav-link-sub${isActive ? ' active' : ''}`}
                     >
                       Категории
+                    </NavLink>
+                    <NavLink
+                      to="/units"
+                      className={({ isActive }) => `nav-link nav-link-sub${isActive ? ' active' : ''}`}
+                    >
+                      Ед. измерения
                     </NavLink>
                   </>
                 )}
@@ -756,6 +763,7 @@ function AppContent() {
           <Route path="/shop-orders" element={canViewShopOrders ? <ShopOrders /> : <Navigate to="/" />} />
           <Route path="/products" element={canViewProducts ? <Products /> : <Navigate to="/" />} />
           <Route path="/product-categories" element={canViewProducts ? <ProductCategories /> : <Navigate to="/" />} />
+          <Route path="/units" element={canViewProducts ? <Units /> : <Navigate to="/" />} />
           <Route path="/counterparties" element={hasPermission(user, 'counterparties.view') ? <Counterparties /> : <Navigate to="/" />} />
           <Route path="/telegram" element={hasPermission(user, 'telegram.view') ? <TelegramPage onStatusChange={refreshTelegramStatus} /> : <Navigate to="/" />} />
           <Route path="/employees" element={canViewUsers ? <Employees /> : <Navigate to={firstNavPath} />} />

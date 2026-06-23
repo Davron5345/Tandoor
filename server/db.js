@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import initSqlJs from 'sql.js';
 import {
   LEGACY_ARTICLE_CODES,
@@ -435,6 +436,7 @@ function migrateSchema() {
   migrateShopOrderDocument();
   migrateCalculationKind();
   migrateProductKind();
+  migrateUnits();
   sanitizeOrphanBranchReferences();
 }
 
@@ -460,6 +462,45 @@ function migrateProductKind() {
   const done = queryOne("SELECT value FROM settings WHERE key = 'product_kind_v1'");
   if (!done) {
     run("INSERT OR REPLACE INTO settings (key, value) VALUES ('product_kind_v1', '1')");
+    saveDb();
+  }
+}
+
+function migrateUnits() {
+  db.run(`
+    CREATE TABLE IF NOT EXISTS units (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+      sort_order INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+
+  const done = queryOne("SELECT value FROM settings WHERE key = 'units_v1'");
+  if (!done) {
+    const DEFAULT_UNITS = ['шт', 'кг', 'г', 'л', 'мл', 'м', 'м²', 'м³', 'уп', 'пач', 'кор'];
+    DEFAULT_UNITS.forEach((name, index) => {
+      const exists = queryOne('SELECT id FROM units WHERE name = ? COLLATE NOCASE', [name]);
+      if (!exists) {
+        run('INSERT INTO units (id, name, sort_order) VALUES (?, ?, ?)', [randomUUID(), name, index + 1]);
+      }
+    });
+    const orphanUnits = queryAll(`
+      SELECT DISTINCT unit as name
+      FROM products
+      WHERE unit IS NOT NULL AND TRIM(unit) != ''
+        AND unit NOT IN (SELECT name FROM units)
+    `);
+    let nextSort = queryOne('SELECT COALESCE(MAX(sort_order), 0) as n FROM units').n;
+    for (const row of orphanUnits) {
+      const name = (row.name || '').trim();
+      if (!name) continue;
+      const exists = queryOne('SELECT id FROM units WHERE name = ? COLLATE NOCASE', [name]);
+      if (exists) continue;
+      nextSort += 1;
+      run('INSERT INTO units (id, name, sort_order) VALUES (?, ?, ?)', [randomUUID(), name, nextSort]);
+    }
+    run("INSERT OR REPLACE INTO settings (key, value) VALUES ('units_v1', '1')");
     saveDb();
   }
 }

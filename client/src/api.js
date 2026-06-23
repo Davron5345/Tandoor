@@ -158,6 +158,10 @@ export const api = {
   createProductCategory: (data) => request('/product-categories', { method: 'POST', body: JSON.stringify(data) }),
   updateProductCategory: (id, data) => request(`/product-categories/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteProductCategory: (id) => request(`/product-categories/${id}`, { method: 'DELETE' }),
+  getUnits: () => request('/units'),
+  createUnit: (data) => request('/units', { method: 'POST', body: JSON.stringify(data) }),
+  updateUnit: (id, data) => request(`/units/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteUnit: (id) => request(`/units/${id}`, { method: 'DELETE' }),
 
   getProducts: async (params = {}) => {
     const q = new URLSearchParams(params).toString();

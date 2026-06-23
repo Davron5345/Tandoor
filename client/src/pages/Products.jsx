@@ -47,8 +47,6 @@ import {
   readProductTableColumns,
 } from '../utils/productTableColumns';
 
-const UNITS = ['шт', 'кг', 'г', 'л', 'мл', 'м', 'м²', 'м³', 'уп', 'пач', 'кор'];
-
 export const FILTER_NO_CATEGORY = '__no_category__';
 export const FILTER_NO_SUPPLIER = '__no_supplier__';
 
@@ -348,6 +346,7 @@ export default function Products() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [units, setUnits] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
   const [search, setSearch] = useState('');
   const [modal, setModal] = useState(null);
@@ -441,6 +440,13 @@ export default function Products() {
     [suppliers],
   );
 
+  const unitOptions = useMemo(
+    () => [...units]
+      .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0) || a.name.localeCompare(b.name, 'ru'))
+      .map((u) => u.name),
+    [units],
+  );
+
   const load = useCallback(() => {
     const params = { archived: listView === 'archive' ? '1' : '0', admin_list: '1' };
     if (filterCategory) params.category_id = filterCategory;
@@ -464,10 +470,11 @@ export default function Products() {
       api.getProducts({ ...countParams, archived: '0' }),
       api.getProducts({ ...countParams, archived: '1' }),
       api.getProductCategories(),
+      api.getUnits(),
       api.getCounterparties('supplier'),
       api.getProductKindCounts({ archived: listView === 'archive' ? '1' : '0' }),
     ])
-      .then(([p, catalogRes, archiveRes, c, s, kindStats]) => {
+      .then(([p, catalogRes, archiveRes, c, u, s, kindStats]) => {
         if (searching || Array.isArray(p)) {
           setProducts(Array.isArray(p) ? p : p.items || []);
           setProductPages(1);
@@ -480,6 +487,7 @@ export default function Products() {
         setCatalogCount(Array.isArray(catalogRes) ? catalogRes.length : (catalogRes.total ?? 0));
         setArchiveCount(Array.isArray(archiveRes) ? archiveRes.length : (archiveRes.total ?? 0));
         setCategories(c);
+        setUnits(u);
         setSuppliers(s);
         setKindCounts(kindStats || {});
       })
@@ -1355,7 +1363,7 @@ export default function Products() {
                     <div className="form-group">
                       <label>Ед. изм. *</label>
                       <select value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} required>
-                        {UNITS.map((u) => (
+                        {unitOptions.map((u) => (
                           <option key={u} value={u}>{u}</option>
                         ))}
                       </select>

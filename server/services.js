@@ -38,6 +38,13 @@ export {
 } from './services/products.js';
 
 export {
+  getUnits,
+  createUnit,
+  updateUnit,
+  deleteUnit,
+} from './units.js';
+
+export {
   getPayments,
   getCashShiftSummary,
   getCashArticles,

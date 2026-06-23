@@ -36,6 +36,35 @@ export function registerCatalogRoutes(app, { productImageUpload }) {
     }
   });
 
+  app.get('/api/units', requireAnyPermission('products.view', 'myshop.view', 'myshop.edit'), (_, res) => {
+    res.json(svc.getUnits());
+  });
+
+  app.post('/api/units', requirePermission('products.edit'), (req, res) => {
+    try {
+      res.status(201).json(svc.createUnit(req.body));
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
+  app.put('/api/units/:id', requirePermission('products.edit'), (req, res) => {
+    try {
+      res.json(svc.updateUnit(req.params.id, req.body));
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
+  app.delete('/api/units/:id', requirePermission('products.edit'), (req, res) => {
+    try {
+      svc.deleteUnit(req.params.id);
+      res.json({ ok: true });
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
   app.get('/api/products/kind-counts', requireAnyPermission('products.view', 'myshop.view', 'myshop.edit'), (req, res) => {
     res.json(svc.getProductKindCounts(req.query));
   });

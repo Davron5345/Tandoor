@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import db from '../db.js';
+import { assertValidUnitName } from '../units.js';
 import { adjustBranchStock, getBranchStock, DEFAULT_BRANCH_ID } from '../branches.js';
 import { getDefaultDepartmentId, syncBranchStockFromDepartments } from '../departments.js';
 import {
@@ -430,8 +431,7 @@ function normalizeProductPayload(data) {
   const category = queryOne('SELECT id FROM product_categories WHERE id = ?', [categoryId]);
   if (!category) throw new Error('Категория не найдена');
 
-  const unit = (data.unit || '').trim();
-  if (!unit) throw new Error('Укажите единицу измерения');
+  const unit = assertValidUnitName(data.unit);
 
   const netWeight = data.net_weight === '' || data.net_weight == null ? null : Number(data.net_weight);
   const grossWeight = data.gross_weight === '' || data.gross_weight == null ? null : Number(data.gross_weight);
