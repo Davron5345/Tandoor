@@ -116,6 +116,23 @@ export default function ProductSelect({
     setDropdownStyle(null);
   };
 
+  const skipToggleClickRef = useRef(false);
+
+  const openDropdown = () => {
+    if (disabled || open) return;
+    skipToggleClickRef.current = true;
+    setOpen(true);
+  };
+
+  const toggleDropdown = () => {
+    if (disabled) return;
+    if (skipToggleClickRef.current) {
+      skipToggleClickRef.current = false;
+      return;
+    }
+    setOpen((prev) => !prev);
+  };
+
   const pick = (pickValue) => {
     onChange(pickValue);
     close();
@@ -154,7 +171,6 @@ export default function ProductSelect({
     }
 
     updateDropdownPosition();
-    searchRef.current?.focus({ preventScroll: true });
 
     const onScrollOrResize = () => updateDropdownPosition();
     window.addEventListener('resize', onScrollOrResize);
@@ -164,6 +180,11 @@ export default function ProductSelect({
       window.removeEventListener('scroll', onScrollOrResize, true);
     };
   }, [open]);
+
+  useLayoutEffect(() => {
+    if (!open || !dropdownStyle) return;
+    searchRef.current?.focus({ preventScroll: true });
+  }, [open, dropdownStyle]);
 
   useEffect(() => {
     if (!open || !dropdownRef.current) return;
@@ -197,10 +218,14 @@ export default function ProductSelect({
         disabled={disabled}
         aria-haspopup="listbox"
         aria-expanded={open}
-        onClick={() => {
-          if (disabled) return;
-          setOpen((prev) => !prev);
+        onMouseDown={(e) => {
+          if (disabled || e.button !== 0) return;
+          if (!open) {
+            e.preventDefault();
+            openDropdown();
+          }
         }}
+        onClick={toggleDropdown}
       >
         {selected.product ? (
           <>
@@ -229,6 +254,7 @@ export default function ProductSelect({
               className="product-select-search"
               placeholder={searchPlaceholder}
               value={search}
+              autoFocus
               onChange={(e) => setSearch(e.target.value)}
               onKeyDown={handleSearchKeyDown}
             />
