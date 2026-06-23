@@ -3076,10 +3076,14 @@ input[type='number']::-webkit-inner-spin-button {
 
 .calc-modal-top {
   display: grid;
-  grid-template-columns: minmax(180px, 2fr) 100px 120px minmax(140px, 1.5fr);
+  grid-template-columns: minmax(150px, 2fr) 86px minmax(182px, 1.25fr) minmax(112px, 0.85fr);
   gap: 12px;
   flex-shrink: 0;
   align-items: end;
+}
+
+.calc-field-comment {
+  grid-column: 1 / -1;
 }
 
 .calc-modal-top label {
@@ -3094,6 +3098,11 @@ input[type='number']::-webkit-inner-spin-button {
 .calc-modal-top select {
   width: 100%;
   margin-top: 4px;
+  min-width: 0;
+}
+
+.calc-modal-top select {
+  padding-right: 2rem;
 }
 
 .calc-modal-panels {
@@ -3302,7 +3311,8 @@ input[type='number']::-webkit-inner-spin-button {
     grid-template-columns: 1fr 1fr;
   }
 
-  .calc-field-name {
+  .calc-field-name,
+  .calc-field-comment {
     grid-column: 1 / -1;
   }
 

@@ -375,7 +375,7 @@ export default function Calculations() {
                   onChange={(e) => updateSource(0, 'quantity', +e.target.value)}
                 />
               </div>
-              <div className="form-group calc-field-status">
+              <div className="form-group calc-field-kind">
                 <label>Назначение</label>
                 <select
                   value={form.kind}
