@@ -94,18 +94,14 @@ function buildAppNav(user) {
     ...(canViewCashier ? [{ to: '/cashier', label: 'Окно кассира' }] : []),
   ];
 
-  const reportsNav = [
-    ...(hasPermission(user, 'documents.view') ? [{ to: '/documents', label: 'Журнал документов' }] : []),
-    ...filterNavItems(user, [
-      { to: '/reports/stock', label: 'Остатки на складе', perm: 'reports.view' },
-      { to: '/reports/documents', label: 'Документы за период', perm: 'reports.view' },
-      { to: '/reports/returns', label: 'Возвраты поставщикам', perm: 'reports.view' },
-      { to: '/reports/debts/debtors', label: 'Задолженности', perm: 'reports.view' },
-      { to: '/reports/reconciliation', label: 'Акт сверки', perm: 'reports.view' },
-      { to: '/reports/pnl', label: 'P&L', perm: 'reports.view' },
-      { to: '/opening-balance', label: 'Начальное сальдо', perm: 'opening_balance.view' },
-    ]),
-  ];
+  const reportsNav = filterNavItems(user, [
+    { to: '/reports/stock', label: 'Остатки на складе', perm: 'reports.view' },
+    { to: '/reports/documents', label: 'Документы за период', perm: 'reports.view' },
+    { to: '/reports/debts/debtors', label: 'Задолженности', perm: 'reports.view' },
+    { to: '/reports/reconciliation', label: 'Акт сверки', perm: 'reports.view' },
+    { to: '/reports/pnl', label: 'P&L', perm: 'reports.view' },
+    { to: '/opening-balance', label: 'Начальное сальдо', perm: 'opening_balance.view' },
+  ]);
 
   const productionNav = filterNavItems(user, [
     { to: '/razdelka', label: 'Разделка', perm: 'documents.razdelka' },
