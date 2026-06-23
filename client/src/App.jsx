@@ -38,6 +38,7 @@ import {
   IconNavPurchases,
   IconNavMoney,
   IconNavProduction,
+  IconNavReports,
   IconNavTelegram,
   IconNavAdmin,
   IconNavWarehouse,
@@ -68,10 +69,6 @@ function buildAppNav(user) {
   const purchasesNav = filterNavItems(user, [
     { to: '/prihod', label: 'Приход', perm: 'documents.prihod' },
     { to: '/return-supplier', label: 'Возврат поставщику', perm: 'documents.rashod' },
-    { to: '/reports/stock', label: 'Остатки на складе', perm: 'reports.view' },
-    { to: '/reports/returns', label: 'Возвраты поставщикам', perm: 'reports.view' },
-    { to: '/reports/documents', label: 'Документы за период', perm: 'reports.view' },
-    { to: '/documents', label: 'Журнал документов', perm: 'documents.view' },
   ]);
 
   const salesNav = filterNavItems(user, [
@@ -95,7 +92,14 @@ function buildAppNav(user) {
   const moneyNav = [
     ...(hasPermission(user, 'payments.view') ? [{ to: '/payments', label: 'Банк' }] : []),
     ...(canViewCashier ? [{ to: '/cashier', label: 'Окно кассира' }] : []),
+  ];
+
+  const reportsNav = [
+    ...(hasPermission(user, 'documents.view') ? [{ to: '/documents', label: 'Журнал документов' }] : []),
     ...filterNavItems(user, [
+      { to: '/reports/stock', label: 'Остатки на складе', perm: 'reports.view' },
+      { to: '/reports/documents', label: 'Документы за период', perm: 'reports.view' },
+      { to: '/reports/returns', label: 'Возвраты поставщикам', perm: 'reports.view' },
       { to: '/reports/debts/debtors', label: 'Задолженности', perm: 'reports.view' },
       { to: '/reports/reconciliation', label: 'Акт сверки', perm: 'reports.view' },
       { to: '/reports/pnl', label: 'P&L', perm: 'reports.view' },
@@ -126,11 +130,15 @@ function buildAppNav(user) {
     { id: 'catalog', label: 'Справочники', icon: IconNavCatalog, items: catalogNav },
     { id: 'money', label: 'Деньги', icon: IconNavMoney, items: moneyNav },
     { id: 'production', label: 'Производство', icon: IconNavProduction, items: productionNav },
+    { id: 'reports', label: 'Отчёты', icon: IconNavReports, items: reportsNav },
     { id: 'admin', label: 'Администрирование', icon: IconNavAdmin, items: adminNav },
-  ].map((section) => ({
-    ...section,
-    paths: section.items.map((item) => item.to),
-  }));
+  ].map((section) => {
+    const paths = section.items.map((item) => item.to);
+    if (section.id === 'reports' && paths.some((p) => p.startsWith('/reports/debts'))) {
+      paths.push('/reports/debts');
+    }
+    return { ...section, paths: [...new Set(paths)] };
+  });
 
   return {
     sections,
