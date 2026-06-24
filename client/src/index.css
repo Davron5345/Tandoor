@@ -225,7 +225,7 @@ textarea::placeholder {
 .filter-field {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   font-size: var(--font-sm);
   font-weight: 500;
   color: var(--text-muted);
@@ -5938,6 +5938,8 @@ input[type='number']::-webkit-inner-spin-button {
 
 .staff-route-panel {
   margin-top: 16px;
+  padding: 20px 24px 24px;
+  overflow: visible;
 }
 
 .staff-route-panel-header {
@@ -5945,20 +5947,37 @@ input[type='number']::-webkit-inner-spin-button {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 12px;
+  margin: 0 0 18px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--control-border);
 }
 
 .staff-route-panel-header h2 {
   margin: 0;
   font-size: 18px;
+  line-height: 1.3;
 }
 
 .staff-route-filters {
-  margin-bottom: 8px;
+  margin-bottom: 14px;
   display: grid;
   grid-template-columns: minmax(170px, 1.5fr) repeat(2, minmax(120px, 1fr)) auto;
-  gap: 12px 16px;
+  gap: 14px 18px;
   align-items: end;
+}
+
+.staff-route-panel .security-locations-hint {
+  margin: 0 0 16px;
+  padding: 0 2px;
+}
+
+.staff-route-panel .empty {
+  margin-bottom: 16px;
+}
+
+.staff-route-panel .staff-route-map,
+.staff-route-panel .staff-route-map-empty {
+  margin-top: 4px;
 }
 
 .staff-route-filters .filter-field {
