@@ -1,13 +1,14 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, lazy, Suspense } from 'react';
 import { api } from '../api';
 import { useToast } from '../components/Modal';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
-import StaffRouteMap from '../components/StaffRouteMap';
 import { todayLocalIso } from '../utils/date';
+
+const StaffRouteMap = lazy(() => import('../components/StaffRouteMap'));
 
 const TABS = [
   { id: 'sessions', label: 'Активные сеансы' },
-  { id: 'locations', label: 'Где сотрудники' },
+  { id: 'locations', label: 'Трекинг снабженцев' },
   { id: 'blocked', label: 'Заблокированные устройства' },
   { id: 'visits', label: 'Журнал посещений' },
 ];
@@ -585,7 +586,9 @@ function LocationsTab() {
           {routeLoading ? (
             <div className="empty">Загрузка маршрута...</div>
           ) : (
-            <StaffRouteMap points={routeData?.points || []} />
+            <Suspense fallback={<div className="empty">Загрузка карты...</div>}>
+              <StaffRouteMap points={routeData?.points || []} />
+            </Suspense>
           )}
         </div>
       )}
