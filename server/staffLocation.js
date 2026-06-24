@@ -53,6 +53,64 @@ export function getStaffLocation(userId) {
   };
 }
 
+function normalizeIsoDate(value) {
+  const date = String(value || '').slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : null;
+}
+
+function normalizeTime(value, fallback) {
+  const time = String(value || fallback).slice(0, 5);
+  return /^\d{2}:\d{2}$/.test(time) ? time : fallback;
+}
+
+export function listStaffLocationHistory(filters = {}) {
+  const userId = filters.user_id;
+  if (!userId) throw new Error('Укажите сотрудника');
+
+  const date = normalizeIsoDate(filters.date) || new Date().toISOString().slice(0, 10);
+  const timeFrom = normalizeTime(filters.time_from, '08:00');
+  const timeTo = normalizeTime(filters.time_to, '22:00');
+  const from = `${date} ${timeFrom}:00`;
+  const to = `${date} ${timeTo}:59`;
+
+  let sql = `
+    SELECT *
+    FROM staff_location_history
+    WHERE user_id = ?
+      AND recorded_at >= ?
+      AND recorded_at <= ?
+  `;
+  const params = [userId, from, to];
+
+  if (filters.branch_id) {
+    sql += ' AND branch_id = ?';
+    params.push(filters.branch_id);
+  }
+
+  sql += ' ORDER BY recorded_at ASC';
+
+  const rows = queryAll(sql, params);
+  const user = queryOne('SELECT username, name, role, active FROM users WHERE id = ?', [userId]);
+
+  return {
+    user_id: userId,
+    username: user?.username || null,
+    user_name: user?.name || null,
+    date,
+    time_from: timeFrom,
+    time_to: timeTo,
+    points: rows.map((row) => ({
+      id: row.id,
+      latitude: row.latitude,
+      longitude: row.longitude,
+      accuracy: row.accuracy,
+      recorded_at: row.recorded_at,
+      source: row.source,
+      branch_id: row.branch_id,
+    })),
+  };
+}
+
 export function listStaffLocations(filters = {}) {
   let sql = `
     SELECT sl.*

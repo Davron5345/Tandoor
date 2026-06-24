@@ -64,4 +64,13 @@ test('staff can send location and admin can list it', async () => {
   assert.equal(listRes.status, 200);
   const list = await listRes.json();
   assert.ok(list.some((row) => row.username === 'admin'));
+
+  const historyRes = await fetch(
+    `${baseUrl}/api/admin/staff-locations/history?user_id=${encodeURIComponent(saved.user_id)}`,
+    { headers: { cookie: adminCookie } },
+  );
+  assert.equal(historyRes.status, 200);
+  const history = await historyRes.json();
+  assert.ok(history.points.length >= 1);
+  assert.equal(history.points[0].latitude, 41.3111);
 });

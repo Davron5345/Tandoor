@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api';
 import { useToast } from '../components/Modal';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
+import StaffRouteMap from '../components/StaffRouteMap';
+import { todayLocalIso } from '../utils/date';
 
 const TABS = [
   { id: 'sessions', label: 'Активные сеансы' },
@@ -407,6 +409,14 @@ function LocationsTab() {
   const [loading, setLoading] = useState(true);
   const [username, setUsername] = useState('');
   const [draft, setDraft] = useState('');
+  const [routeUserId, setRouteUserId] = useState('');
+  const [routeUsername, setRouteUsername] = useState('');
+  const [routeDate, setRouteDate] = useState(todayLocalIso());
+  const [routeTimeFrom, setRouteTimeFrom] = useState('08:00');
+  const [routeTimeTo, setRouteTimeTo] = useState('22:00');
+  const [routeData, setRouteData] = useState(null);
+  const [routeLoading, setRouteLoading] = useState(false);
+  const { show, Toast } = useToast();
 
   const load = useCallback(() => {
     setLoading(true);
@@ -416,11 +426,42 @@ function LocationsTab() {
       .finally(() => setLoading(false));
   }, [username]);
 
+  const loadRoute = useCallback(async (userId, options = {}) => {
+    if (!userId) return;
+    setRouteLoading(true);
+    try {
+      const data = await api.getStaffLocationHistory({
+        user_id: userId,
+        date: options.date ?? routeDate,
+        time_from: options.time_from ?? routeTimeFrom,
+        time_to: options.time_to ?? routeTimeTo,
+      });
+      setRouteData(data);
+    } catch (e) {
+      show(e.message, 'error');
+      setRouteData(null);
+    } finally {
+      setRouteLoading(false);
+    }
+  }, [routeDate, routeTimeFrom, routeTimeTo, show]);
+
   useEffect(() => { load(); }, [load]);
   useAutoRefresh(load, [username], { intervalMs: 60_000 });
 
+  const openRoute = (row) => {
+    setRouteUserId(row.user_id);
+    setRouteUsername(row.username);
+    loadRoute(row.user_id);
+  };
+
+  const applyRouteFilters = () => {
+    if (!routeUserId) return;
+    loadRoute(routeUserId);
+  };
+
   return (
     <>
+      <Toast />
       <div className="card filter-panel">
         <div className="filter-panel-row">
           <label className="filter-field">
@@ -442,7 +483,7 @@ function LocationsTab() {
 
       <p className="security-locations-hint">
         Сотрудники с включённой геолокацией в приложении «Снабжение» (PWA или Android APK).
-        Фоновый режим — в нативном приложении. Данные за последние 24 часа.
+        Текущее местоположение — за последние 24 часа. Маршрут за день — по истории точек в рабочее время.
       </p>
 
       <div className="card">
@@ -462,7 +503,7 @@ function LocationsTab() {
             <tbody>
               {loading && <tr><td colSpan={7} className="empty">Загрузка...</td></tr>}
               {!loading && items.map((row) => (
-                <tr key={row.user_id}>
+                <tr key={row.user_id} className={routeUserId === row.user_id ? 'security-row-current' : ''}>
                   <td>
                     <strong>{row.username}</strong>
                     {row.user_name && row.user_name !== row.username && (
@@ -477,14 +518,23 @@ function LocationsTab() {
                     {Number(row.latitude).toFixed(5)}, {Number(row.longitude).toFixed(5)}
                   </td>
                   <td>
-                    <a
-                      className="btn btn-ghost btn-sm"
-                      href={row.maps_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      На карте
-                    </a>
+                    <div className="security-actions-inner">
+                      <button
+                        type="button"
+                        className="btn btn-primary btn-sm"
+                        onClick={() => openRoute(row)}
+                      >
+                        Маршрут
+                      </button>
+                      <a
+                        className="btn btn-ghost btn-sm"
+                        href={row.maps_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        Точка
+                      </a>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -495,6 +545,50 @@ function LocationsTab() {
           </table>
         </div>
       </div>
+
+      {routeUserId && (
+        <div className="card staff-route-panel">
+          <div className="staff-route-panel-header">
+            <h2>Маршрут: {routeUsername}</h2>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={() => { setRouteUserId(''); setRouteData(null); }}
+            >
+              Закрыть
+            </button>
+          </div>
+
+          <div className="filter-panel-row staff-route-filters">
+            <label className="filter-field">
+              Дата
+              <input type="date" value={routeDate} onChange={(e) => setRouteDate(e.target.value)} />
+            </label>
+            <label className="filter-field">
+              С
+              <input type="time" value={routeTimeFrom} onChange={(e) => setRouteTimeFrom(e.target.value)} />
+            </label>
+            <label className="filter-field">
+              До
+              <input type="time" value={routeTimeTo} onChange={(e) => setRouteTimeTo(e.target.value)} />
+            </label>
+            <button type="button" className="btn btn-primary" onClick={applyRouteFilters} disabled={routeLoading}>
+              {routeLoading ? 'Загрузка...' : 'Показать'}
+            </button>
+          </div>
+
+          <p className="security-locations-hint">
+            Зелёная точка — начало, красная — конец, синяя линия — путь за выбранный период.
+            {routeData?.points?.length ? ` Точек: ${routeData.points.length}.` : ''}
+          </p>
+
+          {routeLoading ? (
+            <div className="empty">Загрузка маршрута...</div>
+          ) : (
+            <StaffRouteMap points={routeData?.points || []} />
+          )}
+        </div>
+      )}
     </>
   );
 }

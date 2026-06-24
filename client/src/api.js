@@ -379,6 +379,12 @@ export const api = {
     ).toString();
     return request(`/admin/staff-locations${q ? `?${q}` : ''}`);
   },
+  getStaffLocationHistory: (params = {}) => {
+    const q = new URLSearchParams(
+      Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null)),
+    ).toString();
+    return request(`/admin/staff-locations/history${q ? `?${q}` : ''}`);
+  },
 
   getSnabInstallInfo: () => request('/app/snab-install'),
 };

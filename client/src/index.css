@@ -5898,6 +5898,44 @@ input[type='number']::-webkit-inner-spin-button {
   line-height: 1.5;
 }
 
+.staff-route-panel {
+  margin-top: 16px;
+}
+
+.staff-route-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.staff-route-panel-header h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.staff-route-filters {
+  margin-bottom: 8px;
+}
+
+.staff-route-map {
+  width: 100%;
+  height: 420px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.staff-route-map-empty {
+  padding: 48px 16px;
+  text-align: center;
+  color: var(--text-muted);
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+}
+
 .warehouse-pwa-installed-badge {
   margin: 0 12px 8px;
   padding: 8px 12px;

@@ -322,10 +322,6 @@ export default function ShopOrdersMobile() {
             </div>
           )}
 
-          {isNativeApp() && locationEnabled && (
-            <div className="warehouse-pwa-installed-badge">Фоновое отслеживание включено</div>
-          )}
-
           {!isNativeApp() && isStandaloneApp() && (
             <div className="warehouse-pwa-installed-badge">Приложение установлено</div>
           )}
