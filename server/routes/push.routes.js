@@ -50,7 +50,8 @@ export function registerPushRoutes(app) {
         return res.status(503).json({ error: 'Push-уведомления не настроены на сервере' });
       }
       const branchId = req.query.branch_id || null;
-      const rows = listPushSubscribers({ branchId, permission: 'shop_orders.view' });
+      const audience = req.query.audience === 'all' ? null : 'shop_orders.view';
+      const rows = listPushSubscribers({ branchId, permission: audience });
       const byUser = new Map();
       for (const row of rows) {
         const key = row.user_id;

@@ -96,3 +96,19 @@ test('admin push send with no subscribers returns zero sent', async () => {
   assert.equal(data.sent, 0);
   assert.equal(data.total, 0);
 });
+
+test('admin push selected mode requires recipients', async () => {
+  const res = await fetch(`${baseUrl}/api/admin/push/send`, {
+    method: 'POST',
+    headers: { cookie: adminCookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      title: 'Тест',
+      body: 'Сообщение',
+      target: 'selected',
+      user_ids: [],
+    }),
+  });
+  assert.equal(res.status, 400);
+  const data = await res.json();
+  assert.match(data.error, /получател/i);
+});

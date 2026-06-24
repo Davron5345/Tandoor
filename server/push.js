@@ -181,6 +181,8 @@ export async function sendAdminPush({
       JOIN users u ON u.id = ps.user_id AND u.active = 1
       WHERE ps.user_id IN (${placeholders})
     `, userIds);
+  } else if (target === 'selected') {
+    throw new Error('Выберите хотя бы одного получателя в списке подписчиков');
   } else if (target === 'all') {
     subs = queryAll(`
       SELECT ps.*, u.role
