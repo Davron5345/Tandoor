@@ -231,6 +231,30 @@ textarea::placeholder {
   color: var(--text-muted);
 }
 
+.filter-field-caption {
+  display: block;
+  font-size: var(--font-sm);
+  font-weight: 500;
+  color: var(--text-muted);
+  line-height: 1.25;
+  min-height: 1.25em;
+}
+
+.filter-field-caption-spacer {
+  visibility: hidden;
+  user-select: none;
+}
+
+.filter-field-actions .btn {
+  align-self: flex-start;
+}
+
+.filter-actions-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .filter-field input,
 .filter-field select {
   min-width: 140px;
@@ -5931,6 +5955,47 @@ input[type='number']::-webkit-inner-spin-button {
 
 .staff-route-filters {
   margin-bottom: 8px;
+  display: grid;
+  grid-template-columns: minmax(160px, 1.4fr) minmax(110px, 0.9fr) minmax(110px, 0.9fr) auto;
+  gap: 12px 14px;
+  align-items: end;
+}
+
+.staff-route-filters .filter-field input[type="date"],
+.staff-route-filters .filter-field input[type="time"] {
+  width: 100%;
+  min-width: 0;
+}
+
+.staff-tracking-filters {
+  align-items: end;
+}
+
+.staff-tracking-search {
+  flex: 1 1 220px;
+  max-width: 360px;
+}
+
+.staff-tracking-search input {
+  width: 100%;
+}
+
+@media (max-width: 720px) {
+  .staff-route-filters {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .staff-route-filters .filter-field:first-child {
+    grid-column: 1 / -1;
+  }
+
+  .staff-route-filters .filter-field-actions {
+    grid-column: 1 / -1;
+  }
+
+  .staff-route-filters .filter-field-actions .btn {
+    width: 100%;
+  }
 }
 
 .staff-route-map {

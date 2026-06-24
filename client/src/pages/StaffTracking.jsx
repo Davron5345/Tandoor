@@ -87,21 +87,26 @@ export default function StaffTracking({ embedded = false }) {
       )}
 
       <div className="card filter-panel">
-        <div className="filter-panel-row">
-          <label className="filter-field">
-            Сотрудник
+        <div className="filter-panel-row staff-tracking-filters">
+          <label className="filter-field staff-tracking-search">
+            <span className="filter-field-caption">Сотрудник</span>
             <input
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               placeholder="Логин"
             />
           </label>
-          <button type="button" className="btn btn-primary" onClick={() => setUsername(draft.trim())}>
-            Применить
-          </button>
-          <button type="button" className="btn btn-ghost" onClick={() => { setDraft(''); setUsername(''); }}>
-            Сбросить
-          </button>
+          <div className="filter-field filter-field-actions">
+            <span className="filter-field-caption filter-field-caption-spacer" aria-hidden="true">&#8203;</span>
+            <div className="filter-actions-buttons">
+              <button type="button" className="btn btn-primary" onClick={() => setUsername(draft.trim())}>
+                Применить
+              </button>
+              <button type="button" className="btn btn-ghost" onClick={() => { setDraft(''); setUsername(''); }}>
+                Сбросить
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -180,20 +185,23 @@ export default function StaffTracking({ embedded = false }) {
 
           <div className="filter-panel-row staff-route-filters">
             <label className="filter-field">
-              Дата
+              <span className="filter-field-caption">Дата</span>
               <input type="date" value={routeDate} onChange={(e) => setRouteDate(e.target.value)} />
             </label>
             <label className="filter-field">
-              С
+              <span className="filter-field-caption">С</span>
               <input type="time" value={routeTimeFrom} onChange={(e) => setRouteTimeFrom(e.target.value)} />
             </label>
             <label className="filter-field">
-              До
+              <span className="filter-field-caption">До</span>
               <input type="time" value={routeTimeTo} onChange={(e) => setRouteTimeTo(e.target.value)} />
             </label>
-            <button type="button" className="btn btn-primary" onClick={applyRouteFilters} disabled={routeLoading}>
-              {routeLoading ? 'Загрузка...' : 'Показать'}
-            </button>
+            <div className="filter-field filter-field-actions">
+              <span className="filter-field-caption filter-field-caption-spacer" aria-hidden="true">&#8203;</span>
+              <button type="button" className="btn btn-primary" onClick={applyRouteFilters} disabled={routeLoading}>
+                {routeLoading ? 'Загрузка...' : 'Показать'}
+              </button>
+            </div>
           </div>
 
           <p className="security-locations-hint">
