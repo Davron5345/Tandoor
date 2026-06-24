@@ -3,6 +3,7 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { requirePermission } from '../middleware.js';
 import { getAppVersion } from '../appVersion.js';
+import { getSnabUpdateInfo } from '../snabAppVersion.js';
 import { dataDir } from '../dbBackup.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -41,6 +42,10 @@ function sendApkFile(res, apkPath) {
 }
 
 export function registerAppRoutes(app) {
+  app.get('/api/app/snab-update', (req, res) => {
+    res.json(getSnabUpdateInfo(req));
+  });
+
   app.get('/api/public/snab-apk', (req, res) => {
     const apkPath = getSnabApkPath();
     if (existsSync(apkPath)) {

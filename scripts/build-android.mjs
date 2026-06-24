@@ -51,6 +51,9 @@ const env = {
   JAVA_HOME: javaHome,
   ANDROID_HOME: androidHome,
   VITE_API_URL: process.env.VITE_API_URL || 'https://tandoor-production.up.railway.app',
+  CAPACITOR_SERVER_URL: process.env.CAPACITOR_SERVER_URL
+    || process.env.VITE_API_URL
+    || 'https://tandoor-production.up.railway.app',
 };
 
 console.log(`JAVA_HOME=${javaHome}`);

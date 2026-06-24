@@ -125,3 +125,96 @@ export async function notifyShopOrderPush(order) {
   }
   return { sent };
 }
+
+export function listPushSubscribers({ branchId, permission = 'shop_orders.view' } = {}) {
+  const rows = queryAll(`
+    SELECT ps.id, ps.user_id, ps.branch_id, ps.endpoint, ps.user_agent, ps.created_at,
+           u.username, u.name, u.role, b.name AS branch_name
+    FROM push_subscriptions ps
+    JOIN users u ON u.id = ps.user_id AND u.active = 1
+    LEFT JOIN branches b ON b.id = ps.branch_id
+    ORDER BY u.username, ps.created_at DESC
+  `);
+
+  return rows.filter((row) => {
+    if (branchId && row.branch_id && row.branch_id !== branchId) return false;
+    if (permission && !hasPermission(row.role, permission)) return false;
+    return true;
+  });
+}
+
+function uniqueSubscriptions(rows) {
+  const map = new Map();
+  for (const row of rows) {
+    map.set(row.endpoint, row);
+  }
+  return [...map.values()];
+}
+
+export async function sendAdminPush({
+  title,
+  body,
+  url = '/snab',
+  branchId,
+  userIds,
+  target = 'snab',
+}) {
+  if (!vapidReady) {
+    throw new Error('Push-уведомления не настроены на сервере');
+  }
+
+  const trimmedTitle = String(title || '').trim();
+  const trimmedBody = String(body || '').trim();
+  if (!trimmedTitle) {
+    throw new Error('Укажите заголовок уведомления');
+  }
+  if (!trimmedBody) {
+    throw new Error('Укажите текст уведомления');
+  }
+
+  let subs;
+  if (Array.isArray(userIds) && userIds.length) {
+    const placeholders = userIds.map(() => '?').join(',');
+    subs = queryAll(`
+      SELECT ps.*, u.role
+      FROM push_subscriptions ps
+      JOIN users u ON u.id = ps.user_id AND u.active = 1
+      WHERE ps.user_id IN (${placeholders})
+    `, userIds);
+  } else if (target === 'all') {
+    subs = queryAll(`
+      SELECT ps.*, u.role
+      FROM push_subscriptions ps
+      JOIN users u ON u.id = ps.user_id AND u.active = 1
+    `);
+  } else if (branchId) {
+    subs = getEligibleSubscriptions(branchId);
+  } else {
+    subs = queryAll(`
+      SELECT ps.*, u.role
+      FROM push_subscriptions ps
+      JOIN users u ON u.id = ps.user_id AND u.active = 1
+    `).filter((row) => hasPermission(row.role, 'shop_orders.view'));
+  }
+
+  subs = uniqueSubscriptions(subs);
+  if (!subs.length) {
+    return { sent: 0, failed: 0, total: 0 };
+  }
+
+  const payload = {
+    title: trimmedTitle,
+    body: trimmedBody,
+    url: String(url || '/snab').trim() || '/snab',
+    tag: `admin-push-${Date.now()}`,
+  };
+
+  let sent = 0;
+  let failed = 0;
+  for (const sub of subs) {
+    const result = await sendToSubscription(sub, payload);
+    if (result.ok) sent += 1;
+    else failed += 1;
+  }
+  return { sent, failed, total: subs.length };
+}

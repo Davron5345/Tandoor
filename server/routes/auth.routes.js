@@ -66,7 +66,7 @@ export function registerAuthRoutes(app, { authRequired }) {
   });
 
   app.use('/api', (req, res, next) => {
-    if (req.path.startsWith('/public/')) {
+    if (req.path.startsWith('/public/') || req.path === '/app/snab-update') {
       return next();
     }
     return authRequired(req, res, next);

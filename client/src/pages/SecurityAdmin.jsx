@@ -4,10 +4,12 @@ import { api } from '../api';
 import { useToast } from '../components/Modal';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import StaffTracking from './StaffTracking';
+import AdminPushTab from './AdminPushTab';
 
 const TABS = [
   { id: 'sessions', label: 'Активные сеансы' },
   { id: 'locations', label: 'Трекинг снабженцев' },
+  { id: 'push', label: 'Push-уведомления' },
   { id: 'blocked', label: 'Заблокированные устройства' },
   { id: 'visits', label: 'Журнал посещений' },
 ];
@@ -438,6 +440,7 @@ export default function SecurityAdmin({ defaultTab = 'sessions' }) {
 
       {tab === 'sessions' && <SessionsTab />}
       {tab === 'locations' && <StaffTracking embedded />}
+      {tab === 'push' && <AdminPushTab />}
       {tab === 'blocked' && <BlockedTab />}
       {tab === 'visits' && <VisitsTab />}
     </div>

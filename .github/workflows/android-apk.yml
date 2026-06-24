@@ -7,7 +7,7 @@ on:
     paths:
       - 'client/**'
       - 'android/**'
-      - 'capacitor.config.json'
+      - 'capacitor.config.ts'
       - 'package.json'
       - 'package-lock.json'
       - '.github/workflows/android-apk.yml'
@@ -68,6 +68,15 @@ jobs:
 
       - name: Sync Capacitor
         run: npx cap sync android
+        env:
+          CAPACITOR_SERVER_URL: ${{ env.VITE_API_URL }}
+
+      - name: Sync app version metadata
+        run: |
+          VC=$(grep versionCode android/app/build.gradle | head -1 | awk '{print $2}')
+          VN=$(grep versionName android/app/build.gradle | head -1 | awk -F'"' '{print $2}')
+          echo "{\"versionCode\": $VC, \"versionName\": \"$VN\"}" > android/app-version.json
+          git add android/app-version.json || true
 
       - name: Prepare Android build
         run: |

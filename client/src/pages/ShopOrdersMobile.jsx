@@ -18,6 +18,7 @@ import {
 } from '../utils/pwaPush';
 import { useStaffLocationPing, requestStaffLocationPermission } from '../hooks/useStaffLocationPing';
 import { isNativeApp, isBackgroundLocationEnabled } from '../utils/nativeApp';
+import { checkSnabApkUpdate, downloadAndInstallSnabApk } from '../utils/nativeApkUpdate';
 import { FALLBACK_APK_URL } from '../components/SnabAppPanel';
 
 const STATUS_FILTERS = [
@@ -63,6 +64,8 @@ export default function ShopOrdersMobile() {
     isNativeApp() && isBackgroundLocationEnabled()
   ));
   const [locationLoading, setLocationLoading] = useState(false);
+  const [apkUpdate, setApkUpdate] = useState(null);
+  const [apkUpdating, setApkUpdating] = useState(false);
   const [dismissSetup, setDismissSetup] = useState(() => {
     try { return localStorage.getItem('warehouse-pwa-setup-dismiss') === '1'; } catch { return false; }
   });
@@ -146,6 +149,28 @@ export default function ShopOrdersMobile() {
     return () => { cancelled = true; };
   }, [canView, branchId]);
 
+  useEffect(() => {
+    if (!canView || !isNativeApp()) return undefined;
+    let cancelled = false;
+    checkSnabApkUpdate(api).then((info) => {
+      if (!cancelled) setApkUpdate(info);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [canView]);
+
+  const handleApkUpdate = async () => {
+    if (!apkUpdate?.apkUrl) return;
+    setApkUpdating(true);
+    try {
+      await downloadAndInstallSnabApk(apkUpdate.apkUrl);
+      setNotice('Установщик APK открыт — подтвердите обновление');
+    } catch (err) {
+      setNotice(err.message || 'Не удалось обновить приложение');
+    } finally {
+      setApkUpdating(false);
+    }
+  };
+
   const handleInstall = async () => {
     if (!installPrompt) return;
     await installPrompt.prompt();
@@ -188,7 +213,7 @@ export default function ShopOrdersMobile() {
 
   const showSetupBanner = !dismissSetup && (
     isNativeApp()
-      ? !locationEnabled
+      ? !locationEnabled || (isPushSupported() && pushState.permission !== 'granted')
       : (
         !pushState.standalone && !isStandaloneApp()
         || (isPushSupported() && pushState.permission !== 'granted')
@@ -284,13 +309,37 @@ export default function ShopOrdersMobile() {
             </div>
           </header>
 
+          {apkUpdate && (
+            <div className="warehouse-pwa-setup warehouse-apk-update">
+              <div className="warehouse-pwa-setup-text">
+                <strong>Доступно обновление {apkUpdate.versionName}</strong>
+                <span>
+                  Установлена версия {apkUpdate.installedName || apkUpdate.installedVersion}.
+                  Интерфейс обновляется с сервера автоматически; APK нужен только для новых функций Android.
+                </span>
+              </div>
+              <div className="warehouse-pwa-setup-actions">
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  onClick={handleApkUpdate}
+                  disabled={apkUpdating}
+                >
+                  {apkUpdating ? 'Скачивание…' : 'Обновить APK'}
+                </button>
+              </div>
+            </div>
+          )}
+
           {showSetupBanner && (
             <div className="warehouse-pwa-setup">
               <div className="warehouse-pwa-setup-text">
-                <strong>{isNativeApp() ? 'Включите фоновую геолокацию' : 'Установите приложение «Снабжение»'}</strong>
+                <strong>
+                  {isNativeApp() ? 'Настройте приложение' : 'Установите приложение «Снабжение»'}
+                </strong>
                 <span>
                   {isNativeApp()
-                    ? 'Разрешите доступ к местоположению «всегда» — администратор видит, где вы находитесь, даже когда приложение свёрнуто. В шторке появится уведомление о трекинге.'
+                    ? 'Разрешите геолокацию «всегда» и включите push-уведомления — администратор видит маршрут и может присылать сообщения.'
                     : 'Скачайте Android-приложение для фоновой геолокации или установите PWA из Chrome.'}
                 </span>
               </div>
@@ -305,7 +354,7 @@ export default function ShopOrdersMobile() {
                     Установить приложение
                   </button>
                 )}
-                {!isNativeApp() && isPushSupported() && pushState.permission !== 'granted' && (
+                {isPushSupported() && pushState.permission !== 'granted' && (
                   <button type="button" className="btn btn-primary btn-sm" onClick={handleEnablePush} disabled={pushLoading}>
                     {pushLoading ? '...' : 'Уведомления'}
                   </button>

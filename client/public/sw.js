@@ -23,12 +23,15 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const targetUrl = event.notification.data?.url || '/warehouse/orders';
+  const targetPath = event.notification.data?.url || '/snab';
+  const targetUrl = targetPath.startsWith('http')
+    ? targetPath
+    : new URL(targetPath, self.location.origin).href;
 
   event.waitUntil((async () => {
     const allClients = await clients.matchAll({ type: 'window', includeUncontrolled: true });
     for (const client of allClients) {
-      if (client.url.includes('/warehouse/orders') && 'focus' in client) {
+      if (client.url.includes(targetPath) && 'focus' in client) {
         return client.focus();
       }
     }

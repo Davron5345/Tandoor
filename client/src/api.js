@@ -387,6 +387,18 @@ export const api = {
   },
 
   getSnabInstallInfo: () => request('/app/snab-install'),
+  getSnabUpdateInfo: () => request('/app/snab-update'),
+
+  getAdminPushSubscribers: (params = {}) => {
+    const q = new URLSearchParams(
+      Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null)),
+    ).toString();
+    return request(`/admin/push/subscribers${q ? `?${q}` : ''}`);
+  },
+  sendAdminPush: (data) => request('/admin/push/send', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
 };
 
 export function formatMoney(n) {

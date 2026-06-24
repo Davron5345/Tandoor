@@ -325,6 +325,7 @@ GET  /api/app-version
 GET  /api/public/shop/:branchId/catalog
 POST /api/public/shop/:branchId/orders
 GET  /api/push/vapid-public-key
+GET  /api/app/snab-update
 GET  /api/public/snab-apk
 ```
 
@@ -358,6 +359,8 @@ GET  /api/auth/roles
 | `/api/staff/location` | staff.routes.js | Геолокация снабженца (POST, текущая точка + история) |
 | `/api/admin/staff-locations` | staff.routes.js | Текущие позиции снабженцев (admin) |
 | `/api/admin/staff-locations/history` | staff.routes.js | История точек за день/время для маршрута (admin) |
+| `/api/admin/push/send` | push.routes.js | Рассылка push-уведомлений снабженцам (admin) |
+| `/api/admin/push/subscribers` | push.routes.js | Список подписчиков push (admin) |
 
 ---
 
@@ -389,7 +392,7 @@ GET  /api/auth/roles
 | `/branches` | Branches.jsx | admin |
 | `/departments` | Departments.jsx | admin |
 | `/tracking` | StaffTracking.jsx | admin: трекинг снабженцев с картой маршрута |
-| `/security` | SecurityAdmin.jsx | admin: сеансы, **трекинг** (вкладка), блокировки |
+| `/security` | SecurityAdmin.jsx | admin: сеансы, **трекинг**, **push-уведомления**, блокировки |
 | `/audit-log` | AuditLog.jsx | admin |
 | `/warehouse/orders` | ShopOrdersMobile.jsx | shop_orders (mobile) |
 
@@ -400,10 +403,14 @@ GET  /api/auth/roles
 - **Capacitor app id:** `com.tandoor.snab`
 - **Название:** Mahalla Снабжение
 - **APK:** `client/public/downloads/snabzenie.apk`
+- **Версия APK:** `android/app-version.json` + `android/app/build.gradle` (versionCode)
+- **Конфиг:** `capacitor.config.ts` — при сборке `CAPACITOR_SERVER_URL` указывает на прод-сервер → UI обновляется без переустановки APK
+- **Обновление APK:** `GET /api/app/snab-update` + баннер «Обновить APK» в `ShopOrdersMobile` (плагин `ApkInstaller`)
 - **Документация:** `docs/SNAB_ANDROID.md`
-- **Функции:** заявки MyShop, push-уведомления, фоновая геолокация (без бейджа «отслеживание включено» в UI)
-- **Трекинг для админа:** `/security` → вкладка «Где сотрудники» → кнопка «Маршрут» → карта OpenStreetMap (Leaflet) по `staff_location_history`
-- **Сборка:** `npm run android:apk`, CI в GitHub Actions
+- **Функции:** заявки MyShop, push-уведомления (Web Push + admin-рассылка), фоновая геолокация
+- **Трекинг для админа:** `/security` → «Трекинг снабженцев» → маршрут на карте Leaflet
+- **Push для админа:** `/security` → вкладка «Push-уведомления»
+- **Сборка:** `npm run android:apk`, CI в GitHub Actions (`CAPACITOR_SERVER_URL`)
 
 ---
 
@@ -494,6 +501,8 @@ GET  /api/auth/roles
 | 2026-06-24 | Трекинг: API `/admin/staff-locations/history`, карта маршрута в SecurityAdmin, убран бейдж в APK |
 | 2026-06-24 | Fix: lazy-load Leaflet на `/security`, вкладка переименована в «Трекинг снабженцев» |
 | 2026-06-24 | Fix белого экрана: guard reload loop AppUpdateManager, fallback CSS, `/tracking` страница |
+| 2026-06-24 | APK auto-update: `capacitor.config.ts` + remote server, `/api/app/snab-update`, in-app APK installer |
+| 2026-06-24 | Admin push: `/api/admin/push/send`, вкладка в SecurityAdmin, push в native APK |
 
 ---
 
