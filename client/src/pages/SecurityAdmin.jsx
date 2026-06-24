@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, lazy, Suspense } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import { useToast } from '../components/Modal';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
@@ -596,8 +597,18 @@ function LocationsTab() {
   );
 }
 
-export default function SecurityAdmin() {
-  const [tab, setTab] = useState('sessions');
+export default function SecurityAdmin({ defaultTab = 'sessions' }) {
+  const [searchParams] = useSearchParams();
+  const tabFromUrl = searchParams.get('tab');
+  const allowedTabs = new Set(TABS.map((item) => item.id));
+  const initialTab = (tabFromUrl && allowedTabs.has(tabFromUrl)) ? tabFromUrl : defaultTab;
+  const [tab, setTab] = useState(initialTab);
+
+  useEffect(() => {
+    if (tabFromUrl && allowedTabs.has(tabFromUrl)) {
+      setTab(tabFromUrl);
+    }
+  }, [tabFromUrl]);
 
   return (
     <div>

@@ -112,6 +112,7 @@ function buildAppNav(user) {
   const adminNav = [
     ...(canViewUsers ? [{ to: '/employees', label: 'Сотрудники' }] : []),
     ...(isAdmin ? [
+      { to: '/tracking', label: 'Трекинг снабженцев' },
       { to: '/roles', label: 'Роли' },
       { to: '/branches', label: 'Филиалы' },
       { to: '/departments', label: 'Отделы' },
@@ -592,6 +593,7 @@ function AppContent() {
           <Route path="/roles" element={isAdmin ? <Roles /> : <Navigate to={firstNavPath} />} />
           <Route path="/branches" element={isAdmin ? <Branches /> : <Navigate to={firstNavPath} />} />
           <Route path="/departments" element={isAdmin ? <Departments /> : <Navigate to={firstNavPath} />} />
+          <Route path="/tracking" element={isAdmin ? <SecurityAdmin defaultTab="locations" /> : <Navigate to={firstNavPath} />} />
           <Route path="/security" element={isAdmin ? <SecurityAdmin /> : <Navigate to={firstNavPath} />} />
           <Route path="/audit-log" element={isAdmin ? <AuditLog /> : <Navigate to={firstNavPath} />} />
           <Route path="*" element={<Navigate to="/" />} />
