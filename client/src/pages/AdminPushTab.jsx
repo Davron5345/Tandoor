@@ -6,6 +6,7 @@ export default function AdminPushTab() {
   const [branches, setBranches] = useState([]);
   const [subscribers, setSubscribers] = useState({ items: [], total: 0, subscriptions: 0 });
   const [loading, setLoading] = useState(true);
+  const [pushReady, setPushReady] = useState(true);
   const [sending, setSending] = useState(false);
   const [form, setForm] = useState({
     title: '',
@@ -25,8 +26,14 @@ export default function AdminPushTab() {
       ]);
       setBranches(branchList);
       setSubscribers(subs);
+      setPushReady(true);
     } catch (e) {
-      show(e.message, 'error');
+      if (String(e.message || '').includes('не настроены')) {
+        setPushReady(false);
+        setSubscribers({ items: [], total: 0, subscriptions: 0 });
+      } else {
+        show(e.message, 'error');
+      }
     } finally {
       setLoading(false);
     }
@@ -61,18 +68,28 @@ export default function AdminPushTab() {
   return (
     <>
       {Toast}
-      <div className="card security-card">
-        <div className="card-header">
-          <h2>Push-уведомления снабженцам</h2>
-          <p className="text-muted">
-            Сообщение придёт как системное уведомление в PWA или Android-приложении «Снабжение».
-          </p>
+
+      <div className="card admin-push-card">
+        <div className="card-header admin-push-card-header">
+          <div>
+            <h2>Push-уведомления снабженцам</h2>
+            <p className="admin-push-lead">
+              Сообщение придёт как системное уведомление в PWA или Android-приложении «Снабжение».
+            </p>
+          </div>
         </div>
 
-        <form className="admin-push-form" onSubmit={handleSend}>
-          <div className="form-row">
-            <label>
-              <span>Заголовок</span>
+        <div className="card-body">
+          {!pushReady && (
+            <div className="admin-push-alert" role="alert">
+              Push-уведомления не настроены на сервере. Задайте <code>VAPID_PUBLIC_KEY</code> и{' '}
+              <code>VAPID_PRIVATE_KEY</code> в Railway и перезапустите сервис.
+            </div>
+          )}
+
+          <form className="admin-push-form" onSubmit={handleSend}>
+            <label className="filter-field admin-push-field-full">
+              Заголовок
               <input
                 type="text"
                 value={form.title}
@@ -80,72 +97,80 @@ export default function AdminPushTab() {
                 placeholder="Например: Срочная заявка"
                 maxLength={120}
                 required
+                disabled={!pushReady}
               />
             </label>
-          </div>
-          <div className="form-row">
-            <label>
-              <span>Текст</span>
+
+            <label className="filter-field admin-push-field-full">
+              Текст уведомления
               <textarea
                 value={form.body}
                 onChange={(e) => setForm((prev) => ({ ...prev, body: e.target.value }))}
-                placeholder="Текст уведомления"
-                rows={3}
+                placeholder="Текст, который увидит снабженец"
+                rows={4}
                 maxLength={500}
                 required
+                disabled={!pushReady}
               />
             </label>
-          </div>
-          <div className="form-row admin-push-form-grid">
-            <label>
-              <span>Ссылка при нажатии</span>
-              <input
-                type="text"
-                value={form.url}
-                onChange={(e) => setForm((prev) => ({ ...prev, url: e.target.value }))}
-                placeholder="/snab"
-              />
-            </label>
-            <label>
-              <span>Филиал</span>
-              <select
-                value={form.branch_id}
-                onChange={(e) => setForm((prev) => ({ ...prev, branch_id: e.target.value }))}
-              >
-                <option value="">Все снабженцы</option>
-                {branches.map((branch) => (
-                  <option key={branch.id} value={branch.id}>{branch.name}</option>
-                ))}
-              </select>
-            </label>
-            <label>
-              <span>Аудитория</span>
-              <select
-                value={form.target}
-                onChange={(e) => setForm((prev) => ({ ...prev, target: e.target.value }))}
-              >
-                <option value="snab">Снабженцы (shop_orders.view)</option>
-                <option value="all">Все подписчики</option>
-              </select>
-            </label>
-          </div>
-          <div className="form-actions">
-            <button type="submit" className="btn btn-primary" disabled={sending}>
-              {sending ? 'Отправка…' : 'Отправить уведомление'}
-            </button>
-          </div>
-        </form>
+
+            <div className="admin-push-options">
+              <label className="filter-field">
+                Ссылка при нажатии
+                <input
+                  type="text"
+                  value={form.url}
+                  onChange={(e) => setForm((prev) => ({ ...prev, url: e.target.value }))}
+                  placeholder="/snab"
+                  disabled={!pushReady}
+                />
+              </label>
+
+              <label className="filter-field">
+                Филиал
+                <select
+                  value={form.branch_id}
+                  onChange={(e) => setForm((prev) => ({ ...prev, branch_id: e.target.value }))}
+                  disabled={!pushReady}
+                >
+                  <option value="">Все снабженцы</option>
+                  {branches.map((branch) => (
+                    <option key={branch.id} value={branch.id}>{branch.name}</option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="filter-field">
+                Аудитория
+                <select
+                  value={form.target}
+                  onChange={(e) => setForm((prev) => ({ ...prev, target: e.target.value }))}
+                  disabled={!pushReady}
+                >
+                  <option value="snab">Снабженцы</option>
+                  <option value="all">Все подписчики</option>
+                </select>
+              </label>
+            </div>
+
+            <div className="admin-push-actions">
+              <button type="submit" className="btn btn-primary" disabled={sending || !pushReady}>
+                {sending ? 'Отправка…' : 'Отправить уведомление'}
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
 
-      <div className="card security-card">
-        <div className="card-header">
+      <div className="card admin-push-card">
+        <div className="card-header admin-push-card-header">
           <h3>Подписчики</h3>
-          <span className="text-muted">
+          <span className="admin-push-subscribers-meta">
             {loading ? 'Загрузка…' : `${subscribers.total} пользователей · ${subscribers.subscriptions} устройств`}
           </span>
         </div>
         <div className="table-wrap">
-          <table className="data-table">
+          <table className="data-table security-table">
             <thead>
               <tr>
                 <th>Пользователь</th>
@@ -165,7 +190,11 @@ export default function AdminPushTab() {
                 </tr>
               ))}
               {!loading && subscribers.items.length === 0 && (
-                <tr><td colSpan={4} className="empty">Подписчиков пока нет — снабженцы должны включить уведомления в приложении</td></tr>
+                <tr>
+                  <td colSpan={4} className="empty">
+                    Подписчиков пока нет — снабженцы должны включить уведомления в приложении на странице /snab
+                  </td>
+                </tr>
               )}
             </tbody>
           </table>
