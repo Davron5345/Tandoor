@@ -65,13 +65,14 @@ test('snab update info returns version metadata', async () => {
 });
 
 test('admin can list push subscribers', async () => {
-  const res = await fetch(`${baseUrl}/api/admin/push/subscribers`, {
+  const res = await fetch(`${baseUrl}/api/admin/push/subscribers?audience=snab`, {
     headers: { cookie: adminCookie },
   });
   assert.equal(res.status, 200);
   const data = await res.json();
   assert.ok(Array.isArray(data.items));
   assert.equal(typeof data.total, 'number');
+  assert.equal(typeof data.subscribed_users, 'number');
 });
 
 test('admin push send validates title and body', async () => {

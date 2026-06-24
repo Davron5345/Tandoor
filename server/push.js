@@ -143,6 +143,48 @@ export function listPushSubscribers({ branchId, permission = 'shop_orders.view' 
   });
 }
 
+export function listPushRecipients({ branchId, permission = 'shop_orders.view', onlySubscribed = false } = {}) {
+  const users = queryAll(`
+    SELECT u.id AS user_id, u.username, u.name, u.role, u.branch_id,
+           b.name AS branch_name
+    FROM users u
+    LEFT JOIN branches b ON b.id = u.branch_id
+    WHERE u.active = 1
+    ORDER BY u.username
+  `);
+
+  const deviceCounts = queryAll(`
+    SELECT ps.user_id, COUNT(*) AS devices
+    FROM push_subscriptions ps
+    JOIN users u ON u.id = ps.user_id AND u.active = 1
+    GROUP BY ps.user_id
+  `);
+  const devicesByUser = new Map(
+    deviceCounts.map((row) => [row.user_id, Number(row.devices) || 0]),
+  );
+
+  return users
+    .map((user) => {
+      const devices = devicesByUser.get(user.user_id) || 0;
+      return {
+        user_id: user.user_id,
+        username: user.username,
+        name: user.name,
+        role: user.role,
+        branch_id: user.branch_id,
+        branch_name: user.branch_name,
+        devices,
+        subscribed: devices > 0,
+      };
+    })
+    .filter((user) => {
+      if (permission && !hasPermission(user.role, permission)) return false;
+      if (branchId && user.branch_id && user.branch_id !== branchId) return false;
+      if (onlySubscribed && !user.subscribed) return false;
+      return true;
+    });
+}
+
 function uniqueSubscriptions(rows) {
   const map = new Map();
   for (const row of rows) {

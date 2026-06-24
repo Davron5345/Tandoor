@@ -5893,6 +5893,24 @@ input[type='number']::-webkit-inner-spin-button {
   font-size: 0.92em;
 }
 
+.admin-push-alert-warn {
+  border-color: color-mix(in srgb, var(--warning, #d97706) 40%, var(--border));
+  background: color-mix(in srgb, var(--warning, #d97706) 10%, var(--surface));
+}
+
+.admin-push-row-muted td {
+  opacity: 0.85;
+}
+
+.admin-push-check-disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.admin-push-check-disabled input {
+  cursor: not-allowed;
+}
+
 .admin-push-form {
   display: flex;
   flex-direction: column;

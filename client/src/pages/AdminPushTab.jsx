@@ -9,25 +9,31 @@ const RECIPIENT_MODES = [
   { value: 'selected', label: 'Выбранным вручную' },
 ];
 
-function countRecipients(mode, subscribers, branchId, selectedUserIds) {
-  const items = subscribers.items || [];
+function countRecipientDevices(mode, items, branchId, selectedUserIds) {
+  const subscribed = items.filter((row) => row.subscribed);
   if (mode === 'selected') {
     return items
-      .filter((row) => selectedUserIds.has(row.user_id))
+      .filter((row) => selectedUserIds.has(row.user_id) && row.subscribed)
       .reduce((sum, row) => sum + row.devices, 0);
   }
   if (mode === 'branch' && branchId) {
-    return items
+    return subscribed
       .filter((row) => !row.branch_id || row.branch_id === branchId)
       .reduce((sum, row) => sum + row.devices, 0);
   }
-  return subscribers.subscriptions || 0;
+  return subscribed.reduce((sum, row) => sum + row.devices, 0);
 }
 
 export default function AdminPushTab() {
   const [branches, setBranches] = useState([]);
-  const [subscribers, setSubscribers] = useState({ items: [], total: 0, subscriptions: 0 });
-  const [listFilter, setListFilter] = useState({ branch_id: '', audience: 'all' });
+  const [recipients, setRecipients] = useState({
+    items: [], total: 0, subscribed_users: 0, subscriptions: 0,
+  });
+  const [listFilter, setListFilter] = useState({
+    branch_id: '',
+    audience: 'snab',
+    visibility: 'all',
+  });
   const [loading, setLoading] = useState(true);
   const [pushReady, setPushReady] = useState(true);
   const [sending, setSending] = useState(false);
@@ -47,40 +53,58 @@ export default function AdminPushTab() {
       const params = { audience: listFilter.audience };
       if (listFilter.branch_id) params.branch_id = listFilter.branch_id;
 
-      const [branchList, subs] = await Promise.all([
+      const [branchList, data] = await Promise.all([
         api.getBranches(),
         api.getAdminPushSubscribers(params),
       ]);
       setBranches(branchList);
-      setSubscribers(subs);
+      setRecipients(data);
       setPushReady(true);
       setSelectedUserIds((prev) => {
-        const valid = new Set(subs.items.map((row) => row.user_id));
+        const valid = new Set(data.items.map((row) => row.user_id));
         return new Set([...prev].filter((id) => valid.has(id)));
       });
     } catch (e) {
       if (String(e.message || '').includes('не настроены')) {
         setPushReady(false);
-        setSubscribers({ items: [], total: 0, subscriptions: 0 });
+        setRecipients({ items: [], total: 0, subscribed_users: 0, subscriptions: 0 });
       } else {
         show(e.message, 'error');
       }
     } finally {
       setLoading(false);
     }
-  }, [listFilter, show]);
+  }, [listFilter.audience, listFilter.branch_id, show]);
 
   useEffect(() => { load(); }, [load]);
 
-  const visibleItems = subscribers.items || [];
-  const allVisibleSelected = visibleItems.length > 0
-    && visibleItems.every((row) => selectedUserIds.has(row.user_id));
+  const visibleItems = useMemo(() => {
+    const items = recipients.items || [];
+    if (listFilter.visibility === 'subscribed') {
+      return items.filter((row) => row.subscribed);
+    }
+    if (listFilter.visibility === 'unsubscribed') {
+      return items.filter((row) => !row.subscribed);
+    }
+    return items;
+  }, [recipients.items, listFilter.visibility]);
+
+  const selectableItems = visibleItems.filter((row) => row.subscribed);
+  const allVisibleSelected = selectableItems.length > 0
+    && selectableItems.every((row) => selectedUserIds.has(row.user_id));
+
   const recipientDevices = useMemo(
-    () => countRecipients(form.recipient_mode, subscribers, form.branch_id, selectedUserIds),
-    [form.recipient_mode, form.branch_id, subscribers, selectedUserIds],
+    () => countRecipientDevices(
+      form.recipient_mode,
+      recipients.items || [],
+      form.branch_id,
+      selectedUserIds,
+    ),
+    [form.recipient_mode, form.branch_id, recipients.items, selectedUserIds],
   );
 
-  const toggleUser = (userId) => {
+  const toggleUser = (userId, subscribed) => {
+    if (!subscribed) return;
     setSelectedUserIds((prev) => {
       const next = new Set(prev);
       if (next.has(userId)) next.delete(userId);
@@ -93,14 +117,14 @@ export default function AdminPushTab() {
     if (allVisibleSelected) {
       setSelectedUserIds((prev) => {
         const next = new Set(prev);
-        visibleItems.forEach((row) => next.delete(row.user_id));
+        selectableItems.forEach((row) => next.delete(row.user_id));
         return next;
       });
       return;
     }
     setSelectedUserIds((prev) => {
       const next = new Set(prev);
-      visibleItems.forEach((row) => next.add(row.user_id));
+      selectableItems.forEach((row) => next.add(row.user_id));
       return next;
     });
   };
@@ -109,7 +133,7 @@ export default function AdminPushTab() {
     event.preventDefault();
 
     if (form.recipient_mode === 'selected' && selectedUserIds.size === 0) {
-      show('Отметьте получателей в таблице ниже', 'error');
+      show('Отметьте подписанных получателей в таблице ниже', 'error');
       return;
     }
     if (form.recipient_mode === 'branch' && !form.branch_id) {
@@ -117,7 +141,13 @@ export default function AdminPushTab() {
       return;
     }
     if (recipientDevices === 0) {
-      show('Нет подписчиков — снабженцы должны включить уведомления на /snab', 'error');
+      const unsubscribed = (recipients.items || []).filter((row) => !row.subscribed);
+      if (unsubscribed.length > 0) {
+        const names = unsubscribed.slice(0, 3).map((row) => row.username).join(', ');
+        show(`Нет подписчиков. Попросите включить уведомления на /snab: ${names}${unsubscribed.length > 3 ? '…' : ''}`, 'error');
+      } else {
+        show('Нет снабженцев с правом заявок — проверьте роли пользователей', 'error');
+      }
       return;
     }
 
@@ -152,6 +182,8 @@ export default function AdminPushTab() {
     }
   };
 
+  const unsubscribedCount = (recipients.items || []).filter((row) => !row.subscribed).length;
+
   return (
     <>
       {Toast}
@@ -161,7 +193,7 @@ export default function AdminPushTab() {
           <div>
             <h2>Push-уведомления снабженцам</h2>
             <p className="admin-push-lead">
-              Push доставляется только тем, кто включил уведомления в приложении на странице /snab.
+              Push приходит только после включения уведомлений на странице /snab на телефоне снабженца.
             </p>
           </div>
         </div>
@@ -171,6 +203,13 @@ export default function AdminPushTab() {
             <div className="admin-push-alert" role="alert">
               Push-уведомления не настроены на сервере. Задайте <code>VAPID_PUBLIC_KEY</code> и{' '}
               <code>VAPID_PRIVATE_KEY</code> в Railway и перезапустите сервис.
+            </div>
+          )}
+
+          {pushReady && unsubscribedCount > 0 && (
+            <div className="admin-push-alert admin-push-alert-warn" role="status">
+              {unsubscribedCount} снабженец(ов) ещё не включили push — они видны в таблице со статусом «Не подписан».
+              Попросите открыть /snab и нажать «Уведомления».
             </div>
           )}
 
@@ -247,7 +286,7 @@ export default function AdminPushTab() {
             <div className="admin-push-send-summary">
               Будет отправлено на <strong>{recipientDevices}</strong> устройств
               {form.recipient_mode === 'selected' && (
-                <span> · выбрано пользователей: {selectedUserIds.size}</span>
+                <span> · выбрано: {selectedUserIds.size}</span>
               )}
             </div>
 
@@ -263,14 +302,16 @@ export default function AdminPushTab() {
       <div className="card admin-push-card">
         <div className="card-header admin-push-card-header">
           <div>
-            <h3>Подписчики</h3>
+            <h3>Снабженцы и подписки</h3>
             <span className="admin-push-subscribers-meta">
-              {loading ? 'Загрузка…' : `${subscribers.total} пользователей · ${subscribers.subscriptions} устройств`}
+              {loading
+                ? 'Загрузка…'
+                : `${recipients.subscribed_users || 0} с push из ${recipients.total || 0} · ${recipients.subscriptions || 0} устройств`}
             </span>
           </div>
-          {form.recipient_mode === 'selected' && visibleItems.length > 0 && (
+          {form.recipient_mode === 'selected' && selectableItems.length > 0 && (
             <button type="button" className="btn btn-ghost btn-sm" onClick={toggleAllVisible}>
-              {allVisibleSelected ? 'Снять выделение' : 'Выбрать всех в списке'}
+              {allVisibleSelected ? 'Снять выделение' : 'Выбрать подписанных'}
             </button>
           )}
         </div>
@@ -278,7 +319,7 @@ export default function AdminPushTab() {
         <div className="card-body admin-push-list-filters">
           <div className="admin-push-options">
             <label className="filter-field">
-              Фильтр списка: филиал
+              Филиал
               <select
                 value={listFilter.branch_id}
                 onChange={(e) => setListFilter((prev) => ({ ...prev, branch_id: e.target.value }))}
@@ -290,18 +331,31 @@ export default function AdminPushTab() {
               </select>
             </label>
             <label className="filter-field">
-              Показать
+              Категория
               <select
                 value={listFilter.audience}
                 onChange={(e) => setListFilter((prev) => ({ ...prev, audience: e.target.value }))}
               >
-                <option value="all">Всех подписчиков</option>
-                <option value="snab">Только снабженцев</option>
+                <option value="snab">Снабженцы</option>
+                <option value="all">Все пользователи</option>
+              </select>
+            </label>
+            <label className="filter-field">
+              Статус push
+              <select
+                value={listFilter.visibility}
+                onChange={(e) => setListFilter((prev) => ({ ...prev, visibility: e.target.value }))}
+              >
+                <option value="all">Все</option>
+                <option value="subscribed">Только подписанные</option>
+                <option value="unsubscribed">Без push</option>
               </select>
             </label>
           </div>
           {form.recipient_mode === 'selected' && (
-            <p className="admin-push-hint">Отметьте галочками, кому отправить сообщение.</p>
+            <p className="admin-push-hint">
+              Галочки доступны только у подписанных — остальным нужно включить уведомления на /snab.
+            </p>
           )}
         </div>
 
@@ -313,22 +367,31 @@ export default function AdminPushTab() {
                 <th>Пользователь</th>
                 <th>Имя</th>
                 <th>Филиал</th>
+                <th>Статус</th>
                 <th>Устройств</th>
               </tr>
             </thead>
             <tbody>
-              {loading && <tr><td colSpan={form.recipient_mode === 'selected' ? 5 : 4} className="empty">Загрузка...</td></tr>}
+              {loading && (
+                <tr>
+                  <td colSpan={form.recipient_mode === 'selected' ? 6 : 5} className="empty">Загрузка...</td>
+                </tr>
+              )}
               {!loading && visibleItems.map((row) => {
                 const checked = selectedUserIds.has(row.user_id);
                 return (
-                  <tr key={row.user_id} className={checked ? 'row-selected' : ''}>
+                  <tr
+                    key={row.user_id}
+                    className={`${checked ? 'row-selected' : ''}${!row.subscribed ? ' admin-push-row-muted' : ''}`}
+                  >
                     {form.recipient_mode === 'selected' && (
                       <td className="admin-push-col-check">
-                        <label className="admin-push-check">
+                        <label className={`admin-push-check${!row.subscribed ? ' admin-push-check-disabled' : ''}`}>
                           <input
                             type="checkbox"
                             checked={checked}
-                            onChange={() => toggleUser(row.user_id)}
+                            disabled={!row.subscribed}
+                            onChange={() => toggleUser(row.user_id, row.subscribed)}
                             aria-label={`Выбрать ${row.username}`}
                           />
                         </label>
@@ -337,14 +400,19 @@ export default function AdminPushTab() {
                     <td>{row.username}</td>
                     <td>{row.name || '—'}</td>
                     <td>{row.branch_name || '—'}</td>
-                    <td>{row.devices}</td>
+                    <td>
+                      <span className={`badge ${row.subscribed ? 'badge-success' : 'badge-warning'}`}>
+                        {row.subscribed ? 'Подписан' : 'Не подписан'}
+                      </span>
+                    </td>
+                    <td>{row.devices || '—'}</td>
                   </tr>
                 );
               })}
               {!loading && visibleItems.length === 0 && (
                 <tr>
-                  <td colSpan={form.recipient_mode === 'selected' ? 5 : 4} className="empty">
-                    Подписчиков пока нет — откройте /snab на телефоне снабженца и нажмите «Уведомления»
+                  <td colSpan={form.recipient_mode === 'selected' ? 6 : 5} className="empty">
+                    Нет пользователей по выбранному фильтру
                   </td>
                 </tr>
               )}

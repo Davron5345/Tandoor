@@ -213,13 +213,15 @@ export default function ShopOrdersMobile() {
 
   const showSetupBanner = !dismissSetup && (
     isNativeApp()
-      ? !locationEnabled || (isPushSupported() && pushState.permission !== 'granted')
+      ? !locationEnabled
       : (
         !pushState.standalone && !isStandaloneApp()
-        || (isPushSupported() && pushState.permission !== 'granted')
         || !locationEnabled
       )
   );
+
+  const showPushBanner = canView && view === 'list' && isPushSupported()
+    && (pushState.permission !== 'granted' || !pushState.subscribed);
 
   const openOrder = async (order) => {
     try {
@@ -331,15 +333,29 @@ export default function ShopOrdersMobile() {
             </div>
           )}
 
+          {showPushBanner && (
+            <div className="warehouse-pwa-setup warehouse-push-setup">
+              <div className="warehouse-pwa-setup-text">
+                <strong>Включите push-уведомления</strong>
+                <span>Администратор сможет присылать сообщения и уведомления о новых заявках.</span>
+              </div>
+              <div className="warehouse-pwa-setup-actions">
+                <button type="button" className="btn btn-primary btn-sm" onClick={handleEnablePush} disabled={pushLoading}>
+                  {pushLoading ? '...' : 'Уведомления'}
+                </button>
+              </div>
+            </div>
+          )}
+
           {showSetupBanner && (
             <div className="warehouse-pwa-setup">
               <div className="warehouse-pwa-setup-text">
                 <strong>
-                  {isNativeApp() ? 'Настройте приложение' : 'Установите приложение «Снабжение»'}
+                  {isNativeApp() ? 'Включите геолокацию' : 'Установите приложение «Снабжение»'}
                 </strong>
                 <span>
                   {isNativeApp()
-                    ? 'Разрешите геолокацию «всегда» и включите push-уведомления — администратор видит маршрут и может присылать сообщения.'
+                    ? 'Разрешите доступ к местоположению «всегда» — администратор видит маршрут снабженца.'
                     : 'Скачайте Android-приложение для фоновой геолокации или установите PWA из Chrome.'}
                 </span>
               </div>
@@ -352,11 +368,6 @@ export default function ShopOrdersMobile() {
                 {!isNativeApp() && installPrompt && (
                   <button type="button" className="btn btn-primary btn-sm" onClick={handleInstall}>
                     Установить приложение
-                  </button>
-                )}
-                {isPushSupported() && pushState.permission !== 'granted' && (
-                  <button type="button" className="btn btn-primary btn-sm" onClick={handleEnablePush} disabled={pushLoading}>
-                    {pushLoading ? '...' : 'Уведомления'}
                   </button>
                 )}
                 {!locationEnabled && (

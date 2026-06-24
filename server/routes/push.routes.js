@@ -5,6 +5,7 @@ import {
   savePushSubscription,
   removePushSubscription,
   listPushSubscribers,
+  listPushRecipients,
   sendAdminPush,
 } from '../push.js';
 
@@ -51,23 +52,16 @@ export function registerPushRoutes(app) {
       }
       const branchId = req.query.branch_id || null;
       const audience = req.query.audience === 'all' ? null : 'shop_orders.view';
-      const rows = listPushSubscribers({ branchId, permission: audience });
-      const byUser = new Map();
-      for (const row of rows) {
-        const key = row.user_id;
-        if (!byUser.has(key)) {
-          byUser.set(key, {
-            user_id: row.user_id,
-            username: row.username,
-            name: row.name,
-            branch_id: row.branch_id,
-            branch_name: row.branch_name,
-            devices: 0,
-          });
-        }
-        byUser.get(key).devices += 1;
-      }
-      res.json({ items: [...byUser.values()], total: byUser.size, subscriptions: rows.length });
+      const onlySubscribed = req.query.only_subscribed === '1';
+      const items = listPushRecipients({ branchId, permission: audience, onlySubscribed });
+      const subscribedUsers = items.filter((row) => row.subscribed).length;
+      const subscriptions = items.reduce((sum, row) => sum + row.devices, 0);
+      res.json({
+        items,
+        total: items.length,
+        subscribed_users: subscribedUsers,
+        subscriptions,
+      });
     } catch (e) {
       res.status(500).json({ error: e.message });
     }
