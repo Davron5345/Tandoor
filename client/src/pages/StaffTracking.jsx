@@ -183,7 +183,7 @@ export default function StaffTracking({ embedded = false }) {
             </button>
           </div>
 
-          <div className="filter-panel-row staff-route-filters">
+          <div className="staff-route-filters">
             <label className="filter-field">
               <span className="filter-field-caption">Дата</span>
               <input type="date" value={routeDate} onChange={(e) => setRouteDate(e.target.value)} />
