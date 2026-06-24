@@ -10,6 +10,13 @@ export function isNativeApp() {
   return Capacitor.isNativePlatform();
 }
 
+/** APK загружает UI с прод-сервера — нужно для Web Push в приложении */
+export function isRemoteCapacitorApp() {
+  if (!isNativeApp()) return false;
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  return /^https:\/\//.test(origin);
+}
+
 export function getApiBaseUrl() {
   const fromEnv = import.meta.env.VITE_API_URL;
   if (fromEnv) return String(fromEnv).replace(/\/$/, '');

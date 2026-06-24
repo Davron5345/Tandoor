@@ -183,7 +183,7 @@ export default function ShopOrdersMobile() {
       await subscribeToOrderPush(api);
       const state = await getPushSubscriptionState();
       setPushState(state);
-      setNotice('Уведомления включены');
+      setNotice('Уведомления включены — администратор может присылать сообщения');
     } catch (err) {
       setNotice(err.message || 'Не удалось включить уведомления');
     } finally {
@@ -220,8 +220,14 @@ export default function ShopOrdersMobile() {
       )
   );
 
-  const showPushBanner = canView && view === 'list' && isPushSupported()
-    && (pushState.permission !== 'granted' || !pushState.subscribed);
+  const showPushBanner = canView && view === 'list' && (
+    isNativeApp()
+      ? (!pushState.subscribed || !!pushState.blockReason)
+      : isPushSupported() && (pushState.permission !== 'granted' || !pushState.subscribed)
+  );
+
+  const pushBannerText = pushState.blockReason
+    || 'Войдите в приложение и нажмите кнопку ниже — без этого админ не сможет присылать сообщения.';
 
   const openOrder = async (order) => {
     try {
@@ -337,12 +343,14 @@ export default function ShopOrdersMobile() {
             <div className="warehouse-pwa-setup warehouse-push-setup">
               <div className="warehouse-pwa-setup-text">
                 <strong>Включите push-уведомления</strong>
-                <span>Администратор сможет присылать сообщения и уведомления о новых заявках.</span>
+                <span>{pushBannerText}</span>
               </div>
               <div className="warehouse-pwa-setup-actions">
-                <button type="button" className="btn btn-primary btn-sm" onClick={handleEnablePush} disabled={pushLoading}>
-                  {pushLoading ? '...' : 'Уведомления'}
-                </button>
+                {!pushState.blockReason && (
+                  <button type="button" className="btn btn-primary btn-sm" onClick={handleEnablePush} disabled={pushLoading}>
+                    {pushLoading ? '...' : 'Включить уведомления'}
+                  </button>
+                )}
               </div>
             </div>
           )}
