@@ -79,7 +79,7 @@ export default function StaffTracking({ embedded = false }) {
 
   return (
     <div>
-      <Toast />
+      {Toast}
       {!embedded && (
         <div className="page-header">
           <h1>Трекинг снабженцев</h1>
