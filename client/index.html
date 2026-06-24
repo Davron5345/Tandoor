@@ -14,14 +14,17 @@
     <script>
       try {
         var t = localStorage.getItem('warehouse-theme') || 'dark';
+        if (t !== 'light' && t !== 'dark') t = 'dark';
         document.documentElement.setAttribute('data-theme', t);
-      } catch (e) {}
+      } catch (e) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
   </head>
-  <body>
+  <body style="background:#f1f5f9;color:#0f172a">
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

@@ -4,6 +4,7 @@ import { getOpenModalCount, subscribeOpenModalCount } from '../modalRegistry';
 
 const POLL_MS = 60_000;
 const RELOAD_DELAY_MS = 600;
+const RELOAD_GUARD_KEY = 'warehouse-app-update-reload';
 
 async function fetchServerVersion() {
   const res = await fetch('/api/app-version', { cache: 'no-store' });
@@ -21,16 +22,29 @@ export default function AppUpdateManager() {
 
   useEffect(() => subscribeOpenModalCount(setModalCount), []);
 
-  const reloadApp = (message) => {
+  const reloadApp = (message, serverVersion) => {
     if (reloadingRef.current) return;
+    try {
+      const lastReloadFor = sessionStorage.getItem(RELOAD_GUARD_KEY);
+      if (lastReloadFor && lastReloadFor === serverVersion) {
+        setBanner('Доступна новая версия. Нажмите Ctrl+F5 или очистите кэш браузера.');
+        pendingRef.current = false;
+        return;
+      }
+      if (serverVersion) sessionStorage.setItem(RELOAD_GUARD_KEY, serverVersion);
+    } catch {
+      /* ignore */
+    }
     reloadingRef.current = true;
     setBanner(message);
     window.setTimeout(() => {
-      window.location.reload();
+      const url = new URL(window.location.href);
+      url.searchParams.set('_v', String(Date.now()));
+      window.location.replace(url.toString());
     }, RELOAD_DELAY_MS);
   };
 
-  const applyPendingUpdate = () => {
+  const applyPendingUpdate = (serverVersion) => {
     if (!pendingRef.current || reloadingRef.current) return;
     if (getOpenModalCount() > 0) {
       waitedForModalRef.current = true;
@@ -41,6 +55,7 @@ export default function AppUpdateManager() {
       waitedForModalRef.current
         ? 'Обновляем до последней версии…'
         : 'Доступна новая версия. Обновляем…',
+      serverVersion,
     );
   };
 
@@ -54,7 +69,7 @@ export default function AppUpdateManager() {
         const serverVersion = await fetchServerVersion();
         if (cancelled || !serverVersion || serverVersion === APP_BUILD_ID) return;
         pendingRef.current = true;
-        applyPendingUpdate();
+        applyPendingUpdate(serverVersion);
       } catch {
         /* ignore network errors */
       }
@@ -80,7 +95,9 @@ export default function AppUpdateManager() {
 
   useEffect(() => {
     if (!pendingRef.current) return;
-    applyPendingUpdate();
+    fetchServerVersion().then((serverVersion) => {
+      if (serverVersion) applyPendingUpdate(serverVersion);
+    });
   }, [modalCount]);
 
   if (!banner) return null;

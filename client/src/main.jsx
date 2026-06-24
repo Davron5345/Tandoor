@@ -30,17 +30,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
               </AuthProvider>
             )}
           />
-          <Route path="/" element={<RootEntry />} />
-          <Route
-            path="*"
-            element={(
-              <AuthProvider>
-                <BranchProvider>
-                  <App />
-                </BranchProvider>
-              </AuthProvider>
-            )}
-          />
+          <Route path="/*" element={<RootEntry />} />
         </Routes>
       </BrowserRouter>
     </ThemeProvider>

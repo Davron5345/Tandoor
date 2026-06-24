@@ -16,6 +16,8 @@ import Branches from './pages/Branches';
 import Departments from './pages/Departments';
 import AuditLog from './pages/AuditLog';
 import SecurityAdmin from './pages/SecurityAdmin';
+import StaffTracking from './pages/StaffTracking';
+import ErrorBoundary from './components/ErrorBoundary';
 import Razdelka from './pages/Razdelka';
 import DishSales from './pages/DishSales';
 import Calculations from './pages/Calculations';
@@ -593,8 +595,8 @@ function AppContent() {
           <Route path="/roles" element={isAdmin ? <Roles /> : <Navigate to={firstNavPath} />} />
           <Route path="/branches" element={isAdmin ? <Branches /> : <Navigate to={firstNavPath} />} />
           <Route path="/departments" element={isAdmin ? <Departments /> : <Navigate to={firstNavPath} />} />
-          <Route path="/tracking" element={isAdmin ? <SecurityAdmin defaultTab="locations" /> : <Navigate to={firstNavPath} />} />
-          <Route path="/security" element={isAdmin ? <SecurityAdmin /> : <Navigate to={firstNavPath} />} />
+          <Route path="/tracking" element={isAdmin ? <ErrorBoundary><StaffTracking /></ErrorBoundary> : <Navigate to={firstNavPath} />} />
+          <Route path="/security" element={isAdmin ? <ErrorBoundary><SecurityAdmin /></ErrorBoundary> : <Navigate to={firstNavPath} />} />
           <Route path="/audit-log" element={isAdmin ? <AuditLog /> : <Navigate to={firstNavPath} />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>

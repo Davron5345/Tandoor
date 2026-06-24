@@ -388,7 +388,8 @@ GET  /api/auth/roles
 | `/roles` | Roles.jsx | admin |
 | `/branches` | Branches.jsx | admin |
 | `/departments` | Departments.jsx | admin |
-| `/security` | SecurityAdmin.jsx | admin: сеансы, **трекинг снабженцев с картой маршрута**, блокировки |
+| `/tracking` | StaffTracking.jsx | admin: трекинг снабженцев с картой маршрута |
+| `/security` | SecurityAdmin.jsx | admin: сеансы, **трекинг** (вкладка), блокировки |
 | `/audit-log` | AuditLog.jsx | admin |
 | `/warehouse/orders` | ShopOrdersMobile.jsx | shop_orders (mobile) |
 
@@ -492,6 +493,7 @@ GET  /api/auth/roles
 | 2026-06-24 | Создана начальная версия документации |
 | 2026-06-24 | Трекинг: API `/admin/staff-locations/history`, карта маршрута в SecurityAdmin, убран бейдж в APK |
 | 2026-06-24 | Fix: lazy-load Leaflet на `/security`, вкладка переименована в «Трекинг снабженцев» |
+| 2026-06-24 | Fix белого экрана: guard reload loop AppUpdateManager, fallback CSS, `/tracking` страница |
 
 ---
 
