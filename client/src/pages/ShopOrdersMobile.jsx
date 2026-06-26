@@ -16,6 +16,7 @@ import {
   isPushSupported,
   isStandaloneApp,
   subscribeToOrderPush,
+  getPushFixPlayStoreUrl,
 } from '../utils/pwaPush';
 import { useStaffLocationPing, requestStaffLocationPermission } from '../hooks/useStaffLocationPing';
 import { isNativeApp, isBackgroundLocationEnabled } from '../utils/nativeApp';
@@ -396,6 +397,11 @@ export default function ShopOrdersMobile() {
                   <button type="button" className="btn btn-primary btn-sm" onClick={handleEnablePush} disabled={pushLoading}>
                     {pushLoading ? '...' : 'Включить уведомления'}
                   </button>
+                )}
+                {getPushFixPlayStoreUrl() && (
+                  <a className="btn btn-primary btn-sm" href={getPushFixPlayStoreUrl()} target="_blank" rel="noopener noreferrer">
+                    Открыть Google Play
+                  </a>
                 )}
               </div>
             </div>

@@ -54,7 +54,19 @@ export default function SnabProfileView({
           </button>
         )}
         {pushState.blockReason && (
-          <div className="snab-profile-hint">{pushState.blockReason}</div>
+          <div className="snab-profile-hint">
+            {pushState.blockReason}
+            {pushState.blockReason.includes('WebView') && (
+              <a
+                className="btn btn-primary btn-sm snab-profile-play-link"
+                href="https://play.google.com/store/apps/details?id=com.google.android.webview"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Обновить WebView
+              </a>
+            )}
+          </div>
         )}
         {!locationEnabled && (
           <button type="button" className="btn btn-ghost btn-block" onClick={onEnableLocation}>

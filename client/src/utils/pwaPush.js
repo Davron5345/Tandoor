@@ -32,6 +32,15 @@ export function getPushBlockReason() {
   return null;
 }
 
+export const WEBVIEW_PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.google.android.webview';
+export const CHROME_PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.android.chrome';
+
+export function getPushFixPlayStoreUrl() {
+  const reason = getPushBlockReason();
+  if (!reason?.includes('WebView')) return null;
+  return WEBVIEW_PLAY_STORE_URL;
+}
+
 async function ensureNativeNotificationPermission() {
   if (!isNativeApp()) return;
   const perms = await LocalNotifications.checkPermissions();
