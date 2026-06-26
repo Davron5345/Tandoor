@@ -1,6 +1,12 @@
-import { LocalNotifications } from '@capacitor/local-notifications';
 import { isNativeApp } from './nativeApp';
-import { getNativePushBlockReason, getNativePushState, resumeNativePushIfNeeded, subscribeNativePush } from './nativePush';
+import {
+  getNativePushBlockReason,
+  getNativePushState,
+  markNativePushSubscribed,
+  requestNativeNotificationPermission,
+  resumeNativePushIfNeeded,
+  tryFcmSubscribe,
+} from './nativePush';
 
 function urlBase64ToUint8Array(base64String) {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
@@ -33,16 +39,6 @@ export function getPushBlockReason(installedBuild = 0) {
   return null;
 }
 
-async function ensureNativeNotificationPermission() {
-  if (!isNativeApp()) return;
-  const perms = await LocalNotifications.checkPermissions();
-  if (perms.display === 'granted') return;
-  const requested = await LocalNotifications.requestPermissions();
-  if (requested.display !== 'granted') {
-    throw new Error('Разрешите уведомления для приложения в настройках Android');
-  }
-}
-
 export async function registerServiceWorker() {
   if (!('serviceWorker' in navigator)) return null;
   try {
@@ -54,55 +50,60 @@ export async function registerServiceWorker() {
   }
 }
 
-export async function getNotificationPermission() {
-  if (isNativeApp()) {
-    const state = await getNativePushState();
-    return state.permission;
-  }
-  if (!('Notification' in window)) return 'unsupported';
-  return Notification.permission;
-}
-
-export async function subscribeToOrderPush(api, installedBuild = 0) {
-  if (isNativeApp()) {
-    await subscribeNativePush(api, installedBuild);
-    return null;
-  }
-
-  const blockReason = getPushBlockReason();
-  if (blockReason) {
-    throw new Error(blockReason);
-  }
-  if (!isPushSupported()) {
-    throw new Error('Устройство не поддерживает push-уведомления');
-  }
-
-  await ensureNativeNotificationPermission();
-
-  const permission = await Notification.requestPermission();
-  if (permission !== 'granted') {
-    throw new Error('Нажмите «Разрешить» в запросе уведомлений');
-  }
-
+async function subscribeWebPush(api) {
   const registration = await registerServiceWorker();
   if (!registration) {
     throw new Error('Не удалось зарегистрировать приложение — проверьте интернет');
   }
-
   await navigator.serviceWorker.ready;
-
   const { publicKey } = await api.getPushPublicKey();
   let subscription = await registration.pushManager.getSubscription();
-
   if (!subscription) {
     subscription = await registration.pushManager.subscribe({
       userVisibleOnly: true,
       applicationServerKey: urlBase64ToUint8Array(publicKey),
     });
   }
-
   await api.subscribePush(subscription.toJSON());
   return subscription;
+}
+
+export async function subscribeToOrderPush(api, installedBuild = 0) {
+  if (isNativeApp()) {
+    const blockReason = getNativePushBlockReason(installedBuild);
+    if (blockReason) throw new Error(blockReason);
+
+    await requestNativeNotificationPermission();
+
+    try {
+      await tryFcmSubscribe(api);
+      return null;
+    } catch {
+      // FCM недоступен без google-services.json — пробуем Web Push
+    }
+
+    if (isPushSupported()) {
+      await subscribeWebPush(api);
+      markNativePushSubscribed();
+      return null;
+    }
+
+    markNativePushSubscribed();
+    throw new Error('Разрешение получено. Push с сервера подключится после обновления APK.');
+  }
+
+  const blockReason = getPushBlockReason();
+  if (blockReason) throw new Error(blockReason);
+  if (!isPushSupported()) {
+    throw new Error('Устройство не поддерживает push-уведомления');
+  }
+
+  const permission = await Notification.requestPermission();
+  if (permission !== 'granted') {
+    throw new Error('Нажмите «Разрешить» в запросе уведомлений');
+  }
+
+  return subscribeWebPush(api);
 }
 
 export { resumeNativePushIfNeeded } from './nativePush';
@@ -126,4 +127,13 @@ export async function getPushSubscriptionState(installedBuild = 0) {
     subscribed: !!subscription,
     standalone: isStandaloneApp(),
   };
+}
+
+export async function getNotificationPermission() {
+  if (isNativeApp()) {
+    const state = await getNativePushState();
+    return state.permission;
+  }
+  if (!('Notification' in window)) return 'unsupported';
+  return Notification.permission;
 }

@@ -11,16 +11,13 @@ const config: CapacitorConfig = {
   },
   ...(serverUrl ? {
     server: {
-      url: serverUrl.replace(/\/$/, ''),
+      url: `${serverUrl.replace(/\/$/, '')}/warehouse/orders`,
       cleartext: false,
     },
   } : {}),
   plugins: {
     CapacitorHttp: {
       enabled: true,
-    },
-    PushNotifications: {
-      presentationOptions: ['badge', 'sound', 'alert'],
     },
   },
 };

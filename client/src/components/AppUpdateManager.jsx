@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { APP_BUILD_ID } from '../appBuildId';
 import { getOpenModalCount, subscribeOpenModalCount } from '../modalRegistry';
+import { isNativeApp, isRemoteCapacitorApp } from '../utils/nativeApp';
 
 const POLL_MS = 60_000;
 const RELOAD_DELAY_MS = 600;
@@ -60,7 +61,8 @@ export default function AppUpdateManager() {
   };
 
   useEffect(() => {
-    if (import.meta.env.DEV) return undefined;
+    // APK грузит UI с сервера — авто-reload ломает WebView (цикл перезагрузок)
+    if (import.meta.env.DEV || isNativeApp() || isRemoteCapacitorApp()) return undefined;
 
     let cancelled = false;
 

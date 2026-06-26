@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from 'react';
-import { App as CapApp } from '@capacitor/app';
 import { Navigate } from 'react-router-dom';
 import { api, formatDateTime, formatMoney } from '../api';
 import { useAuth } from '../AuthContext';
@@ -193,24 +192,10 @@ export default function ShopOrdersMobile() {
   useEffect(() => {
     if (!canView || !isNativeApp()) return undefined;
     const build = appInfo?.installedBuild || 0;
-
-    const finishPush = async () => {
-      const ok = await resumeNativePushIfNeeded(api, build);
+    resumeNativePushIfNeeded().then((ok) => {
       if (!ok) return;
-      const state = await getPushSubscriptionState(build);
-      setPushState(state);
-      setNotice('Уведомления включены — администратор может присылать сообщения');
-    };
-
-    finishPush().catch(() => {});
-
-    const resumeListener = CapApp.addListener('appStateChange', ({ isActive }) => {
-      if (isActive) finishPush().catch(() => {});
-    });
-
-    return () => {
-      resumeListener.then((h) => h.remove()).catch(() => {});
-    };
+      getPushSubscriptionState(build).then(setPushState);
+    }).catch(() => {});
   }, [canView, appInfo?.installedBuild]);
 
   const handleApkUpdate = async () => {
