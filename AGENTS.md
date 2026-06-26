@@ -503,6 +503,7 @@ GET  /api/auth/roles
 | 2026-06-24 | Fix белого экрана: guard reload loop AppUpdateManager, fallback CSS, `/tracking` страница |
 | 2026-06-24 | APK auto-update: `capacitor.config.ts` + remote server, `/api/app/snab-update`, in-app APK installer |
 | 2026-06-24 | Admin push: `/api/admin/push/send`, вкладка в SecurityAdmin, push в native APK |
+| 2026-06-24 | Снабжение: экран «Мой профиль», проверка версии APK, build 6 |
 
 ---
 

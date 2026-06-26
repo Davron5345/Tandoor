@@ -10489,6 +10489,106 @@ html.public-shop-lock #root {
   font-size: 15px;
 }
 
+.snab-profile-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.snab-profile-hero {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 4px 2px 8px;
+}
+
+.snab-profile-avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 22px;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, var(--primary), color-mix(in srgb, var(--primary) 60%, #6366f1));
+}
+
+.snab-profile-hero strong {
+  display: block;
+  font-size: 18px;
+}
+
+.snab-profile-hero span {
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.snab-profile-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.snab-profile-grid > div {
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+}
+
+.snab-profile-grid span {
+  display: block;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.snab-profile-hint {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--warning, #d97706) 10%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--warning, #d97706) 30%, var(--border));
+}
+
+.snab-profile-hint-ok {
+  background: color-mix(in srgb, var(--success, #16a34a) 8%, var(--surface));
+  border-color: color-mix(in srgb, var(--success, #16a34a) 25%, var(--border));
+}
+
+.snab-profile-version {
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.snab-profile-version h3 {
+  margin: 0 0 12px;
+  font-size: 15px;
+}
+
+.snab-profile-version-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+  font-size: 14px;
+}
+
+.snab-profile-version-row span {
+  color: var(--text-muted);
+}
+
+.btn-block {
+  width: 100%;
+  margin-top: 8px;
+}
+
 /* ——— Начальное сальдо ——— */
 .opening-balance-page {
   display: flex;

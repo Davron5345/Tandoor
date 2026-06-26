@@ -9,7 +9,8 @@ import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import Login from './Login';
 import ChangePassword from './ChangePassword';
 import ShopOrderItem from '../components/ShopOrderItem';
-import { IconNavWarehouse, IconNavLogout, IconNavSun, IconNavMoon, IconNavRefresh } from '../components/NavIcons';
+import { IconNavWarehouse, IconNavLogout, IconNavSun, IconNavMoon, IconNavRefresh, IconNavUser } from '../components/NavIcons';
+import SnabProfileView from '../components/SnabProfileView';
 import {
   getPushSubscriptionState,
   isPushSupported,
@@ -18,7 +19,7 @@ import {
 } from '../utils/pwaPush';
 import { useStaffLocationPing, requestStaffLocationPermission } from '../hooks/useStaffLocationPing';
 import { isNativeApp, isBackgroundLocationEnabled } from '../utils/nativeApp';
-import { checkSnabApkUpdate, downloadAndInstallSnabApk } from '../utils/nativeApkUpdate';
+import { checkSnabApkUpdate, downloadAndInstallSnabApk, getSnabAppInfo } from '../utils/nativeApkUpdate';
 import { FALLBACK_APK_URL } from '../components/SnabAppPanel';
 
 const STATUS_FILTERS = [
@@ -66,6 +67,7 @@ export default function ShopOrdersMobile() {
   const [locationLoading, setLocationLoading] = useState(false);
   const [apkUpdate, setApkUpdate] = useState(null);
   const [apkUpdating, setApkUpdating] = useState(false);
+  const [appInfo, setAppInfo] = useState(null);
   const [dismissSetup, setDismissSetup] = useState(() => {
     try { return localStorage.getItem('warehouse-pwa-setup-dismiss') === '1'; } catch { return false; }
   });
@@ -149,6 +151,40 @@ export default function ShopOrdersMobile() {
     return () => { cancelled = true; };
   }, [canView, branchId]);
 
+  const refreshAppInfo = useCallback(async () => {
+    try {
+      const info = await getSnabAppInfo(api);
+      setAppInfo(info);
+      if (info.updateAvailable) {
+        setApkUpdate({
+          versionName: info.serverVersion,
+          versionCode: info.serverBuild,
+          apkUrl: info.apkUrl,
+          installedVersion: info.installedBuild,
+          installedName: info.installedVersion,
+        });
+      } else {
+        setApkUpdate(null);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!canView) return undefined;
+    refreshAppInfo();
+    const timer = window.setInterval(refreshAppInfo, 30 * 60 * 1000);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') refreshAppInfo();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [canView, refreshAppInfo]);
+
   useEffect(() => {
     if (!canView || !isNativeApp()) return undefined;
     let cancelled = false;
@@ -159,10 +195,11 @@ export default function ShopOrdersMobile() {
   }, [canView]);
 
   const handleApkUpdate = async () => {
-    if (!apkUpdate?.apkUrl) return;
+    const url = apkUpdate?.apkUrl || appInfo?.apkUrl;
+    if (!url) return;
     setApkUpdating(true);
     try {
-      await downloadAndInstallSnabApk(apkUpdate.apkUrl);
+      await downloadAndInstallSnabApk(url);
       setNotice('Установщик APK открыт — подтвердите обновление');
     } catch (err) {
       setNotice(err.message || 'Не удалось обновить приложение');
@@ -302,6 +339,15 @@ export default function ShopOrdersMobile() {
               <button
                 type="button"
                 className="warehouse-orders-mobile-icon-btn"
+                onClick={() => setView('profile')}
+                aria-label="Мой профиль"
+                title="Мой профиль"
+              >
+                <IconNavUser />
+              </button>
+              <button
+                type="button"
+                className="warehouse-orders-mobile-icon-btn"
                 onClick={toggleTheme}
                 aria-label={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
                 title={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
@@ -317,7 +363,7 @@ export default function ShopOrdersMobile() {
             </div>
           </header>
 
-          {apkUpdate && (
+          {apkUpdate && view === 'list' && (
             <div className="warehouse-pwa-setup warehouse-apk-update">
               <div className="warehouse-pwa-setup-text">
                 <strong>Доступно обновление {apkUpdate.versionName}</strong>
@@ -442,6 +488,24 @@ export default function ShopOrdersMobile() {
             )}
           </div>
         </>
+      )}
+
+      {view === 'profile' && (
+        <SnabProfileView
+          user={user}
+          branchName={branchName}
+          pushState={pushState}
+          locationEnabled={locationEnabled}
+          appInfo={appInfo}
+          apkUpdate={apkUpdate}
+          apkUpdating={apkUpdating}
+          pushLoading={pushLoading}
+          onBack={() => setView('list')}
+          onEnablePush={handleEnablePush}
+          onEnableLocation={handleEnableLocation}
+          onApkUpdate={handleApkUpdate}
+          onRefreshInfo={refreshAppInfo}
+        />
       )}
 
       {view === 'detail' && selected && (

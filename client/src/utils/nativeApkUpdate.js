@@ -1,20 +1,67 @@
-import { registerPlugin } from '@capacitor/core';
 import { App } from '@capacitor/app';
+import { registerPlugin } from '@capacitor/core';
 import { CapacitorHttp } from '@capacitor/core';
 import { Filesystem, Directory } from '@capacitor/filesystem';
-import { isNativeApp } from './nativeApp';
+import { APP_BUILD_ID } from '../appBuildId';
+import { getApiBaseUrl, isNativeApp, isRemoteCapacitorApp } from './nativeApp';
 
 const ApkInstaller = registerPlugin('ApkInstaller');
 
+export async function getSnabAppInfo(api) {
+  const info = {
+    isNative: isNativeApp(),
+    remoteUi: isRemoteCapacitorApp(),
+    webBuildId: APP_BUILD_ID,
+  };
+
+  if (isNativeApp()) {
+    try {
+      const appInfo = await App.getInfo();
+      info.installedVersion = appInfo.version;
+      info.installedBuild = Number(appInfo.build) || 0;
+    } catch {
+      info.installedVersion = '—';
+      info.installedBuild = 0;
+    }
+  }
+
+  try {
+    const server = await api.getSnabUpdateInfo();
+    info.serverVersion = server.versionName;
+    info.serverBuild = server.versionCode;
+    info.apkUrl = server.apkUrl;
+    if (isNativeApp()) {
+      info.updateAvailable = server.versionCode > (info.installedBuild || 0);
+    }
+  } catch {
+    /* ignore */
+  }
+
+  try {
+    const res = await fetch(`${getApiBaseUrl()}/api/app-version`, { cache: 'no-store' });
+    if (res.ok) {
+      const data = await res.json();
+      info.webVersion = data.version;
+      info.webUpdateAvailable = !!data.version && data.version !== APP_BUILD_ID;
+    }
+  } catch {
+    /* ignore */
+  }
+
+  return info;
+}
+
 export async function checkSnabApkUpdate(api) {
   if (!isNativeApp()) return null;
-  const [info, appInfo] = await Promise.all([
-    api.getSnabUpdateInfo(),
-    App.getInfo(),
-  ]);
-  const installed = Number(appInfo.build) || 0;
-  if (info.versionCode > installed) {
-    return { ...info, installedVersion: installed, installedName: appInfo.version };
+  const info = await getSnabAppInfo(api);
+  if (info.updateAvailable) {
+    return {
+      versionCode: info.serverBuild,
+      versionName: info.serverVersion,
+      apkUrl: info.apkUrl,
+      installedVersion: info.installedBuild,
+      installedName: info.installedVersion,
+    };
   }
   return null;
 }
