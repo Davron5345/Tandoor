@@ -2,10 +2,12 @@ package com.tandoor.snab;
 
 import android.content.Intent;
 import android.net.Uri;
+import androidx.core.content.FileProvider;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import java.io.File;
 
 @CapacitorPlugin(name = "ApkInstaller")
 public class ApkInstallerPlugin extends Plugin {
@@ -20,6 +22,15 @@ public class ApkInstallerPlugin extends Plugin {
 
         try {
             Uri uri = Uri.parse(uriStr);
+            if ("file".equals(uri.getScheme())) {
+                File file = new File(uri.getPath());
+                uri = FileProvider.getUriForFile(
+                    getContext(),
+                    getContext().getPackageName() + ".fileprovider",
+                    file
+                );
+            }
+
             Intent intent = new Intent(Intent.ACTION_VIEW);
             intent.setDataAndType(uri, "application/vnd.android.package-archive");
             intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);

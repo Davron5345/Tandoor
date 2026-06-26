@@ -67,6 +67,7 @@ export default function ShopOrdersMobile() {
   const [locationLoading, setLocationLoading] = useState(false);
   const [apkUpdate, setApkUpdate] = useState(null);
   const [apkUpdating, setApkUpdating] = useState(false);
+  const [apkUpdateProgress, setApkUpdateProgress] = useState(null);
   const [appInfo, setAppInfo] = useState(null);
 
   const load = useCallback(async ({ silent = false } = {}) => {
@@ -154,12 +155,13 @@ export default function ShopOrdersMobile() {
       const info = await getSnabAppInfo(api);
       setAppInfo(info);
       const installed = info.installedBuild || 0;
-      const server = info.serverBuild || 0;
-      if (info.updateAvailable && installed > 0 && server > installed) {
+      const server = Number(info.serverBuild) || 0;
+      if (info.isNative && server > installed) {
         setApkUpdate({
           versionName: info.serverVersion,
-          versionCode: info.serverBuild,
+          versionCode: server,
           apkUrl: info.apkUrl,
+          apkSize: info.apkSize,
           installedVersion: installed,
           installedName: info.installedVersion,
         });
@@ -195,13 +197,16 @@ export default function ShopOrdersMobile() {
   }, [canView, appInfo?.installedBuild]);
 
   const handleApkUpdate = async () => {
-    const url = apkUpdate?.apkUrl || appInfo?.apkUrl;
+    if (!apkUpdate) return;
+    const url = apkUpdate.apkUrl || appInfo?.apkUrl;
     if (!url) return;
     setApkUpdating(true);
+    setApkUpdateProgress({ phase: 'downloading', percent: 0, label: 'Подготовка…' });
     try {
-      await downloadAndInstallSnabApk(url);
-      setNotice('Установщик APK открыт — подтвердите обновление');
+      await downloadAndInstallSnabApk(url, setApkUpdateProgress);
+      setNotice('Подтвердите установку в системном окне — приложение обновится до последней версии');
     } catch (err) {
+      setApkUpdateProgress(null);
       setNotice(err.message || 'Не удалось обновить приложение');
     } finally {
       setApkUpdating(false);
@@ -414,6 +419,7 @@ export default function ShopOrdersMobile() {
           appInfo={appInfo}
           apkUpdate={apkUpdate}
           apkUpdating={apkUpdating}
+          apkUpdateProgress={apkUpdateProgress}
           pushLoading={pushLoading}
           installPrompt={installPrompt}
           onBack={() => setView('list')}

@@ -20,6 +20,7 @@ export default function SnabProfileView({
   appInfo,
   apkUpdate,
   apkUpdating,
+  apkUpdateProgress,
   pushLoading,
   installPrompt,
   onBack,
@@ -67,11 +68,29 @@ export default function SnabProfileView({
           <section className="snab-profile-alert snab-profile-alert--update">
             <strong>Доступно обновление {apkUpdate.versionName}</strong>
             <p>
-              Установлена версия {apkUpdate.installedName || apkUpdate.installedVersion}.
-              Интерфейс обновляется с сервера автоматически; APK нужен только для новых функций Android.
+              Установлена версия {apkUpdate.installedName || apkUpdate.installedVersion} (build {apkUpdate.installedVersion}).
+              {' '}Новая версия: build {apkUpdate.versionCode}.
             </p>
-            <button type="button" className="btn btn-primary btn-block" onClick={onApkUpdate} disabled={apkUpdating}>
-              {apkUpdating ? 'Скачивание…' : 'Обновить APK'}
+            {apkUpdating && apkUpdateProgress && (
+              <div className="snab-apk-progress" role="progressbar" aria-valuenow={apkUpdateProgress.percent ?? 0} aria-valuemin={0} aria-valuemax={100}>
+                <div
+                  className="snab-apk-progress-bar"
+                  style={{ width: `${apkUpdateProgress.percent ?? (apkUpdateProgress.phase === 'installing' ? 100 : 0)}%` }}
+                />
+              </div>
+            )}
+            {apkUpdating && apkUpdateProgress?.label && (
+              <p className="snab-apk-progress-label">{apkUpdateProgress.label}</p>
+            )}
+            <button
+              type="button"
+              className="btn btn-primary btn-block"
+              onClick={onApkUpdate}
+              disabled={apkUpdating}
+            >
+              {apkUpdating
+                ? (apkUpdateProgress?.phase === 'installing' ? 'Установка…' : 'Скачивание…')
+                : `Обновить до ${apkUpdate.versionName}`}
             </button>
           </section>
         )}

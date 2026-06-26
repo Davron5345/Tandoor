@@ -10594,6 +10594,27 @@ html.public-shop-lock #root {
   background: color-mix(in srgb, var(--primary) 8%, var(--surface));
 }
 
+.snab-apk-progress {
+  height: 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--border) 60%, transparent);
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.snab-apk-progress-bar {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--primary);
+  transition: width 0.2s ease;
+}
+
+.snab-apk-progress-label {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
 .snab-profile-version {
   padding: 14px 16px;
   border-radius: 14px;

@@ -1,6 +1,8 @@
-import { existsSync } from 'fs';
+import { existsSync, createReadStream, statSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { Readable } from 'stream';
+import { pipeline } from 'stream/promises';
 import { requirePermission } from '../middleware.js';
 import { getAppVersion } from '../appVersion.js';
 import { getSnabUpdateInfo } from '../snabAppVersion.js';
@@ -79,5 +81,39 @@ export function registerAppRoutes(app) {
       return res.redirect(process.env.SNAB_APK_URL || DEFAULT_GITHUB_APK_URL);
     }
     return sendApkFile(res, apkPath);
+  });
+
+  app.get('/api/app/snab-apk/stream', requirePermission('shop_orders.view'), async (req, res) => {
+    try {
+      const apkPath = getSnabApkPath();
+      res.setHeader('Content-Type', 'application/vnd.android.package-archive');
+      res.setHeader('Content-Disposition', 'attachment; filename="snabzenie.apk"');
+
+      if (existsSync(apkPath)) {
+        const stat = statSync(apkPath);
+        res.setHeader('Content-Length', stat.size);
+        await pipeline(createReadStream(apkPath), res);
+        return;
+      }
+
+      const target = process.env.SNAB_APK_URL || DEFAULT_GITHUB_APK_URL;
+      const upstream = await fetch(target, { redirect: 'follow' });
+      if (!upstream.ok) {
+        return res.status(502).json({ error: 'Не удалось получить APK' });
+      }
+      const len = upstream.headers.get('content-length');
+      if (len) res.setHeader('Content-Length', len);
+      if (upstream.body) {
+        await pipeline(Readable.fromWeb(upstream.body), res);
+      } else {
+        const buffer = Buffer.from(await upstream.arrayBuffer());
+        res.setHeader('Content-Length', buffer.length);
+        res.end(buffer);
+      }
+    } catch (err) {
+      if (!res.headersSent) {
+        res.status(500).json({ error: err.message || 'Ошибка загрузки APK' });
+      }
+    }
   });
 }
