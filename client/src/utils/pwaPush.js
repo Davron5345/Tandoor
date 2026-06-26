@@ -1,6 +1,6 @@
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { isNativeApp } from './nativeApp';
-import { getNativePushBlockReason, getNativePushState, subscribeNativePush } from './nativePush';
+import { getNativePushBlockReason, getNativePushState, resumeNativePushIfNeeded, subscribeNativePush } from './nativePush';
 
 function urlBase64ToUint8Array(base64String) {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
@@ -104,6 +104,8 @@ export async function subscribeToOrderPush(api, installedBuild = 0) {
   await api.subscribePush(subscription.toJSON());
   return subscription;
 }
+
+export { resumeNativePushIfNeeded } from './nativePush';
 
 export async function getPushSubscriptionState(installedBuild = 0) {
   if (isNativeApp()) {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { App as CapApp } from '@capacitor/app';
 import { Navigate } from 'react-router-dom';
 import { api, formatDateTime, formatMoney } from '../api';
 import { useAuth } from '../AuthContext';
@@ -15,11 +15,12 @@ import {
   getPushSubscriptionState,
   isPushSupported,
   isStandaloneApp,
+  resumeNativePushIfNeeded,
   subscribeToOrderPush,
 } from '../utils/pwaPush';
 import { useStaffLocationPing, requestStaffLocationPermission } from '../hooks/useStaffLocationPing';
 import { isNativeApp, isBackgroundLocationEnabled } from '../utils/nativeApp';
-import { checkSnabApkUpdate, downloadAndInstallSnabApk, getSnabAppInfo } from '../utils/nativeApkUpdate';
+import { downloadAndInstallSnabApk, getSnabAppInfo } from '../utils/nativeApkUpdate';
 import { FALLBACK_APK_URL } from '../components/SnabAppPanel';
 
 const STATUS_FILTERS = [
@@ -156,12 +157,14 @@ export default function ShopOrdersMobile() {
     try {
       const info = await getSnabAppInfo(api);
       setAppInfo(info);
-      if (info.updateAvailable) {
+      const installed = info.installedBuild || 0;
+      const server = info.serverBuild || 0;
+      if (info.updateAvailable && installed > 0 && server > installed) {
         setApkUpdate({
           versionName: info.serverVersion,
           versionCode: info.serverBuild,
           apkUrl: info.apkUrl,
-          installedVersion: info.installedBuild,
+          installedVersion: installed,
           installedName: info.installedVersion,
         });
       } else {
@@ -188,12 +191,26 @@ export default function ShopOrdersMobile() {
 
   useEffect(() => {
     if (!canView || !isNativeApp()) return undefined;
-    let cancelled = false;
-    checkSnabApkUpdate(api).then((info) => {
-      if (!cancelled) setApkUpdate(info);
-    }).catch(() => {});
-    return () => { cancelled = true; };
-  }, [canView]);
+    const build = appInfo?.installedBuild || 0;
+
+    const finishPush = async () => {
+      const ok = await resumeNativePushIfNeeded(api, build);
+      if (!ok) return;
+      const state = await getPushSubscriptionState(build);
+      setPushState(state);
+      setNotice('Уведомления включены — администратор может присылать сообщения');
+    };
+
+    finishPush().catch(() => {});
+
+    const resumeListener = CapApp.addListener('appStateChange', ({ isActive }) => {
+      if (isActive) finishPush().catch(() => {});
+    });
+
+    return () => {
+      resumeListener.then((h) => h.remove()).catch(() => {});
+    };
+  }, [canView, appInfo?.installedBuild]);
 
   const handleApkUpdate = async () => {
     const url = apkUpdate?.apkUrl || appInfo?.apkUrl;
