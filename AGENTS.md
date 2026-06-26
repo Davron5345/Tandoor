@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-06-24
+**Последнее обновление документации:** 2026-06-26
 
 ---
 
@@ -22,7 +22,7 @@
 | Финансы | Касса, банк/оплаты, статьи кассы, P&L, начальное сальдо |
 | MyShop | Онлайн-витрина для сотрудников, заявки на продукты, конструктор витрины |
 | Администрирование | Филиалы, отделы, роли/права, сотрудники, аудит, безопасность |
-| Интеграции | Telegram-бот, Web Push, Android-приложение снабженца с геолокацией |
+| Интеграции | Telegram-бот, Web Push (браузер/PWA), FCM Push (Android APK), приложение снабженца |
 
 ---
 
@@ -32,7 +32,7 @@
 |------|-----------|
 | Backend | Node.js ≥20, Express 4, ESM (`"type": "module"`), sql.js (SQLite в файле) |
 | Frontend | React 18, Vite, React Router 7, plain CSS (без UI-фреймворка) |
-| Mobile | Capacitor 7 (Android), PWA service worker |
+| Mobile | Capacitor 7 (Android), PWA service worker, TypeScript для `capacitor.config.ts` |
 | Тесты | Node test runner (`server/test/`), Playwright E2E (`e2e/`), ESLint |
 | Хранение | `data/warehouse.db`, `data/backups/`, `data/uploads/` |
 
@@ -63,7 +63,8 @@ prihod-rashod/
 │   ├── myShop.js           # Витрина MyShop, layout
 │   ├── shopOrders.js       # Заявки MyShop
 │   ├── telegram.js         # Telegram-бот
-│   ├── push.js             # Web Push (VAPID)
+│   ├── push.js             # Push: Web Push (VAPID) + FCM (Android native)
+│   ├── snabAppVersion.js   # Метаданные APK, URL скачивания
 │   ├── staffLocation.js    # Геолокация снабженцев
 │   └── test/               # Unit/integration тесты backend
 ├── client/
@@ -77,9 +78,13 @@ prihod-rashod/
 │   │   ├── pages/          # Страницы приложения
 │   │   ├── components/     # Переиспользуемые компоненты
 │   │   ├── hooks/          # React-хуки
-│   │   └── utils/          # Утилиты (даты, native app, и т.д.)
-│   └── public/             # Статика, PWA, APK снабжения
+│   │   ├── utils/          # nativeApp, nativePush, nativeApkUpdate, pwaPush, date...
+│   │   └── components/     # SnabProfileView, SnabAppPanel, AdminPushTab (в pages/)...
+│   └── public/             # Статика, PWA; APK — зеркало на GitHub Releases
 ├── android/                # Capacitor Android (com.tandoor.snab)
+│   ├── app/google-services.json   # Firebase (не в git — секрет CI / локально)
+│   └── app-version.json    # versionCode/versionName для API
+├── capacitor.config.ts     # Capacitor; CAPACITOR_SERVER_URL при сборке APK
 ├── e2e/                    # Playwright тесты
 ├── scripts/                # Сборка Android, иконки
 ├── docs/                   # Доп. документация (SNAB_ANDROID.md)
@@ -327,6 +332,14 @@ POST /api/public/shop/:branchId/orders
 GET  /api/push/vapid-public-key
 GET  /api/app/snab-update
 GET  /api/public/snab-apk
+GET  /downloads/snabzenie.apk        → 302 на GitHub Releases
+```
+
+### Auth (дополнительно для снабжения)
+
+```
+GET  /api/app/snab-install           # shop_orders.view — ссылки APK/PWA
+POST /api/push/subscribe             # Web Push или FCM { type: 'fcm', token }
 ```
 
 ### Auth
@@ -392,7 +405,7 @@ GET  /api/auth/roles
 | `/branches` | Branches.jsx | admin |
 | `/departments` | Departments.jsx | admin |
 | `/tracking` | StaffTracking.jsx | admin: трекинг снабженцев с картой маршрута |
-| `/security` | SecurityAdmin.jsx | admin: сеансы, **трекинг**, **push-уведомления**, блокировки |
+| `/security` | SecurityAdmin.jsx | admin: сеансы, трекинг, push (`AdminPushTab.jsx`), блокировки |
 | `/audit-log` | AuditLog.jsx | admin |
 | `/warehouse/orders` | ShopOrdersMobile.jsx | shop_orders (mobile) |
 
@@ -402,15 +415,63 @@ GET  /api/auth/roles
 
 - **Capacitor app id:** `com.tandoor.snab`
 - **Название:** Mahalla Снабжение
-- **APK:** `client/public/downloads/snabzenie.apk`
-- **Версия APK:** `android/app-version.json` + `android/app/build.gradle` (versionCode)
-- **Конфиг:** `capacitor.config.ts` — при сборке `CAPACITOR_SERVER_URL` указывает на прод-сервер → UI обновляется без переустановки APK
-- **Обновление APK:** `GET /api/app/snab-update` + баннер «Обновить APK» в `ShopOrdersMobile` (плагин `ApkInstaller`)
-- **Документация:** `docs/SNAB_ANDROID.md`
-- **Функции:** заявки MyShop, push-уведомления (Web Push + admin-рассылка), фоновая геолокация
-- **Трекинг для админа:** `/security` → «Трекинг снабженцев» → маршрут на карте Leaflet
-- **Push для админа:** `/security` → вкладка «Push-уведомления»
-- **Сборка:** `npm run android:apk`, CI в GitHub Actions (`CAPACITOR_SERVER_URL`)
+- **Текущая версия APK:** `1.0.7` (build **8**) — `android/app-version.json`, `android/app/build.gradle`
+- **Скачивание APK:** [GitHub Releases](https://github.com/Davron5345/Tandoor/releases/latest/download/snabzenie.apk) (основной источник; файл >100 MB не хранится в git)
+- **Зеркало на сайте:** `GET /downloads/snabzenie.apk` → редирект на GitHub Releases
+- **Панель скачивания:** `client/src/components/SnabAppPanel.jsx` (в MyShop / заявки)
+
+### Remote UI (главный принцип)
+
+- `capacitor.config.ts` + env `CAPACITOR_SERVER_URL` при сборке CI → APK грузит UI с прод-сервера
+- **Обычные изменения интерфейса** деплоятся на Railway — **переустановка APK не нужна**
+- **Новый APK нужен** только при: новых native-плагинах, Android-разрешениях, смене `versionCode`
+
+### Native-плагины (Android)
+
+| Плагин | Назначение |
+|--------|-----------|
+| `@capacitor-community/background-geolocation` | Фоновая геолокация |
+| `@capacitor/push-notifications` | FCM push (стандартный запрос разрешений Android) |
+| `@capacitor/local-notifications` | Локальные уведомления |
+| `@capacitor/app`, `@capacitor/filesystem` | Версия APK, скачивание обновления |
+| `ApkInstallerPlugin` (Java) | Установка APK из приложения |
+
+После `npm install` обязателен `npx cap sync android` — иначе в APK не будет native-модулей («plugin is not implemented»).
+
+### Push-уведомления
+
+| Канал | Где | Как |
+|-------|-----|-----|
+| **FCM (Android APK)** | `client/src/utils/nativePush.js` | `PushNotifications.requestPermissions()` → токен → `POST /api/push/subscribe` с `{ type: 'fcm', token }` |
+| **Web Push (PWA/браузер)** | `client/src/utils/pwaPush.js` | Service Worker + VAPID |
+| **Админ-рассылка** | `AdminPushTab.jsx`, `POST /api/admin/push/send` | Всем / по филиалу / выбранным; `GET /api/admin/push/subscribers` |
+
+Сервер (`server/push.js`): endpoint `fcm:<token>` для native; обычный Web Push endpoint для браузера. Отправка FCM через `FCM_SERVER_KEY` (Legacy HTTP API).
+
+**Настройка FCM (один раз):**
+1. Firebase Console → Android app `com.tandoor.snab` → `google-services.json` → `android/app/`
+2. Railway: `FCM_SERVER_KEY` (Cloud Messaging → Server key)
+3. GitHub Secret: `GOOGLE_SERVICES_JSON` (содержимое файла) для CI сборки APK
+
+### Обновление APK в приложении
+
+- API: `GET /api/app/snab-update` (`server/snabAppVersion.js`)
+- UI: баннер «Обновить APK» только если `server.versionCode > installedBuild` (и build известен)
+- Установка: `client/src/utils/nativeApkUpdate.js` + `ApkInstallerPlugin`
+
+### Экран снабженца (`ShopOrdersMobile.jsx`)
+
+- Маршруты: `/warehouse/orders`, `/snab` (redirect)
+- Профиль: `SnabProfileView.jsx` — версия, push, геолокация
+- Тема: `ThemeContext` + `data-theme` на `<html>`; **не дублировать цветовые CSS-переменные в `:root`** (ломает тёмную тему)
+- Трекинг: `useStaffLocationPing` + `backgroundLocation.js`
+
+### Сборка APK
+
+- Локально: `npm run android:apk` (нужен Android SDK)
+- CI: `.github/workflows/android-apk.yml` — `CAPACITOR_SERVER_URL`, TypeScript, `npx cap sync`, Gradle release
+- APK публикуется в **GitHub Releases** (не коммитится в git из-за лимита 100 MB)
+- Документация для людей: `docs/SNAB_ANDROID.md` (частично устарела — см. этот раздел)
 
 ---
 
@@ -423,12 +484,17 @@ GET  /api/auth/roles
 | `DATA_DIR` | Путь к `warehouse.db` и uploads (обязательно на Railway/Docker) |
 | `TELEGRAM_BOT_TOKEN` | Токен бота |
 | `TELEGRAM_ENABLED` | `false` для отключения |
-| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | Web Push |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | Web Push (браузер/PWA) |
+| `FCM_SERVER_KEY` | FCM push для Android APK (Legacy HTTP API) |
+| `CAPACITOR_SERVER_URL` | URL прод-сервера при сборке APK (CI / локально) |
+| `GOOGLE_SERVICES_JSON` | GitHub Actions secret → `android/app/google-services.json` при сборке |
+| `SNAB_APK_URL` | Переопределить URL скачивания APK (default: GitHub Releases) |
+| `APP_PUBLIC_URL` | Публичный URL сайта (для ссылок в API) |
 | `CORS_ORIGIN` | Разрешённые origins (через запятую) |
 | `COOKIE_SECURE` | Secure cookie flag |
 | `ALLOW_DATA_RESET` | Разрешить API сброса данных |
 | `DISABLE_DEMO_SEED` | Не заполнять демо-данные |
-| `VITE_API_URL` | URL API для frontend build (mobile) |
+| `VITE_API_URL` | URL API для frontend build (Vite) |
 
 ---
 
@@ -480,6 +546,9 @@ GET  /api/auth/roles
 | Себестоимость / остатки | `server/inventoryCost.js`, `server/departments.js` |
 | MyShop | `server/myShop.js`, `server/publicShop.js`, `client/src/pages/MyShop*.jsx` |
 | Telegram | `server/telegram.js`, `server/services/telegram.js` |
+| Push (FCM + Web) | `server/push.js`, `client/src/utils/nativePush.js`, `client/src/utils/pwaPush.js` |
+| APK снабжения | `server/snabAppVersion.js`, `nativeApkUpdate.js`, `.github/workflows/android-apk.yml` |
+| Тема UI | `client/src/theme.js`, `ThemeContext.jsx` — не дублировать цвета в `:root` |
 | Тест | `server/test/<feature>.test.js` |
 
 ---
@@ -504,6 +573,11 @@ GET  /api/auth/roles
 | 2026-06-24 | APK auto-update: `capacitor.config.ts` + remote server, `/api/app/snab-update`, in-app APK installer |
 | 2026-06-24 | Admin push: `/api/admin/push/send`, вкладка в SecurityAdmin, push в native APK |
 | 2026-06-24 | Снабжение: экран «Мой профиль», проверка версии APK, build 6 |
+| 2026-06-26 | CI APK: TypeScript для `capacitor.config.ts`; APK на GitHub Releases (>100 MB) |
+| 2026-06-26 | Push: FCM native (`@capacitor/push-notifications`), `FCM_SERVER_KEY`, выбор получателей в админке |
+| 2026-06-26 | Fix: тёмная тема (`:root` не должен перекрывать `data-theme`), push после перезагрузки WebView |
+| 2026-06-26 | APK build 8 (1.0.7): push-плагин в `capacitor.build.gradle`, fix чёрного экрана (import React) |
+| 2026-06-26 | `/downloads/snabzenie.apk` → редирект GitHub; `SnabAppPanel` — основная ссылка на Releases |
 
 ---
 
