@@ -12,8 +12,12 @@ export function getStoredTheme() {
 export function applyTheme(theme) {
   const safeTheme = theme === 'light' ? 'light' : 'dark';
   document.documentElement.setAttribute('data-theme', safeTheme);
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) {
+    meta.setAttribute('content', safeTheme === 'dark' ? '#0f1419' : '#2563eb');
+  }
   try {
-    localStorage.setItem(STORAGE_KEY, theme);
+    localStorage.setItem(STORAGE_KEY, safeTheme);
   } catch {
     // ignore
   }

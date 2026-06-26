@@ -16,7 +16,6 @@ import {
   isPushSupported,
   isStandaloneApp,
   subscribeToOrderPush,
-  getPushFixPlayStoreUrl,
 } from '../utils/pwaPush';
 import { useStaffLocationPing, requestStaffLocationPermission } from '../hooks/useStaffLocationPing';
 import { isNativeApp, isBackgroundLocationEnabled } from '../utils/nativeApp';
@@ -260,7 +259,7 @@ export default function ShopOrdersMobile() {
 
   const showPushBanner = canView && view === 'list' && (
     isNativeApp()
-      ? (!pushState.subscribed || !!pushState.blockReason)
+      ? !pushState.subscribed
       : isPushSupported() && (pushState.permission !== 'granted' || !pushState.subscribed)
   );
 
@@ -393,16 +392,9 @@ export default function ShopOrdersMobile() {
                 <span>{pushBannerText}</span>
               </div>
               <div className="warehouse-pwa-setup-actions">
-                {!pushState.blockReason && (
-                  <button type="button" className="btn btn-primary btn-sm" onClick={handleEnablePush} disabled={pushLoading}>
-                    {pushLoading ? '...' : 'Включить уведомления'}
-                  </button>
-                )}
-                {getPushFixPlayStoreUrl() && (
-                  <a className="btn btn-primary btn-sm" href={getPushFixPlayStoreUrl()} target="_blank" rel="noopener noreferrer">
-                    Открыть Google Play
-                  </a>
-                )}
+                <button type="button" className="btn btn-primary btn-sm" onClick={handleEnablePush} disabled={pushLoading || !!pushState.blockReason}>
+                  {pushLoading ? '...' : 'Включить уведомления'}
+                </button>
               </div>
             </div>
           )}

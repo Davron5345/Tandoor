@@ -1,5 +1,6 @@
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { isNativeApp } from './nativeApp';
+import { getNativePushState, subscribeNativePush } from './nativePush';
 
 function urlBase64ToUint8Array(base64String) {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
@@ -18,27 +19,16 @@ export function isStandaloneApp() {
 }
 
 export function isPushSupported() {
+  if (isNativeApp()) return true;
   return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
 }
 
 export function getPushBlockReason() {
-  if (!isNativeApp()) return null;
-  if (!/^https:\/\//.test(window.location.origin)) {
-    return 'Обновите APK до последней версии — в старом приложении push не работает';
-  }
+  if (isNativeApp()) return null;
   if (!isPushSupported()) {
-    return 'Обновите «Android System WebView» в Google Play и перезапустите приложение';
+    return 'Браузер не поддерживает push-уведомления';
   }
   return null;
-}
-
-export const WEBVIEW_PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.google.android.webview';
-export const CHROME_PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.android.chrome';
-
-export function getPushFixPlayStoreUrl() {
-  const reason = getPushBlockReason();
-  if (!reason?.includes('WebView')) return null;
-  return WEBVIEW_PLAY_STORE_URL;
 }
 
 async function ensureNativeNotificationPermission() {
@@ -63,11 +53,20 @@ export async function registerServiceWorker() {
 }
 
 export async function getNotificationPermission() {
+  if (isNativeApp()) {
+    const state = await getNativePushState();
+    return state.permission;
+  }
   if (!('Notification' in window)) return 'unsupported';
   return Notification.permission;
 }
 
 export async function subscribeToOrderPush(api) {
+  if (isNativeApp()) {
+    await subscribeNativePush(api);
+    return null;
+  }
+
   const blockReason = getPushBlockReason();
   if (blockReason) {
     throw new Error(blockReason);
@@ -80,7 +79,7 @@ export async function subscribeToOrderPush(api) {
 
   const permission = await Notification.requestPermission();
   if (permission !== 'granted') {
-    throw new Error('Нажмите «Разрешить» в запросе уведомлений Android');
+    throw new Error('Нажмите «Разрешить» в запросе уведомлений');
   }
 
   const registration = await registerServiceWorker();
@@ -105,6 +104,10 @@ export async function subscribeToOrderPush(api) {
 }
 
 export async function getPushSubscriptionState() {
+  if (isNativeApp()) {
+    return getNativePushState();
+  }
+
   const blockReason = getPushBlockReason();
   if (!isPushSupported()) {
     return { supported: false, blockReason, subscribed: false };

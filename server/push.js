@@ -27,7 +27,11 @@ export function initWebPush() {
 }
 
 export function isPushEnabled() {
-  return vapidReady;
+  return vapidReady || isFcmEnabled();
+}
+
+export function isFcmEnabled() {
+  return Boolean(process.env.FCM_SERVER_KEY?.trim());
 }
 
 export function getVapidPublicKey() {
@@ -35,6 +39,31 @@ export function getVapidPublicKey() {
 }
 
 export function savePushSubscription(userId, branchId, subscription, userAgent = '') {
+  if (subscription?.type === 'fcm' && subscription?.token) {
+    if (!isFcmEnabled()) {
+      throw new Error('Push на сервере не настроен — задайте FCM_SERVER_KEY');
+    }
+    const endpoint = `fcm:${subscription.token}`;
+    run('DELETE FROM push_subscriptions WHERE endpoint = ?', [endpoint]);
+    run(`
+      INSERT INTO push_subscriptions (id, user_id, branch_id, endpoint, p256dh, auth, user_agent)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `, [
+      uuidv4(),
+      userId,
+      branchId || null,
+      endpoint,
+      'native',
+      'native',
+      userAgent || null,
+    ]);
+    return;
+  }
+
+  if (!vapidReady) {
+    throw new Error('Push-уведомления не настроены на сервере');
+  }
+
   const endpoint = subscription?.endpoint;
   const keys = subscription?.keys || {};
   if (!endpoint || !keys.p256dh || !keys.auth) {
@@ -74,7 +103,56 @@ function subscriptionPayload(row) {
   };
 }
 
+async function sendFcmNotification(token, payload) {
+  const key = process.env.FCM_SERVER_KEY?.trim();
+  if (!key) {
+    return { ok: false, error: 'FCM not configured' };
+  }
+
+  const res = await fetch('https://fcm.googleapis.com/fcm/send', {
+    method: 'POST',
+    headers: {
+      Authorization: `key=${key}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      to: token,
+      priority: 'high',
+      notification: {
+        title: payload.title,
+        body: payload.body,
+      },
+      data: {
+        url: payload.url || '/warehouse/orders',
+        tag: payload.tag || 'notification',
+      },
+    }),
+  });
+
+  let data = {};
+  try {
+    data = await res.json();
+  } catch {
+    // ignore
+  }
+
+  const errorCode = data?.results?.[0]?.error;
+  if (!res.ok || data?.failure) {
+    if (errorCode === 'NotRegistered' || errorCode === 'InvalidRegistration') {
+      run('DELETE FROM push_subscriptions WHERE endpoint = ?', [`fcm:${token}`]);
+    }
+    return { ok: false, error: errorCode || res.statusText };
+  }
+  return { ok: true };
+}
+
 async function sendToSubscription(row, payload) {
+  if (row.endpoint?.startsWith('fcm:')) {
+    return sendFcmNotification(row.endpoint.slice(4), payload);
+  }
+  if (!vapidReady) {
+    return { ok: false, error: 'VAPID not configured' };
+  }
   try {
     await webpush.sendNotification(subscriptionPayload(row), JSON.stringify(payload));
     return { ok: true };
@@ -98,7 +176,7 @@ function getEligibleSubscriptions(branchId) {
 }
 
 export async function notifyShopOrderPush(order) {
-  if (!vapidReady || !order?.branch_id) return { sent: 0 };
+  if (!isPushEnabled() || !order?.branch_id) return { sent: 0 };
 
   const subs = getEligibleSubscriptions(order.branch_id);
   if (!subs.length) return { sent: 0 };
@@ -201,7 +279,7 @@ export async function sendAdminPush({
   userIds,
   target = 'snab',
 }) {
-  if (!vapidReady) {
+  if (!isPushEnabled()) {
     throw new Error('Push-уведомления не настроены на сервере');
   }
 

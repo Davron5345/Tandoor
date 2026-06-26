@@ -113,3 +113,14 @@ test('admin push selected mode requires recipients', async () => {
   const data = await res.json();
   assert.match(data.error, /получател/i);
 });
+
+test('fcm subscription can be saved when FCM_SERVER_KEY is set', async () => {
+  process.env.FCM_SERVER_KEY = 'test-fcm-key';
+  const res = await fetch(`${baseUrl}/api/push/subscribe`, {
+    method: 'POST',
+    headers: { cookie: adminCookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ subscription: { type: 'fcm', token: 'device-token-123' } }),
+  });
+  assert.equal(res.status, 200);
+  delete process.env.FCM_SERVER_KEY;
+});
