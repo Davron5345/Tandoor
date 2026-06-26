@@ -47,10 +47,12 @@ export default function SnabAppPanel() {
   }, []);
 
   const mobileUrl = info?.mobileUrl || (typeof window !== 'undefined' ? `${window.location.origin}/snab` : '/snab');
-  const apkHref = info?.apkDownloadUrl || info?.apkUrl || (
+  const githubApkHref = info?.githubApkUrl || 'https://github.com/Davron5345/Tandoor/releases/latest/download/snabzenie.apk';
+  const siteApkHref = info?.apkDownloadUrl || info?.apkUrl || (
     typeof window !== 'undefined' ? `${window.location.origin}${FALLBACK_APK_URL}` : FALLBACK_APK_URL
   );
-  const githubApkHref = info?.githubApkUrl || 'https://github.com/Davron5345/Tandoor/releases/latest/download/snabzenie.apk';
+  // GitHub Releases обновляется сразу после сборки; зеркало на сайте может отставать.
+  const apkHref = githubApkHref;
   const apkVersionLabel = updateInfo?.versionName
     ? `${updateInfo.versionName} (build ${updateInfo.versionCode})`
     : null;
@@ -117,8 +119,8 @@ export default function SnabAppPanel() {
                 <a className="btn btn-primary btn-sm" href={apkHref}>
                   Скачать APK
                 </a>
-                <a className="btn btn-ghost btn-sm" href={githubApkHref}>
-                  GitHub (запасная)
+                <a className="btn btn-ghost btn-sm" href={siteApkHref}>
+                  С сайта (зеркало)
                 </a>
                 <button type="button" className="btn btn-ghost btn-sm" onClick={() => handleCopy('apk', apkHref)}>
                   {copied === 'apk' ? 'Скопировано' : 'Копировать ссылку'}

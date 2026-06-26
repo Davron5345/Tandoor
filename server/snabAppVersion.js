@@ -43,9 +43,6 @@ export function getSnabUpdateInfo(req) {
 
   let apkUrl = process.env.SNAB_APK_URL
     || 'https://github.com/Davron5345/Tandoor/releases/latest/download/snabzenie.apk';
-  if (apkOnServer && base) {
-    apkUrl = `${base}/downloads/snabzenie.apk`;
-  }
 
   let apkSha256 = null;
   let apkSize = null;

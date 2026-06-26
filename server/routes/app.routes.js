@@ -29,9 +29,6 @@ function getPublicBaseUrl(req) {
 }
 
 function resolveApkDownloadUrl(req) {
-  const base = getPublicBaseUrl(req);
-  const apkPath = getSnabApkPath();
-  if (existsSync(apkPath)) return `${base}/downloads/snabzenie.apk`;
   return process.env.SNAB_APK_URL || DEFAULT_GITHUB_APK_URL;
 }
 
@@ -42,6 +39,10 @@ function sendApkFile(res, apkPath) {
 }
 
 export function registerAppRoutes(app) {
+  app.get('/downloads/snabzenie.apk', (req, res) => {
+    res.redirect(302, process.env.SNAB_APK_URL || DEFAULT_GITHUB_APK_URL);
+  });
+
   app.get('/api/app/snab-update', (req, res) => {
     res.json(getSnabUpdateInfo(req));
   });
