@@ -1,6 +1,6 @@
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { isNativeApp } from './nativeApp';
-import { getNativePushState, subscribeNativePush } from './nativePush';
+import { getNativePushBlockReason, getNativePushState, subscribeNativePush } from './nativePush';
 
 function urlBase64ToUint8Array(base64String) {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
@@ -23,8 +23,10 @@ export function isPushSupported() {
   return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
 }
 
-export function getPushBlockReason() {
-  if (isNativeApp()) return null;
+export function getPushBlockReason(installedBuild = 0) {
+  if (isNativeApp()) {
+    return getNativePushBlockReason(installedBuild);
+  }
   if (!isPushSupported()) {
     return 'Браузер не поддерживает push-уведомления';
   }
@@ -61,9 +63,9 @@ export async function getNotificationPermission() {
   return Notification.permission;
 }
 
-export async function subscribeToOrderPush(api) {
+export async function subscribeToOrderPush(api, installedBuild = 0) {
   if (isNativeApp()) {
-    await subscribeNativePush(api);
+    await subscribeNativePush(api, installedBuild);
     return null;
   }
 
@@ -103,9 +105,9 @@ export async function subscribeToOrderPush(api) {
   return subscription;
 }
 
-export async function getPushSubscriptionState() {
+export async function getPushSubscriptionState(installedBuild = 0) {
   if (isNativeApp()) {
-    return getNativePushState();
+    return getNativePushState(installedBuild);
   }
 
   const blockReason = getPushBlockReason();

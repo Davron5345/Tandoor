@@ -1,10 +1,24 @@
+import { Capacitor } from '@capacitor/core';
 import { PushNotifications } from '@capacitor/push-notifications';
 import { isNativeApp } from './nativeApp';
 
 const FCM_SUBSCRIBED_KEY = 'warehouse_fcm_subscribed';
+const MIN_PUSH_BUILD = 7;
 
 let listenersAttached = false;
 let pendingRegistration = null;
+
+export function isNativePushPluginAvailable() {
+  return isNativeApp() && Capacitor.isPluginAvailable('PushNotifications');
+}
+
+export function getNativePushBlockReason(installedBuild = 0) {
+  if (!isNativeApp()) return null;
+  if ((installedBuild || 0) < MIN_PUSH_BUILD || !isNativePushPluginAvailable()) {
+    return 'Обновите APK до версии 1.0.6 (build 7) — кнопка «Обновить APK» выше';
+  }
+  return null;
+}
 
 function attachPushListeners(api) {
   if (listenersAttached) return;
@@ -46,9 +60,14 @@ function attachPushListeners(api) {
   });
 }
 
-export async function subscribeNativePush(api) {
+export async function subscribeNativePush(api, installedBuild = 0) {
   if (!isNativeApp()) {
     throw new Error('Только для Android-приложения');
+  }
+
+  const blockReason = getNativePushBlockReason(installedBuild);
+  if (blockReason) {
+    throw new Error(blockReason);
   }
 
   attachPushListeners(api);
@@ -71,9 +90,20 @@ export async function subscribeNativePush(api) {
   await registrationPromise;
 }
 
-export async function getNativePushState() {
+export async function getNativePushState(installedBuild = 0) {
   if (!isNativeApp()) {
     return { supported: false, subscribed: false, blockReason: null };
+  }
+
+  const blockReason = getNativePushBlockReason(installedBuild);
+  if (blockReason) {
+    return {
+      supported: false,
+      blockReason,
+      permission: 'default',
+      subscribed: false,
+      standalone: true,
+    };
   }
 
   let permission = 'default';

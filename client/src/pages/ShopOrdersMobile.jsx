@@ -145,11 +145,12 @@ export default function ShopOrdersMobile() {
   useEffect(() => {
     if (!canView) return undefined;
     let cancelled = false;
-    getPushSubscriptionState().then((state) => {
+    const build = appInfo?.installedBuild || 0;
+    getPushSubscriptionState(build).then((state) => {
       if (!cancelled) setPushState(state);
     }).catch(() => {});
     return () => { cancelled = true; };
-  }, [canView, branchId]);
+  }, [canView, branchId, appInfo?.installedBuild]);
 
   const refreshAppInfo = useCallback(async () => {
     try {
@@ -217,8 +218,9 @@ export default function ShopOrdersMobile() {
   const handleEnablePush = async () => {
     setPushLoading(true);
     try {
-      await subscribeToOrderPush(api);
-      const state = await getPushSubscriptionState();
+      const build = appInfo?.installedBuild || 0;
+      await subscribeToOrderPush(api, build);
+      const state = await getPushSubscriptionState(build);
       setPushState(state);
       setNotice('Уведомления включены — администратор может присылать сообщения');
     } catch (err) {
