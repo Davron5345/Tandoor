@@ -260,7 +260,7 @@ export default function ShopOrdersMobile() {
     });
     try {
       if (apkCachedReady) {
-        await installCachedApk(versionCode, setApkUpdateProgress);
+        await installCachedApk(versionCode, setApkUpdateProgress, apkSize);
       } else {
         await downloadAndInstallSnabApk({ versionCode, apkSize }, setApkUpdateProgress);
         setApkCachedReady(true);

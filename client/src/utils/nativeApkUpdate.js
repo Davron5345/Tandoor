@@ -121,7 +121,7 @@ export async function downloadApkToCache(versionCode, apkSize, onProgress) {
   }
 }
 
-export async function installCachedApk(versionCode, onProgress) {
+export async function installCachedApk(versionCode, onProgress, apkSize = null) {
   if (!isNativeApp()) {
     throw new Error('Обновление APK доступно только в Android-приложении');
   }
@@ -162,7 +162,7 @@ export async function downloadAndInstallSnabApk({ versionCode, apkSize }, onProg
       label: 'Обновление уже скачано — запускаем установку',
     });
   }
-  await installCachedApk(versionCode, onProgress);
+  await installCachedApk(versionCode, onProgress, apkSize);
 }
 
 export async function clearCachedApk(versionCode) {
