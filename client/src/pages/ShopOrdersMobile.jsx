@@ -21,7 +21,6 @@ import {
 import { useStaffLocationPing, requestStaffLocationPermission } from '../hooks/useStaffLocationPing';
 import { isNativeApp, isBackgroundLocationEnabled } from '../utils/nativeApp';
 import { downloadAndInstallSnabApk, getSnabAppInfo } from '../utils/nativeApkUpdate';
-import { FALLBACK_APK_URL } from '../components/SnabAppPanel';
 
 const STATUS_FILTERS = [
   { value: '', label: 'Все' },
@@ -69,9 +68,6 @@ export default function ShopOrdersMobile() {
   const [apkUpdate, setApkUpdate] = useState(null);
   const [apkUpdating, setApkUpdating] = useState(false);
   const [appInfo, setAppInfo] = useState(null);
-  const [dismissSetup, setDismissSetup] = useState(() => {
-    try { return localStorage.getItem('warehouse-pwa-setup-dismiss') === '1'; } catch { return false; }
-  });
 
   const load = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);
@@ -248,28 +244,17 @@ export default function ShopOrdersMobile() {
     }
   };
 
-  const dismissSetupBanner = () => {
-    setDismissSetup(true);
-    try { localStorage.setItem('warehouse-pwa-setup-dismiss', '1'); } catch { /* ignore */ }
-  };
-
-  const showSetupBanner = !dismissSetup && (
-    isNativeApp()
-      ? !locationEnabled
-      : (
-        !pushState.standalone && !isStandaloneApp()
-        || !locationEnabled
-      )
-  );
-
-  const showPushBanner = canView && view === 'list' && (
-    isNativeApp()
-      ? !pushState.subscribed
-      : isPushSupported() && (pushState.permission !== 'granted' || !pushState.subscribed)
-  );
-
   const pushBannerText = pushState.blockReason
-    || 'Войдите в приложение и нажмите кнопку ниже — без этого админ не сможет присылать сообщения.';
+    || 'Без уведомлений администратор не сможет присылать сообщения о заказах.';
+
+  const profileNeedsAttention = !!(
+    apkUpdate
+    || !locationEnabled
+    || (isNativeApp()
+      ? !pushState.subscribed
+      : isPushSupported() && (pushState.permission !== 'granted' || !pushState.subscribed))
+    || (!isNativeApp() && !isStandaloneApp() && !pushState.standalone)
+  );
 
   const openOrder = async (order) => {
     try {
@@ -343,9 +328,9 @@ export default function ShopOrdersMobile() {
             <div className="warehouse-orders-mobile-header-actions">
               <button
                 type="button"
-                className="warehouse-orders-mobile-icon-btn"
+                className={`warehouse-orders-mobile-icon-btn${profileNeedsAttention ? ' warehouse-orders-mobile-icon-btn--alert' : ''}`}
                 onClick={() => setView('profile')}
-                aria-label="Мой профиль"
+                aria-label={profileNeedsAttention ? 'Мой профиль — требуется настройка' : 'Мой профиль'}
                 title="Мой профиль"
               >
                 <IconNavUser />
@@ -367,81 +352,6 @@ export default function ShopOrdersMobile() {
               </button>
             </div>
           </header>
-
-          {apkUpdate && view === 'list' && (
-            <div className="warehouse-pwa-setup warehouse-apk-update">
-              <div className="warehouse-pwa-setup-text">
-                <strong>Доступно обновление {apkUpdate.versionName}</strong>
-                <span>
-                  Установлена версия {apkUpdate.installedName || apkUpdate.installedVersion}.
-                  Интерфейс обновляется с сервера автоматически; APK нужен только для новых функций Android.
-                </span>
-              </div>
-              <div className="warehouse-pwa-setup-actions">
-                <button
-                  type="button"
-                  className="btn btn-primary btn-sm"
-                  onClick={handleApkUpdate}
-                  disabled={apkUpdating}
-                >
-                  {apkUpdating ? 'Скачивание…' : 'Обновить APK'}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {showPushBanner && (
-            <div className="warehouse-pwa-setup warehouse-push-setup">
-              <div className="warehouse-pwa-setup-text">
-                <strong>Включите push-уведомления</strong>
-                <span>{pushBannerText}</span>
-              </div>
-              <div className="warehouse-pwa-setup-actions">
-                <button type="button" className="btn btn-primary btn-sm" onClick={handleEnablePush} disabled={pushLoading || !!pushState.blockReason}>
-                  {pushLoading ? '...' : 'Включить уведомления'}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {showSetupBanner && (
-            <div className="warehouse-pwa-setup">
-              <div className="warehouse-pwa-setup-text">
-                <strong>
-                  {isNativeApp() ? 'Включите геолокацию' : 'Установите приложение «Снабжение»'}
-                </strong>
-                <span>
-                  {isNativeApp()
-                    ? 'Разрешите доступ к местоположению «всегда» — администратор видит маршрут снабженца.'
-                    : 'Скачайте Android-приложение для фоновой геолокации или установите PWA из Chrome.'}
-                </span>
-              </div>
-              <div className="warehouse-pwa-setup-actions">
-                {!isNativeApp() && !isStandaloneApp() && (
-                  <a className="btn btn-primary btn-sm" href={`${window.location.origin}${FALLBACK_APK_URL}`}>
-                    Скачать Android APK
-                  </a>
-                )}
-                {!isNativeApp() && installPrompt && (
-                  <button type="button" className="btn btn-primary btn-sm" onClick={handleInstall}>
-                    Установить приложение
-                  </button>
-                )}
-                {!locationEnabled && (
-                  <button type="button" className="btn btn-primary btn-sm" onClick={handleEnableLocation} disabled={locationLoading}>
-                    {locationLoading ? '...' : (isNativeApp() ? 'Фоновая геолокация' : 'Геолокация')}
-                  </button>
-                )}
-                <button type="button" className="btn btn-ghost btn-sm" onClick={dismissSetupBanner}>
-                  Скрыть
-                </button>
-              </div>
-            </div>
-          )}
-
-          {!isNativeApp() && isStandaloneApp() && (
-            <div className="warehouse-pwa-installed-badge">Приложение установлено</div>
-          )}
 
           <div className="warehouse-orders-mobile-filters" role="tablist" aria-label="Фильтр по статусу">
             {STATUS_FILTERS.map((opt) => (
@@ -498,15 +408,19 @@ export default function ShopOrdersMobile() {
           user={user}
           branchName={branchName}
           pushState={pushState}
+          pushBannerText={pushBannerText}
           locationEnabled={locationEnabled}
+          locationLoading={locationLoading}
           appInfo={appInfo}
           apkUpdate={apkUpdate}
           apkUpdating={apkUpdating}
           pushLoading={pushLoading}
+          installPrompt={installPrompt}
           onBack={() => setView('list')}
           onEnablePush={handleEnablePush}
           onEnableLocation={handleEnableLocation}
           onApkUpdate={handleApkUpdate}
+          onInstall={handleInstall}
           onRefreshInfo={refreshAppInfo}
         />
       )}

@@ -1,3 +1,7 @@
+import { isNativeApp } from '../utils/nativeApp';
+import { isStandaloneApp } from '../utils/pwaPush';
+import { FALLBACK_APK_URL } from './SnabAppPanel';
+
 function statusBadge(ok, yesLabel, noLabel) {
   return (
     <span className={`badge ${ok ? 'badge-success' : 'badge-warning'}`}>
@@ -10,18 +14,29 @@ export default function SnabProfileView({
   user,
   branchName,
   pushState,
+  pushBannerText,
   locationEnabled,
+  locationLoading,
   appInfo,
   apkUpdate,
   apkUpdating,
   pushLoading,
+  installPrompt,
   onBack,
   onEnablePush,
   onEnableLocation,
   onApkUpdate,
+  onInstall,
   onRefreshInfo,
 }) {
   const displayName = user?.name || user?.username || '—';
+  const native = isNativeApp();
+  const standalone = isStandaloneApp() || pushState.standalone;
+  const showWebInstall = !native && !standalone;
+  const showPushAction = !pushState.subscribed && !pushState.blockReason;
+  const apkHref = typeof window !== 'undefined'
+    ? `${window.location.origin}${FALLBACK_APK_URL}`
+    : FALLBACK_APK_URL;
 
   return (
     <div className="warehouse-orders-mobile-detail snab-profile-view">
@@ -48,18 +63,69 @@ export default function SnabProfileView({
           <div><span>Геолокация</span><div>{statusBadge(locationEnabled, 'Включена', 'Выключена')}</div></div>
         </div>
 
-        {!pushState.subscribed && !pushState.blockReason && (
-          <button type="button" className="btn btn-primary btn-block" onClick={onEnablePush} disabled={pushLoading}>
-            {pushLoading ? 'Подключение…' : 'Включить уведомления'}
-          </button>
+        {apkUpdate && (
+          <section className="snab-profile-alert snab-profile-alert--update">
+            <strong>Доступно обновление {apkUpdate.versionName}</strong>
+            <p>
+              Установлена версия {apkUpdate.installedName || apkUpdate.installedVersion}.
+              Интерфейс обновляется с сервера автоматически; APK нужен только для новых функций Android.
+            </p>
+            <button type="button" className="btn btn-primary btn-block" onClick={onApkUpdate} disabled={apkUpdating}>
+              {apkUpdating ? 'Скачивание…' : 'Обновить APK'}
+            </button>
+          </section>
         )}
-        {pushState.blockReason && (
-          <div className="snab-profile-hint">{pushState.blockReason}</div>
+
+        {!pushState.subscribed && (
+          <section className="snab-profile-alert">
+            <strong>Включите push-уведомления</strong>
+            <p>{pushBannerText}</p>
+            {showPushAction && (
+              <button type="button" className="btn btn-primary btn-block" onClick={onEnablePush} disabled={pushLoading}>
+                {pushLoading ? 'Подключение…' : 'Включить уведомления'}
+              </button>
+            )}
+          </section>
         )}
+
+        {showWebInstall && (
+          <section className="snab-profile-alert">
+            <strong>Установите приложение «Снабжение»</strong>
+            <p>Скачайте Android-приложение для фоновой геолокации или установите PWA из Chrome.</p>
+            <div className="snab-profile-alert-actions">
+              <a className="btn btn-primary btn-block" href={apkHref}>
+                Скачать Android APK
+              </a>
+              {installPrompt && (
+                <button type="button" className="btn btn-ghost btn-block" onClick={onInstall}>
+                  Установить PWA
+                </button>
+              )}
+            </div>
+          </section>
+        )}
+
         {!locationEnabled && (
-          <button type="button" className="btn btn-ghost btn-block" onClick={onEnableLocation}>
-            Включить геолокацию
-          </button>
+          <section className="snab-profile-alert">
+            <strong>{native ? 'Включите геолокацию' : 'Разрешите геолокацию'}</strong>
+            <p>
+              {native
+                ? 'Разрешите доступ к местоположению «всегда» — администратор видит маршрут снабженца.'
+                : 'Администратор видит ваше местоположение при работе с заказами.'}
+            </p>
+            <button
+              type="button"
+              className="btn btn-ghost btn-block"
+              onClick={onEnableLocation}
+              disabled={locationLoading}
+            >
+              {locationLoading ? '…' : (native ? 'Фоновая геолокация' : 'Включить геолокацию')}
+            </button>
+          </section>
+        )}
+
+        {!native && standalone && (
+          <p className="snab-profile-hint snab-profile-hint-ok">Приложение установлено</p>
         )}
 
         <div className="snab-profile-version card">
@@ -88,12 +154,7 @@ export default function SnabProfileView({
           {appInfo?.webUpdateAvailable && (
             <p className="snab-profile-hint">Доступно обновление интерфейса — перезапустите приложение.</p>
           )}
-          {(apkUpdate || appInfo?.updateAvailable) && (
-            <button type="button" className="btn btn-primary btn-block" onClick={onApkUpdate} disabled={apkUpdating}>
-              {apkUpdating ? 'Скачивание…' : `Обновить до ${apkUpdate?.versionName || appInfo?.serverVersion}`}
-            </button>
-          )}
-          {!appInfo?.updateAvailable && appInfo?.isNative && appInfo?.remoteUi && (
+          {!apkUpdate && !appInfo?.updateAvailable && appInfo?.isNative && appInfo?.remoteUi && (
             <p className="snab-profile-hint snab-profile-hint-ok">У вас актуальная версия APK. Интерфейс обновляется автоматически.</p>
           )}
           <button type="button" className="btn btn-ghost btn-sm" onClick={onRefreshInfo}>
