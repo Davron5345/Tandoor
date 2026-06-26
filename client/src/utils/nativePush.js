@@ -1,5 +1,4 @@
 import { LocalNotifications } from '@capacitor/local-notifications';
-import { Capacitor } from '@capacitor/core';
 import { isNativeApp } from './nativeApp';
 
 const FCM_SUBSCRIBED_KEY = 'warehouse_fcm_subscribed';
@@ -90,29 +89,4 @@ export function markNativePushSubscribed() {
   } catch {
     // ignore
   }
-}
-
-/** FCM через @capacitor/push-notifications — только если плагин есть (будущее) */
-export async function tryFcmSubscribe(api) {
-  if (!Capacitor.isPluginAvailable('PushNotifications')) return false;
-  const { PushNotifications } = await import('@capacitor/push-notifications');
-
-  return new Promise((resolve, reject) => {
-    const timeout = window.setTimeout(() => reject(new Error('timeout')), 15000);
-    const regHandle = PushNotifications.addListener('registration', async (token) => {
-      window.clearTimeout(timeout);
-      regHandle.remove();
-      errHandle.remove();
-      await api.subscribePush({ type: 'fcm', token: token.value });
-      markNativePushSubscribed();
-      resolve(true);
-    });
-    const errHandle = PushNotifications.addListener('registrationError', (err) => {
-      window.clearTimeout(timeout);
-      regHandle.remove();
-      errHandle.remove();
-      reject(new Error(err?.error || 'FCM error'));
-    });
-    PushNotifications.register().catch(reject);
-  });
 }

@@ -5,7 +5,6 @@ import {
   markNativePushSubscribed,
   requestNativeNotificationPermission,
   resumeNativePushIfNeeded,
-  tryFcmSubscribe,
 } from './nativePush';
 
 function urlBase64ToUint8Array(base64String) {
@@ -75,13 +74,6 @@ export async function subscribeToOrderPush(api, installedBuild = 0) {
 
     await requestNativeNotificationPermission();
 
-    try {
-      await tryFcmSubscribe(api);
-      return null;
-    } catch {
-      // FCM недоступен без google-services.json — пробуем Web Push
-    }
-
     if (isPushSupported()) {
       await subscribeWebPush(api);
       markNativePushSubscribed();
@@ -89,7 +81,7 @@ export async function subscribeToOrderPush(api, installedBuild = 0) {
     }
 
     markNativePushSubscribed();
-    throw new Error('Разрешение получено. Push с сервера подключится после обновления APK.');
+    return null;
   }
 
   const blockReason = getPushBlockReason();
