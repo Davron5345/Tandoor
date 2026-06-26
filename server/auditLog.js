@@ -16,6 +16,7 @@ export const AUDIT_ACTION_LABELS = {
   'opening_balance.create': 'Начальное сальдо: создание документа',
   'opening_balance.confirm': 'Начальное сальдо: проведение',
   'opening_balance.cancel': 'Начальное сальдо: отмена',
+  'stock.zero': 'Обнуление остатка на складе',
 };
 
 export function formatAuditAction(action) {

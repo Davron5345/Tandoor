@@ -133,6 +133,7 @@ export const api = {
     const q = new URLSearchParams(params).toString();
     return request(`/reports/stock${q ? `?${q}` : ''}`);
   },
+  zeroStockPosition: (data) => request('/reports/stock/zero', { method: 'POST', body: JSON.stringify(data) }),
   getDebtorsReport: (params = {}) => {
     const q = new URLSearchParams(params).toString();
     return request(`/reports/debtors${q ? `?${q}` : ''}`);

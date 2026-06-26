@@ -16,6 +16,7 @@ export {
   getCreditorsReport,
   getStats,
   getPnLReport,
+  zeroStockPosition,
 } from './services/reports.js';
 
 export {

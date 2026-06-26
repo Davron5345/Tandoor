@@ -1,5 +1,7 @@
 import db from '../db.js';
 import { DEFAULT_BRANCH_ID } from '../branches.js';
+import { syncBranchStockFromDepartments } from '../departments.js';
+import { setDepartmentStock, syncVariantCatalogStock } from '../inventoryCost.js';
 import { PURCHASE_ARTICLE_CODE } from '../cashArticleDefaults.js';
 
 const { queryAll, queryOne } = db;
@@ -72,6 +74,8 @@ export function getStockReport(branchId = DEFAULT_BRANCH_ID, departmentId = null
       rowKey: `${row.department_id}:${row.product_id}:${row.variant_id || ''}`,
       department_id: row.department_id,
       department_name: row.department_name,
+      product_id: row.product_id,
+      variant_id: row.variant_id || null,
       name,
       category_id: row.category_id,
       category_name: row.category_name,
@@ -81,6 +85,64 @@ export function getStockReport(branchId = DEFAULT_BRANCH_ID, departmentId = null
       total: stock * unitCost,
     };
   });
+}
+
+export function zeroStockPosition(branchId = DEFAULT_BRANCH_ID, payload = {}) {
+  const departmentId = payload.department_id;
+  const productId = payload.product_id;
+  const variantId = payload.variant_id || null;
+
+  if (!departmentId || !productId) {
+    throw new Error('Укажите склад и товар');
+  }
+
+  const department = queryOne(
+    'SELECT id, name FROM departments WHERE id = ? AND branch_id = ?',
+    [departmentId, branchId],
+  );
+  if (!department) throw new Error('Склад не найден');
+
+  const product = queryOne('SELECT id, name FROM products WHERE id = ?', [productId]);
+  if (!product) throw new Error('Товар не найден');
+
+  let variantName = null;
+  if (variantId) {
+    const variant = queryOne(
+      'SELECT id, name FROM product_variants WHERE id = ? AND product_id = ?',
+      [variantId, productId],
+    );
+    if (!variant) throw new Error('Вариант товара не найден');
+    variantName = variant.name;
+  }
+
+  const stockSql = variantId
+    ? 'SELECT stock, avg_cost FROM product_department_stock WHERE department_id = ? AND product_id = ? AND variant_id = ?'
+    : `SELECT stock, avg_cost FROM product_department_stock
+       WHERE department_id = ? AND product_id = ? AND (variant_id IS NULL OR variant_id = '')`;
+  const stockParams = variantId
+    ? [departmentId, productId, variantId]
+    : [departmentId, productId];
+  const stockRow = queryOne(stockSql, stockParams);
+  const prevStock = stockRow?.stock || 0;
+  if (prevStock <= 0) {
+    throw new Error('Остаток уже нулевой');
+  }
+
+  setDepartmentStock(departmentId, productId, 0, 0, variantId);
+  syncBranchStockFromDepartments(branchId, productId);
+  if (variantId) syncVariantCatalogStock(variantId, branchId);
+
+  const label = variantName ? `${product.name} — ${variantName}` : product.name;
+  return {
+    ok: true,
+    department_id: departmentId,
+    department_name: department.name,
+    product_id: productId,
+    variant_id: variantId,
+    name: label,
+    cleared_qty: prevStock,
+    cleared_cost: (stockRow?.avg_cost || 0) * prevStock,
+  };
 }
 
 function getCounterpartyDebtRows(branchId, counterpartyType, docType, paymentType, includeUnlinkedPayments = true) {

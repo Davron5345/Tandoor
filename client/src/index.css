@@ -1847,6 +1847,16 @@ textarea::placeholder {
 .stock-report-table col.col-category { width: 17%; }
 .stock-report-table col.col-unit { width: 6%; }
 .stock-report-table col.col-num { width: 11%; }
+.stock-report-table col.col-actions { width: 9%; }
+
+.stock-report-table .col-actions {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.stock-zero-btn {
+  color: var(--danger, #dc2626);
+}
 
 .stock-report-table.no-dept col.col-product { width: 34%; }
 .stock-report-table.no-dept col.col-category { width: 19%; }

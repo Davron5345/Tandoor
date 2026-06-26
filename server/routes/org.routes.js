@@ -6,6 +6,8 @@ import * as departments from '../departments.js';
 import db from '../db.js';
 import { seedBranchRoles } from '../permissions.js';
 
+import { logAudit } from '../auditLog.js';
+
 export function registerOrgRoutes(app) {
   app.get('/api/stats', requirePermission('dashboard.view'), attachBranch, (req, res) => {
     res.json(svc.getStats(req.branchId));
@@ -15,6 +17,25 @@ export function registerOrgRoutes(app) {
     const departmentId = req.query.department_id || null;
     const onlyInStock = req.query.only_in_stock !== '0';
     res.json(svc.getStockReport(req.branchId, departmentId, onlyInStock));
+  });
+
+  app.post('/api/reports/stock/zero', requirePermission('documents.edit'), attachBranch, (req, res) => {
+    try {
+      const result = svc.zeroStockPosition(req.branchId, req.body || {});
+      logAudit(req, 'stock.zero', {
+        entity_type: 'stock',
+        entity_id: result.product_id,
+        meta: {
+          department_id: result.department_id,
+          variant_id: result.variant_id,
+          name: result.name,
+          cleared_qty: result.cleared_qty,
+        },
+      });
+      res.json(result);
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
   });
 
   app.get('/api/reports/debtors', requirePermission('reports.view'), attachBranch, (req, res) => {

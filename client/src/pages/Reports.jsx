@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, NavLink, Outlet, Route, Routes } from 'react-router-dom';
 import { api, formatDate, formatMoney } from '../api';
 import { DOC_TYPE_LABELS } from '../permissions';
+import { useAuth } from '../AuthContext';
+import { hasPermission } from '../permissions';
 import { useBranch } from '../BranchContext';
 import BranchChip from '../components/BranchChip';
 import { todayLocalIso } from '../utils/date';
@@ -36,7 +38,7 @@ function SortHeader({ label, sortKey, activeKey, direction, onSort, className = 
   );
 }
 
-function StockTableColgroup({ showDepartmentColumn }) {
+function StockTableColgroup({ showDepartmentColumn, showActions }) {
   return (
     <colgroup>
       <col className="col-index" />
@@ -47,11 +49,12 @@ function StockTableColgroup({ showDepartmentColumn }) {
       <col className="col-num" />
       <col className="col-num" />
       <col className="col-num" />
+      {showActions && <col className="col-actions" />}
     </colgroup>
   );
 }
 
-function StockTableHeadRow({ showDepartmentColumn, sortKey, sortDir, onSort }) {
+function StockTableHeadRow({ showDepartmentColumn, showActions, sortKey, sortDir, onSort }) {
   return (
     <tr>
       <th className="col-index">№</th>
@@ -110,6 +113,7 @@ function StockTableHeadRow({ showDepartmentColumn, sortKey, sortDir, onSort }) {
         onSort={onSort}
         className="col-num"
       />
+      {showActions && <th className="col-actions" aria-label="Действия" />}
     </tr>
   );
 }
@@ -125,19 +129,46 @@ function StockReport() {
   const [sortDir, setSortDir] = useState('asc');
   const [headStuck, setHeadStuck] = useState(false);
   const [headLayout, setHeadLayout] = useState({ left: 0, width: 0, height: 0 });
+  const [clearingKey, setClearingKey] = useState('');
   const tableWrapRef = useRef(null);
   const theadRef = useRef(null);
   const { branchName, branchId } = useBranch();
+  const { user } = useAuth();
+  const canZeroStock = hasPermission(user, 'documents.edit');
+
+  const loadRows = useCallback(() => {
+    const params = { only_in_stock: onlyInStock ? '1' : '0' };
+    if (departmentId) params.department_id = departmentId;
+    return api.getStockReport(params).then(setRows).catch(console.error);
+  }, [branchId, departmentId, onlyInStock]);
 
   useEffect(() => {
     api.getDepartments({ active: '1' }).then(setDepartments).catch(console.error);
   }, [branchId]);
 
   useEffect(() => {
-    const params = { only_in_stock: onlyInStock ? '1' : '0' };
-    if (departmentId) params.department_id = departmentId;
-    api.getStockReport(params).then(setRows).catch(console.error);
-  }, [branchId, departmentId, onlyInStock]);
+    loadRows();
+  }, [loadRows]);
+
+  const handleZeroStock = async (row) => {
+    const qtyLabel = `${formatQty(row.stock)} ${row.unit}`;
+    if (!window.confirm(`Обнулить остаток «${row.name}» (${qtyLabel})?\n\nИспользуйте, если остаток появился без документов.`)) {
+      return;
+    }
+    setClearingKey(row.rowKey);
+    try {
+      await api.zeroStockPosition({
+        department_id: row.department_id,
+        product_id: row.product_id,
+        variant_id: row.variant_id || null,
+      });
+      await loadRows();
+    } catch (err) {
+      window.alert(err.message || 'Не удалось обнулить остаток');
+    } finally {
+      setClearingKey('');
+    }
+  };
 
   const selectedDepartment = departments.find((d) => d.id === departmentId);
   const showDepartmentColumn = !departmentId;
@@ -223,7 +254,7 @@ function StockReport() {
 
   const totalQty = filteredRows.reduce((s, row) => s + row.stock, 0);
   const totalValue = filteredRows.reduce((s, row) => s + row.total, 0);
-  const colCount = showDepartmentColumn ? 8 : 7;
+  const colCount = (showDepartmentColumn ? 8 : 7) + (canZeroStock ? 1 : 0);
 
   const locationLabel = useMemo(() => {
     const parts = [branchName];
@@ -362,10 +393,11 @@ function StockReport() {
             style={{ left: headLayout.left, width: headLayout.width }}
           >
             <table className={tableClassName}>
-              <StockTableColgroup showDepartmentColumn={showDepartmentColumn} />
+              <StockTableColgroup showDepartmentColumn={showDepartmentColumn} showActions={canZeroStock} />
               <thead>
                 <StockTableHeadRow
                   showDepartmentColumn={showDepartmentColumn}
+                  showActions={canZeroStock}
                   sortKey={sortKey}
                   sortDir={sortDir}
                   onSort={handleSort}
@@ -377,10 +409,11 @@ function StockReport() {
 
         <div className="stock-table-body-wrap" ref={tableWrapRef}>
           <table className={tableClassName}>
-            <StockTableColgroup showDepartmentColumn={showDepartmentColumn} />
+            <StockTableColgroup showDepartmentColumn={showDepartmentColumn} showActions={canZeroStock} />
             <thead ref={theadRef}>
               <StockTableHeadRow
                 showDepartmentColumn={showDepartmentColumn}
+                showActions={canZeroStock}
                 sortKey={sortKey}
                 sortDir={sortDir}
                 onSort={handleSort}
@@ -403,6 +436,21 @@ function StockReport() {
                   <td className="col-num">{formatQty(row.stock)}</td>
                   <td className="col-num muted">{formatMoney(row.unitCost)}</td>
                   <td className="col-num strong">{formatMoney(row.total)}</td>
+                  {canZeroStock && (
+                    <td className="col-actions">
+                      {row.stock > 0 && (
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm stock-zero-btn"
+                          onClick={() => handleZeroStock(row)}
+                          disabled={clearingKey === row.rowKey}
+                          title="Обнулить остаток без документа"
+                        >
+                          {clearingKey === row.rowKey ? '…' : 'Очистить'}
+                        </button>
+                      )}
+                    </td>
+                  )}
                 </tr>
               ))}
               {filteredRows.length === 0 && (
@@ -420,6 +468,7 @@ function StockReport() {
                   <td className="col-num"><strong>{formatQty(totalQty)}</strong></td>
                   <td className="col-num" />
                   <td className="col-num strong"><strong>{formatMoney(totalValue)}</strong></td>
+                  {canZeroStock && <td className="col-actions" />}
                 </tr>
               </tfoot>
             )}
