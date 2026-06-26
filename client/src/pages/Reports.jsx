@@ -3,7 +3,6 @@ import { Navigate, NavLink, Outlet, Route, Routes } from 'react-router-dom';
 import { api, formatDate, formatMoney } from '../api';
 import { DOC_TYPE_LABELS } from '../permissions';
 import { useAuth } from '../AuthContext';
-import { hasPermission } from '../permissions';
 import { useBranch } from '../BranchContext';
 import BranchChip from '../components/BranchChip';
 import { todayLocalIso } from '../utils/date';
@@ -134,7 +133,7 @@ function StockReport() {
   const theadRef = useRef(null);
   const { branchName, branchId } = useBranch();
   const { user } = useAuth();
-  const canZeroStock = hasPermission(user, 'documents.edit');
+  const canZeroStock = user?.role === 'admin';
 
   const loadRows = useCallback(() => {
     const params = { only_in_stock: onlyInStock ? '1' : '0' };

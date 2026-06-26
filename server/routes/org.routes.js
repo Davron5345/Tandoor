@@ -19,7 +19,7 @@ export function registerOrgRoutes(app) {
     res.json(svc.getStockReport(req.branchId, departmentId, onlyInStock));
   });
 
-  app.post('/api/reports/stock/zero', requirePermission('documents.edit'), attachBranch, (req, res) => {
+  app.post('/api/reports/stock/zero', requireAdmin, attachBranch, (req, res) => {
     try {
       const result = svc.zeroStockPosition(req.branchId, req.body || {});
       logAudit(req, 'stock.zero', {
