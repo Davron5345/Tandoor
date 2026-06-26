@@ -10600,6 +10600,7 @@ html.public-shop-lock #root {
   background: color-mix(in srgb, var(--border) 60%, transparent);
   overflow: hidden;
   margin-bottom: 8px;
+  position: relative;
 }
 
 .snab-apk-progress-bar {
@@ -10607,6 +10608,20 @@ html.public-shop-lock #root {
   border-radius: inherit;
   background: var(--primary);
   transition: width 0.2s ease;
+  min-width: 0;
+}
+
+.snab-apk-progress--indeterminate .snab-apk-progress-bar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 40%;
+  animation: snab-apk-progress-slide 1.1s ease-in-out infinite;
+}
+
+@keyframes snab-apk-progress-slide {
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(320%); }
 }
 
 .snab-apk-progress-label {

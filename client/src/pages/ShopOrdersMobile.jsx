@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { api, formatDateTime, formatMoney } from '../api';
 import { useAuth } from '../AuthContext';
@@ -20,7 +20,8 @@ import {
 } from '../utils/pwaPush';
 import { useStaffLocationPing, requestStaffLocationPermission } from '../hooks/useStaffLocationPing';
 import { isNativeApp, isBackgroundLocationEnabled } from '../utils/nativeApp';
-import { downloadAndInstallSnabApk, getSnabAppInfo } from '../utils/nativeApkUpdate';
+import { App } from '@capacitor/app';
+import { downloadAndInstallSnabApk, getSnabAppInfo, hasCachedApk, installCachedApk, clearCachedApk } from '../utils/nativeApkUpdate';
 
 const STATUS_FILTERS = [
   { value: '', label: 'Все' },
@@ -68,7 +69,10 @@ export default function ShopOrdersMobile() {
   const [apkUpdate, setApkUpdate] = useState(null);
   const [apkUpdating, setApkUpdating] = useState(false);
   const [apkUpdateProgress, setApkUpdateProgress] = useState(null);
+  const [apkCachedReady, setApkCachedReady] = useState(false);
+  const [apkInstallPending, setApkInstallPending] = useState(false);
   const [appInfo, setAppInfo] = useState(null);
+  const installedBuildRef = useRef(0);
 
   const load = useCallback(async ({ silent = false } = {}) => {
     if (!silent) setLoading(true);
@@ -154,9 +158,12 @@ export default function ShopOrdersMobile() {
     try {
       const info = await getSnabAppInfo(api);
       setAppInfo(info);
+      installedBuildRef.current = info.installedBuild || 0;
       const installed = info.installedBuild || 0;
       const server = Number(info.serverBuild) || 0;
       if (info.isNative && server > installed) {
+        const cached = await hasCachedApk(server, info.apkSize);
+        setApkCachedReady(cached);
         setApkUpdate({
           versionName: info.serverVersion,
           versionCode: server,
@@ -167,6 +174,12 @@ export default function ShopOrdersMobile() {
         });
       } else {
         setApkUpdate(null);
+        setApkCachedReady(false);
+        setApkInstallPending(false);
+        setApkUpdateProgress(null);
+        if (server > 0 && installed >= server) {
+          await clearCachedApk(server);
+        }
       }
     } catch {
       /* ignore */
@@ -189,6 +202,45 @@ export default function ShopOrdersMobile() {
 
   useEffect(() => {
     if (!canView || !isNativeApp()) return undefined;
+    let removed = false;
+    let handle = null;
+    App.addListener('resume', async () => {
+      const prevBuild = installedBuildRef.current;
+      const info = await getSnabAppInfo(api);
+      if (removed) return;
+      installedBuildRef.current = info.installedBuild || 0;
+      setAppInfo(info);
+      const installed = info.installedBuild || 0;
+      const server = Number(info.serverBuild) || 0;
+      if (!info.updateAvailable) {
+        setApkUpdate(null);
+        setApkCachedReady(false);
+        setApkInstallPending(false);
+        setApkUpdateProgress(null);
+        if (installed > prevBuild) {
+          setNotice('Обновление установлено — перезапуск приложения…');
+          window.setTimeout(() => window.location.reload(), 600);
+        }
+      } else if (server > installed) {
+        const cached = await hasCachedApk(server, info.apkSize);
+        setApkCachedReady(cached);
+        if (apkInstallPending && cached) {
+          setApkUpdateProgress({
+            phase: 'waiting_install',
+            percent: 100,
+            label: 'Подтвердите установку в системном окне Android',
+          });
+        }
+      }
+    }).then((h) => { handle = h; });
+    return () => {
+      removed = true;
+      handle?.remove();
+    };
+  }, [canView, apkInstallPending]);
+
+  useEffect(() => {
+    if (!canView || !isNativeApp()) return undefined;
     const build = appInfo?.installedBuild || 0;
     resumeNativePushIfNeeded().then((ok) => {
       if (!ok) return;
@@ -198,19 +250,34 @@ export default function ShopOrdersMobile() {
 
   const handleApkUpdate = async () => {
     if (!apkUpdate) return;
-    const url = apkUpdate.apkUrl || appInfo?.apkUrl;
-    if (!url) return;
+    const { versionCode, apkSize } = apkUpdate;
     setApkUpdating(true);
-    setApkUpdateProgress({ phase: 'downloading', percent: 0, label: 'Подготовка…' });
+    setApkInstallPending(false);
+    setApkUpdateProgress({
+      phase: apkCachedReady ? 'downloaded' : 'downloading',
+      percent: apkCachedReady ? 100 : 0,
+      label: apkCachedReady ? 'Запуск установки…' : 'Подготовка…',
+    });
     try {
-      await downloadAndInstallSnabApk(url, setApkUpdateProgress);
-      setNotice('Подтвердите установку в системном окне — приложение обновится до последней версии');
+      if (apkCachedReady) {
+        await installCachedApk(versionCode, setApkUpdateProgress);
+      } else {
+        await downloadAndInstallSnabApk({ versionCode, apkSize }, setApkUpdateProgress);
+        setApkCachedReady(true);
+      }
+      setApkInstallPending(true);
+      setNotice('Открылся установщик Android — нажмите «Установить»');
     } catch (err) {
+      setApkInstallPending(false);
       setApkUpdateProgress(null);
       setNotice(err.message || 'Не удалось обновить приложение');
     } finally {
       setApkUpdating(false);
     }
+  };
+
+  const handleApkReload = () => {
+    window.location.reload();
   };
 
   const handleInstall = async () => {
@@ -420,12 +487,15 @@ export default function ShopOrdersMobile() {
           apkUpdate={apkUpdate}
           apkUpdating={apkUpdating}
           apkUpdateProgress={apkUpdateProgress}
+          apkCachedReady={apkCachedReady}
+          apkInstallPending={apkInstallPending}
           pushLoading={pushLoading}
           installPrompt={installPrompt}
           onBack={() => setView('list')}
           onEnablePush={handleEnablePush}
           onEnableLocation={handleEnableLocation}
           onApkUpdate={handleApkUpdate}
+          onApkReload={handleApkReload}
           onInstall={handleInstall}
           onRefreshInfo={refreshAppInfo}
         />

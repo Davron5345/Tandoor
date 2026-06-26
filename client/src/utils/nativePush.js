@@ -3,7 +3,7 @@ import { isNativeApp } from './nativeApp';
 
 const FCM_SUBSCRIBED_KEY = 'warehouse_fcm_subscribed';
 const PUSH_PENDING_KEY = 'warehouse_push_pending';
-const MIN_PUSH_BUILD = 9;
+const MIN_PUSH_BUILD = 10;
 
 export function isNativePushPluginAvailable() {
   return isNativeApp();
@@ -12,7 +12,7 @@ export function isNativePushPluginAvailable() {
 export function getNativePushBlockReason(installedBuild = 0) {
   if (!isNativeApp()) return null;
   if ((installedBuild || 0) < MIN_PUSH_BUILD) {
-    return 'Обновите APK до build 9 — текущая версия нестабильна';
+    return 'Обновите APK до build 10 — текущая версия устарела';
   }
   return null;
 }

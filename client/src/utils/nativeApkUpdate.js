@@ -5,6 +5,7 @@ import { APP_BUILD_ID } from '../appBuildId';
 import { getApiBaseUrl, getNativeSessionToken, isNativeApp, isRemoteCapacitorApp } from './nativeApp';
 
 const ApkInstaller = registerPlugin('ApkInstaller');
+const CACHED_APK_META_KEY = 'snab-apk-cache-meta';
 
 function formatBytes(bytes) {
   if (!bytes) return '0 B';
@@ -12,72 +13,172 @@ function formatBytes(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function blobToBase64(blob) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const result = reader.result;
-      if (typeof result !== 'string') {
-        reject(new Error('Не удалось прочитать файл'));
-        return;
-      }
-      resolve(result.split(',')[1] || '');
-    };
-    reader.onerror = () => reject(new Error('Не удалось прочитать файл'));
-    reader.readAsDataURL(blob);
+function getCachedApkPath(versionCode) {
+  return `snab-update-v${versionCode}.apk`;
+}
+
+function readCachedApkMeta() {
+  try {
+    const raw = localStorage.getItem(CACHED_APK_META_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedApkMeta(meta) {
+  try {
+    localStorage.setItem(CACHED_APK_META_KEY, JSON.stringify(meta));
+  } catch {
+    // ignore
+  }
+}
+
+export async function hasCachedApk(versionCode, apkSize = null) {
+  if (!isNativeApp() || !versionCode) return false;
+  const meta = readCachedApkMeta();
+  if (meta?.versionCode !== versionCode) return false;
+  try {
+    const stat = await Filesystem.stat({
+      path: getCachedApkPath(versionCode),
+      directory: Directory.Cache,
+    });
+    const size = stat.size || 0;
+    if (apkSize) return size >= apkSize * 0.95;
+    return size > 5 * 1024 * 1024;
+  } catch {
+    return false;
+  }
+}
+
+function buildProgressLabel(loaded, total, percent) {
+  if (percent != null && total) {
+    return `Скачивание… ${percent}% (${formatBytes(loaded)} / ${formatBytes(total)})`;
+  }
+  if (loaded > 0) {
+    return `Скачивание… ${formatBytes(loaded)}`;
+  }
+  return 'Скачивание…';
+}
+
+export async function downloadApkToCache(versionCode, apkSize, onProgress) {
+  if (!isNativeApp()) {
+    throw new Error('Обновление APK доступно только в Android-приложении');
+  }
+
+  const downloadUrl = `${getApiBaseUrl()}/api/app/snab-apk/stream`;
+  const path = getCachedApkPath(versionCode);
+  const token = getNativeSessionToken();
+  const headers = token ? { Authorization: `Bearer ${token}` } : {};
+
+  const progressListener = await Filesystem.addListener('progress', (event) => {
+    const loaded = Number(event.bytes) || 0;
+    const total = Number(event.contentLength) || apkSize || null;
+    const percent = total
+      ? Math.min(99, Math.round((loaded / total) * 100))
+      : (loaded > 0 ? null : 0);
+    onProgress?.({
+      phase: 'downloading',
+      loaded,
+      total,
+      percent,
+      label: buildProgressLabel(loaded, total, percent),
+    });
+  });
+
+  onProgress?.({
+    phase: 'downloading',
+    loaded: 0,
+    total: apkSize || null,
+    percent: 0,
+    label: 'Подключение к серверу…',
+  });
+
+  try {
+    await Filesystem.downloadFile({
+      url: downloadUrl,
+      path,
+      directory: Directory.Cache,
+      progress: true,
+      headers,
+    });
+
+    writeCachedApkMeta({
+      versionCode,
+      path,
+      downloadedAt: Date.now(),
+    });
+
+    onProgress?.({
+      phase: 'downloaded',
+      loaded: apkSize || null,
+      total: apkSize || null,
+      percent: 100,
+      label: 'Скачивание завершено',
+    });
+  } finally {
+    await progressListener.remove();
+  }
+}
+
+export async function installCachedApk(versionCode, onProgress) {
+  if (!isNativeApp()) {
+    throw new Error('Обновление APK доступно только в Android-приложении');
+  }
+
+  const cached = await hasCachedApk(versionCode, apkSize);
+  if (!cached) {
+    throw new Error('Файл обновления не найден — скачайте заново');
+  }
+
+  onProgress?.({
+    phase: 'installing',
+    percent: 100,
+    label: 'Открываем установщик Android…',
+  });
+
+  const { uri } = await Filesystem.getUri({
+    path: getCachedApkPath(versionCode),
+    directory: Directory.Cache,
+  });
+
+  await ApkInstaller.install({ uri });
+
+  onProgress?.({
+    phase: 'waiting_install',
+    percent: 100,
+    label: 'Подтвердите установку в системном окне',
   });
 }
 
-function downloadApkWithProgress(url, onProgress) {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open('GET', url);
-    xhr.responseType = 'blob';
-
-    const token = getNativeSessionToken();
-    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-    xhr.withCredentials = true;
-
-    xhr.onprogress = (event) => {
-      if (event.lengthComputable && event.total > 0) {
-        const percent = Math.min(100, Math.round((event.loaded / event.total) * 100));
-        onProgress?.({
-          phase: 'downloading',
-          loaded: event.loaded,
-          total: event.total,
-          percent,
-          label: `Скачивание… ${percent}% (${formatBytes(event.loaded)} / ${formatBytes(event.total)})`,
-        });
-      } else {
-        onProgress?.({
-          phase: 'downloading',
-          loaded: event.loaded,
-          total: null,
-          percent: null,
-          label: `Скачивание… ${formatBytes(event.loaded)}`,
-        });
-      }
-    };
-
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        resolve(xhr.response);
-        return;
-      }
-      reject(new Error('Не удалось скачать APK'));
-    };
-    xhr.onerror = () => reject(new Error('Ошибка сети при скачивании APK'));
-    xhr.onabort = () => reject(new Error('Скачивание отменено'));
-
+export async function downloadAndInstallSnabApk({ versionCode, apkSize }, onProgress) {
+  const cached = await hasCachedApk(versionCode, apkSize);
+  if (!cached) {
+    await downloadApkToCache(versionCode, apkSize, onProgress);
+  } else {
     onProgress?.({
-      phase: 'downloading',
-      loaded: 0,
-      total: null,
-      percent: 0,
-      label: 'Подготовка к скачиванию…',
+      phase: 'downloaded',
+      percent: 100,
+      label: 'Обновление уже скачано — запускаем установку',
     });
-    xhr.send();
-  });
+  }
+  await installCachedApk(versionCode, onProgress);
+}
+
+export async function clearCachedApk(versionCode) {
+  if (!versionCode) return;
+  try {
+    await Filesystem.deleteFile({
+      path: getCachedApkPath(versionCode),
+      directory: Directory.Cache,
+    });
+  } catch {
+    // ignore
+  }
+  const meta = readCachedApkMeta();
+  if (meta?.versionCode === versionCode) {
+    try { localStorage.removeItem(CACHED_APK_META_KEY); } catch { /* ignore */ }
+  }
 }
 
 export async function getSnabAppInfo(api) {
@@ -108,6 +209,9 @@ export async function getSnabAppInfo(api) {
       const installed = info.installedBuild || 0;
       const serverBuild = Number(server.versionCode) || 0;
       info.updateAvailable = serverBuild > installed;
+      info.apkCachedReady = info.updateAvailable
+        ? await hasCachedApk(serverBuild, info.apkSize)
+        : false;
     }
   } catch {
     /* ignore */
@@ -136,45 +240,10 @@ export async function checkSnabApkUpdate(api) {
     versionName: info.serverVersion,
     apkUrl: info.apkUrl,
     apkSize: info.apkSize,
+    apkCachedReady: info.apkCachedReady,
     installedVersion: info.installedBuild,
     installedName: info.installedVersion,
   };
-}
-
-export async function downloadAndInstallSnabApk(_apkUrl, onProgress) {
-  if (!isNativeApp()) {
-    throw new Error('Обновление APK доступно только в Android-приложении');
-  }
-
-  const downloadUrl = `${getApiBaseUrl()}/api/app/snab-apk/stream`;
-  const blob = await downloadApkWithProgress(downloadUrl, onProgress);
-
-  onProgress?.({
-    phase: 'installing',
-    percent: 100,
-    label: 'Установка последней версии…',
-  });
-
-  const base64 = await blobToBase64(blob);
-  const fileName = `snab-update-${Date.now()}.apk`;
-  await Filesystem.writeFile({
-    path: fileName,
-    data: base64,
-    directory: Directory.Cache,
-  });
-
-  const { uri } = await Filesystem.getUri({
-    path: fileName,
-    directory: Directory.Cache,
-  });
-
-  await ApkInstaller.install({ uri });
-
-  onProgress?.({
-    phase: 'done',
-    percent: 100,
-    label: 'Подтвердите установку в системном окне',
-  });
 }
 
 export { formatBytes };

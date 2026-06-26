@@ -1,7 +1,9 @@
 package com.tandoor.snab;
 
+import android.app.Activity;
 import android.content.Intent;
 import android.net.Uri;
+import android.os.Build;
 import androidx.core.content.FileProvider;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
@@ -20,25 +22,40 @@ public class ApkInstallerPlugin extends Plugin {
             return;
         }
 
+        Activity activity = getActivity();
+        if (activity == null) {
+            call.reject("Activity недоступна — попробуйте снова");
+            return;
+        }
+
         try {
             Uri uri = Uri.parse(uriStr);
             if ("file".equals(uri.getScheme())) {
                 File file = new File(uri.getPath());
                 uri = FileProvider.getUriForFile(
-                    getContext(),
-                    getContext().getPackageName() + ".fileprovider",
+                    activity,
+                    activity.getPackageName() + ".fileprovider",
                     file
                 );
             }
 
             Intent intent = new Intent(Intent.ACTION_VIEW);
             intent.setDataAndType(uri, "application/vnd.android.package-archive");
-            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            getContext().startActivity(intent);
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            }
+
+            activity.startActivity(intent);
             call.resolve();
         } catch (Exception e) {
-            call.reject(e.getMessage() != null ? e.getMessage() : "Install failed");
+            String message = e.getMessage() != null ? e.getMessage() : "Install failed";
+            if (message.contains("No Activity found")) {
+                call.reject("Не удалось открыть установщик. Разрешите установку из этого приложения в настройках Android.");
+            } else {
+                call.reject(message);
+            }
         }
     }
 }

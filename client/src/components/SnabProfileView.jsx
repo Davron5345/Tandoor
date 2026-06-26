@@ -21,12 +21,15 @@ export default function SnabProfileView({
   apkUpdate,
   apkUpdating,
   apkUpdateProgress,
+  apkCachedReady,
+  apkInstallPending,
   pushLoading,
   installPrompt,
   onBack,
   onEnablePush,
   onEnableLocation,
   onApkUpdate,
+  onApkReload,
   onInstall,
   onRefreshInfo,
 }) {
@@ -38,6 +41,27 @@ export default function SnabProfileView({
   const apkHref = typeof window !== 'undefined'
     ? `${window.location.origin}${FALLBACK_APK_URL}`
     : FALLBACK_APK_URL;
+
+  const showApkProgress = apkUpdating || apkInstallPending || !!apkUpdateProgress;
+  const progressPercent = apkUpdateProgress?.percent;
+  const progressIndeterminate = showApkProgress
+    && apkUpdateProgress?.phase === 'downloading'
+    && progressPercent == null;
+  const progressWidth = progressIndeterminate
+    ? undefined
+    : (progressPercent ?? (apkUpdateProgress?.phase === 'installing' || apkUpdateProgress?.phase === 'waiting_install' ? 100 : 0));
+
+  const apkButtonLabel = (() => {
+    if (apkUpdating) {
+      if (apkUpdateProgress?.phase === 'installing' || apkUpdateProgress?.phase === 'waiting_install') {
+        return 'Открываем установщик…';
+      }
+      return 'Скачивание…';
+    }
+    if (apkInstallPending) return 'Ожидание установки…';
+    if (apkCachedReady) return `Установить ${apkUpdate.versionName}`;
+    return `Скачать и установить ${apkUpdate.versionName}`;
+  })();
 
   return (
     <div className="warehouse-orders-mobile-detail snab-profile-view">
@@ -70,28 +94,45 @@ export default function SnabProfileView({
             <p>
               Установлена версия {apkUpdate.installedName || apkUpdate.installedVersion} (build {apkUpdate.installedVersion}).
               {' '}Новая версия: build {apkUpdate.versionCode}.
+              {apkCachedReady && !apkUpdating && (
+                <> Файл уже скачан — нажмите «Установить».</>
+              )}
             </p>
-            {apkUpdating && apkUpdateProgress && (
-              <div className="snab-apk-progress" role="progressbar" aria-valuenow={apkUpdateProgress.percent ?? 0} aria-valuemin={0} aria-valuemax={100}>
+            {showApkProgress && (
+              <div
+                className={`snab-apk-progress${progressIndeterminate ? ' snab-apk-progress--indeterminate' : ''}`}
+                role="progressbar"
+                aria-valuenow={progressWidth ?? 0}
+                aria-valuemin={0}
+                aria-valuemax={100}
+              >
                 <div
                   className="snab-apk-progress-bar"
-                  style={{ width: `${apkUpdateProgress.percent ?? (apkUpdateProgress.phase === 'installing' ? 100 : 0)}%` }}
+                  style={progressWidth != null ? { width: `${progressWidth}%` } : undefined}
                 />
               </div>
             )}
-            {apkUpdating && apkUpdateProgress?.label && (
+            {apkUpdateProgress?.label && (
               <p className="snab-apk-progress-label">{apkUpdateProgress.label}</p>
+            )}
+            {apkInstallPending && !apkUpdating && (
+              <p className="snab-profile-hint">
+                В системном окне Android нажмите «Установить». После установки вернитесь в приложение — оно перезапустится автоматически.
+              </p>
             )}
             <button
               type="button"
               className="btn btn-primary btn-block"
               onClick={onApkUpdate}
-              disabled={apkUpdating}
+              disabled={apkUpdating || apkInstallPending}
             >
-              {apkUpdating
-                ? (apkUpdateProgress?.phase === 'installing' ? 'Установка…' : 'Скачивание…')
-                : `Обновить до ${apkUpdate.versionName}`}
+              {apkButtonLabel}
             </button>
+            {apkInstallPending && (
+              <button type="button" className="btn btn-ghost btn-block" onClick={onApkReload}>
+                Уже установил — перезапустить
+              </button>
+            )}
           </section>
         )}
 
