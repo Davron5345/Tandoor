@@ -248,33 +248,48 @@ export default function ShopOrdersMobile() {
     }).catch(() => {});
   }, [canView, appInfo?.installedBuild]);
 
-  const handleApkUpdate = async () => {
+  const handleApkUpdate = async (forceRedownload = false) => {
     if (!apkUpdate) return;
-    const { versionCode, apkSize } = apkUpdate;
+    const { versionCode, apkSize, apkUrl } = apkUpdate;
     setApkUpdating(true);
     setApkInstallPending(false);
+    if (forceRedownload) {
+      await clearCachedApk(versionCode);
+      setApkCachedReady(false);
+    }
     setApkUpdateProgress({
-      phase: apkCachedReady ? 'downloaded' : 'downloading',
-      percent: apkCachedReady ? 100 : 0,
-      label: apkCachedReady ? 'Запуск установки…' : 'Подготовка…',
+      phase: apkCachedReady && !forceRedownload ? 'downloaded' : 'downloading',
+      percent: apkCachedReady && !forceRedownload ? 100 : 0,
+      label: apkCachedReady && !forceRedownload ? 'Запуск установки…' : 'Подготовка…',
     });
     try {
-      if (apkCachedReady) {
-        await installCachedApk(versionCode, setApkUpdateProgress, apkSize);
+      if (apkCachedReady && !forceRedownload) {
+        const valid = await hasCachedApk(versionCode, apkSize);
+        if (!valid) {
+          await clearCachedApk(versionCode);
+          setApkCachedReady(false);
+          await downloadAndInstallSnabApk({ versionCode, apkSize, apkUrl }, setApkUpdateProgress);
+        } else {
+          await installCachedApk(versionCode, setApkUpdateProgress, apkSize);
+        }
       } else {
-        await downloadAndInstallSnabApk({ versionCode, apkSize }, setApkUpdateProgress);
-        setApkCachedReady(true);
+        await downloadAndInstallSnabApk({ versionCode, apkSize, apkUrl }, setApkUpdateProgress);
       }
+      setApkCachedReady(true);
       setApkInstallPending(true);
       setNotice('Открылся установщик Android — нажмите «Установить»');
     } catch (err) {
       setApkInstallPending(false);
+      setApkCachedReady(false);
       setApkUpdateProgress(null);
+      await clearCachedApk(versionCode);
       setNotice(err.message || 'Не удалось обновить приложение');
     } finally {
       setApkUpdating(false);
     }
   };
+
+  const handleApkRedownload = () => handleApkUpdate(true);
 
   const handleApkReload = () => {
     window.location.reload();
@@ -495,6 +510,7 @@ export default function ShopOrdersMobile() {
           onEnablePush={handleEnablePush}
           onEnableLocation={handleEnableLocation}
           onApkUpdate={handleApkUpdate}
+          onApkRedownload={handleApkRedownload}
           onApkReload={handleApkReload}
           onInstall={handleInstall}
           onRefreshInfo={refreshAppInfo}

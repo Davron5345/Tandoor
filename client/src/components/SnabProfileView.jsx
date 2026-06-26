@@ -29,6 +29,7 @@ export default function SnabProfileView({
   onEnablePush,
   onEnableLocation,
   onApkUpdate,
+  onApkRedownload,
   onApkReload,
   onInstall,
   onRefreshInfo,
@@ -129,9 +130,14 @@ export default function SnabProfileView({
               {apkButtonLabel}
             </button>
             {apkInstallPending && (
-              <button type="button" className="btn btn-ghost btn-block" onClick={onApkReload}>
-                Уже установил — перезапустить
-              </button>
+              <>
+                <button type="button" className="btn btn-ghost btn-block" onClick={onApkReload}>
+                  Уже установил — перезапустить
+                </button>
+                <button type="button" className="btn btn-ghost btn-block" onClick={onApkRedownload} disabled={apkUpdating}>
+                  Скачать заново
+                </button>
+              </>
             )}
           </section>
         )}

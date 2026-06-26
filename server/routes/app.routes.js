@@ -45,8 +45,18 @@ export function registerAppRoutes(app) {
     res.redirect(302, process.env.SNAB_APK_URL || DEFAULT_GITHUB_APK_URL);
   });
 
-  app.get('/api/app/snab-update', (req, res) => {
-    res.json(getSnabUpdateInfo(req));
+  app.get('/api/app/snab-update', async (req, res) => {
+    const info = getSnabUpdateInfo(req);
+    if (!info.apkSize && info.apkUrl) {
+      try {
+        const head = await fetch(info.apkUrl, { method: 'HEAD', redirect: 'follow' });
+        const len = head.headers.get('content-length');
+        if (len) info.apkSize = Number(len);
+      } catch {
+        /* ignore */
+      }
+    }
+    res.json(info);
   });
 
   app.get('/api/public/snab-apk', (req, res) => {
