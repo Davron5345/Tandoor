@@ -22,21 +22,28 @@ async function copyText(text) {
 
 export default function SnabAppPanel() {
   const [info, setInfo] = useState(null);
+  const [updateInfo, setUpdateInfo] = useState(null);
   const [copied, setCopied] = useState('');
   const [collapsed, setCollapsed] = useState(() => {
     try { return localStorage.getItem('snab-app-panel-collapsed') === '1'; } catch { return false; }
   });
 
   useEffect(() => {
-    api.getSnabInstallInfo()
-      .then(setInfo)
-      .catch(() => {
+    Promise.all([
+      api.getSnabInstallInfo().catch(() => null),
+      api.getSnabUpdateInfo().catch(() => null),
+    ]).then(([installInfo, snabUpdate]) => {
+      if (installInfo) {
+        setInfo(installInfo);
+      } else {
         const origin = typeof window !== 'undefined' ? window.location.origin : '';
         setInfo({
           mobileUrl: `${origin}/snab`,
           apkUrl: FALLBACK_APK_URL,
         });
-      });
+      }
+      setUpdateInfo(snabUpdate);
+    });
   }, []);
 
   const mobileUrl = info?.mobileUrl || (typeof window !== 'undefined' ? `${window.location.origin}/snab` : '/snab');
@@ -44,6 +51,9 @@ export default function SnabAppPanel() {
     typeof window !== 'undefined' ? `${window.location.origin}${FALLBACK_APK_URL}` : FALLBACK_APK_URL
   );
   const githubApkHref = info?.githubApkUrl || 'https://github.com/Davron5345/Tandoor/releases/latest/download/snabzenie.apk';
+  const apkVersionLabel = updateInfo?.versionName
+    ? `${updateInfo.versionName} (build ${updateInfo.versionCode})`
+    : null;
 
   const handleCopy = useCallback(async (label, text) => {
     try {
@@ -66,7 +76,10 @@ export default function SnabAppPanel() {
       <div className="snab-app-panel-head">
         <div>
           <h2>Приложение «Mahalla Снабжение»</h2>
-          <p>Снабженец: скачал APK → установил → вошёл → включил геолокацию. Без Play Market.</p>
+          <p>
+            Снабженец: скачал APK один раз → установил → вошёл → включил уведомления и геолокацию.
+            Интерфейс обновляется с сервера автоматически.
+          </p>
         </div>
         <button type="button" className="btn btn-ghost btn-sm" onClick={toggleCollapsed}>
           {collapsed ? 'Показать' : 'Свернуть'}
@@ -79,12 +92,16 @@ export default function SnabAppPanel() {
             <section className="snab-app-panel-block snab-app-panel-block--apk">
               <span className="snab-app-panel-badge">Для снабженца</span>
               <h3>Скачать Android APK</h3>
-              <p>Фоновый GPS — координаты передаются даже при свёрнутом приложении.</p>
+              <p>
+                Фоновый GPS, push-уведомления от админа, профиль сотрудника.
+                {apkVersionLabel && <> Актуальный APK: <strong>{apkVersionLabel}</strong>.</>}
+              </p>
               <ol className="snab-app-panel-steps">
                 <li><strong>Не устанавливайте из Telegram</strong> — файл может повредиться</li>
-                <li>Откройте ссылку в <strong>Chrome</strong> на телефоне и скачайте APK (~7 МБ)</li>
-                <li>Если была старая версия — сначала удалите «Mahalla Снабжение» или «Снабжение»</li>
-                <li>Установите, войдите, включите «Фоновая геолокация»</li>
+                <li>Откройте ссылку в <strong>Chrome</strong> на телефоне и скачайте APK</li>
+                <li>Установите (при обновлении можно нажать «Обновить APK» в профиле приложения)</li>
+                <li>Войдите, нажмите <strong>«Включить уведомления»</strong> и разрешите геолокацию «всегда»</li>
+                <li>Иконка <strong>профиля</strong> в шапке — версия, push и обновления</li>
               </ol>
               <details className="snab-app-panel-xiaomi">
                 <summary>Ошибка «Установщик пакетов сбой» (Xiaomi / Redmi)</summary>
@@ -118,7 +135,7 @@ export default function SnabAppPanel() {
 
             <section className="snab-app-panel-block">
               <h3>Веб-версия (PWA)</h3>
-              <p>Без APK — геолокация только при открытом приложении.</p>
+              <p>Без APK — геолокация только при открытом приложении, push через браузер.</p>
               <div className="snab-app-panel-actions">
                 <a className="btn btn-primary btn-sm" href={mobileUrl} target="_blank" rel="noopener noreferrer">
                   Открыть /snab
@@ -142,11 +159,10 @@ export default function SnabAppPanel() {
             </section>
           </div>
 
-          {info?.version?.version && (
-            <p className="snab-app-panel-version">
-              Версия: {String(info.version.version).slice(0, 8)}
-            </p>
-          )}
+          <p className="snab-app-panel-version">
+            {apkVersionLabel && <>APK на сервере: {apkVersionLabel} · </>}
+            {info?.version?.version && <>Сборка сайта: {String(info.version.version).slice(0, 8)}</>}
+          </p>
         </div>
       )}
     </div>
