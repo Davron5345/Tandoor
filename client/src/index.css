@@ -2357,7 +2357,8 @@ textarea::placeholder {
 }
 
 .modal-product .product-card-tab-panels {
-  overflow: visible;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .modal-wide .modal-body:has(.product-card-tabs) {
