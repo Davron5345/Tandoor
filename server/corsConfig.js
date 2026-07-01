@@ -33,10 +33,18 @@ export function createCorsOptions() {
 
       if (allowedOrigins.includes(origin)) return callback(null, true);
 
-      // Monolith: API и статика на одном домене (Railway, npm start).
-      // Vite ставит crossorigin на JS/CSS — браузер шлёт Origin даже same-site.
+      // Monolith: API and static are served from one domain (Railway, npm start).
+      // In production we allow same-origin requests only — do NOT reflect arbitrary origins.
       if (isProd && parseAllowedOrigins().length === 0) {
-        return callback(null, origin);
+        const publicUrl = process.env.APP_PUBLIC_URL || process.env.RAILWAY_PUBLIC_DOMAIN;
+        if (publicUrl) {
+          const host = publicUrl.replace(/^https?:\/\//, '').replace(/\/$/, '');
+          if (origin === `https://${host}` || origin === `http://${host}`) {
+            return callback(null, true);
+          }
+        }
+        // No configured origin — reject to avoid CSRF in production
+        return callback(new Error('CORS: origin not allowed in production'));
       }
 
       callback(new Error('CORS: origin not allowed'));

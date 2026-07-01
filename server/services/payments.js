@@ -94,16 +94,24 @@ export function getCashShiftSummary(branchId = DEFAULT_BRANCH_ID, shiftDate) {
 }
 
 function generatePaymentNumber(branchId = DEFAULT_BRANCH_ID) {
-  const rows = queryAll('SELECT number FROM payments WHERE branch_id = ? OR (branch_id IS NULL AND ? = ?)', [branchId, branchId, DEFAULT_BRANCH_ID]);
+  const branchPrefix = (branchId || DEFAULT_BRANCH_ID).slice(0, 4).toUpperCase();
+  const rows = queryAll(
+    'SELECT number FROM payments WHERE branch_id = ? OR (branch_id IS NULL AND ? = ?)',
+    [branchId, branchId, DEFAULT_BRANCH_ID],
+  );
   let max = 0;
   for (const row of rows) {
-    const n = parseInt(row.number, 10);
+    // Strip branch prefix if present (e.g. "MAIN-42" → 42)
+    const raw = String(row.number || '').replace(/^[A-Z0-9]+-/, '');
+    const n = parseInt(raw, 10);
     if (!Number.isNaN(n) && n > max) max = n;
   }
-  return String(max + 1);
+  return `${branchPrefix}-${max + 1}`;
 }
 
-export function getPayments(branchId = null) {
+const CASHIER_VIEW_DAYS = 3;
+
+export function getPayments(branchId = null, userRole = null, filters = {}) {
   let sql = `
     SELECT p.*, c.name as counterparty_name, c.type as counterparty_type,
            d.number as document_number, u.name as created_by_name,
@@ -116,12 +124,61 @@ export function getPayments(branchId = null) {
     LEFT JOIN cash_articles ca ON ca.id = p.article_id
   `;
   const params = [];
+  const conditions = [];
+
   if (branchId) {
-    sql += ' WHERE (p.branch_id = ? OR (p.branch_id IS NULL AND ? = ?))';
+    conditions.push('(p.branch_id = ? OR (p.branch_id IS NULL AND ? = ?))');
     params.push(branchId, branchId, DEFAULT_BRANCH_ID);
   }
+
+  // Enforce cashier date window server-side
+  const canViewAll = !userRole
+    || hasPermission(userRole, 'cashier.edit_past')
+    || hasPermission(userRole, 'payments.edit_past')
+    || hasPermission(userRole, 'payments.view');
+  if (!canViewAll) {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - CASHIER_VIEW_DAYS);
+    const cutoffStr = cutoff.toISOString().slice(0, 10);
+    conditions.push('p.date >= ?');
+    params.push(cutoffStr);
+  }
+
+  if (filters.date_from) {
+    conditions.push('p.date >= ?');
+    params.push(filters.date_from);
+  }
+  if (filters.date_to) {
+    conditions.push('p.date <= ?');
+    params.push(filters.date_to);
+  }
+  if (filters.type) {
+    conditions.push('p.type = ?');
+    params.push(filters.type);
+  }
+
+  if (conditions.length > 0) {
+    sql += ' WHERE ' + conditions.join(' AND ');
+  }
   sql += ' ORDER BY p.date DESC, p.created_at DESC';
-  return queryAll(sql, params);
+
+  const rows = queryAll(sql, params);
+
+  // Pagination
+  const limit = filters.limit ? parseInt(filters.limit, 10) : 0;
+  const page = filters.page ? parseInt(filters.page, 10) : 1;
+  if (limit > 0) {
+    const total = rows.length;
+    const offset = (page - 1) * limit;
+    return {
+      items: rows.slice(offset, offset + limit),
+      total,
+      page,
+      limit,
+      pages: Math.ceil(total / limit),
+    };
+  }
+  return rows;
 }
 
 function paymentTodayIso() {

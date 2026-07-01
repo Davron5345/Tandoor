@@ -77,6 +77,27 @@ export function updateCounterparty(id, data, branchId = DEFAULT_BRANCH_ID) {
 export function deleteCounterparty(id, branchId = DEFAULT_BRANCH_ID) {
   const existing = getCounterparty(id, branchId);
   if (!existing) throw new Error('Контрагент не найден');
+
+  const docCount = queryOne(
+    'SELECT COUNT(*) as c FROM documents WHERE counterparty_id = ?',
+    [id],
+  )?.c || 0;
+  if (docCount > 0) {
+    throw new Error(
+      `Нельзя удалить контрагента: он используется в ${docCount} документах. Сначала удалите или переназначьте их.`,
+    );
+  }
+
+  const payCount = queryOne(
+    'SELECT COUNT(*) as c FROM payments WHERE counterparty_id = ?',
+    [id],
+  )?.c || 0;
+  if (payCount > 0) {
+    throw new Error(
+      `Нельзя удалить контрагента: он используется в ${payCount} платежах. Сначала удалите или переназначьте их.`,
+    );
+  }
+
   run('DELETE FROM counterparty_contracts WHERE counterparty_id = ? AND branch_id = ?', [id, branchId]);
   run('DELETE FROM product_suppliers WHERE supplier_id = ? AND branch_id = ?', [id, branchId]);
   run('DELETE FROM counterparties WHERE id = ? AND branch_id = ?', [id, branchId]);

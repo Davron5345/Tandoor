@@ -119,7 +119,9 @@ function findSourceLineMetrics(sourceItems, productId, variantId) {
     (item) => item.product_id === productId
       && (item.variant_id || null) === (variantId || null),
   );
-  if (matches.length === 0) return { unitCost: 0, salePrice: 0 };
+  if (matches.length === 0) {
+    throw new Error('Товар из возврата отсутствует в исходном документе');
+  }
   const totalQty = matches.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
   const totalCost = matches.reduce(
     (sum, item) => sum + (Number(item.cost_amount) || (Number(item.unit_cost) || 0) * (Number(item.quantity) || 0)),
@@ -129,7 +131,41 @@ function findSourceLineMetrics(sourceItems, productId, variantId) {
   return {
     unitCost: totalQty > 0 ? totalCost / totalQty : 0,
     salePrice: totalQty > 0 ? totalAmount / totalQty : 0,
+    sourceQty: totalQty,
   };
+}
+
+function assertReturnQtyNotExceeded(sourceDocumentId, returnDocumentId, items) {
+  for (const item of items) {
+    const sourceItems = queryAll('SELECT * FROM document_items WHERE document_id = ?', [sourceDocumentId]);
+    const { sourceQty } = findSourceLineMetrics(sourceItems, item.product_id, item.variant_id || null);
+
+    const alreadyReturned = queryAll(`
+      SELECT di.quantity, di.product_id, di.variant_id
+      FROM document_items di
+      JOIN documents d ON d.id = di.document_id
+      WHERE d.source_document_id = ?
+        AND d.status = 'confirmed'
+        AND d.id != ?
+        AND di.product_id = ?
+        AND (di.variant_id IS ? OR di.variant_id = ?)
+    `, [
+      sourceDocumentId,
+      returnDocumentId || '',
+      item.product_id,
+      item.variant_id || null,
+      item.variant_id || null,
+    ]).reduce((sum, r) => sum + (Number(r.quantity) || 0), 0);
+
+    const requestedQty = Number(item.quantity) || 0;
+    if (alreadyReturned + requestedQty > sourceQty) {
+      const product = queryOne('SELECT name FROM products WHERE id = ?', [item.product_id]);
+      throw new Error(
+        `Превышено количество возврата «${product?.name || 'товар'}»: `
+        + `источник ${sourceQty}, уже возвращено ${alreadyReturned}, запрошено ${requestedQty}`,
+      );
+    }
+  }
 }
 
 function applyReturnCustomerLineCosts(documentId) {
@@ -261,9 +297,18 @@ function updateStock(documentId, reverse = false) {
 
         const vid = variantId(item);
         if (multiplier > 0) {
+          // Capture avg cost from source BEFORE transfer so reversal uses the same value
+          const unitCostAtTransfer = getDepartmentAvgCost(sourceDept, item.product_id, vid);
           transferDepartmentStock(sourceDept, targetDept, item.product_id, qty, vid);
+          run(
+            'UPDATE document_items SET unit_cost = ? WHERE id = ?',
+            [unitCostAtTransfer, item.id],
+          );
         } else {
-          const unitCost = getDepartmentAvgCost(targetDept, item.product_id, vid);
+          // Use cost stored at confirm-time; fall back to current avg only if not set
+          const unitCost = Number(item.unit_cost) > 0
+            ? Number(item.unit_cost)
+            : getDepartmentAvgCost(targetDept, item.product_id, vid);
           reverseTransferDepartmentStock(sourceDept, targetDept, item.product_id, qty, unitCost, vid);
         }
         afterVariantStockChange(vid, item.product_id, branchId);
@@ -578,7 +623,23 @@ function normalizeItems(items) {
   if (valid.length === 0) {
     throw new Error('Добавьте хотя бы один товар в документ');
   }
+  for (const item of valid) {
+    const qty = Number(item.quantity);
+    const price = Number(item.price ?? 0);
+    if (!Number.isFinite(qty) || qty <= 0) {
+      throw new Error('Количество должно быть положительным числом');
+    }
+    if (!Number.isFinite(price) || price < 0) {
+      throw new Error('Цена не может быть отрицательной');
+    }
+  }
   return valid;
+}
+
+function assertValidDate(date) {
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(String(date).slice(0, 10))) {
+    throw new Error('Укажите корректную дату в формате ГГГГ-ММ-ДД');
+  }
 }
 
 function normalizeRazdelkaItems(data) {
@@ -919,6 +980,7 @@ function updateDishSaleDocument(id, existing, data, userId, branchId, items) {
 }
 
 export function createDocument(data, userId = null, branchId = DEFAULT_BRANCH_ID) {
+  assertValidDate(data.date);
   if (data.type === 'dish_sale') {
     const items = normalizeItems(data.items);
     const docBranchId = data.branch_id || branchId;
@@ -1037,6 +1099,11 @@ export function createDocument(data, userId = null, branchId = DEFAULT_BRANCH_ID
 
   const id = uuidv4();
   const number = data.number || generateDocNumber(docBranchId, data.type);
+  const willConfirmReturn = data.status === 'confirmed'
+    && (data.type === 'return_supplier' || data.type === 'return_customer');
+  if (willConfirmReturn && sourceDocumentId) {
+    assertReturnQtyNotExceeded(sourceDocumentId, null, items);
+  }
   const total = items.reduce((s, i) => s + i.quantity * i.price, 0);
   const willConfirm = data.status === 'confirmed';
   const contractId = isSupplierCounterpartyDoc(data.type)
@@ -1088,6 +1155,7 @@ export function updateDocument(id, data, userId = null, branchId = DEFAULT_BRANC
   const existing = queryOne('SELECT * FROM documents WHERE id = ?', [id]);
   if (!existing) throw new Error('Документ не найден');
   if (existing.status === 'cancelled') throw new Error('Отменённый документ нельзя редактировать');
+  if (data.date !== undefined) assertValidDate(data.date);
 
   const docType = data.type || existing.type;
 
@@ -1319,6 +1387,7 @@ export function confirmDocument(id, userId = null) {
       doc.counterparty_id,
       doc.date,
     );
+    assertReturnQtyNotExceeded(doc.source_document_id, id, items);
   }
   if (doc.type === 'return_customer') {
     assertReturnCustomerSourceDocument(
@@ -1327,13 +1396,15 @@ export function confirmDocument(id, userId = null) {
       doc.counterparty_id,
       doc.date,
     );
-    applyReturnCustomerLineCosts(id);
+    assertReturnQtyNotExceeded(doc.source_document_id, id, items);
   }
-  if (doc.type === 'dish_sale') {
-    applyDishSaleConsumption(id, doc.from_department_id, doc.branch_id || DEFAULT_BRANCH_ID);
-  }
-
   transaction(() => {
+    if (doc.type === 'return_customer') {
+      applyReturnCustomerLineCosts(id);
+    }
+    if (doc.type === 'dish_sale') {
+      applyDishSaleConsumption(id, doc.from_department_id, doc.branch_id || DEFAULT_BRANCH_ID);
+    }
     run(`UPDATE documents SET status='confirmed', updated_at=datetime('now') WHERE id=?`, [id]);
     updateStock(id);
     addHistory(id, 'confirmed', userId);
@@ -1356,12 +1427,56 @@ function assertRazdelkaCanReverse(documentId, doc) {
   );
 }
 
+function assertTransferCanReverse(doc, items) {
+  if (doc.type !== 'peremeshchenie') return;
+  const fromId = doc.from_branch_id || doc.branch_id;
+  const toId = doc.to_branch_id || fromId;
+  const fromDept = doc.from_department_id || null;
+  const toDept = doc.to_department_id || null;
+
+  if (fromDept || toDept) {
+    // Department-level: check that target dept has enough stock to reverse
+    const effectiveToDept = toDept || getDefaultDepartmentId(toId || fromId);
+    if (effectiveToDept) {
+      for (const item of items) {
+        const stock = getDepartmentStock(item.product_id, effectiveToDept, item.variant_id || null);
+        if (stock < item.quantity) {
+          const label = getItemStockLabel(item);
+          throw new Error(
+            `Нельзя отменить перемещение: недостаточно «${label}» в отделе-получателе для возврата (есть ${stock})`,
+          );
+        }
+      }
+    }
+    return;
+  }
+
+  // Branch-level: check that receiving branch has enough stock
+  if (toId && toId !== fromId) {
+    for (const item of items) {
+      const stock = item.variant_id
+        ? getVariantBranchStock(item.variant_id, toId)
+        : getBranchStock(item.product_id, toId);
+      if (stock < item.quantity) {
+        const label = getItemStockLabel(item);
+        throw new Error(
+          `Нельзя отменить перемещение: недостаточно «${label}» в филиале-получателе для возврата (есть ${stock})`,
+        );
+      }
+    }
+  }
+}
+
 export function cancelDocument(id, userId = null) {
   const doc = queryOne('SELECT * FROM documents WHERE id = ?', [id]);
   if (!doc) throw new Error('Документ не найден');
   if (doc.status === 'cancelled') return getDocument(id);
 
-  if (doc.status === 'confirmed') assertRazdelkaCanReverse(id, doc);
+  if (doc.status === 'confirmed') {
+    assertRazdelkaCanReverse(id, doc);
+    const items = queryAll('SELECT * FROM document_items WHERE document_id = ?', [id]);
+    assertTransferCanReverse(doc, items);
+  }
 
   transaction(() => {
     if (doc.status === 'confirmed') updateStock(id, true);

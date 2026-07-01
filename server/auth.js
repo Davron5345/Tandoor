@@ -126,7 +126,7 @@ export function getUsers(requester, branchId = null, { allBranches = false } = {
   }));
 }
 
-export function createUser(data) {
+export function createUser(data, requester = null) {
   const username = (data.username || '').trim();
   if (isProtectedAdmin(username)) {
     throw new Error('Логин «admin» зарезервирован для главного администратора');
@@ -140,7 +140,14 @@ export function createUser(data) {
     if (!branchId) throw new Error('Укажите филиал для сотрудника');
     if (!getBranch(branchId)) throw new Error('Филиал не найден');
     assertRoleMatchesBranch(data.role, branchId);
+    // Non-admin requesters can only create users in their own branch
+    if (requester && requester.role !== 'admin' && requester.branch_id && requester.branch_id !== branchId) {
+      throw new Error('Нельзя создавать сотрудников в другом филиале');
+    }
   } else {
+    if (requester && requester.role !== 'admin') {
+      throw new Error('Только администратор может создавать администраторов');
+    }
     branchId = null;
   }
 
@@ -167,9 +174,23 @@ export function createUser(data) {
   `, [id]);
 }
 
-export function updateUser(id, data) {
+export function updateUser(id, data, requester = null) {
   const user = queryOne('SELECT * FROM users WHERE id = ?', [id]);
   if (!user) throw new Error('Сотрудник не найден');
+
+  // Non-admin can only edit users in their own branch
+  if (requester && requester.role !== 'admin') {
+    if (user.branch_id && requester.branch_id && user.branch_id !== requester.branch_id) {
+      throw new Error('Нельзя редактировать сотрудников другого филиала');
+    }
+    const targetBranch = data.branch_id !== undefined ? (data.branch_id || null) : user.branch_id;
+    if (targetBranch && requester.branch_id && targetBranch !== requester.branch_id) {
+      throw new Error('Нельзя перемещать сотрудника в другой филиал');
+    }
+    if (data.role === 'admin') {
+      throw new Error('Только администратор может назначать роль администратора');
+    }
+  }
 
   if (isProtectedAdmin(user)) {
     if (data.role && data.role !== 'admin') {

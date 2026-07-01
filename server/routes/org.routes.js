@@ -132,17 +132,17 @@ export function registerOrgRoutes(app) {
     res.json(getUsers(req.user, req.branchId, { allBranches }));
   });
 
-  app.post('/api/users', requirePermission('users.edit'), (req, res) => {
+  app.post('/api/users', requirePermission('users.edit'), attachBranch, (req, res) => {
     try {
-      res.status(201).json(createUser(req.body));
+      res.status(201).json(createUser(req.body, req.user));
     } catch (e) {
       res.status(400).json({ error: e.message });
     }
   });
 
-  app.put('/api/users/:id', requirePermission('users.edit'), (req, res) => {
+  app.put('/api/users/:id', requirePermission('users.edit'), attachBranch, (req, res) => {
     try {
-      res.json(updateUser(req.params.id, req.body));
+      res.json(updateUser(req.params.id, req.body, req.user));
     } catch (e) {
       res.status(400).json({ error: e.message });
     }

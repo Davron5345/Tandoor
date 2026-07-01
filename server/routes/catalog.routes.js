@@ -107,7 +107,7 @@ export function registerCatalogRoutes(app, { productImageUpload }) {
     }
   });
 
-  app.delete('/api/products/:id', requirePermission('products.edit'), (req, res) => {
+  app.delete('/api/products/:id', requireAdmin, (req, res) => {
     try {
       svc.deleteProduct(req.params.id);
       res.json({ ok: true });
@@ -132,7 +132,7 @@ export function registerCatalogRoutes(app, { productImageUpload }) {
     }
   });
 
-  app.post('/api/products/:id/archive', requirePermission('products.edit'), (req, res) => {
+  app.post('/api/products/:id/archive', requireAdmin, (req, res) => {
     try {
       res.json(svc.archiveProduct(req.params.id));
     } catch (e) {

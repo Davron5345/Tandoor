@@ -4,6 +4,15 @@ import {
   resolvePublicProductMedia,
 } from '../publicShop.js';
 import { createShopOrder } from '../shopOrders.js';
+import rateLimit from 'express-rate-limit';
+
+const shopOrderLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Слишком много запросов. Повторите через минуту.' },
+});
 
 export function registerPublicShopRoutes(app) {
   app.get('/api/public/shop/branches', (_req, res) => {
@@ -38,7 +47,7 @@ export function registerPublicShopRoutes(app) {
     return res.sendFile(filePath);
   });
 
-  app.post('/api/public/shop/:branchId/orders', (req, res) => {
+  app.post('/api/public/shop/:branchId/orders', shopOrderLimiter, (req, res) => {
     try {
       const order = createShopOrder(req.params.branchId, req.body);
       res.status(201).json(order);
@@ -47,7 +56,7 @@ export function registerPublicShopRoutes(app) {
     }
   });
 
-  app.post('/api/public/shop/:branchId/dept/:departmentId/orders', (req, res) => {
+  app.post('/api/public/shop/:branchId/dept/:departmentId/orders', shopOrderLimiter, (req, res) => {
     try {
       const order = createShopOrder(req.params.branchId, req.body, req.params.departmentId);
       res.status(201).json(order);

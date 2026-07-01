@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-07-01
+**Последнее обновление документации:** 2026-07-01 (bugfixes)
 
 ---
 
@@ -578,7 +578,8 @@ GET  /api/auth/roles
 | 2026-06-26 | Fix: тёмная тема (`:root` не должен перекрывать `data-theme`), push после перезагрузки WebView |
 | 2026-06-26 | APK build 8 (1.0.7): push-плагин в `capacitor.build.gradle`, fix чёрного экрана (import React) |
 | 2026-06-26 | `/downloads/snabzenie.apk` → редирект GitHub; `SnabAppPanel` — основная ссылка на Releases |
-| 2026-07-01 | Добавлен `BUG_REPORT.md`: 25 найденных проблем (3 критических, 8 высоких, 9 средних, 5 низких) — CORS, возвраты, трансферы, права, производительность |
+| 2026-07-01 | Добавлен `BUG_REPORT.md`: 25 найденных проблем (3 критических, 8 высоких, 9 средних, 5 низких) |
+| 2026-07-01 | Исправлено 19 проблем из BUG_REPORT: CORS, cross-branch user, product archive, return qty cap, zero-cost restock, transfer reversal stock+cost, confirm transaction, cashier date filter, payment number, rate-limit, validation, CSRF, GPS perm, counterparty delete guard, HTTP codes, DB indexes, payments pagination |
 
 ---
 

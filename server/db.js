@@ -438,6 +438,7 @@ function migrateSchema() {
   migrateProductKind();
   migrateUnits();
   sanitizeOrphanBranchReferences();
+  addPerformanceIndexes();
 }
 
 function migrateCalculationKind() {
@@ -2011,6 +2012,34 @@ function seedIfEmpty() {
     ['c4', 'ООО "ОфисПлюс"', 'client', '+998944556677', 'office@plus.uz', 'Бухара']);
 
   run("INSERT OR REPLACE INTO settings (key, value) VALUES ('demo_seed_done', '1')");
+}
+
+function addPerformanceIndexes() {
+  const done = queryOne("SELECT value FROM settings WHERE key = 'performance_indexes_v1'");
+  if (done) return;
+
+  const indexes = [
+    'CREATE INDEX IF NOT EXISTS idx_docs_branch_type_status_date ON documents(branch_id, type, status, date)',
+    'CREATE INDEX IF NOT EXISTS idx_docs_from_branch ON documents(from_branch_id, status, date)',
+    'CREATE INDEX IF NOT EXISTS idx_docs_to_branch ON documents(to_branch_id, status, date)',
+    'CREATE INDEX IF NOT EXISTS idx_doc_items_doc ON document_items(document_id)',
+    'CREATE INDEX IF NOT EXISTS idx_payments_branch_date ON payments(branch_id, date, type)',
+    'CREATE INDEX IF NOT EXISTS idx_payments_counterparty ON payments(counterparty_id)',
+    'CREATE INDEX IF NOT EXISTS idx_payments_document ON payments(document_id)',
+    'CREATE INDEX IF NOT EXISTS idx_docs_counterparty ON documents(counterparty_id)',
+    'CREATE INDEX IF NOT EXISTS idx_doc_items_product ON document_items(product_id)',
+  ];
+
+  for (const sql of indexes) {
+    try {
+      run(sql);
+    } catch {
+      // ignore if index already exists under a different name
+    }
+  }
+
+  run("INSERT OR REPLACE INTO settings (key, value) VALUES ('performance_indexes_v1', '1')");
+  saveDb();
 }
 
 export async function reloadDb() {

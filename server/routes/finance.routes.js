@@ -53,7 +53,7 @@ export function registerFinanceRoutes(app) {
     'cashier.view', 'cashier.edit', 'cashier.delete',
     'payments.view', 'payments.edit',
   ), attachBranch, (req, res) => {
-    res.json(svc.getPayments(req.branchId));
+    res.json(svc.getPayments(req.branchId, req.user.role, req.query));
   });
 
   app.post('/api/payments', requireAnyPermission('cashier.edit', 'payments.edit'), attachBranch, (req, res) => {

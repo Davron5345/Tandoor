@@ -1,9 +1,9 @@
-import { authRequired } from '../middleware.js';
+import { authRequired, requireAnyPermission } from '../middleware.js';
 import { attachBranch, requireAdmin } from '../middleware.js';
 import { saveStaffLocation, listStaffLocations, listStaffLocationHistory } from '../staffLocation.js';
 
 export function registerStaffRoutes(app) {
-  app.post('/api/staff/location', authRequired, attachBranch, (req, res) => {
+  app.post('/api/staff/location', authRequired, requireAnyPermission('shop_orders.view', 'shop_orders.edit'), attachBranch, (req, res) => {
     try {
       const location = saveStaffLocation(req.user.id, req.branchId, {
         ...req.body,
