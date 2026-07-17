@@ -529,10 +529,17 @@ export default function PrihodMobile() {
               </select>
             </label>
 
-            <div className="warehouse-prihod-field">
+            <label className="warehouse-prihod-field">
               <span>Дата</span>
-              <div className="warehouse-prihod-readonly">{formatDate(form.date)}</div>
-            </div>
+              <input
+                type="date"
+                value={form.date || todayLocalIso()}
+                onChange={(e) => setForm((prev) => ({
+                  ...prev,
+                  date: e.target.value || todayLocalIso(),
+                }))}
+              />
+            </label>
 
             <div className="warehouse-prihod-items-head">
               <h3>Позиции</h3>
