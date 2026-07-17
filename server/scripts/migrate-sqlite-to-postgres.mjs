@@ -104,6 +104,9 @@ async function main() {
 
     await client.query('BEGIN');
     try {
+      // SQLite often has orphan rows (FK PRAGMA off). Disable PG FK checks during bulk load.
+      await client.query(`SET LOCAL session_replication_role = 'replica'`);
+
       if (doTruncate) {
         const list = PG_TABLE_IMPORT_ORDER.map(quoteIdent).reverse().join(', ');
         await client.query(`TRUNCATE ${list} CASCADE`);
@@ -130,17 +133,27 @@ async function main() {
         const selectSql = `SELECT ${cols.map((c) => `"${c}"`).join(', ')} FROM ${table}`;
         const dataStmt = sqlite.prepare(selectSql);
         let inserted = 0;
+        let skipped = 0;
         while (dataStmt.step()) {
           const row = dataStmt.getAsObject();
           const values = cols.map((c) => {
             const v = row[c];
             return v === undefined ? null : v;
           });
-          await client.query(insertSql, values);
-          inserted += 1;
+          try {
+            await client.query(insertSql, values);
+            inserted += 1;
+          } catch (rowErr) {
+            // Still skip hard failures (e.g. NOT NULL) even with replication_role
+            skipped += 1;
+            if (skipped <= 5) {
+              console.warn(`  ⚠ ${table} skip row: ${rowErr.message}`);
+            }
+          }
         }
         dataStmt.free();
-        console.log(`  ✓ ${table}: ${inserted}/${count}`);
+        const skipNote = skipped ? ` (skipped ${skipped})` : '';
+        console.log(`  ✓ ${table}: ${inserted}/${count}${skipNote}`);
       }
 
       for (const key of PG_MIGRATION_SETTINGS_KEYS) {
@@ -169,10 +182,12 @@ async function main() {
       const { rows } = await client.query(`SELECT COUNT(*)::int AS c FROM ${quoteIdent(table)}`);
       const pgCount = rows[0].c;
       const sq = sqliteCounts[table];
+      // settings may gain PG_SCHEMA_VERSION / migration keys written after copy
+      const settingsOk = table === 'settings' && pgCount >= sq;
       // ON CONFLICT DO NOTHING may skip dupes; allow >= when truncate was used we expect equal
-      const ok = doTruncate ? pgCount === sq : pgCount >= sq || pgCount === sq;
+      const ok = settingsOk || (doTruncate ? pgCount === sq : pgCount >= sq || pgCount === sq);
       const mark = pgCount === sq ? 'OK' : (ok ? 'OK~' : 'DIFF');
-      if (pgCount !== sq) mismatches += 1;
+      if (!ok) mismatches += 1;
       console.log(`  [${mark}] ${table}: sqlite=${sq} pg=${pgCount}`);
     }
 

@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-07-17 (Postgres)
+**Последнее обновление документации:** 2026-07-17 (Postgres cutover)
 
 ---
 
@@ -152,7 +152,7 @@ npm run db:reset-operations    # Сброс операционных данны�
 - **Схема Postgres:** `server/pgSchema.js` (финальный эквивалент post-migration SQLite)
 - **Диалект:** `server/sqlTranslate.js` (`?`→`$n`, `datetime('now')`, `INSERT OR REPLACE/IGNORE`, `IFNULL`, `IS ?`+null, `strftime`, `COLLATE NOCASE`)
 - **Миграции SQLite:** встроены в `server/db.js`, отслеживаются ключами в таблице `settings`
-- **Импорт:** `npm run db:migrate-pg` → `server/scripts/migrate-sqlite-to-postgres.mjs`
+- **Импорт:** `npm run db:migrate-pg` → `server/scripts/migrate-sqlite-to-postgres.mjs` (`MIGRATE_TRUNCATE=true`; bulk load с `session_replication_role=replica`; orphan SQLite-строки лучше вычистить в локальной копии перед импортом; `settings` в PG может быть `[OK~]` из‑за ключей схемы)
 - **Cutover:** `docs/POSTGRES_CUTOVER.md`
 - **Бэкапы SQLite:** автоматически при старте и перед миграциями → `data/backups/` (до 30 шт.)
 - **Запись SQLite:** атомарная через `writeDatabaseAtomic()` в `dbBackup.js`
@@ -597,6 +597,7 @@ GET  /api/auth/roles
 | 2026-07-01 | Добавлен `BUG_REPORT.md`: 25 найденных проблем (3 критических, 8 высоких, 9 средних, 5 низких) |
 | 2026-07-01 | Исправлено 19 проблем из BUG_REPORT: CORS, cross-branch user, product archive, return qty cap, zero-cost restock, transfer reversal stock+cost, confirm transaction, cashier date filter, payment number, rate-limit, validation, CSRF, GPS perm, counterparty delete guard, HTTP codes, DB indexes, payments pagination |
 | 2026-07-17 | Postgres: адаптер `pg`/`synckit`, схема `pgSchema.js`, импорт `db:migrate-pg`, cutover docs, healthcheck DATABASE_URL, sql.js fallback без URL |
+| 2026-07-17 | Cutover prod: migrate-pg устойчивее к orphan FK; docs про `[OK~]` settings; Railway Postgres + `DATABASE_URL` на Tandoor |
 
 ---
 
