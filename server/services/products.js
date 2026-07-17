@@ -89,16 +89,52 @@ export function getProductLastPrice(productId, branchId, docType, counterpartyId
 }
 
 function isProductUsed(productId) {
-  if (queryOne('SELECT 1 as ok FROM document_items WHERE product_id = ? LIMIT 1', [productId])) {
-    return true;
+  return getUsedProductIdSet([productId]).has(productId);
+}
+
+/** Batch lookup: which product ids appear in documents/calculations (avoids N+1 on list). */
+function getUsedProductIdSet(productIds = []) {
+  const used = new Set();
+  const ids = [...new Set((productIds || []).filter(Boolean))];
+  if (!ids.length) return used;
+
+  const placeholders = ids.map(() => '?').join(',');
+  for (const table of ['document_items', 'calculation_items', 'calculation_sources']) {
+    const rows = queryAll(
+      `SELECT DISTINCT product_id FROM ${table} WHERE product_id IN (${placeholders})`,
+      ids,
+    );
+    for (const row of rows) {
+      if (row.product_id) used.add(row.product_id);
+    }
   }
-  if (queryOne('SELECT 1 as ok FROM calculation_items WHERE product_id = ? LIMIT 1', [productId])) {
-    return true;
+  return used;
+}
+
+function getSuppliersMapForProducts(productIds = [], branchId = DEFAULT_BRANCH_ID) {
+  const map = new Map();
+  const ids = [...new Set((productIds || []).filter(Boolean))];
+  if (!ids.length) return map;
+
+  const placeholders = ids.map(() => '?').join(',');
+  const rows = queryAll(`
+    SELECT ps.product_id, c.id, c.name, c.phone, c.telegram_chat_id
+    FROM product_suppliers ps
+    JOIN counterparties c ON c.id = ps.supplier_id AND c.branch_id = ?
+    WHERE ps.product_id IN (${placeholders}) AND ps.branch_id = ?
+    ORDER BY c.name
+  `, [branchId, ...ids, branchId]);
+
+  for (const row of rows) {
+    if (!map.has(row.product_id)) map.set(row.product_id, []);
+    map.get(row.product_id).push({
+      id: row.id,
+      name: row.name,
+      phone: row.phone,
+      telegram_chat_id: row.telegram_chat_id,
+    });
   }
-  if (queryOne('SELECT 1 as ok FROM calculation_sources WHERE product_id = ? LIMIT 1', [productId])) {
-    return true;
-  }
-  return false;
+  return map;
 }
 
 export function getProducts(filters = {}) {
@@ -204,39 +240,64 @@ export function getProducts(filters = {}) {
     )
     : null;
 
-  products = products.map((p) => ({
-    ...p,
-    last_price: lastMap ? lastPriceForItem(lastMap, p.id) : null,
-  }));
-
   if (filters.category_id === '__no_category__') {
     products = products.filter((p) => !p.category_id || p.category_id === 'other');
   } else if (filters.category_id) {
     products = products.filter((p) => p.category_id === filters.category_id);
   }
 
-  let result = products.map((p) => enrichProduct(p, branchId, departmentId, lastMap));
-
+  // Supplier filter before enrich (avoids loading suppliers for every row).
   if (filters.supplier_id === '__no_supplier__') {
-    result = result.filter((p) => !p.suppliers?.length);
-  } else if (filters.supplier_id) {
-    result = result.filter((p) =>
-      p.suppliers.some((s) => s.id === filters.supplier_id)
+    const withSupplier = new Set(
+      queryAll(
+        'SELECT DISTINCT product_id FROM product_suppliers WHERE branch_id = ?',
+        [branchId],
+      ).map((r) => r.product_id),
     );
+    products = products.filter((p) => !withSupplier.has(p.id));
+  } else if (filters.supplier_id) {
+    const withSupplier = new Set(
+      queryAll(
+        'SELECT product_id FROM product_suppliers WHERE supplier_id = ? AND branch_id = ?',
+        [filters.supplier_id, branchId],
+      ).map((r) => r.product_id),
+    );
+    products = products.filter((p) => withSupplier.has(p.id));
   }
 
   const kindFilter = parseProductKindFilter(filters.product_kind);
   if (kindFilter) {
-    result = result.filter((p) => kindFilter.includes(normalizeProductKind(p.product_kind)));
+    products = products.filter((p) => kindFilter.includes(normalizeProductKind(p.product_kind)));
   }
+
+  // Lightweight fields for sort / response shape — full enrich only for the page.
+  let result = products.map((p) => ({
+    ...p,
+    product_kind: normalizeProductKind(p.product_kind),
+    product_kind_label: productKindLabel(p.product_kind),
+    has_variants: !!p.has_variants,
+    archived: !!p.archived,
+    last_price: lastMap ? lastPriceForItem(lastMap, p.id) : null,
+  }));
 
   if (filters.sort_by) {
     result = sortProductList(result, filters.sort_by, filters.sort_dir);
   }
 
   const pagination = parsePagination(filters);
-  if (!pagination) return result;
-  return paginateList(result, pagination);
+  const pageMeta = pagination ? paginateList(result, pagination) : null;
+  const pageRows = pageMeta ? pageMeta.items : result;
+
+  const pageIds = pageRows.map((p) => p.id);
+  const usedIds = getUsedProductIdSet(pageIds);
+  const suppliersMap = getSuppliersMapForProducts(pageIds, branchId);
+  const enriched = pageRows.map((p) => enrichProduct(p, branchId, departmentId, lastMap, {
+    is_used: usedIds.has(p.id),
+    suppliers: suppliersMap.get(p.id) || [],
+  }));
+
+  if (!pageMeta) return enriched;
+  return { ...pageMeta, items: enriched };
 }
 
 export function getProductKindCounts(filters = {}) {
@@ -632,7 +693,7 @@ function getSuppliersForProduct(productId, branchId = DEFAULT_BRANCH_ID) {
   `, [branchId, productId, branchId]);
 }
 
-function enrichProduct(product, branchId = DEFAULT_BRANCH_ID, departmentId = null, lastMap = null) {
+function enrichProduct(product, branchId = DEFAULT_BRANCH_ID, departmentId = null, lastMap = null, options = {}) {
   if (!product) {
     throw new Error('Товар не найден');
   }
@@ -658,17 +719,22 @@ function enrichProduct(product, branchId = DEFAULT_BRANCH_ID, departmentId = nul
     }
   }
 
+  const isUsed = options.is_used != null ? !!options.is_used : isProductUsed(product.id);
+  const suppliers = options.suppliers != null
+    ? options.suppliers
+    : getSuppliersForProduct(product.id, branchId);
+
   return {
     ...rest,
     product_kind: normalizeProductKind(rest.product_kind),
     product_kind_label: productKindLabel(rest.product_kind),
     has_variants: hasVariants,
     variants,
-    is_used: isProductUsed(product.id),
+    is_used: isUsed,
     archived: !!rest.archived,
     variant_price_min: variantPrices.length ? Math.min(...variantPrices) : null,
     variant_price_max: variantPrices.length ? Math.max(...variantPrices) : null,
-    suppliers: getSuppliersForProduct(product.id, branchId),
+    suppliers,
     primary_image: primary_file_name
       ? {
         url: `/uploads/products/${product.id}/${primary_file_name}`,

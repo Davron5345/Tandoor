@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-07-17 (Postgres cutover)
+**Последнее обновление документации:** 2026-07-17 (products list N+1)
 
 ---
 
@@ -534,6 +534,7 @@ GET  /api/auth/roles
 - Ошибки бизнес-логики: `throw new Error('Сообщение на русском')`
 - `assert*` функции для валидации (documentAccess, productKinds)
 - Пагинация: `server/pagination.js`, ответ `{ items, total, page, limit, pages }`
+- **Список товаров (`getProducts`)**: фильтры/сортировка по лёгким полям → пагинация → `enrichProduct` только для страницы; `is_used` и поставщики — batch (N+1 через synckit на Postgres делал `/products` пустым из‑за таймаута)
 
 ### Frontend
 - Функциональные компоненты, hooks
@@ -598,6 +599,7 @@ GET  /api/auth/roles
 | 2026-07-01 | Исправлено 19 проблем из BUG_REPORT: CORS, cross-branch user, product archive, return qty cap, zero-cost restock, transfer reversal stock+cost, confirm transaction, cashier date filter, payment number, rate-limit, validation, CSRF, GPS perm, counterparty delete guard, HTTP codes, DB indexes, payments pagination |
 | 2026-07-17 | Postgres: адаптер `pg`/`synckit`, схема `pgSchema.js`, импорт `db:migrate-pg`, cutover docs, healthcheck DATABASE_URL, sql.js fallback без URL |
 | 2026-07-17 | Cutover prod: migrate-pg устойчивее к orphan FK; docs про `[OK~]` settings; Railway Postgres + `DATABASE_URL` на Tandoor |
+| 2026-07-17 | Fix `/products` пустой на Postgres: `getProducts` пагинирует до enrich, batch `is_used`/suppliers |
 
 ---
 
