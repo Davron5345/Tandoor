@@ -594,30 +594,29 @@ export default function PrihodMobile() {
                 )}
               </div>
             ))}
+          </div>
 
+          <div className="warehouse-prihod-footer">
             <div className="warehouse-orders-mobile-detail-total">
               <span>Итого</span>
               <strong>{formatMoney(formTotal)}</strong>
             </div>
-
-            <div className="warehouse-prihod-actions">
-              <button
-                type="button"
-                className="btn btn-success btn-block"
-                disabled={saving}
-                onClick={() => submit('confirmed')}
-              >
-                {saving ? 'Сохранение…' : 'Провести'}
-              </button>
-              <button
-                type="button"
-                className="btn btn-ghost btn-block"
-                disabled={saving}
-                onClick={() => submit('draft')}
-              >
-                Черновик
-              </button>
-            </div>
+            <button
+              type="button"
+              className="btn btn-success btn-block"
+              disabled={saving}
+              onClick={() => submit('confirmed')}
+            >
+              {saving ? 'Сохранение…' : 'Провести'}
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost btn-block"
+              disabled={saving}
+              onClick={() => submit('draft')}
+            >
+              Черновик
+            </button>
           </div>
         </div>
       )}
@@ -681,20 +680,20 @@ export default function PrihodMobile() {
                 ))}
               </ul>
             </div>
-
-            {selected.status === 'draft' && canConfirm && (
-              <div className="warehouse-prihod-actions">
-                <button
-                  type="button"
-                  className="btn btn-success btn-block"
-                  disabled={saving}
-                  onClick={confirmSelected}
-                >
-                  {saving ? 'Проведение…' : 'Провести'}
-                </button>
-              </div>
-            )}
           </div>
+
+          {selected.status === 'draft' && canConfirm && (
+            <div className="warehouse-prihod-footer">
+              <button
+                type="button"
+                className="btn btn-success btn-block"
+                disabled={saving}
+                onClick={confirmSelected}
+              >
+                {saving ? 'Проведение…' : 'Провести'}
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
