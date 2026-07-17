@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { api, formatDateTime, formatMoney } from '../api';
 import { useAuth } from '../AuthContext';
@@ -47,8 +47,19 @@ const STATUS_CLASS = {
 
 export default function ShopOrdersMobile() {
   const { user, loading: authLoading, logout } = useAuth();
-  const { branchName, branchId } = useBranch();
+  const {
+    branchName,
+    branchId,
+    branches,
+    setActiveBranchId,
+    isAdmin: isBranchAdmin,
+  } = useBranch();
   const { theme, toggleTheme } = useTheme();
+  const activeBranches = useMemo(
+    () => (branches || []).filter((b) => b.active !== false && b.active !== 0),
+    [branches],
+  );
+  const canSwitchBranch = isBranchAdmin && activeBranches.length > 0;
   const canView = hasPermission(user, 'shop_orders.view');
   const canEdit = hasPermission(user, 'shop_orders.edit');
   const canPrihod = hasPermission(user, 'documents.prihod');
@@ -454,6 +465,26 @@ export default function ShopOrdersMobile() {
                 Приход
               </Link>
             </nav>
+          )}
+
+          {canSwitchBranch ? (
+            <label className="warehouse-orders-mobile-branch">
+              <span>Филиал</span>
+              <select
+                value={branchId || ''}
+                onChange={(e) => setActiveBranchId(e.target.value)}
+                aria-label="Выбор филиала"
+              >
+                {activeBranches.map((b) => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            <div className="warehouse-orders-mobile-branch warehouse-orders-mobile-branch--static">
+              <span>Филиал</span>
+              <strong>{branchName}</strong>
+            </div>
           )}
 
           <div className="warehouse-orders-mobile-filters" role="tablist" aria-label="Фильтр по статусу">

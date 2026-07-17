@@ -43,8 +43,19 @@ function statusClass(status) {
 
 export default function PrihodMobile() {
   const { user, loading: authLoading, logout } = useAuth();
-  const { branchName, branchId } = useBranch();
+  const {
+    branchName,
+    branchId,
+    branches,
+    setActiveBranchId,
+    isAdmin: isBranchAdmin,
+  } = useBranch();
   const { theme, toggleTheme } = useTheme();
+  const activeBranches = useMemo(
+    () => (branches || []).filter((b) => b.active !== false && b.active !== 0),
+    [branches],
+  );
+  const canSwitchBranch = isBranchAdmin && activeBranches.length > 0;
 
   const canView = hasPermission(user, 'documents.prihod') || hasPermission(user, 'documents.view');
   const canEdit = hasPermission(user, 'documents.edit');
@@ -138,7 +149,19 @@ export default function PrihodMobile() {
     } catch (err) {
       setNotice(err.message || 'Не удалось загрузить справочники');
     }
-  }, []);
+  }, [branchId]);
+
+  useEffect(() => {
+    if (view !== 'create') return;
+    setForm({
+      counterparty_id: '',
+      to_department_id: '',
+      date: todayLocalIso(),
+      items: [{ ...emptyItem }],
+    });
+    setProducts([]);
+    loadCreateRefs();
+  }, [branchId, view, loadCreateRefs]);
 
   const loadProducts = useCallback(async (supplierId, departmentId) => {
     if (!supplierId) {
@@ -159,12 +182,12 @@ export default function PrihodMobile() {
       setProducts([]);
       setNotice(err.message || 'Не удалось загрузить товары');
     }
-  }, []);
+  }, [branchId]);
 
   useEffect(() => {
     if (view !== 'create') return;
     loadProducts(form.counterparty_id, form.to_department_id);
-  }, [view, form.counterparty_id, form.to_department_id, loadProducts]);
+  }, [view, form.counterparty_id, form.to_department_id, loadProducts, branchId]);
 
   const productOptions = useMemo(() => buildProductPickOptions(products), [products]);
 
@@ -173,16 +196,8 @@ export default function PrihodMobile() {
     0,
   );
 
-  const openCreate = async () => {
+  const openCreate = () => {
     if (!canEdit) return;
-    setForm({
-      counterparty_id: '',
-      to_department_id: '',
-      date: todayLocalIso(),
-      items: [{ ...emptyItem }],
-    });
-    setProducts([]);
-    await loadCreateRefs();
     setView('create');
   };
 
@@ -372,6 +387,26 @@ export default function PrihodMobile() {
 
           {navTabs}
 
+          {canSwitchBranch ? (
+            <label className="warehouse-orders-mobile-branch">
+              <span>Филиал</span>
+              <select
+                value={branchId || ''}
+                onChange={(e) => setActiveBranchId(e.target.value)}
+                aria-label="Выбор филиала"
+              >
+                {activeBranches.map((b) => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            <div className="warehouse-orders-mobile-branch warehouse-orders-mobile-branch--static">
+              <span>Филиал</span>
+              <strong>{branchName}</strong>
+            </div>
+          )}
+
           <div className="warehouse-orders-mobile-filters" role="tablist" aria-label="Фильтр по статусу">
             {STATUS_FILTERS.map((opt) => (
               <button
@@ -448,6 +483,26 @@ export default function PrihodMobile() {
           </header>
 
           <div className="warehouse-orders-mobile-detail-body warehouse-prihod-form">
+            {canSwitchBranch ? (
+              <label className="warehouse-prihod-field">
+                <span>Филиал</span>
+                <select
+                  value={branchId || ''}
+                  onChange={(e) => setActiveBranchId(e.target.value)}
+                  aria-label="Выбор филиала"
+                >
+                  {activeBranches.map((b) => (
+                    <option key={b.id} value={b.id}>{b.name}</option>
+                  ))}
+                </select>
+              </label>
+            ) : (
+              <div className="warehouse-prihod-field">
+                <span>Филиал</span>
+                <div className="warehouse-prihod-readonly">{branchName}</div>
+              </div>
+            )}
+
             <label className="warehouse-prihod-field">
               <span>Поставщик</span>
               <select
