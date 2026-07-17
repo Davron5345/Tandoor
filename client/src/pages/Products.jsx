@@ -465,33 +465,46 @@ export default function Products() {
     if (filterCategory) countParams.category_id = filterCategory;
     if (filterSupplier) countParams.supplier_id = filterSupplier;
 
+    const settle = (promise, fallback) => promise.then(
+      (value) => ({ ok: true, value }),
+      (error) => {
+        console.error(error);
+        return { ok: false, value: fallback };
+      },
+    );
+
     return Promise.all([
-      api.getProducts(params),
-      api.getProducts({ ...countParams, archived: '0' }),
-      api.getProducts({ ...countParams, archived: '1' }),
-      api.getProductCategories(),
-      api.getUnits(),
-      api.getCounterparties('supplier'),
-      api.getProductKindCounts({ archived: listView === 'archive' ? '1' : '0' }),
+      settle(api.getProducts(params), { items: [], total: 0, pages: 1 }),
+      settle(api.getProducts({ ...countParams, archived: '0' }), { total: 0 }),
+      settle(api.getProducts({ ...countParams, archived: '1' }), { total: 0 }),
+      settle(api.getProductCategories(), []),
+      settle(api.getUnits(), []),
+      settle(api.getCounterparties('supplier'), []),
+      settle(api.getProductKindCounts({ archived: listView === 'archive' ? '1' : '0' }), {}),
     ])
-      .then(([p, catalogRes, archiveRes, c, u, s, kindStats]) => {
+      .then(([pRes, catalogRes, archiveRes, cRes, uRes, sRes, kindRes]) => {
+        const p = pRes.value;
         if (searching || Array.isArray(p)) {
           setProducts(Array.isArray(p) ? p : p.items || []);
           setProductPages(1);
           setProductTotal(Array.isArray(p) ? p.length : (p.items?.length ?? 0));
         } else {
-          setProducts(p.items);
-          setProductPages(p.pages);
-          setProductTotal(p.total);
+          setProducts(p.items || []);
+          setProductPages(p.pages || 1);
+          setProductTotal(p.total ?? 0);
         }
-        setCatalogCount(Array.isArray(catalogRes) ? catalogRes.length : (catalogRes.total ?? 0));
-        setArchiveCount(Array.isArray(archiveRes) ? archiveRes.length : (archiveRes.total ?? 0));
-        setCategories(c);
-        setUnits(u);
-        setSuppliers(s);
-        setKindCounts(kindStats || {});
-      })
-      .catch(console.error);
+        const catalog = catalogRes.value;
+        const archive = archiveRes.value;
+        setCatalogCount(Array.isArray(catalog) ? catalog.length : (catalog.total ?? 0));
+        setArchiveCount(Array.isArray(archive) ? archive.length : (archive.total ?? 0));
+        setCategories(cRes.value || []);
+        setUnits(uRes.value || []);
+        setSuppliers(sRes.value || []);
+        setKindCounts(kindRes.value || {});
+        if (!pRes.ok) {
+          console.error('Не удалось загрузить номенклатуру');
+        }
+      });
   }, [filterCategory, filterSupplier, filterKind, productPage, productPageSize, sortKey, sortDir, search, listView, branchId]);
 
   useEffect(() => {

@@ -319,15 +319,17 @@ export function getProductKindCounts(filters = {}) {
 }
 
 export function getProductCategories() {
+  // Subqueries instead of GROUP BY — Postgres rejects GROUP BY pc.id with parent.name.
   return queryAll(`
     SELECT pc.*,
            parent.name as parent_name,
-           COUNT(DISTINCT p.id) as product_count,
+           (
+             SELECT COUNT(*) FROM products p
+             WHERE p.category_id = pc.id AND COALESCE(p.archived, 0) = 0
+           ) as product_count,
            (SELECT COUNT(*) FROM product_categories ch WHERE ch.parent_id = pc.id) as subcategory_count
     FROM product_categories pc
-    LEFT JOIN products p ON p.category_id = pc.id AND COALESCE(p.archived, 0) = 0
     LEFT JOIN product_categories parent ON parent.id = pc.parent_id
-    GROUP BY pc.id
     ORDER BY COALESCE(parent.sort_order, pc.sort_order), parent.name, pc.parent_id IS NOT NULL, pc.sort_order, pc.name
   `);
 }
