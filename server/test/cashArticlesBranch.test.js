@@ -54,13 +54,22 @@ test('cash articles are isolated per branch', async () => {
 });
 
 test('migration remaps legacy article ids for non-main branch payments', async () => {
-  const { default: db, initDb, reloadDb } = await import('../db.js');
+  const { default: db, initDb, reloadDb, isUsingPostgres } = await import('../db.js');
   const { v4: uuidv4 } = await import('uuid');
   const { cashArticleId, PURCHASE_ARTICLE_CODE } = await import('../cashArticleDefaults.js');
 
   await initDb();
+  if (isUsingPostgres()) {
+    // SQLite-only historical migration (PRAGMA rebuild); on Postgres articles are already branch-scoped.
+    return;
+  }
   db.run("DELETE FROM settings WHERE key = 'cash_articles_branch_v1'");
   db.run("INSERT OR IGNORE INTO branches (id, name, active) VALUES ('tnd', 'Tandoor', 1)");
+  // Legacy article may already have been removed by a prior migration — recreate for the remap test.
+  db.run(
+    `INSERT OR IGNORE INTO cash_articles (id, name, direction, sort_order, active)
+     VALUES ('ca_exp_purchase', 'Закуп', 'expense', 1, 1)`,
+  );
   const paymentId = uuidv4();
   db.run(
     `INSERT INTO payments (id, number, type, amount, date, branch_id, article_id)
@@ -71,5 +80,5 @@ test('migration remaps legacy article ids for non-main branch payments', async (
   await reloadDb();
 
   const payment = db.queryOne('SELECT article_id FROM payments WHERE id = ?', [paymentId]);
-  assert.equal(payment.article_id, cashArticleId('tnd', PURCHASE_ARTICLE_CODE));
+  assert.equal(payment?.article_id, cashArticleId('tnd', PURCHASE_ARTICLE_CODE));
 });

@@ -9,6 +9,17 @@ healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 5
 
-# Постоянные данные: в Railway → Service → Settings → Volume
-# Mount Path: /app/data  (приложение в /app, иначе БД сбросится при деплое)
-# Переменная DATA_DIR=/app/data — опционально, если том смонтирован, подхватится RAILWAY_VOLUME_MOUNT_PATH
+# Постоянные данные (uploads + опционально warehouse.db для отката):
+# Railway → Service → Settings → Volume, Mount Path: /data
+# DATA_DIR=/data
+#
+# Postgres (рекомендуется после миграции):
+# 1) railway add --database postgres   (или New → Database → PostgreSQL в UI)
+# 2) Variables сервиса приложения:
+#      DATABASE_URL=${{Postgres.DATABASE_URL}}
+#      DATA_DIR=/data
+#      DISABLE_DEMO_SEED=true
+#      NODE_ENV=production
+# 3) Импорт: см. docs/POSTGRES_CUTOVER.md  (npm run db:migrate-pg)
+#
+# Без DATABASE_URL приложение использует sql.js + /data/warehouse.db

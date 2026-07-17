@@ -16,17 +16,43 @@ import {
 import { buildOpenApiSpec, renderApiDocsHtml } from '../openapi.js';
 import { getAppVersion } from '../appVersion.js';
 import { isServerReady, getServerInitError } from '../readiness.js';
+import { isPostgresEnabled } from '../sqlTranslate.js';
+import { isUsingPostgres } from '../db.js';
+import { pgHealth } from '../pgAdapter.js';
 
 export function registerAuthRoutes(app, { authRequired }) {
   app.get('/api/health', (_, res) => {
     const ready = isServerReady();
     const initError = getServerInitError();
-    res.status(200).json({
+    const payload = {
       ok: ready,
       ready,
       error: initError,
       telegram: ready ? isTelegramEnabled() : false,
-    });
+    };
+
+    if (isPostgresEnabled() || isUsingPostgres()) {
+      try {
+        const dbHealth = ready ? pgHealth() : { ok: false, error: 'not ready' };
+        payload.database = {
+          engine: 'postgresql',
+          ok: !!dbHealth?.ok,
+          detail: dbHealth?.engine || null,
+        };
+        if (!dbHealth?.ok) {
+          payload.ok = false;
+          return res.status(503).json(payload);
+        }
+      } catch (e) {
+        payload.database = { engine: 'postgresql', ok: false, error: e.message };
+        payload.ok = false;
+        return res.status(503).json(payload);
+      }
+    } else {
+      payload.database = { engine: 'sqlite', ok: ready };
+    }
+
+    res.status(200).json(payload);
   });
 
   app.get('/api/app-version', (_, res) => {

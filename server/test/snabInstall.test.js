@@ -61,8 +61,14 @@ test('shop orders user can read snab install info', async () => {
 
 test('public snab apk redirects to github release', async () => {
   const res = await fetch(`${baseUrl}/api/public/snab-apk`, { redirect: 'manual' });
-  assert.ok(res.status === 302 || res.status === 404);
-  if (res.status === 302) {
+  // Local APK on disk → 200 download; otherwise redirect to GitHub Releases
+  if (res.status === 200) {
+    const ctype = res.headers.get('content-type') || '';
+    assert.ok(ctype.includes('android') || ctype.includes('octet-stream') || ctype.includes('zip'));
+    return;
+  }
+  assert.ok([301, 302, 307, 308, 404].includes(res.status), `unexpected status ${res.status}`);
+  if (res.status >= 301 && res.status <= 308) {
     const location = res.headers.get('location') || '';
     assert.ok(location.includes('snabzenie.apk'));
   }

@@ -9,12 +9,22 @@ import { existsSync, readFileSync, statSync, mkdirSync } from 'fs';
 import {
   dbPath, dataDir, backupDatabaseFile, writeDatabaseAtomic, listBackups,
 } from './dbBackup.js';
+import { isPostgresEnabled } from './sqlTranslate.js';
+import {
+  pgInit, pgQueryAll, pgQueryOne, pgRun, pgTransaction, pgClose, pgHealth,
+} from './pgAdapter.js';
 
 let db = null;
 let inTransaction = false;
 let saveDeferred = false;
+let usePostgres = false;
+
+export function isUsingPostgres() {
+  return usePostgres;
+}
 
 function saveDb() {
+  if (usePostgres) return;
   if (!db || inTransaction || saveDeferred) return;
   writeDatabaseAtomic(Buffer.from(db.export()));
 }
@@ -70,6 +80,7 @@ function rebuildTableWithRowCheck({ table, createNewSql, settingKey, label = set
 }
 
 export function queryAll(sql, params = []) {
+  if (usePostgres) return pgQueryAll(sql, params);
   const stmt = db.prepare(sql);
   if (params.length) stmt.bind(params);
   const rows = [];
@@ -79,15 +90,24 @@ export function queryAll(sql, params = []) {
 }
 
 export function queryOne(sql, params = []) {
+  if (usePostgres) return pgQueryOne(sql, params);
   return queryAll(sql, params)[0] || null;
 }
 
 export function run(sql, params = []) {
+  if (usePostgres) {
+    pgRun(sql, params);
+    return;
+  }
   db.run(sql, params);
   saveDb();
 }
 
 export function transaction(fn) {
+  if (usePostgres) {
+    pgTransaction(fn);
+    return;
+  }
   inTransaction = true;
   db.run('BEGIN');
   try {
@@ -110,8 +130,49 @@ export function getDb() {
   return db;
 }
 
+function bootstrapPostgresSeeds() {
+  const DEFAULT_UNITS = ['шт', 'кг', 'г', 'л', 'мл', 'м', 'м²', 'м³', 'уп', 'пач', 'кор'];
+  const unitCount = queryOne('SELECT COUNT(*) as c FROM units')?.c ?? 0;
+  if (Number(unitCount) === 0) {
+    DEFAULT_UNITS.forEach((name, index) => {
+      run('INSERT INTO units (id, name, sort_order) VALUES (?, ?, ?)', [randomUUID(), name, index + 1]);
+    });
+  }
+
+  run("INSERT OR IGNORE INTO product_categories (id, name, sort_order) VALUES ('other', 'Прочее', 999)");
+  run("INSERT OR IGNORE INTO product_categories (id, name, sort_order) VALUES ('electronics', 'Электроника', 1)");
+
+  for (const article of DEFAULT_CASH_ARTICLES) {
+    const id = cashArticleId('main', article.code);
+    run(
+      `INSERT OR IGNORE INTO cash_articles
+        (id, name, direction, sort_order, active, branch_id, code)
+       VALUES (?, ?, ?, ?, 1, ?, ?)`,
+      [id, article.name, article.direction, article.sort_order, 'main', article.code],
+    );
+  }
+
+  const bob = queryOne('SELECT branch_id FROM branch_opening_balances WHERE branch_id = ?', ['main']);
+  if (!bob) {
+    run('INSERT INTO branch_opening_balances (branch_id, cash_balance, notes) VALUES (?, 0, ?)', ['main', '']);
+  }
+}
+
 export async function initDb() {
   if (!existsSync(dataDir)) mkdirSync(dataDir, { recursive: true });
+
+  usePostgres = isPostgresEnabled();
+
+  if (usePostgres) {
+    const mode = (process.env.DATABASE_URL || '').startsWith('pglite') || process.env.DB_ENGINE === 'pglite'
+      ? 'pglite'
+      : 'postgresql';
+    console.log(`🐘 База: Postgres (${mode})`);
+    pgInit(process.env.DATABASE_URL, dataDir);
+    bootstrapPostgresSeeds();
+    seedIfEmpty();
+    return null;
+  }
 
   const SQL = await initSqlJs();
 
@@ -1969,7 +2030,7 @@ function seedIfEmpty() {
   }
 
   const richBackup = listBackups().find((b) => b.size > 260000);
-  if (richBackup) {
+  if (richBackup && !usePostgres) {
     console.warn('');
     console.warn('⚠️  База пустая, но в data/backups/ есть копия с вашими данными:');
     console.warn(`    ${richBackup.filename}`);
@@ -1983,8 +2044,12 @@ function seedIfEmpty() {
   if (isDemoSeedDisabled()) {
     console.warn('');
     console.warn('⚠️  База пустая. Демо-данные не загружаются (production / DISABLE_DEMO_SEED).');
-    console.warn(`    Файл БД: ${dbPath}`);
-    console.warn('    Укажите DATA_DIR на постоянный диск или восстановите бэкап.');
+    if (usePostgres) {
+      console.warn('    Движок: Postgres (DATABASE_URL)');
+    } else {
+      console.warn(`    Файл БД: ${dbPath}`);
+      console.warn('    Укажите DATA_DIR на постоянный диск или восстановите бэкап.');
+    }
     console.warn('');
     run("INSERT OR REPLACE INTO settings (key, value) VALUES ('demo_seed_done', '1')");
     saveDb();
@@ -2043,6 +2108,11 @@ function addPerformanceIndexes() {
 }
 
 export async function reloadDb() {
+  if (usePostgres) {
+    pgClose();
+    usePostgres = false;
+    return initDb();
+  }
   if (db) {
     try {
       db.close();
@@ -2058,5 +2128,6 @@ export { dbPath, dataDir, backupDir } from './dbBackup.js';
 export {
   backupDatabaseFile, listBackups, restoreDatabaseFromBackup, verifyDatabaseFile,
 } from './dbBackup.js';
+export { pgHealth };
 
-export default { initDb, reloadDb, queryAll, queryOne, run, transaction, getDb };
+export default { initDb, reloadDb, queryAll, queryOne, run, transaction, getDb, isUsingPostgres };

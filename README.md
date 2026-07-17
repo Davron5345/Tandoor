@@ -75,19 +75,21 @@ environment:
 
 ## База данных
 
-**Файл:** `data/warehouse.db`  
-**Движок:** SQLite (библиотека [sql.js](https://sql.js.org/) — одна локальная файл-база на диске)
+**Продакшен (рекомендуется):** PostgreSQL через `DATABASE_URL` (Railway Postgres).  
+**Локально / откат:** SQLite-файл `data/warehouse.db` (sql.js), если `DATABASE_URL` не задан.
 
-Все данные хранятся в этом файле: товары, документы (приход/расход/перемещение), контрагенты, оплаты, касса, сотрудники, филиалы.
+Uploads всегда на файловой системе: `DATA_DIR/uploads` (volume).
 
-**Резервные копии:** при каждом запуске сервера и перед миграциями создаётся копия в `data/backups/` (до 30 штук).
+Миграция SQLite → Postgres: [docs/POSTGRES_CUTOVER.md](docs/POSTGRES_CUTOVER.md)
 
 | Команда | Описание |
 |---------|----------|
-| `npm run db:list-backups` | Показать копии и сколько в них записей |
-| `npm run db:restore -- best` | Восстановить самую полную копию |
-| `npm run db:restore -- имя_файла.db` | Восстановить конкретную копию |
-| `npm run db:backup` | Создать копию вручную |
+| `npm run db:list-backups` | Показать копии SQLite и сколько в них записей |
+| `npm run db:restore -- best` | Восстановить самую полную копию SQLite |
+| `npm run db:backup` | Создать копию SQLite вручную |
+| `npm run db:migrate-pg` | Импорт `warehouse.db` → Postgres |
+| `npm run test:pg` | Backend-тесты на PGlite (Postgres-диалект) |
+
 
 **Почему данные могут пропасть:**
 - деплой без постоянного тома (`data/` не в git, диск контейнера сбрасывается);

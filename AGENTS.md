@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-07-01 (bugfixes)
+**Последнее обновление документации:** 2026-07-17 (Postgres)
 
 ---
 
@@ -30,11 +30,11 @@
 
 | Слой | Технологии |
 |------|-----------|
-| Backend | Node.js ≥20, Express 4, ESM (`"type": "module"`), sql.js (SQLite в файле) |
+| Backend | Node.js ≥20, Express 4, ESM (`"type": "module"`), **Postgres** (`pg`, при `DATABASE_URL`) или sql.js (SQLite-файл без `DATABASE_URL`) |
 | Frontend | React 18, Vite, React Router 7, plain CSS (без UI-фреймворка) |
 | Mobile | Capacitor 7 (Android), PWA service worker, TypeScript для `capacitor.config.ts` |
-| Тесты | Node test runner (`server/test/`), Playwright E2E (`e2e/`), ESLint |
-| Хранение | `data/warehouse.db`, `data/backups/`, `data/uploads/` |
+| Тесты | Node test runner (`server/test/`), Playwright E2E (`e2e/`), ESLint; `npm run test:pg` — PGlite |
+| Хранение | Postgres (Railway) или `data/warehouse.db`; `data/backups/` (SQLite); `data/uploads/` (volume) |
 
 **Продакшен:** один процесс Express отдаёт API + статику `client/dist` на одном порту.
 
@@ -47,7 +47,12 @@ prihod-rashod/
 ├── server/                 # Backend
 │   ├── index.js            # Точка входа: env, DB init, permissions, Telegram, push
 │   ├── app.js              # Express: CORS, middleware, маршруты, static dist
-│   ├── db.js               # SQLite schema + миграции (встроенные, order-sensitive!)
+│   ├── db.js               # Точка входа БД: sql.js или Postgres (DATABASE_URL)
+│   ├── sqlTranslate.js     # SQLite→Postgres диалект
+│   ├── pgSchema.js         # Финальная Postgres-схема
+│   ├── pgAdapter.js        # Sync pg API (synckit)
+│   ├── pgWorker.mjs        # Worker: pool / PGlite
+│   ├── dbBackup.js         # SQLite-бэкапы / пути dataDir
 │   ├── auth.js             # Пользователи, хеширование паролей (scrypt)
 │   ├── sessions.js         # Сессии, cookie, bearer token для native
 │   ├── permissions.js      # Роли, права, пресеты (источник истины для backend)
@@ -87,7 +92,7 @@ prihod-rashod/
 ├── capacitor.config.ts     # Capacitor; CAPACITOR_SERVER_URL при сборке APK
 ├── e2e/                    # Playwright тесты
 ├── scripts/                # Сборка Android, иконки
-├── docs/                   # Доп. документация (SNAB_ANDROID.md)
+├── docs/                   # SNAB_ANDROID.md, POSTGRES_CUTOVER.md
 ├── data/                   # БД и uploads (НЕ в git!)
 ├── AGENTS.md               # ← ЭТОТ ФАЙЛ
 └── .cursor/rules/          # Правила для Cursor AI
@@ -102,7 +107,8 @@ npm run setup          # Установка зависимостей (root + cli
 npm run dev            # Dev: backend :3001 + Vite :5173
 npm run build          # Сборка frontend → client/dist
 npm start              # Продакшен (после build)
-npm test               # Backend тесты
+npm test               # Backend тесты (SQLite / sql.js)
+npm run test:pg        # Backend тесты на PGlite (Postgres)
 npm run test:e2e       # Playwright E2E
 npm run lint           # ESLint
 ```
@@ -110,11 +116,14 @@ npm run lint           # ESLint
 **База данных:**
 
 ```bash
-npm run db:backup              # Ручной бэкап
-npm run db:list-backups          # Список бэкапов
-npm run db:restore -- best       # Восстановить лучший бэкап
-npm run db:reset-operations      # Сброс операционных данных
+npm run db:backup              # Ручной бэкап SQLite
+npm run db:list-backups         # Список бэкапов
+npm run db:restore -- best     # Восстановить лучший бэкап SQLite
+npm run db:migrate-pg          # Импорт warehouse.db → Postgres
+npm run db:reset-operations    # Сброс операционных данных
 ```
+
+**Движок:** `DATABASE_URL` → Postgres; без URL → sql.js + `warehouse.db`. Cutover: `docs/POSTGRES_CUTOVER.md`.
 
 **Dev-логины** (только `NODE_ENV !== production`):
 - `admin` / `admin123`
@@ -137,15 +146,19 @@ npm run db:reset-operations      # Сброс операционных данн�
 
 ### 5.3 База данных
 
-- **Движок:** sql.js (SQLite в памяти, периодически сбрасывается на диск)
-- **Файл:** `data/warehouse.db` (путь через `DATA_DIR` env)
-- **Миграции:** встроены в `server/db.js`, отслеживаются ключами в таблице `settings`
-- **Бэкапы:** автоматически при старте и перед миграциями → `data/backups/` (до 30 шт.)
-- **Запись:** атомарная через `writeDatabaseAtomic()` в `dbBackup.js`
-- **Транзакции:** `db.transaction(fn)` — BEGIN/COMMIT/ROLLBACK
+- **Движок (прод):** PostgreSQL при наличии `DATABASE_URL` (`pg` + sync-адаптер `synckit` / `server/pgWorker.mjs`)
+- **Движок (откат/dev без URL):** sql.js (SQLite в памяти, периодически сбрасывается на диск)
+- **Файл SQLite:** `data/warehouse.db` (путь через `DATA_DIR` env) — uploads и rollback
+- **Схема Postgres:** `server/pgSchema.js` (финальный эквивалент post-migration SQLite)
+- **Диалект:** `server/sqlTranslate.js` (`?`→`$n`, `datetime('now')`, `INSERT OR REPLACE/IGNORE`, `IFNULL`, `IS ?`+null, `strftime`, `COLLATE NOCASE`)
+- **Миграции SQLite:** встроены в `server/db.js`, отслеживаются ключами в таблице `settings`
+- **Импорт:** `npm run db:migrate-pg` → `server/scripts/migrate-sqlite-to-postgres.mjs`
+- **Cutover:** `docs/POSTGRES_CUTOVER.md`
+- **Бэкапы SQLite:** автоматически при старте и перед миграциями → `data/backups/` (до 30 шт.)
+- **Запись SQLite:** атомарная через `writeDatabaseAtomic()` в `dbBackup.js`
+- **Транзакции:** `db.transaction(fn)` — BEGIN/COMMIT/ROLLBACK (на PG — один client в worker)
 
-> ⚠️ Нет отдельного migration framework. Изменения схемы добавляются в `db.js` с проверкой `settings` key. Порядок важен!
-
+> ⚠️ Нет отдельного migration framework для SQLite. Изменения схемы добавляются в `db.js` с проверкой `settings` key. Для Postgres — обновляй `server/pgSchema.js` + при необходимости settings keys.
 ### 5.4 Таблицы БД (основные)
 
 | Группа | Таблицы |
@@ -481,7 +494,10 @@ GET  /api/auth/roles
 |-----------|-----------|
 | `PORT` | Порт сервера (default 3001) |
 | `NODE_ENV` | `production` отключает demo seed |
-| `DATA_DIR` | Путь к `warehouse.db` и uploads (обязательно на Railway/Docker) |
+| `DATA_DIR` | Путь к uploads и (при SQLite) `warehouse.db` (обязательно на Railway/Docker) |
+| `DATABASE_URL` | Postgres connection string → включает Postgres-режим; без неё — sql.js |
+| `DB_ENGINE` | `sqlite` форсирует sql.js; `pglite` — in-process Postgres для тестов |
+| `DISABLE_DEMO_SEED` | Не заполнять демо-данные (на проде с Postgres обязательно `true`) |
 | `TELEGRAM_BOT_TOKEN` | Токен бота |
 | `TELEGRAM_ENABLED` | `false` для отключения |
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | Web Push (браузер/PWA) |
@@ -493,7 +509,6 @@ GET  /api/auth/roles
 | `CORS_ORIGIN` | Разрешённые origins (через запятую) |
 | `COOKIE_SECURE` | Secure cookie flag |
 | `ALLOW_DATA_RESET` | Разрешить API сброса данных |
-| `DISABLE_DEMO_SEED` | Не заполнять демо-данные |
 | `VITE_API_URL` | URL API для frontend build (Vite) |
 
 ---
@@ -502,7 +517,8 @@ GET  /api/auth/roles
 
 | Команда | Что тестирует |
 |---------|--------------|
-| `npm test` | Backend: auth, permissions, documents, payments, dish sales, opening balance, P&L, staff location... |
+| `npm test` | Backend на SQLite (sql.js): auth, permissions, documents, payments, dish sales, opening balance, P&L, staff location... |
+| `npm run test:pg` | Те же тесты на PGlite (Postgres-совместимость адаптера/диалекта) |
 | `npm run test:e2e` | Playwright: UI flows |
 | `npm run lint` | ESLint server + client + e2e |
 
@@ -538,7 +554,7 @@ GET  /api/auth/roles
 |--------|-------|
 | Новый API endpoint | `server/routes/*.routes.js` + `server/services/*.js` + `client/src/api.js` |
 | Бизнес-правило документа | `server/services/documents.js` |
-| Схема БД | `server/db.js` (миграция с settings key) |
+| Схема БД | `server/db.js` (SQLite миграции) + `server/pgSchema.js` (Postgres) |
 | Новая страница UI | `client/src/pages/*.jsx` + маршрут в `App.jsx` + навигация |
 | Права доступа | `server/permissions.js` + `client/src/permissions.js` |
 | Отчёт | `server/services/reports.js` + `client/src/pages/Reports.jsx` |
@@ -580,6 +596,7 @@ GET  /api/auth/roles
 | 2026-06-26 | `/downloads/snabzenie.apk` → редирект GitHub; `SnabAppPanel` — основная ссылка на Releases |
 | 2026-07-01 | Добавлен `BUG_REPORT.md`: 25 найденных проблем (3 критических, 8 высоких, 9 средних, 5 низких) |
 | 2026-07-01 | Исправлено 19 проблем из BUG_REPORT: CORS, cross-branch user, product archive, return qty cap, zero-cost restock, transfer reversal stock+cost, confirm transaction, cashier date filter, payment number, rate-limit, validation, CSRF, GPS perm, counterparty delete guard, HTTP codes, DB indexes, payments pagination |
+| 2026-07-17 | Postgres: адаптер `pg`/`synckit`, схема `pgSchema.js`, импорт `db:migrate-pg`, cutover docs, healthcheck DATABASE_URL, sql.js fallback без URL |
 
 ---
 

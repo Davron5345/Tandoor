@@ -66,7 +66,7 @@ test('staff can send location and admin can list it', async () => {
   assert.ok(list.some((row) => row.username === 'admin'));
 
   const historyRes = await fetch(
-    `${baseUrl}/api/admin/staff-locations/history?user_id=${encodeURIComponent(saved.user_id)}`,
+    `${baseUrl}/api/admin/staff-locations/history?user_id=${encodeURIComponent(saved.user_id)}&time_from=00:00&time_to=23:59`,
     { headers: { cookie: adminCookie } },
   );
   assert.equal(historyRes.status, 200);

@@ -332,8 +332,8 @@ export function getStats(branchId = DEFAULT_BRANCH_ID) {
     WHERE status = 'confirmed'
       AND (branch_id = ? OR from_branch_id = ? OR to_branch_id = ?)
       AND date >= date('now', 'start of month', '-5 months')
-    GROUP BY month
-    ORDER BY month ASC
+    GROUP BY 1
+    ORDER BY 1 ASC
   `, branchFilter);
 
   const topProducts = queryAll(`
@@ -496,8 +496,20 @@ export function getPnLReport(branchId = DEFAULT_BRANCH_ID, dateFrom = null, date
       AND (d.type != 'dish_sale' OR di.item_role = 'sale')
     ${categoryDateFilter}
     GROUP BY pc.id, pc.name
-    HAVING ABS(revenue) > 0.005 OR ABS(cogs) > 0.005
-    ORDER BY revenue DESC, category_name ASC
+    HAVING ABS(
+      COALESCE(SUM(CASE
+        WHEN d.type = 'rashod' THEN di.amount
+        WHEN d.type = 'dish_sale' AND di.item_role = 'sale' THEN di.amount
+        ELSE 0 END), 0)
+        - COALESCE(SUM(CASE WHEN d.type = 'return_customer' THEN di.amount ELSE 0 END), 0)
+    ) > 0.005 OR ABS(
+      COALESCE(SUM(CASE
+        WHEN d.type = 'rashod' THEN di.cost_amount
+        WHEN d.type = 'dish_sale' AND di.item_role = 'sale' THEN di.cost_amount
+        ELSE 0 END), 0)
+        - COALESCE(SUM(CASE WHEN d.type = 'return_customer' THEN di.cost_amount ELSE 0 END), 0)
+    ) > 0.005
+    ORDER BY 3 DESC, category_name ASC
   `, categoryParams);
 
   const monthParams = [branchId];
@@ -521,8 +533,8 @@ export function getPnLReport(branchId = DEFAULT_BRANCH_ID, dateFrom = null, date
         OR (d.type = 'rashod' AND NOT EXISTS (SELECT 1 FROM shop_orders so WHERE so.document_id = d.id))
       )
     ${monthDateFilter}
-    GROUP BY month
-    ORDER BY month ASC
+    GROUP BY 1
+    ORDER BY 1 ASC
   `, monthParams);
 
   const payParams = [branchId];

@@ -29,8 +29,8 @@ export function saveStaffLocation(userId, branchId, payload = {}) {
   `, [userId, branchId || null, lat, lng, accuracy, source]);
 
   run(`
-    INSERT INTO staff_location_history (id, user_id, branch_id, latitude, longitude, accuracy, source)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO staff_location_history (id, user_id, branch_id, latitude, longitude, accuracy, recorded_at, source)
+    VALUES (?, ?, ?, ?, ?, ?, datetime('now'), ?)
   `, [uuidv4(), userId, branchId || null, lat, lng, accuracy, source]);
 
   return getStaffLocation(userId);

@@ -13,7 +13,8 @@ test('filterDocumentsForUser limits types without full access', () => {
     { id: '2', type: 'rashod' },
     { id: '3', type: 'razdelka' },
   ];
-  const filtered = filterDocumentsForUser(docs, 'cashier');
+  // Role without documents.view / type permissions (cashier has documents.view by default)
+  const filtered = filterDocumentsForUser(docs, 'role_without_docs');
   assert.equal(filtered.length, 0);
 });
 

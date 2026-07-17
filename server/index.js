@@ -42,7 +42,11 @@ async function start() {
     initPermissions(db);
     seedDefaultUsers();
     setServerReady();
-    console.log(`✅ База готова: ${dbPath}`);
+    if (db.isUsingPostgres?.()) {
+      console.log('✅ База готова: Postgres (DATABASE_URL)');
+    } else {
+      console.log(`✅ База готова: ${dbPath}`);
+    }
 
     try {
       departments.migrateDepartmentStockSync();
