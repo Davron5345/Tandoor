@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import App from './App';
 import PublicShop from './pages/PublicShop';
 import ShopOrdersMobile from './pages/ShopOrdersMobile';
+import PrihodMobile from './pages/PrihodMobile';
 import { ThemeProvider } from './ThemeContext';
 import { AuthProvider } from './AuthContext';
 import { BranchProvider } from './BranchContext';
@@ -26,6 +27,16 @@ ReactDOM.createRoot(document.getElementById('root')).render(
               <AuthProvider>
                 <BranchProvider>
                   <ShopOrdersMobile />
+                </BranchProvider>
+              </AuthProvider>
+            )}
+          />
+          <Route
+            path="/warehouse/prihod"
+            element={(
+              <AuthProvider>
+                <BranchProvider>
+                  <PrihodMobile />
                 </BranchProvider>
               </AuthProvider>
             )}

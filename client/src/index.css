@@ -10380,6 +10380,10 @@ html.public-shop-lock #root {
   gap: 10px;
 }
 
+.warehouse-orders-mobile-list--fab {
+  padding-bottom: max(88px, calc(env(safe-area-inset-bottom) + 72px));
+}
+
 .warehouse-orders-mobile-empty {
   padding: 48px 16px;
   text-align: center;
@@ -10501,6 +10505,146 @@ html.public-shop-lock #root {
 .warehouse-orders-mobile-items h3 {
   margin: 0 0 8px;
   font-size: 15px;
+}
+
+.warehouse-orders-mobile-nav {
+  flex-shrink: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 10px 16px 0;
+}
+
+.warehouse-orders-mobile-nav-tab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-weight: 700;
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.warehouse-orders-mobile-nav-tab.active {
+  background: color-mix(in srgb, var(--primary) 14%, var(--surface));
+  border-color: color-mix(in srgb, var(--primary) 35%, transparent);
+  color: var(--primary);
+}
+
+.warehouse-prihod-fab {
+  position: absolute;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: max(20px, env(safe-area-inset-bottom));
+  z-index: 20;
+  padding: 14px 20px;
+  border: none;
+  border-radius: 999px;
+  background: var(--primary);
+  color: #fff;
+  font-weight: 700;
+  font-size: 15px;
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--primary) 40%, transparent);
+}
+
+.warehouse-prihod-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.warehouse-prihod-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.warehouse-prihod-field > span {
+  font-weight: 600;
+}
+
+.warehouse-prihod-field select,
+.warehouse-prihod-field input {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 16px;
+}
+
+.warehouse-prihod-readonly {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface2, var(--bg)) 80%, var(--surface));
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.warehouse-prihod-items-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.warehouse-prihod-items-head h3 {
+  margin: 0;
+  font-size: 15px;
+  color: var(--text);
+}
+
+.warehouse-prihod-hint {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.warehouse-prihod-item {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--border) 45%, transparent);
+  background: var(--surface);
+}
+
+.warehouse-prihod-item-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.warehouse-prihod-item-remove {
+  align-self: flex-start;
+  border: none;
+  background: transparent;
+  color: var(--danger, #dc2626);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 0;
+}
+
+.warehouse-prihod-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+  padding-bottom: 8px;
 }
 
 .snab-profile-body {

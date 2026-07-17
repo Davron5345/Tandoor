@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { api, formatDateTime, formatMoney } from '../api';
 import { useAuth } from '../AuthContext';
 import { useBranch } from '../BranchContext';
@@ -51,6 +51,7 @@ export default function ShopOrdersMobile() {
   const { theme, toggleTheme } = useTheme();
   const canView = hasPermission(user, 'shop_orders.view');
   const canEdit = hasPermission(user, 'shop_orders.edit');
+  const canPrihod = hasPermission(user, 'documents.prihod');
 
   const [orders, setOrders] = useState([]);
   const [statusFilter, setStatusFilter] = useState('');
@@ -439,6 +440,21 @@ export default function ShopOrdersMobile() {
               </button>
             </div>
           </header>
+
+          {canPrihod && (
+            <nav className="warehouse-orders-mobile-nav" aria-label="Разделы снабжения">
+              <Link
+                to="/warehouse/orders"
+                className="warehouse-orders-mobile-nav-tab active"
+                aria-current="page"
+              >
+                Заявки
+              </Link>
+              <Link to="/warehouse/prihod" className="warehouse-orders-mobile-nav-tab">
+                Приход
+              </Link>
+            </nav>
+          )}
 
           <div className="warehouse-orders-mobile-filters" role="tablist" aria-label="Фильтр по статусу">
             {STATUS_FILTERS.map((opt) => (

@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-07-17 (products list N+1)
+**Последнее обновление документации:** 2026-07-17 (mobile prihod MVP)
 
 ---
 
@@ -184,6 +184,7 @@ npm run db:reset-operations    # Сброс операционных данны�
 | `/shop/:branchId` | `PublicShop` | Нет |
 | `/shop/:branchId/dept/:departmentId` | `PublicShop` | Нет |
 | `/warehouse/orders`, `/snab` | `ShopOrdersMobile` | Да (mobile snab) |
+| `/warehouse/prihod` | `PrihodMobile` | Да (mobile приход) |
 | `/*` | `App` (основное приложение) | Да |
 
 ### 6.2 Контексты
@@ -420,7 +421,8 @@ GET  /api/auth/roles
 | `/tracking` | StaffTracking.jsx | admin: трекинг снабженцев с картой маршрута |
 | `/security` | SecurityAdmin.jsx | admin: сеансы, трекинг, push (`AdminPushTab.jsx`), блокировки |
 | `/audit-log` | AuditLog.jsx | admin |
-| `/warehouse/orders` | ShopOrdersMobile.jsx | shop_orders (mobile) |
+| `/warehouse/orders` | ShopOrdersMobile.jsx | shop_orders (mobile); таб «Приход» при `documents.prihod` |
+| `/warehouse/prihod` | PrihodMobile.jsx | documents.prihod / documents.view (mobile приход: список, создание, проведение) |
 
 ---
 
@@ -475,6 +477,7 @@ GET  /api/auth/roles
 ### Экран снабженца (`ShopOrdersMobile.jsx`)
 
 - Маршруты: `/warehouse/orders`, `/snab` (redirect)
+- Таб «Заявки | Приход» при праве `documents.prihod` → `/warehouse/prihod` (`PrihodMobile.jsx`: список/создание/проведение прихода, без оплат и Telegram)
 - Профиль: `SnabProfileView.jsx` — версия, push, геолокация
 - Тема: `ThemeContext` + `data-theme` на `<html>`; **не дублировать цветовые CSS-переменные в `:root`** (ломает тёмную тему)
 - Трекинг: `useStaffLocationPing` + `backgroundLocation.js`
@@ -600,6 +603,7 @@ GET  /api/auth/roles
 | 2026-07-17 | Postgres: адаптер `pg`/`synckit`, схема `pgSchema.js`, импорт `db:migrate-pg`, cutover docs, healthcheck DATABASE_URL, sql.js fallback без URL |
 | 2026-07-17 | Cutover prod: migrate-pg устойчивее к orphan FK; docs про `[OK~]` settings; Railway Postgres + `DATABASE_URL` на Tandoor |
 | 2026-07-17 | Fix `/products` пустой на Postgres: `getProducts` пагинирует до enrich, batch `is_used`/suppliers |
+| 2026-07-17 | Mobile prihod MVP: `/warehouse/prihod` (`PrihodMobile.jsx`), таб Заявки\|Приход в снабжении |
 
 ---
 
