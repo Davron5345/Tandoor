@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-07-17 (mobile prihod MVP)
+**Последнее обновление документации:** 2026-07-20 (фильтры документов: дата + контрагент)
 
 ---
 
@@ -372,7 +372,7 @@ GET  /api/auth/roles
 |---------|---------------|------------|
 | `/api/products` | catalog.routes.js | Номенклатура, варианты, изображения |
 | `/api/calculations` | catalog.routes.js | Калькуляции |
-| `/api/documents` | documents.routes.js | Складские документы |
+| `/api/documents` | documents.routes.js | Складские документы (`date_from`, `date_to`, `counterparty_id`, type, status) |
 | `/api/counterparties` | counterparties.routes.js | Контрагенты, договоры |
 | `/api/payments` | finance.routes.js | Оплаты, касса |
 | `/api/cash-articles` | finance.routes.js | Статьи кассы |
@@ -400,8 +400,8 @@ GET  /api/auth/roles
 | `/product-categories` | ProductCategories.jsx | products.view |
 | `/units` | Units.jsx | products.view |
 | `/counterparties` | Counterparties.jsx | counterparties.view |
-| `/prihod`, `/rashod`, `/return-*`, `/transfer` | Documents.jsx | documents.* |
-| `/documents` | Documents.jsx | documents.view |
+| `/prihod`, `/rashod`, `/return-*`, `/transfer` | Documents.jsx | documents.*; фильтры: дата С/По, контрагент/поставщик, статус |
+| `/documents` | Documents.jsx | documents.view; те же фильтры + тип документа |
 | `/razdelka` | Razdelka.jsx | documents.razdelka |
 | `/calculations` | Calculations.jsx | calculations.view |
 | `/dish-sales` | DishSales.jsx | documents.dish_sale |
@@ -604,6 +604,7 @@ GET  /api/auth/roles
 | 2026-07-17 | Cutover prod: migrate-pg устойчивее к orphan FK; docs про `[OK~]` settings; Railway Postgres + `DATABASE_URL` на Tandoor |
 | 2026-07-17 | Fix `/products` пустой на Postgres: `getProducts` пагинирует до enrich, batch `is_used`/suppliers |
 | 2026-07-17 | Mobile prihod MVP: `/warehouse/prihod` (`PrihodMobile.jsx`), таб Заявки\|Приход в снабжении |
+| 2026-07-20 | Документы: фильтры даты (`date_from`/`date_to`) и контрагента (`counterparty_id`) в списке Приход/Расход/журнал |
 
 ---
 

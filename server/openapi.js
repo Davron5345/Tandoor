@@ -233,6 +233,7 @@ export function buildOpenApiSpec() {
             { name: 'status', in: 'query', schema: { type: 'string', enum: ['draft', 'confirmed', 'cancelled'] } },
             { name: 'date_from', in: 'query', schema: { type: 'string', format: 'date' } },
             { name: 'date_to', in: 'query', schema: { type: 'string', format: 'date' } },
+            { name: 'counterparty_id', in: 'query', schema: { type: 'string' }, description: 'Фильтр по контрагенту / поставщику' },
           ],
           responses: {
             200: {

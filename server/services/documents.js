@@ -507,6 +507,10 @@ export function getDocuments(filters = {}) {
     sql += ' AND d.date <= ?';
     params.push(filters.date_to);
   }
+  if (filters.counterparty_id) {
+    sql += ' AND d.counterparty_id = ?';
+    params.push(filters.counterparty_id);
+  }
 
   sql += ' ORDER BY d.date DESC, d.created_at DESC';
   return queryAll(sql, params);

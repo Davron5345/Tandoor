@@ -97,6 +97,9 @@ export default function Documents({ defaultType }) {
   const [payments, setPayments] = useState([]);
   const [filterType, setFilterType] = useState(defaultType || '');
   const [filterStatus, setFilterStatus] = useState('');
+  const [filterDateFrom, setFilterDateFrom] = useState('');
+  const [filterDateTo, setFilterDateTo] = useState('');
+  const [filterCounterpartyId, setFilterCounterpartyId] = useState('');
   const [docPage, setDocPage] = useState(1);
   const [docPages, setDocPages] = useState(1);
   const [docTotal, setDocTotal] = useState(0);
@@ -275,12 +278,15 @@ export default function Documents({ defaultType }) {
     const docType = defaultType || filterType;
     if (docType) params.type = docType;
     if (filterStatus) params.status = filterStatus;
+    if (filterDateFrom) params.date_from = filterDateFrom;
+    if (filterDateTo) params.date_to = filterDateTo;
+    if (filterCounterpartyId) params.counterparty_id = filterCounterpartyId;
     api.getDocuments(params).then((data) => {
       setDocs(data.items);
       setDocPages(data.pages);
       setDocTotal(data.total);
     }).catch(console.error);
-  }, [defaultType, filterType, filterStatus, docPage, branchId]);
+  }, [defaultType, filterType, filterStatus, filterDateFrom, filterDateTo, filterCounterpartyId, docPage, branchId]);
 
   useEffect(() => {
     Promise.all([
@@ -299,12 +305,25 @@ export default function Documents({ defaultType }) {
 
   useEffect(() => {
     setFilterType(defaultType || '');
+    setFilterCounterpartyId('');
     setDocPage(1);
   }, [defaultType]);
 
   useEffect(() => {
     setDocPage(1);
-  }, [filterType, filterStatus, branchId]);
+  }, [filterType, filterStatus, filterDateFrom, filterDateTo, filterCounterpartyId, branchId]);
+
+  useEffect(() => {
+    const type = defaultType || filterType;
+    const needsCounterparty = !type
+      || type === 'prihod'
+      || type === 'rashod'
+      || type === RETURN_SUPPLIER_TYPE
+      || type === RETURN_CUSTOMER_TYPE;
+    if (!needsCounterparty && filterCounterpartyId) {
+      setFilterCounterpartyId('');
+    }
+  }, [defaultType, filterType, filterCounterpartyId]);
 
   useEffect(() => { load(); }, [load, branchId]);
   useAutoRefresh(load, [load, branchId], { enabled: !modal && !paymentModal });
@@ -397,6 +416,33 @@ export default function Documents({ defaultType }) {
     if (form.type === 'rashod' || isCustomerReturnType(form.type)) return c.type === 'client';
     return true;
   });
+
+  const listType = defaultType || filterType;
+  const showCounterpartyFilter = !listType
+    || listType === 'prihod'
+    || listType === 'rashod'
+    || listType === RETURN_SUPPLIER_TYPE
+    || listType === RETURN_CUSTOMER_TYPE;
+  const filterCounterparties = counterparties.filter((c) => {
+    if (listType === 'prihod' || listType === RETURN_SUPPLIER_TYPE) return c.type === 'supplier';
+    if (listType === 'rashod' || listType === RETURN_CUSTOMER_TYPE) return c.type === 'client';
+    return true;
+  });
+  const counterpartyFilterLabel = (listType === 'prihod' || listType === RETURN_SUPPLIER_TYPE)
+    ? 'Поставщик'
+    : (listType === 'rashod' || listType === RETURN_CUSTOMER_TYPE)
+      ? 'Клиент'
+      : 'Контрагент';
+  const hasListFilters = Boolean(
+    filterStatus || filterDateFrom || filterDateTo || filterCounterpartyId || (!defaultType && filterType),
+  );
+  const clearListFilters = () => {
+    if (!defaultType) setFilterType('');
+    setFilterStatus('');
+    setFilterDateFrom('');
+    setFilterDateTo('');
+    setFilterCounterpartyId('');
+  };
 
   const prihodNeedsSupplier = form.type === 'prihod' && !form.counterparty_id;
   const returnNeedsSupplier = isSupplierReturnType(form.type) && !form.counterparty_id;
@@ -948,27 +994,73 @@ export default function Documents({ defaultType }) {
         </div>
       </div>
 
-      {!defaultType && (
-        <div className="filters">
-          <select value={filterType} onChange={(e) => setFilterType(e.target.value)}>
-            <option value="">Все типы</option>
-            <option value="prihod">Приход</option>
-            <option value="rashod">Расход</option>
-            <option value="return_supplier">Возврат поставщику</option>
-            <option value="return_customer">Возврат от клиента</option>
-            <option value="peremeshchenie">Перемещение</option>
-            <option value="razdelka">Разделка</option>
-            <option value="dish_sale">Продажа блюд</option>
-            <option value="opening_balance">Начальное сальдо</option>
-          </select>
+      <div className="filters">
+        {!defaultType && (
+          <label className="filter-field">
+            <span className="filter-field-caption">Тип</span>
+            <select value={filterType} onChange={(e) => setFilterType(e.target.value)}>
+              <option value="">Все типы</option>
+              <option value="prihod">Приход</option>
+              <option value="rashod">Расход</option>
+              <option value="return_supplier">Возврат поставщику</option>
+              <option value="return_customer">Возврат от клиента</option>
+              <option value="peremeshchenie">Перемещение</option>
+              <option value="razdelka">Разделка</option>
+              <option value="dish_sale">Продажа блюд</option>
+              <option value="opening_balance">Начальное сальдо</option>
+            </select>
+          </label>
+        )}
+        <label className="filter-field">
+          <span className="filter-field-caption">С</span>
+          <input
+            type="date"
+            value={filterDateFrom}
+            max={filterDateTo || undefined}
+            onChange={(e) => setFilterDateFrom(e.target.value)}
+          />
+        </label>
+        <label className="filter-field">
+          <span className="filter-field-caption">По</span>
+          <input
+            type="date"
+            value={filterDateTo}
+            min={filterDateFrom || undefined}
+            onChange={(e) => setFilterDateTo(e.target.value)}
+          />
+        </label>
+        {showCounterpartyFilter && (
+          <label className="filter-field">
+            <span className="filter-field-caption">{counterpartyFilterLabel}</span>
+            <select
+              value={filterCounterpartyId}
+              onChange={(e) => setFilterCounterpartyId(e.target.value)}
+            >
+              <option value="">Все</option>
+              {filterCounterparties.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </label>
+        )}
+        <label className="filter-field">
+          <span className="filter-field-caption">Статус</span>
           <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
             <option value="">Все статусы</option>
             <option value="draft">Черновик</option>
             <option value="confirmed">Проведён</option>
             <option value="cancelled">Отменён</option>
           </select>
-        </div>
-      )}
+        </label>
+        {hasListFilters && (
+          <div className="filter-field filter-field-actions">
+            <span className="filter-field-caption filter-field-caption-spacer" aria-hidden="true">&#8203;</span>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={clearListFilters}>
+              Сбросить
+            </button>
+          </div>
+        )}
+      </div>
 
       <div className="card">
         <div className="table-wrap">
