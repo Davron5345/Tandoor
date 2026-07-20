@@ -5,9 +5,11 @@ import { DOC_TYPE_LABELS } from '../permissions';
 import { useAuth } from '../AuthContext';
 import { useBranch } from '../BranchContext';
 import BranchChip from '../components/BranchChip';
+import { useToast } from '../components/Modal';
 import { todayLocalIso } from '../utils/date';
 import { textMatchesSearch } from '../utils/searchNormalize';
 import SearchHighlight from '../components/SearchHighlight';
+import { downloadSupplierDebtReport } from '../utils/supplierDebtExport';
 
 function formatQty(n) {
   const value = Number(n) || 0;
@@ -1172,7 +1174,9 @@ function SupplierDebtMovementReport() {
   const [dateTo, setDateTo] = useState(() => todayLocalIso());
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
+  const [exporting, setExporting] = useState(false);
   const { branchName, branchId } = useBranch();
+  const { show, Toast } = useToast();
 
   useEffect(() => {
     api.getCounterparties('supplier')
@@ -1205,11 +1209,50 @@ function SupplierDebtMovementReport() {
   const rows = report?.rows || [];
   const totals = report?.totals || { opening_debt: 0, prihod: 0, payment: 0, closing_debt: 0 };
 
+  const handleExport = async (format) => {
+    if (exporting || loading) return;
+    setExporting(true);
+    try {
+      await downloadSupplierDebtReport({
+        branchName,
+        dateFrom,
+        dateTo,
+        rows,
+        totals,
+        format,
+      });
+      show(format === 'pdf' ? 'PDF сохранён' : 'JPEG сохранён');
+    } catch (e) {
+      show(e.message || 'Не удалось скачать отчёт', 'error');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <div>
+      {Toast}
       <div className="page-header">
         <h1>Долги поставщикам</h1>
-        <BranchChip>{branchName}</BranchChip>
+        <div className="btn-group">
+          <BranchChip>{branchName}</BranchChip>
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            disabled={exporting || loading}
+            onClick={() => handleExport('jpeg')}
+          >
+            {exporting ? 'Сохранение…' : 'Скачать JPEG'}
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary btn-sm"
+            disabled={exporting || loading}
+            onClick={() => handleExport('pdf')}
+          >
+            Скачать PDF
+          </button>
+        </div>
       </div>
       <div className="card report-filters-card">
         <div className="card-header report-toolbar">

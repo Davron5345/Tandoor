@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-07-20 (отчёт «Долги поставщикам»)
+**Последнее обновление документации:** 2026-07-20 (экспорт долгов поставщикам JPEG/PDF)
 
 ---
 
@@ -408,7 +408,7 @@ GET  /api/auth/roles
 | `/cashier` | Cashier.jsx | cashier.* |
 | `/payments` | Payments.jsx | payments.view |
 | `/cash-articles` | CashArticles.jsx | cash_articles.view |
-| `/reports/*` | Reports.jsx | reports.view; `/reports/supplier-debts` — долги поставщикам за период |
+| `/reports/*` | Reports.jsx | reports.view; `/reports/supplier-debts` — долги поставщикам за период (скачать JPEG/PDF) |
 | `/opening-balance` | OpeningBalance.jsx | opening_balance.view |
 | `/myshop` | MyShop.jsx | myshop.view |
 | `/myshop/constructor` | MyShopConstructor.jsx | myshop.edit |
@@ -607,6 +607,7 @@ GET  /api/auth/roles
 | 2026-07-20 | Документы: фильтры даты (`date_from`/`date_to`) и контрагента (`counterparty_id`) в списке Приход/Расход/журнал |
 | 2026-07-20 | Начальное сальдо: модалка создания (`modal-ob-create`) увеличена до 1440px / 96vh для табличных типов |
 | 2026-07-20 | Отчёт «Долги поставщикам»: `/reports/supplier-debts`, API `/api/reports/supplier-debts` (долг на начало / приход / оплата / долг на конец) |
+| 2026-07-20 | Экспорт «Долги поставщикам»: кнопки JPEG и PDF (`client/src/utils/supplierDebtExport.js`) |
 
 ---
 
