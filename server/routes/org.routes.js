@@ -50,6 +50,24 @@ export function registerOrgRoutes(app) {
     res.json(svc.getCreditorsReport(req.branchId, includeZero, includeUnlinked));
   });
 
+  app.get('/api/reports/supplier-debts', requirePermission('reports.view'), attachBranch, (req, res) => {
+    try {
+      const dateFrom = req.query.date_from || null;
+      const dateTo = req.query.date_to || null;
+      const supplierId = req.query.supplier_id || null;
+      const includeUnlinked = req.query.include_unlinked_payments !== '0';
+      res.json(svc.getSupplierDebtMovementReport(
+        req.branchId,
+        dateFrom,
+        dateTo,
+        supplierId,
+        includeUnlinked,
+      ));
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
   app.get('/api/reports/pnl', requirePermission('reports.view'), attachBranch, (req, res) => {
     const dateFrom = req.query.date_from || null;
     const dateTo = req.query.date_to || null;

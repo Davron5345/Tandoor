@@ -14,6 +14,7 @@ export {
   getStockReport,
   getDebtorsReport,
   getCreditorsReport,
+  getSupplierDebtMovementReport,
   getStats,
   getPnLReport,
   zeroStockPosition,

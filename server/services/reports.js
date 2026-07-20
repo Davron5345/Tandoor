@@ -287,6 +287,159 @@ export function getCreditorsReport(branchId = DEFAULT_BRANCH_ID, includeZero = f
   };
 }
 
+/** Оборотная ведомость по поставщикам за период: долг на начало → приход → оплата → долг на конец. */
+export function getSupplierDebtMovementReport(
+  branchId = DEFAULT_BRANCH_ID,
+  dateFrom,
+  dateTo,
+  supplierId = null,
+  includeUnlinkedPayments = true,
+) {
+  if (!dateFrom || !dateTo) {
+    throw new Error('Укажите date_from и date_to');
+  }
+  if (dateFrom > dateTo) {
+    throw new Error('date_from не может быть позже date_to');
+  }
+
+  const supplierFilter = supplierId ? ' AND c.id = ?' : '';
+  const supplierParams = supplierId ? [supplierId] : [];
+  const unlinkedFlag = includeUnlinkedPayments ? 1 : 0;
+
+  const rows = queryAll(`
+    SELECT c.id, c.name,
+      (
+        COALESCE(c.opening_balance, 0) + COALESCE((
+          SELECT SUM(obl.amount)
+          FROM opening_balance_lines obl
+          JOIN documents d ON d.id = obl.document_id
+          WHERE d.type = 'opening_balance' AND d.status = 'confirmed' AND d.branch_id = ?
+            AND obl.counterparty_id = c.id AND obl.line_type = 'creditor'
+        ), 0)
+      ) AS base_opening,
+      COALESCE((
+        SELECT SUM(d.total_amount)
+        FROM documents d
+        WHERE d.counterparty_id = c.id AND d.type = 'prihod' AND d.status = 'confirmed'
+          AND d.branch_id = ? AND d.date < ?
+      ), 0) AS prihod_before,
+      COALESCE((
+        SELECT SUM(d.total_amount)
+        FROM documents d
+        WHERE d.counterparty_id = c.id AND d.type = 'return_supplier' AND d.status = 'confirmed'
+          AND d.branch_id = ? AND d.date < ?
+      ), 0) AS return_before,
+      COALESCE((
+        SELECT SUM(p.amount)
+        FROM payments p
+        LEFT JOIN documents d ON d.id = p.document_id
+        WHERE p.branch_id = ? AND p.type = 'supplier_payment' AND p.date < ?
+          AND (
+            (
+              p.document_id IS NOT NULL
+              AND d.id IS NOT NULL
+              AND d.status = 'confirmed'
+              AND d.type = 'prihod'
+              AND d.counterparty_id = c.id
+            )
+            OR (
+              ? = 1
+              AND p.document_id IS NULL
+              AND p.counterparty_id = c.id
+            )
+          )
+      ), 0) AS paid_before,
+      COALESCE((
+        SELECT SUM(d.total_amount)
+        FROM documents d
+        WHERE d.counterparty_id = c.id AND d.type = 'prihod' AND d.status = 'confirmed'
+          AND d.branch_id = ? AND d.date >= ? AND d.date <= ?
+      ), 0) AS prihod_period,
+      COALESCE((
+        SELECT SUM(d.total_amount)
+        FROM documents d
+        WHERE d.counterparty_id = c.id AND d.type = 'return_supplier' AND d.status = 'confirmed'
+          AND d.branch_id = ? AND d.date >= ? AND d.date <= ?
+      ), 0) AS return_period,
+      COALESCE((
+        SELECT SUM(p.amount)
+        FROM payments p
+        LEFT JOIN documents d ON d.id = p.document_id
+        WHERE p.branch_id = ? AND p.type = 'supplier_payment'
+          AND p.date >= ? AND p.date <= ?
+          AND (
+            (
+              p.document_id IS NOT NULL
+              AND d.id IS NOT NULL
+              AND d.status = 'confirmed'
+              AND d.type = 'prihod'
+              AND d.counterparty_id = c.id
+            )
+            OR (
+              ? = 1
+              AND p.document_id IS NULL
+              AND p.counterparty_id = c.id
+            )
+          )
+      ), 0) AS paid_period
+    FROM counterparties c
+    WHERE c.branch_id = ? AND c.type = 'supplier'${supplierFilter}
+    ORDER BY c.name
+  `, [
+    branchId,
+    branchId, dateFrom,
+    branchId, dateFrom,
+    branchId, dateFrom, unlinkedFlag,
+    branchId, dateFrom, dateTo,
+    branchId, dateFrom, dateTo,
+    branchId, dateFrom, dateTo, unlinkedFlag,
+    branchId,
+    ...supplierParams,
+  ]);
+
+  const mapped = rows.map((row) => {
+    const openingDebt = (row.base_opening || 0)
+      + (row.prihod_before || 0)
+      - (row.return_before || 0)
+      - (row.paid_before || 0);
+    const prihodGross = row.prihod_period || 0;
+    const returned = row.return_period || 0;
+    const prihod = prihodGross - returned;
+    const payment = row.paid_period || 0;
+    const closingDebt = openingDebt + prihod - payment;
+    return {
+      id: row.id,
+      name: row.name,
+      opening_debt: openingDebt,
+      prihod,
+      payment,
+      closing_debt: closingDebt,
+    };
+  });
+
+  const filtered = mapped.filter((r) => (
+    Math.abs(r.opening_debt) > 0.005
+    || Math.abs(r.prihod) > 0.005
+    || Math.abs(r.payment) > 0.005
+    || Math.abs(r.closing_debt) > 0.005
+  ));
+
+  const totals = filtered.reduce((acc, row) => ({
+    opening_debt: acc.opening_debt + row.opening_debt,
+    prihod: acc.prihod + row.prihod,
+    payment: acc.payment + row.payment,
+    closing_debt: acc.closing_debt + row.closing_debt,
+  }), { opening_debt: 0, prihod: 0, payment: 0, closing_debt: 0 });
+
+  return {
+    date_from: dateFrom,
+    date_to: dateTo,
+    rows: filtered,
+    totals,
+    count: filtered.length,
+  };
+}
+
 export function getStats(branchId = DEFAULT_BRANCH_ID) {
   const products = queryOne('SELECT COUNT(*) as c FROM products').c;
   const stock = queryOne(`

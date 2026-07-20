@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-07-20 (модалка начального сальдо шире)
+**Последнее обновление документации:** 2026-07-20 (отчёт «Долги поставщикам»)
 
 ---
 
@@ -376,7 +376,7 @@ GET  /api/auth/roles
 | `/api/counterparties` | counterparties.routes.js | Контрагенты, договоры |
 | `/api/payments` | finance.routes.js | Оплаты, касса |
 | `/api/cash-articles` | finance.routes.js | Статьи кассы |
-| `/api/stats`, `/api/reports/*` | org.routes.js | Отчёты, дашборд |
+| `/api/stats`, `/api/reports/*` | org.routes.js | Отчёты, дашборд; `/api/reports/supplier-debts?date_from&date_to&supplier_id` — оборотная ведомость поставщиков |
 | `/api/branches`, `/api/departments`, `/api/users` | org.routes.js | Оргструктура |
 | `/api/roles` | org.routes.js | Роли и права |
 | `/api/shop-orders` | shopOrders.routes.js | Заявки MyShop |
@@ -408,7 +408,7 @@ GET  /api/auth/roles
 | `/cashier` | Cashier.jsx | cashier.* |
 | `/payments` | Payments.jsx | payments.view |
 | `/cash-articles` | CashArticles.jsx | cash_articles.view |
-| `/reports/*` | Reports.jsx | reports.view |
+| `/reports/*` | Reports.jsx | reports.view; `/reports/supplier-debts` — долги поставщикам за период |
 | `/opening-balance` | OpeningBalance.jsx | opening_balance.view |
 | `/myshop` | MyShop.jsx | myshop.view |
 | `/myshop/constructor` | MyShopConstructor.jsx | myshop.edit |
@@ -606,6 +606,7 @@ GET  /api/auth/roles
 | 2026-07-17 | Mobile prihod MVP: `/warehouse/prihod` (`PrihodMobile.jsx`), таб Заявки\|Приход в снабжении |
 | 2026-07-20 | Документы: фильтры даты (`date_from`/`date_to`) и контрагента (`counterparty_id`) в списке Приход/Расход/журнал |
 | 2026-07-20 | Начальное сальдо: модалка создания (`modal-ob-create`) увеличена до 1440px / 96vh для табличных типов |
+| 2026-07-20 | Отчёт «Долги поставщикам»: `/reports/supplier-debts`, API `/api/reports/supplier-debts` (долг на начало / приход / оплата / долг на конец) |
 
 ---
 

@@ -100,6 +100,7 @@ function buildAppNav(user) {
     { to: '/reports/stock', label: 'Остатки на складе', perm: 'reports.view' },
     { to: '/reports/documents', label: 'Документы за период', perm: 'reports.view' },
     { to: '/reports/debts/debtors', label: 'Задолженности', perm: 'reports.view' },
+    { to: '/reports/supplier-debts', label: 'Долги поставщикам', perm: 'reports.view' },
     { to: '/reports/reconciliation', label: 'Акт сверки', perm: 'reports.view' },
     { to: '/reports/pnl', label: 'P&L', perm: 'reports.view' },
     { to: '/opening-balance', label: 'Начальное сальдо', perm: 'opening_balance.view' },

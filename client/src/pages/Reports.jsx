@@ -1160,6 +1160,141 @@ function SupplierReturnsReport() {
   );
 }
 
+function SupplierDebtMovementReport() {
+  const [report, setReport] = useState(null);
+  const [suppliers, setSuppliers] = useState([]);
+  const [supplierId, setSupplierId] = useState('');
+  const [dateFrom, setDateFrom] = useState(() => {
+    const d = new Date();
+    d.setDate(1);
+    return todayLocalIso(d);
+  });
+  const [dateTo, setDateTo] = useState(() => todayLocalIso());
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState('');
+  const { branchName, branchId } = useBranch();
+
+  useEffect(() => {
+    api.getCounterparties('supplier')
+      .then(setSuppliers)
+      .catch(() => setSuppliers([]));
+  }, [branchId]);
+
+  const load = useCallback(() => {
+    if (!dateFrom || !dateTo) {
+      setReport(null);
+      return;
+    }
+    setLoading(true);
+    setLoadError('');
+    const params = { date_from: dateFrom, date_to: dateTo };
+    if (supplierId) params.supplier_id = supplierId;
+    api.getSupplierDebtMovementReport(params)
+      .then(setReport)
+      .catch((e) => {
+        setLoadError(e.message || 'Не удалось загрузить отчёт');
+        setReport({ rows: [], totals: { opening_debt: 0, prihod: 0, payment: 0, closing_debt: 0 }, count: 0 });
+      })
+      .finally(() => setLoading(false));
+  }, [dateFrom, dateTo, supplierId]);
+
+  useEffect(() => {
+    load();
+  }, [branchId, load]);
+
+  const rows = report?.rows || [];
+  const totals = report?.totals || { opening_debt: 0, prihod: 0, payment: 0, closing_debt: 0 };
+
+  return (
+    <div>
+      <div className="page-header">
+        <h1>Долги поставщикам</h1>
+        <BranchChip>{branchName}</BranchChip>
+      </div>
+      <div className="card report-filters-card">
+        <div className="card-header report-toolbar">
+          <div className="report-filters">
+            <label>
+              С
+              <input
+                type="date"
+                value={dateFrom}
+                max={dateTo || undefined}
+                onChange={(e) => setDateFrom(e.target.value)}
+              />
+            </label>
+            <label>
+              По
+              <input
+                type="date"
+                value={dateTo}
+                min={dateFrom || undefined}
+                onChange={(e) => setDateTo(e.target.value)}
+              />
+            </label>
+            <label>
+              Поставщик
+              <select value={supplierId} onChange={(e) => setSupplierId(e.target.value)}>
+                <option value="">Все поставщики</option>
+                {suppliers.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <span className="report-meta">{loading ? 'Загрузка…' : `Строк: ${rows.length}`}</span>
+        </div>
+      </div>
+
+      <div className="card">
+        {loadError && <div className="alert alert-error" style={{ margin: '12px 16px 0' }}>{loadError}</div>}
+        <div className="table-wrap">
+          <table className="supplier-debt-report-table">
+            <thead>
+              <tr>
+                <th>Поставщик</th>
+                <th className="col-num">Долг на начало</th>
+                <th className="col-num">Приход</th>
+                <th className="col-num">Оплата</th>
+                <th className="col-num">Долг на конец</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.id}>
+                  <td>{row.name}</td>
+                  <td className="col-num">{formatMoney(row.opening_debt)}</td>
+                  <td className="col-num">{formatMoney(row.prihod)}</td>
+                  <td className="col-num">{formatMoney(row.payment)}</td>
+                  <td className="col-num"><strong>{formatMoney(row.closing_debt)}</strong></td>
+                </tr>
+              ))}
+              {rows.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="empty">
+                    {loading ? 'Загрузка…' : 'Нет данных за выбранный период'}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+            {rows.length > 0 && (
+              <tfoot>
+                <tr className="report-total-row supplier-debt-total-row">
+                  <td><strong>Итого</strong></td>
+                  <td className="col-num"><strong>{formatMoney(totals.opening_debt)}</strong></td>
+                  <td className="col-num"><strong>{formatMoney(totals.prihod)}</strong></td>
+                  <td className="col-num"><strong>{formatMoney(totals.payment)}</strong></td>
+                  <td className="col-num debt-balance-creditors"><strong>{formatMoney(totals.closing_debt)}</strong></td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function formatPct(n) {
   const value = Number(n) || 0;
   return `${new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 1 }).format(value)}%`;
@@ -1471,6 +1606,7 @@ export default function Reports() {
       <Route path="debtors" element={<Navigate to="/reports/debts/debtors" replace />} />
       <Route path="creditors" element={<Navigate to="/reports/debts/creditors" replace />} />
       <Route path="reconciliation" element={<ReconciliationReport />} />
+      <Route path="supplier-debts" element={<SupplierDebtMovementReport />} />
       <Route path="pnl" element={<PnlReport />} />
       <Route path="returns" element={<SupplierReturnsReport />} />
     </Routes>

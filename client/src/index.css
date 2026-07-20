@@ -11066,6 +11066,14 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
   font-size: 16px;
 }
 
+.supplier-debt-report-table .col-num {
+  white-space: nowrap;
+}
+
+.supplier-debt-total-row td {
+  background: color-mix(in srgb, var(--danger) 8%, var(--surface));
+}
+
 .opening-balance-empty {
   padding: 48px 24px;
   text-align: center;

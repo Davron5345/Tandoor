@@ -142,6 +142,10 @@ export const api = {
     const q = new URLSearchParams(params).toString();
     return request(`/reports/creditors${q ? `?${q}` : ''}`);
   },
+  getSupplierDebtMovementReport: (params = {}) => {
+    const q = new URLSearchParams(params).toString();
+    return request(`/reports/supplier-debts${q ? `?${q}` : ''}`);
+  },
   getPnLReport: (params = {}) => {
     const q = new URLSearchParams(params).toString();
     return request(`/reports/pnl${q ? `?${q}` : ''}`);
