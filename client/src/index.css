@@ -11007,10 +11007,33 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
   color: var(--text-muted);
 }
 
+.modal-ob-create {
+  width: min(100%, 1100px);
+  max-height: min(92vh, 92dvh);
+}
+
+.modal-ob-create.modal-wide {
+  width: min(100%, 1440px);
+  max-height: min(96vh, 96dvh);
+  height: min(96vh, 96dvh);
+}
+
 .modal-ob-create .modal-body {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.modal-ob-create.modal-wide .modal-body {
+  overflow-y: auto;
+}
+
+.modal-ob-create .table-wrap {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
 }
 
 .ob-create-modal-hint {
