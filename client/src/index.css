@@ -2493,6 +2493,34 @@ input[type='number']::-webkit-inner-spin-button {
   grid-column: 1 / -1;
 }
 
+.quick-add-control {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  min-width: 0;
+}
+
+.quick-add-control > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.quick-add-button {
+  flex: 0 0 42px;
+  width: 42px;
+  min-width: 42px;
+  min-height: 42px;
+  align-self: stretch;
+  color: var(--primary);
+  border: 1px solid var(--control-border);
+  background: var(--control-bg);
+}
+
+.quick-add-button:hover {
+  border-color: color-mix(in srgb, var(--primary) 45%, var(--control-border));
+  background: var(--accent-glow);
+}
+
 .app-update-banner {
   position: fixed;
   top: 0;
