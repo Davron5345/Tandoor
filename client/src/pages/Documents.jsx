@@ -5,11 +5,11 @@ import { api, formatMoney, formatDate, formatPriceInput, parsePriceInput, parseQ
 import Modal, { useToast, ModalCancelButton } from '../components/Modal';
 import CategorySelect from '../components/CategorySelect';
 import ProductSelect from '../components/ProductSelect';
-import CounterpartyFormFields, { emptyCounterpartyForm } from '../components/CounterpartyFormFields';
+import CounterpartyCreateModal from '../components/CounterpartyCreateModal';
+import ProductCreateModal from '../components/ProductCreateModal';
 import { useAuth } from '../AuthContext';
 import { useBranch } from '../BranchContext';
 import { hasPermission, DOC_TYPE_LABELS } from '../permissions';
-import { PRODUCT_KIND_GOODS, PRODUCT_KINDS, PRODUCT_KIND_LABELS } from '../productKinds';
 import {
   IconButton,
   IconCheck,
@@ -90,21 +90,11 @@ const emptyDoc = {
   status: 'draft',
   items: [{ ...emptyItem }],
 };
-const emptyQuickProduct = {
-  name: '',
-  product_kind: PRODUCT_KIND_GOODS,
-  category_id: '',
-  unit: 'шт',
-  sku: '',
-  price: '',
-};
 
 export default function Documents({ defaultType }) {
   const [docs, setDocs] = useState([]);
   const [products, setProducts] = useState([]);
   const [counterparties, setCounterparties] = useState([]);
-  const [productCategories, setProductCategories] = useState([]);
-  const [units, setUnits] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [payments, setPayments] = useState([]);
   const [filterType, setFilterType] = useState(defaultType || '');
@@ -131,13 +121,7 @@ export default function Documents({ defaultType }) {
   const [actionsMenuId, setActionsMenuId] = useState(null);
   const [actionsMenuPos, setActionsMenuPos] = useState(null);
   const [quickSupplierOpen, setQuickSupplierOpen] = useState(false);
-  const [quickSupplierForm, setQuickSupplierForm] = useState({
-    ...emptyCounterpartyForm,
-    type: 'supplier',
-  });
   const [quickProductRow, setQuickProductRow] = useState(null);
-  const [quickProductForm, setQuickProductForm] = useState(emptyQuickProduct);
-  const [quickCreateSaving, setQuickCreateSaving] = useState(false);
   const draftKey = formDraftKey('documents', modal);
   const draftPayload = useMemo(() => ({ form }), [form]);
   useFormDraft(draftKey, draftPayload, Boolean(modal));
@@ -314,16 +298,12 @@ export default function Documents({ defaultType }) {
     Promise.all([
       api.getProducts(),
       api.getCounterparties(),
-      api.getProductCategories(),
-      api.getUnits(),
       api.getDepartments({ active: '1' }),
       hasPermission(user, 'payments.view') ? api.getPayments() : Promise.resolve([]),
     ])
-      .then(([p, c, cats, unitRows, d, pay]) => {
+      .then(([p, c, d, pay]) => {
         setProducts(p);
         setCounterparties(c);
-        setProductCategories(cats);
-        setUnits(unitRows);
         setDepartments(d);
         setPayments(pay);
       });
@@ -545,90 +525,39 @@ export default function Documents({ defaultType }) {
   };
 
   const openQuickSupplier = () => {
-    setQuickSupplierForm({ ...emptyCounterpartyForm, type: 'supplier' });
     setQuickSupplierOpen(true);
   };
 
-  const saveQuickSupplier = async () => {
-    if (!quickSupplierForm.name.trim()) {
-      show('Укажите название поставщика', 'error');
-      return;
-    }
-    setQuickCreateSaving(true);
-    try {
-      const created = await api.createCounterparty({
-        ...quickSupplierForm,
-        name: quickSupplierForm.name.trim(),
-        type: 'supplier',
-      });
-      setCounterparties((prev) => [...prev, created]);
-      handleSupplierChange(created.id);
-      setQuickSupplierOpen(false);
-      show('Поставщик создан и выбран');
-    } catch (e) {
-      show(e.message, 'error');
-    } finally {
-      setQuickCreateSaving(false);
-    }
+  const onQuickSupplierCreated = (created) => {
+    setCounterparties((prev) => [...prev, created]);
+    handleSupplierChange(created.id);
+    show('Поставщик создан и выбран');
   };
 
   const openQuickProduct = (rowIndex) => {
-    setQuickProductForm({
-      ...emptyQuickProduct,
-      category_id: productCategories[0]?.id || 'other',
-      unit: units[0]?.name || 'шт',
-    });
     setQuickProductRow(rowIndex);
   };
 
-  const saveQuickProduct = async () => {
-    if (!quickProductForm.name.trim()) {
-      show('Укажите название товара', 'error');
-      return;
-    }
-    if (!quickProductForm.category_id) {
-      show('Выберите категорию', 'error');
-      return;
-    }
-    const price = parsePriceInput(quickProductForm.price);
-    if (price == null || price < 0) {
-      show('Укажите корректную цену', 'error');
-      return;
-    }
-    setQuickCreateSaving(true);
-    try {
-      const created = await api.createProduct({
-        name: quickProductForm.name.trim(),
-        product_kind: quickProductForm.product_kind,
-        category_id: quickProductForm.category_id,
-        unit: quickProductForm.unit,
-        sku: quickProductForm.sku.trim(),
-        price,
-        supplier_ids: [form.counterparty_id],
-        has_variants: false,
-        variants: [],
-      });
-      setProducts((prev) => [...prev, created]);
-      setDocProducts((prev) => [...prev.filter((p) => p.id !== created.id), created]);
-      setForm((prev) => {
-        const items = [...prev.items];
-        if (quickProductRow != null && items[quickProductRow]) {
-          items[quickProductRow] = {
-            ...items[quickProductRow],
-            product_id: created.id,
-            variant_id: null,
-            price,
-          };
-        }
-        return { ...prev, items };
-      });
-      setQuickProductRow(null);
-      show('Товар создан и выбран');
-    } catch (e) {
-      show(e.message, 'error');
-    } finally {
-      setQuickCreateSaving(false);
-    }
+  const onQuickProductCreated = (created) => {
+    const price = created.has_variants
+      ? (created.variant_price_min ?? created.price ?? 0)
+      : (created.price ?? 0);
+    setProducts((prev) => [...prev, created]);
+    setDocProducts((prev) => [...prev.filter((p) => p.id !== created.id), created]);
+    setForm((prev) => {
+      const items = [...prev.items];
+      if (quickProductRow != null && items[quickProductRow]) {
+        items[quickProductRow] = {
+          ...items[quickProductRow],
+          product_id: created.id,
+          variant_id: null,
+          price: Number(price) || 0,
+        };
+      }
+      return { ...prev, items };
+    });
+    setQuickProductRow(null);
+    show('Товар создан и выбран');
   };
 
   const handleTypeChange = (type) => {
@@ -1765,144 +1694,20 @@ export default function Documents({ defaultType }) {
         </Modal>
       )}
 
-      {quickSupplierOpen && (
-        <Modal
-          title="Новый поставщик"
-          wide
-          onClose={() => setQuickSupplierOpen(false)}
-          footer={(
-            <>
-              <button
-                type="button"
-                className="btn btn-ghost"
-                onClick={() => setQuickSupplierOpen(false)}
-                disabled={quickCreateSaving}
-              >
-                Отмена
-              </button>
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={saveQuickSupplier}
-                disabled={quickCreateSaving}
-              >
-                {quickCreateSaving ? 'Сохранение…' : 'Создать и выбрать'}
-              </button>
-            </>
-          )}
-        >
-          <CounterpartyFormFields
-            form={quickSupplierForm}
-            setForm={setQuickSupplierForm}
-            lockType="supplier"
-          />
-        </Modal>
-      )}
+      <CounterpartyCreateModal
+        open={quickSupplierOpen}
+        onClose={() => setQuickSupplierOpen(false)}
+        lockType="supplier"
+        title="Новый контрагент"
+        onCreated={onQuickSupplierCreated}
+      />
 
-      {quickProductRow != null && (
-        <Modal
-          title="Новый товар"
-          wide
-          onClose={() => setQuickProductRow(null)}
-          footer={(
-            <>
-              <button
-                type="button"
-                className="btn btn-ghost"
-                onClick={() => setQuickProductRow(null)}
-                disabled={quickCreateSaving}
-              >
-                Отмена
-              </button>
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={saveQuickProduct}
-                disabled={quickCreateSaving}
-              >
-                {quickCreateSaving ? 'Сохранение…' : 'Создать и выбрать'}
-              </button>
-            </>
-          )}
-        >
-          <div className="form-grid">
-            <div className="form-group full">
-              <label>Наименование *</label>
-              <input
-                autoFocus
-                value={quickProductForm.name}
-                onChange={(e) => setQuickProductForm({ ...quickProductForm, name: e.target.value })}
-              />
-            </div>
-            <div className="form-group">
-              <label>Вид товара *</label>
-              <select
-                value={quickProductForm.product_kind}
-                onChange={(e) => setQuickProductForm({
-                  ...quickProductForm,
-                  product_kind: e.target.value,
-                })}
-              >
-                {PRODUCT_KINDS.map((kind) => (
-                  <option key={kind} value={kind}>{PRODUCT_KIND_LABELS[kind]}</option>
-                ))}
-              </select>
-            </div>
-            <div className="form-group">
-              <label>Категория *</label>
-              <CategorySelect
-                categories={productCategories}
-                value={quickProductForm.category_id}
-                onChange={(category_id) => setQuickProductForm({
-                  ...quickProductForm,
-                  category_id,
-                })}
-                includeEmpty={false}
-                placeholder="Выберите категорию"
-              />
-            </div>
-            <div className="form-group">
-              <label>Единица измерения *</label>
-              <select
-                value={quickProductForm.unit}
-                onChange={(e) => setQuickProductForm({ ...quickProductForm, unit: e.target.value })}
-              >
-                {units.map((unit) => (
-                  <option key={unit.id} value={unit.name}>{unit.name}</option>
-                ))}
-                {!units.some((unit) => unit.name === quickProductForm.unit) && (
-                  <option value={quickProductForm.unit}>{quickProductForm.unit}</option>
-                )}
-              </select>
-            </div>
-            <div className="form-group">
-              <label>Цена *</label>
-              <input
-                type="text"
-                inputMode="numeric"
-                value={quickProductForm.price}
-                onChange={(e) => setQuickProductForm({
-                  ...quickProductForm,
-                  price: formatPriceInput(parsePriceInput(e.target.value)),
-                })}
-                placeholder="0"
-              />
-            </div>
-            <div className="form-group">
-              <label>Артикул</label>
-              <input
-                value={quickProductForm.sku}
-                onChange={(e) => setQuickProductForm({ ...quickProductForm, sku: e.target.value })}
-              />
-            </div>
-            <div className="form-group full">
-              <small className="text-muted">
-                Товар будет автоматически привязан к выбранному поставщику и добавлен в эту строку прихода.
-              </small>
-            </div>
-          </div>
-        </Modal>
-      )}
+      <ProductCreateModal
+        open={quickProductRow != null}
+        onClose={() => setQuickProductRow(null)}
+        initialSupplierIds={form.counterparty_id ? [form.counterparty_id] : []}
+        onCreated={onQuickProductCreated}
+      />
 
       {paymentModal && (
         <Modal
