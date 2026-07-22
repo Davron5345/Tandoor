@@ -1567,6 +1567,7 @@ export default function Documents({ defaultType }) {
                     <tr>
                       <th className="doc-items-num-col">№</th>
                       <th>Товар</th>
+                      <th className="doc-items-unit-col">Ед.</th>
                       <th>Кол-во</th>
                       <th>Цена</th>
                       <th>Сумма</th>
@@ -1576,6 +1577,15 @@ export default function Documents({ defaultType }) {
                   <tbody>
                     {form.items.map((item, idx) => {
                       const rowTransferWarning = transferStockWarnings.find((w) => w.idx === idx);
+                      const pickValue = encodeProductPick(item.product_id, item.variant_id);
+                      let resolvedItem = resolvePickFromProducts(
+                        selectableProducts.length ? selectableProducts : products,
+                        pickValue,
+                      );
+                      if (!resolvedItem.product && selectableProducts.length) {
+                        resolvedItem = resolvePickFromProducts(products, pickValue);
+                      }
+                      const itemUnit = resolvedItem.product?.unit || '';
                       return (
                       <tr key={idx} className={rowTransferWarning ? 'razdelka-row-overstock' : undefined}>
                         <td className="doc-items-num-col">{idx + 1}</td>
@@ -1586,8 +1596,8 @@ export default function Documents({ defaultType }) {
                               allProducts={isAnyReturnType(form.type)
                                 ? (selectableProducts.length ? selectableProducts : products)
                                 : products}
-                              value={encodeProductPick(item.product_id, item.variant_id)}
-                              onChange={(pickValue) => updateItemProductPick(idx, pickValue)}
+                              value={pickValue}
+                              onChange={(nextPick) => updateItemProductPick(idx, nextPick)}
                               disabled={itemsBlocked || isReadOnly}
                               placeholder={
                                 prihodNeedsSupplier
@@ -1624,6 +1634,9 @@ export default function Documents({ defaultType }) {
                               {returnSourceProductMap[encodeProductPick(item.product_id, item.variant_id || null)] || 0}
                             </div>
                           )}
+                        </td>
+                        <td className="doc-items-unit-col">
+                          <span className="doc-item-unit">{item.product_id ? (itemUnit || '—') : '—'}</span>
                         </td>
                         <td>
                           <input
