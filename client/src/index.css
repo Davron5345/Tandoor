@@ -2725,11 +2725,11 @@ input[type='number']::-webkit-inner-spin-button {
 
 .doc-modal-fields .form-grid-prihod-header {
   grid-template-columns:
-    minmax(7.5rem, 8.5rem)
+    minmax(9.5rem, 10.5rem)
     minmax(4.5rem, 5.5rem)
-    minmax(8rem, 1fr)
-    minmax(10rem, 1.35fr)
-    minmax(8.5rem, 1.1fr);
+    minmax(7rem, 0.75fr)
+    minmax(8.5rem, 1fr)
+    minmax(8.5rem, 1.05fr);
   align-items: end;
 }
 
