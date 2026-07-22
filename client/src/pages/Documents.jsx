@@ -121,6 +121,9 @@ export default function Documents({ defaultType }) {
   const [actionsMenuId, setActionsMenuId] = useState(null);
   const [actionsMenuPos, setActionsMenuPos] = useState(null);
   const [quickSupplierOpen, setQuickSupplierOpen] = useState(false);
+  const [quickContractOpen, setQuickContractOpen] = useState(false);
+  const [quickContractForm, setQuickContractForm] = useState({ number: '', date: todayLocalIso() });
+  const [quickContractSaving, setQuickContractSaving] = useState(false);
   /** null | { mode: 'create'|'edit', rowIndex, productId?, initialTab? } */
   const [productModal, setProductModal] = useState(null);
   const draftKey = formDraftKey('documents', modal);
@@ -533,6 +536,39 @@ export default function Documents({ defaultType }) {
     setCounterparties((prev) => [...prev, created]);
     handleSupplierChange(created.id);
     show('Поставщик создан и выбран');
+  };
+
+  const openQuickContract = () => {
+    if (!form.counterparty_id) {
+      show('Сначала выберите поставщика', 'error');
+      return;
+    }
+    setQuickContractForm({ number: '', date: form.date || todayLocalIso() });
+    setQuickContractOpen(true);
+  };
+
+  const saveQuickContract = async () => {
+    if (!form.counterparty_id) return;
+    if (!String(quickContractForm.number || '').trim()) {
+      show('Укажите номер договора', 'error');
+      return;
+    }
+    setQuickContractSaving(true);
+    try {
+      const created = await api.createCounterpartyContract(form.counterparty_id, {
+        number: quickContractForm.number.trim(),
+        date: quickContractForm.date || null,
+      });
+      const list = await api.getCounterpartyContracts(form.counterparty_id);
+      setSupplierContracts(list);
+      setForm((prev) => ({ ...prev, contract_id: created.id }));
+      setQuickContractOpen(false);
+      show('Договор создан и выбран');
+    } catch (e) {
+      show(e.message, 'error');
+    } finally {
+      setQuickContractSaving(false);
+    }
   };
 
   const openQuickProduct = (rowIndex) => {
@@ -1328,7 +1364,7 @@ export default function Documents({ defaultType }) {
                   Выберите отдел — расход/возврат будет списан из остатка этого отдела.
                 </div>
               )}
-              <div className="form-grid">
+              <div className={`form-grid${form.type === 'prihod' ? ' form-grid-prihod-header' : ''}`}>
                 {!defaultType && (
                   <div className="form-group">
                     <label>Тип</label>
@@ -1347,7 +1383,7 @@ export default function Documents({ defaultType }) {
                 )}
                 {form.type === 'prihod' || isCustomerReturnType(form.type) ? (
                   <>
-                    <div className="form-group">
+                    <div className="form-group form-group-date">
                       <label>Дата</label>
                       <input
                         type="date"
@@ -1357,10 +1393,26 @@ export default function Documents({ defaultType }) {
                         disabled={isReadOnly}
                       />
                     </div>
-                    <div className="form-group">
-                      <label>Номер документа</label>
+                    <div className="form-group form-group-number">
+                      <label>Номер</label>
                       <input value={form.number || previewDocNumber || '—'} disabled />
                     </div>
+                    {form.type === 'prihod' && (
+                      <div className="form-group">
+                        <label>Отдел *</label>
+                        <select
+                          value={form.to_department_id || ''}
+                          onChange={(e) => setForm({ ...form, to_department_id: e.target.value })}
+                          disabled={isReadOnly}
+                          required
+                        >
+                          <option value="">— выберите —</option>
+                          {prihodDepartments.map((d) => (
+                            <option key={d.id} value={d.id}>{d.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
                     <div className="form-group">
                       <label>{isCustomerReturnType(form.type) ? 'Клиент' : 'Поставщик'}</label>
                       <div className="quick-add-control">
@@ -1391,15 +1443,29 @@ export default function Documents({ defaultType }) {
                     {form.type === 'prihod' && (
                       <div className="form-group">
                         <label>Договор</label>
-                        <select
-                          value={form.contract_id || DEFAULT_CONTRACT_ID}
-                          onChange={(e) => setForm({ ...form, contract_id: e.target.value })}
-                          disabled={isReadOnly || !form.counterparty_id}
-                        >
-                          {supplierContracts.map((c) => (
-                            <option key={c.id} value={c.id}>{formatContractLabel(c)}</option>
-                          ))}
-                        </select>
+                        <div className="quick-add-control">
+                          <select
+                            value={form.contract_id || DEFAULT_CONTRACT_ID}
+                            onChange={(e) => setForm({ ...form, contract_id: e.target.value })}
+                            disabled={isReadOnly || !form.counterparty_id}
+                          >
+                            {supplierContracts.map((c) => (
+                              <option key={c.id} value={c.id}>{formatContractLabel(c)}</option>
+                            ))}
+                          </select>
+                          {canCreateSupplier && !isReadOnly && (
+                            <button
+                              type="button"
+                              className="btn btn-icon btn-ghost quick-add-button"
+                              title="Создать договор"
+                              aria-label="Создать договор"
+                              disabled={!form.counterparty_id}
+                              onClick={openQuickContract}
+                            >
+                              <IconPlus />
+                            </button>
+                          )}
+                        </div>
                       </div>
                     )}
                     {isCustomerReturnType(form.type) && (
@@ -1430,20 +1496,22 @@ export default function Documents({ defaultType }) {
                         </select>
                       </div>
                     )}
-                    <div className="form-group">
-                      <label>Отдел *</label>
-                      <select
-                        value={form.to_department_id || ''}
-                        onChange={(e) => setForm({ ...form, to_department_id: e.target.value })}
-                        disabled={isReadOnly}
-                        required
-                      >
-                        <option value="">— выберите —</option>
-                        {prihodDepartments.map((d) => (
-                          <option key={d.id} value={d.id}>{d.name}</option>
-                        ))}
-                      </select>
-                    </div>
+                    {isCustomerReturnType(form.type) && (
+                      <div className="form-group">
+                        <label>Отдел *</label>
+                        <select
+                          value={form.to_department_id || ''}
+                          onChange={(e) => setForm({ ...form, to_department_id: e.target.value })}
+                          disabled={isReadOnly}
+                          required
+                        >
+                          <option value="">— выберите —</option>
+                          {prihodDepartments.map((d) => (
+                            <option key={d.id} value={d.id}>{d.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
                   </>
                 ) : form.type === 'peremeshchenie' ? (
                   <>
@@ -1810,6 +1878,46 @@ export default function Documents({ defaultType }) {
         title="Новый контрагент"
         onCreated={onQuickSupplierCreated}
       />
+
+      {quickContractOpen && (
+        <Modal
+          title="Новый договор"
+          onClose={() => setQuickContractOpen(false)}
+          footer={(
+            <>
+              <ModalCancelButton disabled={quickContractSaving} />
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={quickContractSaving}
+                onClick={saveQuickContract}
+              >
+                {quickContractSaving ? 'Сохранение…' : 'Сохранить'}
+              </button>
+            </>
+          )}
+        >
+          <div className="form-grid">
+            <div className="form-group">
+              <label>Номер договора *</label>
+              <input
+                value={quickContractForm.number}
+                onChange={(e) => setQuickContractForm({ ...quickContractForm, number: e.target.value })}
+                placeholder="№ 123/2026"
+                autoFocus
+              />
+            </div>
+            <div className="form-group">
+              <label>Дата договора</label>
+              <input
+                type="date"
+                value={quickContractForm.date}
+                onChange={(e) => setQuickContractForm({ ...quickContractForm, date: e.target.value })}
+              />
+            </div>
+          </div>
+        </Modal>
+      )}
 
       <ProductCreateModal
         open={productModal != null}
