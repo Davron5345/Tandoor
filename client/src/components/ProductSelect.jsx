@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { formatMoney } from '../api';
-import { IconImage } from './ActionIcons';
+import { IconEdit, IconImage } from './ActionIcons';
 import SearchHighlight from './SearchHighlight';
 import {
   buildProductPickGroups,
@@ -53,6 +53,7 @@ export default function ProductSelect({
   allProducts = [],
   value,
   onChange,
+  onEditProduct = null,
   disabled = false,
   placeholder = 'Выберите товар...',
   searchPlaceholder = 'Поиск по названию, артикулу...',
@@ -135,6 +136,12 @@ export default function ProductSelect({
 
   const pick = (pickValue) => {
     onChange(pickValue);
+    close();
+  };
+
+  const editProduct = (product) => {
+    if (!onEditProduct || !product?.id) return;
+    onEditProduct(product);
     close();
   };
 
@@ -279,6 +286,17 @@ export default function ProductSelect({
                       {group.product.category_name && (
                         <span className="product-select-group-meta">{group.product.category_name}</span>
                       )}
+                      {onEditProduct && (
+                        <button
+                          type="button"
+                          className="product-select-option-edit"
+                          title="Редактировать товар"
+                          aria-label={`Редактировать ${group.product.name}`}
+                          onClick={() => editProduct(group.product)}
+                        >
+                          <IconEdit />
+                        </button>
+                      )}
                     </div>
                   )}
                   <ul className="product-select-group-options">
@@ -288,7 +306,7 @@ export default function ProductSelect({
                       const isActive = value === option.key;
                       const isHighlighted = currentIndex === highlightIndex;
                       return (
-                        <li key={option.key}>
+                        <li key={option.key} className="product-select-option-row">
                           <button
                             type="button"
                             role="option"
@@ -312,6 +330,17 @@ export default function ProductSelect({
                             </span>
                             <OptionMeta product={option.product} variant={option.variant} />
                           </button>
+                          {onEditProduct && !isGrouped && (
+                            <button
+                              type="button"
+                              className="product-select-option-edit"
+                              title="Редактировать товар"
+                              aria-label={`Редактировать ${option.product.name}`}
+                              onClick={() => editProduct(option.product)}
+                            >
+                              <IconEdit />
+                            </button>
+                          )}
                         </li>
                       );
                     })}

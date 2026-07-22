@@ -3591,11 +3591,18 @@ input[type='number']::-webkit-inner-spin-button {
   padding: 0;
 }
 
+.product-select-option-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
 .product-select-option {
   display: flex;
   align-items: center;
   gap: 8px;
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   min-height: 40px;
   padding: 6px 8px;
   border: none;
@@ -3604,6 +3611,37 @@ input[type='number']::-webkit-inner-spin-button {
   color: var(--text);
   text-align: left;
   cursor: pointer;
+}
+
+.product-select-option-edit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  margin-right: 4px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.product-select-option-edit svg {
+  width: 16px;
+  height: 16px;
+}
+
+.product-select-option-edit:hover {
+  background: var(--bg-hover, rgba(0, 0, 0, 0.06));
+  color: var(--text);
+}
+
+.product-select-group-header .product-select-option-edit {
+  margin-left: auto;
+  margin-right: 0;
 }
 
 .product-select-option-nested {

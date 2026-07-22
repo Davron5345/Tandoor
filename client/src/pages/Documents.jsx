@@ -17,7 +17,6 @@ import {
   IconEye,
   IconHistory,
   IconMore,
-  IconEdit,
   IconPlus,
   IconTelegram,
   IconTransfer,
@@ -1645,6 +1644,14 @@ export default function Documents({ defaultType }) {
                                 : products}
                               value={pickValue}
                               onChange={(nextPick) => updateItemProductPick(idx, nextPick)}
+                              onEditProduct={
+                                form.type === 'prihod'
+                                  && form.counterparty_id
+                                  && canCreateProduct
+                                  && !isReadOnly
+                                  ? (product) => openEditProduct(idx, product.id, 'variants')
+                                  : null
+                              }
                               disabled={itemsBlocked || isReadOnly}
                               placeholder={
                                 prihodNeedsSupplier
@@ -1664,28 +1671,15 @@ export default function Documents({ defaultType }) {
                               && form.counterparty_id
                               && canCreateProduct
                               && !isReadOnly && (
-                              <>
-                                {item.product_id && (
-                                  <button
-                                    type="button"
-                                    className="btn btn-icon btn-ghost quick-add-button"
-                                    title="Редактировать товар"
-                                    aria-label="Редактировать товар"
-                                    onClick={() => openEditProduct(idx, item.product_id, 'variants')}
-                                  >
-                                    <IconEdit />
-                                  </button>
-                                )}
-                                <button
-                                  type="button"
-                                  className="btn btn-icon btn-ghost quick-add-button"
-                                  title="Создать новый товар"
-                                  aria-label="Создать новый товар"
-                                  onClick={() => openQuickProduct(idx)}
-                                >
-                                  <IconPlus />
-                                </button>
-                              </>
+                              <button
+                                type="button"
+                                className="btn btn-icon btn-ghost quick-add-button"
+                                title="Создать новый товар"
+                                aria-label="Создать новый товар"
+                                onClick={() => openQuickProduct(idx)}
+                              >
+                                <IconPlus />
+                              </button>
                             )}
                           </div>
                           {isAnyReturnType(form.type) && item.product_id && (
