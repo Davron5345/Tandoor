@@ -29,8 +29,13 @@ export function registerDocumentRoutes(app) {
       branch_id: req.branchId,
     });
     const filtered = filterDocumentsForUser(docs, req.user.role);
+    const amountSum = filtered.reduce((sum, d) => sum + (Number(d.total_amount) || 0), 0);
     const pagination = parsePagination(req.query);
-    res.json(pagination ? paginateList(filtered, pagination) : filtered);
+    if (pagination) {
+      res.json({ ...paginateList(filtered, pagination), amount_sum: amountSum });
+      return;
+    }
+    res.json(filtered);
   });
 
   app.get('/api/dish-recipes', requirePermission('documents.dish_sale'), attachBranch, (req, res) => {

@@ -109,6 +109,7 @@ export default function Documents({ defaultType }) {
   const [docPage, setDocPage] = useState(1);
   const [docPages, setDocPages] = useState(1);
   const [docTotal, setDocTotal] = useState(0);
+  const [docsAmountSum, setDocsAmountSum] = useState(0);
   const DOC_PAGE_SIZE = 50;
   const [modal, setModal] = useState(null);
   const [paymentModal, setPaymentModal] = useState(null);
@@ -304,6 +305,7 @@ export default function Documents({ defaultType }) {
       setDocs(data.items);
       setDocPages(data.pages);
       setDocTotal(data.total);
+      setDocsAmountSum(Number(data.amount_sum) || 0);
     }).catch(console.error);
   }, [defaultType, filterType, filterStatus, filterDateFrom, filterDateTo, filterCounterpartyId, docPage, branchId]);
 
@@ -455,6 +457,17 @@ export default function Documents({ defaultType }) {
   const hasListFilters = Boolean(
     filterStatus || filterDateFrom || filterDateTo || filterCounterpartyId || (!defaultType && filterType),
   );
+  const showFilteredAmountSum = Boolean(
+    filterCounterpartyId
+    && (filterDateFrom || filterDateTo)
+    && (listType === 'prihod' || listType === 'rashod'
+      || listType === RETURN_SUPPLIER_TYPE || listType === RETURN_CUSTOMER_TYPE),
+  );
+  const filteredAmountLabel = listType === 'prihod'
+    ? 'Сумма приходов'
+    : listType === 'rashod'
+      ? 'Сумма расходов'
+      : 'Сумма';
   const clearListFilters = () => {
     if (!defaultType) setFilterType('');
     setFilterStatus('');
@@ -1213,6 +1226,14 @@ export default function Documents({ defaultType }) {
             <button type="button" className="btn btn-ghost btn-sm" onClick={clearListFilters}>
               Сбросить
             </button>
+          </div>
+        )}
+        {showFilteredAmountSum && (
+          <div className="filter-field filter-field-sum">
+            <span className="filter-field-caption">{filteredAmountLabel}</span>
+            <strong className="docs-filter-amount-sum">
+              {new Intl.NumberFormat('ru-RU').format(docsAmountSum || 0)}
+            </strong>
           </div>
         )}
       </div>

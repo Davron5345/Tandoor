@@ -19,6 +19,7 @@ export function normalizeListResponse(data) {
     page: data.page ?? 1,
     limit: data.limit ?? 50,
     pages: data.pages ?? 1,
+    amount_sum: data.amount_sum,
   };
 }
 
