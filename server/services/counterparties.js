@@ -123,10 +123,23 @@ export function getCounterpartyContracts(counterpartyId, branchId = DEFAULT_BRAN
       date: null,
       is_default: 1,
       virtual: true,
+      is_used: false,
     }];
   }
 
-  return contracts;
+  const usedRows = queryAll(`
+    SELECT DISTINCT contract_id
+    FROM documents
+    WHERE contract_id IS NOT NULL AND contract_id != ''
+      AND counterparty_id = ?
+      AND (branch_id = ? OR branch_id IS NULL)
+  `, [counterpartyId, branchId]);
+  const usedIds = new Set(usedRows.map((r) => r.contract_id));
+
+  return contracts.map((c) => ({
+    ...c,
+    is_used: usedIds.has(c.id),
+  }));
 }
 
 export function createCounterpartyContract(counterpartyId, data, branchId = DEFAULT_BRANCH_ID) {
@@ -141,7 +154,8 @@ export function createCounterpartyContract(counterpartyId, data, branchId = DEFA
     VALUES (?, ?, ?, ?, ?, ?)
   `, [id, counterpartyId, branchId, number, data.date || null, data.is_default ? 1 : 0]);
 
-  return queryOne('SELECT * FROM counterparty_contracts WHERE id = ?', [id]);
+  const created = queryOne('SELECT * FROM counterparty_contracts WHERE id = ?', [id]);
+  return { ...created, is_used: false, virtual: false };
 }
 
 export function deleteCounterpartyContract(counterpartyId, contractId, branchId = DEFAULT_BRANCH_ID) {
@@ -151,6 +165,12 @@ export function deleteCounterpartyContract(counterpartyId, contractId, branchId 
     [contractId, counterpartyId, branchId],
   );
   if (!row) throw new Error('Договор не найден');
-  run('UPDATE documents SET contract_id = NULL WHERE contract_id = ?', [contractId]);
+  const used = queryOne(
+    `SELECT id FROM documents
+     WHERE contract_id = ? AND counterparty_id = ?
+     LIMIT 1`,
+    [contractId, counterpartyId],
+  );
+  if (used) throw new Error('Договор используется в документах и не может быть удалён');
   run('DELETE FROM counterparty_contracts WHERE id = ?', [contractId]);
 }

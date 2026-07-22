@@ -242,7 +242,7 @@ export default function Counterparties() {
                           <td>{c.number}</td>
                           <td>{c.date ? formatDate(c.date) : '—'}</td>
                           <td>
-                            {canEdit && (
+                            {canEdit && !c.is_used && (
                               <IconButton title="Удалить" danger onClick={() => removeContract(c.id)}>
                                 <IconTrash />
                               </IconButton>

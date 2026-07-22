@@ -7,6 +7,7 @@ import CategorySelect from '../components/CategorySelect';
 import ProductSelect from '../components/ProductSelect';
 import CounterpartyCreateModal from '../components/CounterpartyCreateModal';
 import ProductCreateModal from '../components/ProductCreateModal';
+import ContractSelect from '../components/ContractSelect';
 import { useAuth } from '../AuthContext';
 import { useBranch } from '../BranchContext';
 import { hasPermission, DOC_TYPE_LABELS } from '../permissions';
@@ -590,6 +591,28 @@ export default function Documents({ defaultType }) {
       show(e.message, 'error');
     } finally {
       setQuickContractSaving(false);
+    }
+  };
+
+  const deleteSupplierContract = async (contract) => {
+    if (!form.counterparty_id || !contract?.id) return;
+    if (contract.is_used) {
+      show('Договор используется в документах и не может быть удалён', 'error');
+      return;
+    }
+    if (!window.confirm(`Удалить договор «${contract.number}»?`)) return;
+    try {
+      await api.deleteCounterpartyContract(form.counterparty_id, contract.id);
+      const list = await api.getCounterpartyContracts(form.counterparty_id);
+      setSupplierContracts(list);
+      setForm((prev) => (
+        prev.contract_id === contract.id
+          ? { ...prev, contract_id: hasRealSupplierContracts(list) ? '' : DEFAULT_CONTRACT_ID }
+          : prev
+      ));
+      show('Договор удалён');
+    } catch (e) {
+      show(e.message, 'error');
     }
   };
 
@@ -1480,18 +1503,16 @@ export default function Documents({ defaultType }) {
                       <div className="form-group">
                         <label>Договор{hasRealSupplierContracts(supplierContracts) ? ' *' : ''}</label>
                         <div className="quick-add-control">
-                          <select
+                          <ContractSelect
+                            contracts={supplierContracts}
                             value={form.contract_id || ''}
-                            onChange={(e) => setForm({ ...form, contract_id: e.target.value })}
+                            onChange={(contractId) => setForm({ ...form, contract_id: contractId })}
+                            onDelete={deleteSupplierContract}
                             disabled={isReadOnly || !form.counterparty_id}
-                          >
-                            {hasRealSupplierContracts(supplierContracts) && (
-                              <option value="">— выберите договор —</option>
-                            )}
-                            {supplierContracts.map((c) => (
-                              <option key={c.id} value={c.id}>{formatContractLabel(c)}</option>
-                            ))}
-                          </select>
+                            canDelete={canCreateSupplier && !isReadOnly}
+                            showEmptyOption={hasRealSupplierContracts(supplierContracts)}
+                            formatLabel={formatContractLabel}
+                          />
                           {canCreateSupplier && !isReadOnly && (
                             <button
                               type="button"

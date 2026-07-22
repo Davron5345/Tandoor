@@ -2521,6 +2521,123 @@ input[type='number']::-webkit-inner-spin-button {
   background: var(--accent-glow);
 }
 
+.contract-select {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.contract-select-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 42px;
+  padding: 8px 12px;
+  border: 1px solid var(--control-border);
+  border-radius: var(--control-radius);
+  background: var(--control-bg);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.contract-select-disabled .contract-select-trigger {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.contract-select-value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.contract-select-value-muted {
+  color: var(--text-muted);
+}
+
+.contract-select-chevron {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.contract-select-menu {
+  overflow: auto;
+  padding: 6px;
+  border: 1px solid var(--control-border);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.14);
+}
+
+.contract-select-option-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.contract-select-option {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  min-height: 36px;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.contract-select-option:hover,
+.contract-select-option.active {
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+}
+
+.contract-select-option-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.contract-select-option-delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  margin-right: 2px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.contract-select-option-delete svg {
+  width: 16px;
+  height: 16px;
+}
+
+.contract-select-option-delete:hover {
+  background: color-mix(in srgb, var(--danger, #dc2626) 14%, transparent);
+  color: var(--danger, #dc2626);
+}
+
+.contract-select-empty {
+  padding: 10px 12px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
 .app-update-banner {
   position: fixed;
   top: 0;
