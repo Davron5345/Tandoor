@@ -15,6 +15,7 @@ export default function ContractSelect({
   emptyLabel = '— выберите договор —',
   showEmptyOption = false,
   formatLabel,
+  valueLabel = '',
 }) {
   const [open, setOpen] = useState(false);
   const [menuStyle, setMenuStyle] = useState(null);
@@ -24,7 +25,9 @@ export default function ContractSelect({
   const selected = contracts.find((c) => c.id === value) || null;
   const label = selected
     ? (formatLabel ? formatLabel(selected) : selected.number)
-    : (showEmptyOption ? emptyLabel : (contracts[0] ? (formatLabel ? formatLabel(contracts[0]) : contracts[0].number) : emptyLabel));
+    : (value && valueLabel
+      ? valueLabel
+      : (showEmptyOption ? emptyLabel : (contracts[0] ? (formatLabel ? formatLabel(contracts[0]) : contracts[0].number) : emptyLabel)));
 
   const close = () => {
     setOpen(false);

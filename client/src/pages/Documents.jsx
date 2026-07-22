@@ -203,16 +203,30 @@ export default function Documents({ defaultType }) {
         id: DEFAULT_CONTRACT_ID,
         number: 'Основной договор',
         date: null,
+        virtual: true,
       }]);
-      return;
+      return undefined;
     }
+    let cancelled = false;
+    // Сбрасываем список, чтобы не применять логику выбора к договорам другого поставщика
+    setSupplierContracts([]);
     api.getCounterpartyContracts(form.counterparty_id)
-      .then(setSupplierContracts)
-      .catch(() => setSupplierContracts([{
-        id: DEFAULT_CONTRACT_ID,
-        number: 'Основной договор',
-        date: null,
-      }]));
+      .then((list) => {
+        if (!cancelled) setSupplierContracts(list);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setSupplierContracts([{
+            id: DEFAULT_CONTRACT_ID,
+            number: 'Основной договор',
+            date: null,
+            virtual: true,
+          }]);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [modal, form.type, form.counterparty_id, branchId]);
 
   useEffect(() => {
@@ -220,11 +234,14 @@ export default function Documents({ defaultType }) {
     setForm((prev) => {
       const cid = prev.contract_id || '';
       if (cid && supplierContracts.some((c) => c.id === cid)) return prev;
-      // Есть созданные договоры — поле пустое, пользователь выбирает сам
+
+      // Реальный сохранённый договор ещё не в списке (загрузка/другой филиал) — не сбрасывать
+      if (cid && cid !== DEFAULT_CONTRACT_ID) return prev;
+
+      // Пусто или «Основной»: есть созданные договоры → пользователь выбирает сам
       if (hasRealSupplierContracts(supplierContracts)) {
         return cid ? { ...prev, contract_id: '' } : prev;
       }
-      // Нет договоров — «Основной договор»
       return { ...prev, contract_id: DEFAULT_CONTRACT_ID };
     });
   }, [supplierContracts, modal, form.type]);
@@ -816,7 +833,8 @@ export default function Documents({ defaultType }) {
     const doc = await api.getDocument(id);
     const loadedForm = {
       ...doc,
-      contract_id: doc.contract_id || DEFAULT_CONTRACT_ID,
+      // null в БД = «Основной договор»; реальный id сохраняем как есть
+      contract_id: doc.contract_id || (doc.type === 'prihod' ? DEFAULT_CONTRACT_ID : ''),
       from_branch_id: doc.from_branch_id || doc.branch_id || '',
       to_branch_id: doc.to_branch_id || '',
       from_department_id: doc.from_department_id || '',
@@ -1506,6 +1524,12 @@ export default function Documents({ defaultType }) {
                           <ContractSelect
                             contracts={supplierContracts}
                             value={form.contract_id || ''}
+                            valueLabel={form.contract_number
+                              ? formatContractLabel({
+                                number: form.contract_number,
+                                date: form.contract_date,
+                              })
+                              : ''}
                             onChange={(contractId) => setForm({ ...form, contract_id: contractId })}
                             onDelete={deleteSupplierContract}
                             disabled={isReadOnly || !form.counterparty_id}
