@@ -3820,9 +3820,18 @@ input[type='number']::-webkit-inner-spin-button {
   font-variant-numeric: tabular-nums;
 }
 
+.doc-items-qty-col,
 .doc-items-net-col {
-  width: 100px;
-  min-width: 88px;
+  width: 72px;
+  min-width: 64px;
+  max-width: 80px;
+}
+
+.doc-items-qty-col input,
+.doc-items-net-col input {
+  padding-left: 8px;
+  padding-right: 8px;
+  text-align: right;
 }
 
 .doc-items-table input,

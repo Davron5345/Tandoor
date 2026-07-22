@@ -1698,7 +1698,7 @@ export default function Documents({ defaultType }) {
                       <th className="doc-items-num-col">№</th>
                       <th>Товар</th>
                       <th className="doc-items-unit-col">Ед.</th>
-                      <th>Кол-во</th>
+                      <th className="doc-items-qty-col">Кол-во</th>
                       {form.type === 'prihod' && <th className="doc-items-net-col">Нетто</th>}
                       <th>Цена</th>
                       <th>Сумма</th>
@@ -1778,7 +1778,7 @@ export default function Documents({ defaultType }) {
                         <td className="doc-items-unit-col">
                           <span className="doc-item-unit">{item.product_id ? (itemUnit || '—') : '—'}</span>
                         </td>
-                        <td>
+                        <td className="doc-items-qty-col">
                           <input
                             type="text"
                             inputMode="decimal"
@@ -1792,28 +1792,24 @@ export default function Documents({ defaultType }) {
                             </span>
                           )}
                         </td>
-                        {form.type === 'prihod' && (() => {
-                          const net = Number(item.net_weight) || 0;
-                          const qty = parseQuantityInput(item.quantity) ?? 0;
-                          const stockTotal = net > 0 && qty > 0 ? net * qty : null;
-                          return (
-                            <td className="doc-items-net-col">
-                              <input
-                                type="text"
-                                inputMode="decimal"
-                                value={item.net_weight ?? ''}
-                                disabled={isReadOnly}
-                                placeholder="на 1 шт"
-                                onChange={(e) => updateItem(idx, 'net_weight', normalizeQuantityInput(e.target.value))}
-                              />
-                              {stockTotal != null && (
-                                <span className="razdelka-stock-row-warning">
-                                  на склад: {stockTotal} {itemUnit || ''}
-                                </span>
-                              )}
-                            </td>
-                          );
-                        })()}
+                        {form.type === 'prihod' && (
+                          <td className="doc-items-net-col">
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={item.net_weight ?? ''}
+                              disabled={isReadOnly}
+                              placeholder="на 1 шт"
+                              title={(() => {
+                                const net = Number(item.net_weight) || 0;
+                                const qty = parseQuantityInput(item.quantity) ?? 0;
+                                if (!(net > 0 && qty > 0)) return 'Нетто на 1 шт';
+                                return `На склад: ${net * qty}${itemUnit ? ` ${itemUnit}` : ''}`;
+                              })()}
+                              onChange={(e) => updateItem(idx, 'net_weight', normalizeQuantityInput(e.target.value))}
+                            />
+                          </td>
+                        )}
                         <td>
                           <input
                             type="text"
