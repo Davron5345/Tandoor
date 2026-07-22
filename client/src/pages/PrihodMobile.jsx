@@ -572,22 +572,22 @@ export default function PrihodMobile() {
                 </label>
                 <div className="warehouse-prihod-item-row">
                   <label className="warehouse-prihod-field">
-                    <span>Нетто (на 1 шт)</span>
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      value={item.net_weight ?? ''}
-                      placeholder="необяз."
-                      onChange={(e) => updateItem(idx, { net_weight: normalizeQuantityInput(e.target.value) })}
-                    />
-                  </label>
-                  <label className="warehouse-prihod-field">
                     <span>Кол-во</span>
                     <input
                       type="text"
                       inputMode="decimal"
                       value={item.quantity}
                       onChange={(e) => updateItem(idx, { quantity: normalizeQuantityInput(e.target.value) })}
+                    />
+                  </label>
+                  <label className="warehouse-prihod-field">
+                    <span>Нетто</span>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={item.net_weight ?? ''}
+                      placeholder="на 1 шт"
+                      onChange={(e) => updateItem(idx, { net_weight: normalizeQuantityInput(e.target.value) })}
                     />
                   </label>
                   <label className="warehouse-prihod-field">
@@ -598,6 +598,14 @@ export default function PrihodMobile() {
                       value={formatPriceInput(item.price)}
                       onChange={(e) => updateItem(idx, { price: parsePriceInput(e.target.value) ?? 0 })}
                     />
+                  </label>
+                  <label className="warehouse-prihod-field">
+                    <span>Сумма</span>
+                    <strong className="warehouse-prihod-item-amount">
+                      {new Intl.NumberFormat('ru-RU').format(
+                        (parseQuantityInput(item.quantity) ?? 0) * (Number(item.price) || 0),
+                      )}
+                    </strong>
                   </label>
                 </div>
                 {(() => {

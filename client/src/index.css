@@ -3797,6 +3797,17 @@ input[type='number']::-webkit-inner-spin-button {
   font-weight: 500;
 }
 
+.doc-items-amount-col {
+  white-space: nowrap;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.doc-items-net-col {
+  width: 100px;
+  min-width: 88px;
+}
+
 .doc-items-table input,
 .doc-items-table select {
   padding: 10px 12px;
@@ -10798,6 +10809,13 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
+}
+
+.warehouse-prihod-item-amount {
+  display: block;
+  margin-top: 6px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .warehouse-prihod-item-remove {

@@ -1630,8 +1630,8 @@ export default function Documents({ defaultType }) {
                       <th className="doc-items-num-col">№</th>
                       <th>Товар</th>
                       <th className="doc-items-unit-col">Ед.</th>
-                      {form.type === 'prihod' && <th className="doc-items-net-col">Нетто</th>}
                       <th>Кол-во</th>
+                      {form.type === 'prihod' && <th className="doc-items-net-col">Нетто</th>}
                       <th>Цена</th>
                       <th>Сумма</th>
                       <th className="doc-items-actions-col" aria-label="Действия" />
@@ -1649,6 +1649,7 @@ export default function Documents({ defaultType }) {
                         resolvedItem = resolvePickFromProducts(products, pickValue);
                       }
                       const itemUnit = resolvedItem.product?.unit || '';
+                      const lineAmount = (parseQuantityInput(item.quantity) ?? 0) * (Number(item.price) || 0);
                       return (
                       <tr key={idx} className={rowTransferWarning ? 'razdelka-row-overstock' : undefined}>
                         <td className="doc-items-num-col">{idx + 1}</td>
@@ -1709,6 +1710,20 @@ export default function Documents({ defaultType }) {
                         <td className="doc-items-unit-col">
                           <span className="doc-item-unit">{item.product_id ? (itemUnit || '—') : '—'}</span>
                         </td>
+                        <td>
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            value={item.quantity}
+                            disabled={isReadOnly}
+                            onChange={(e) => updateItem(idx, 'quantity', normalizeQuantityInput(e.target.value))}
+                          />
+                          {rowTransferWarning && (
+                            <span className="razdelka-stock-row-warning">
+                              ост: {rowTransferWarning.stock} {rowTransferWarning.unit}
+                            </span>
+                          )}
+                        </td>
                         {form.type === 'prihod' && (() => {
                           const net = Number(item.net_weight) || 0;
                           const qty = parseQuantityInput(item.quantity) ?? 0;
@@ -1734,27 +1749,15 @@ export default function Documents({ defaultType }) {
                         <td>
                           <input
                             type="text"
-                            inputMode="decimal"
-                            value={item.quantity}
-                            disabled={isReadOnly}
-                            onChange={(e) => updateItem(idx, 'quantity', normalizeQuantityInput(e.target.value))}
-                          />
-                          {rowTransferWarning && (
-                            <span className="razdelka-stock-row-warning">
-                              ост: {rowTransferWarning.stock} {rowTransferWarning.unit}
-                            </span>
-                          )}
-                        </td>
-                        <td>
-                          <input
-                            type="text"
                             inputMode="numeric"
                             value={formatPriceInput(item.price)}
                             disabled={isReadOnly}
                             onChange={(e) => updateItem(idx, 'price', parsePriceInput(e.target.value) ?? 0)}
                           />
                         </td>
-                        <td>{formatMoney((parseQuantityInput(item.quantity) ?? 0) * (Number(item.price) || 0))}</td>
+                        <td className="doc-items-amount-col">
+                          {new Intl.NumberFormat('ru-RU').format(lineAmount || 0)}
+                        </td>
                         <td className="doc-items-actions-col">
                           {canEdit && (
                             <div className="doc-items-row-actions">
