@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-07-22 (карандаш в списке товаров прихода)
+**Последнее обновление документации:** 2026-07-22 (нетто в строках прихода → склад)
 
 ---
 
@@ -165,7 +165,7 @@ npm run db:reset-operations    # Сброс операционных данны�
 |--------|---------|
 | Каталог | `products`, `product_variants`, `product_categories`, `units`, `product_images`, `product_suppliers`, `product_branches`, `product_variant_branches` |
 | Склад | `departments`, `product_department_stock`, `product_branch_stock` |
-| Документы | `documents`, `document_items`, `document_history`, `opening_balance_lines` |
+| Документы | `documents`, `document_items` (+ `net_weight` в строках прихода), `document_history`, `opening_balance_lines` |
 | Контрагенты | `counterparties`, `counterparty_contracts` |
 | Финансы | `payments`, `cash_articles`, `branch_opening_balances` |
 | Калькуляции | `calculations`, `calculation_items`, `calculation_sources` |
@@ -286,7 +286,7 @@ Frontend зеркало: `client/src/permissions.js`.
 
 | type | Русское | Направление |
 |------|---------|-------------|
-| `prihod` | Приход | +остаток (от поставщика) |
+| `prihod` | Приход | +остаток (от поставщика); на склад: `net_weight × qty` если нетто > 0, иначе `qty` |
 | `rashod` | Расход | −остаток (клиенту) |
 | `return_supplier` | Возврат поставщику | −остаток, привязка к prihod |
 | `return_customer` | Возврат от клиента | +остаток по себестоимости, привязка к rashod |
@@ -305,6 +305,7 @@ Frontend зеркало: `client/src/permissions.js`.
 
 - **Средневзвешенная** (`avg_cost`) в `product_department_stock`
 - Приход: `receiveDepartmentStock()` — пересчёт avg
+- **Нетто в приходе** (`document_items.net_weight`): сумма строки = `qty × price` (цена за упаковку/шт); на склад идёт `stockQty = net × qty` при `net > 0`, иначе `qty`; `unitCost = amount / stockQty` (avg за ед. остатка, л/кг). Каталожное `products.net_weight` — только префилл строки в UI
 - Расход: `issueDepartmentStock()` — списание по avg_cost
 - Перемещение: `transferDepartmentStock()` — cost следует за товаром
 
@@ -611,6 +612,7 @@ GET  /api/auth/roles
 | 2026-07-21 | Приход: кнопки `+` открывают штатные окна «Новый контрагент» / «Новый товар» (`CounterpartyCreateModal`, `ProductCreateModal`) и сразу выбирают созданную запись |
 | 2026-07-22 | Документы: в таблице позиций колонка «Ед.» показывает единицу измерения выбранного товара |
 | 2026-07-22 | Приход: карандаш в выпадающем списке `ProductSelect` (`onEditProduct`) открывает карточку товара (вкладка «Варианты») |
+| 2026-07-22 | Приход: поле «Нетто» в строке (`Documents.jsx`, `PrihodMobile.jsx`); склад = нетто×кол-во, себестоимость = сумма/склад |
 
 ---
 

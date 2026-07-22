@@ -26,7 +26,7 @@ import {
 import { todayLocalIso } from '../utils/date';
 
 const DEFAULT_CONTRACT_ID = '__default__';
-const emptyItem = { product_id: '', variant_id: null, quantity: '1', price: 0 };
+const emptyItem = { product_id: '', variant_id: null, quantity: '1', price: 0, net_weight: '' };
 
 const STATUS_FILTERS = [
   { value: '', label: 'Все' },
@@ -221,7 +221,7 @@ export default function PrihodMobile() {
     setForm((prev) => ({
       ...prev,
       counterparty_id: counterpartyId,
-      items: prev.items.map((item) => ({ ...item, product_id: '', variant_id: null, price: 0 })),
+      items: prev.items.map((item) => ({ ...item, product_id: '', variant_id: null, price: 0, net_weight: '' })),
     }));
   };
 
@@ -238,10 +238,12 @@ export default function PrihodMobile() {
     const price = resolved.product
       ? getPickPrice(resolved.product, resolved.variant)
       : 0;
+    const nw = resolved.product?.net_weight;
     updateItem(idx, {
       product_id: resolved.productId || '',
       variant_id: resolved.variantId || null,
       price: Number(price) || 0,
+      net_weight: nw != null && nw !== '' ? nw : '',
     });
   };
 
@@ -287,6 +289,7 @@ export default function PrihodMobile() {
         variant_id: i.variant_id || null,
         quantity: parseQuantityInput(i.quantity) ?? 0,
         price: Number(i.price) || 0,
+        net_weight: i.net_weight !== '' && i.net_weight != null ? Number(i.net_weight) : null,
       })),
     };
   };
@@ -569,6 +572,16 @@ export default function PrihodMobile() {
                 </label>
                 <div className="warehouse-prihod-item-row">
                   <label className="warehouse-prihod-field">
+                    <span>Нетто (на 1 шт)</span>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={item.net_weight ?? ''}
+                      placeholder="необяз."
+                      onChange={(e) => updateItem(idx, { net_weight: normalizeQuantityInput(e.target.value) })}
+                    />
+                  </label>
+                  <label className="warehouse-prihod-field">
                     <span>Кол-во</span>
                     <input
                       type="text"
@@ -587,6 +600,16 @@ export default function PrihodMobile() {
                     />
                   </label>
                 </div>
+                {(() => {
+                  const net = Number(item.net_weight) || 0;
+                  const qty = parseQuantityInput(item.quantity) ?? 0;
+                  if (!(net > 0 && qty > 0)) return null;
+                  return (
+                    <p className="warehouse-prihod-hint">
+                      На склад: {net * qty}
+                    </p>
+                  );
+                })()}
                 {form.items.length > 1 && (
                   <button type="button" className="warehouse-prihod-item-remove" onClick={() => removeItem(idx)}>
                     Удалить строку

@@ -74,6 +74,8 @@ async function runStatements(sqlBlob) {
 async function ensureBootstrap() {
   await runStatements(PG_CREATE_TABLES);
   await runStatements(PG_CREATE_INDEXES);
+  // Idempotent column adds for existing deployments (CREATE IF NOT EXISTS does not alter)
+  await execRaw('ALTER TABLE document_items ADD COLUMN IF NOT EXISTS net_weight DOUBLE PRECISION');
 
   const ver = await execRaw('SELECT value FROM settings WHERE key = $1', [PG_SCHEMA_VERSION]);
   if (!ver.rows.length) {

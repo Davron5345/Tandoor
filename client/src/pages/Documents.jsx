@@ -66,7 +66,7 @@ function formatContractLabel(contract) {
   return `${contract.number} — ${formatDate(contract.date)}`;
 }
 
-const emptyItem = { product_id: '', variant_id: null, quantity: 1, price: 0 };
+const emptyItem = { product_id: '', variant_id: null, quantity: 1, price: 0, net_weight: '' };
 const emptyPayment = {
   type: 'supplier_payment',
   counterparty_id: '',
@@ -566,6 +566,9 @@ export default function Documents({ defaultType }) {
           product_id: created.id,
           variant_id: null,
           price: Number(price) || 0,
+          net_weight: prev.type === 'prihod' && created.net_weight != null && created.net_weight !== ''
+            ? created.net_weight
+            : (prev.type === 'prihod' ? '' : items[rowIndex].net_weight),
         };
       }
       return { ...prev, items };
@@ -600,6 +603,9 @@ export default function Documents({ defaultType }) {
         product_id: updated.id,
         variant_id: nextVariantId,
         price: nextPrice,
+        net_weight: prev.type === 'prihod' && updated.net_weight != null && updated.net_weight !== ''
+          ? updated.net_weight
+          : row.net_weight,
       };
       return { ...prev, items };
     });
@@ -740,6 +746,7 @@ export default function Documents({ defaultType }) {
         variant_id: i.variant_id || null,
         quantity: i.quantity,
         price: i.price,
+        net_weight: i.net_weight ?? '',
       })),
     };
     setForm(applyDocumentDraft(id, loadedForm));
@@ -788,6 +795,12 @@ export default function Documents({ defaultType }) {
       items[idx].price = resolved.variant
         ? resolveProductPrice(resolved.product, resolved.variant)
         : resolveProductPrice(resolved.product);
+      if (form.type === 'prihod') {
+        const nw = resolved.product.net_weight;
+        items[idx].net_weight = nw != null && nw !== '' ? nw : '';
+      }
+    } else if (form.type === 'prihod') {
+      items[idx].net_weight = '';
     }
     setForm({ ...form, items });
   };
@@ -926,6 +939,9 @@ export default function Documents({ defaultType }) {
           variant_id: i.variant_id || null,
           quantity: parseQuantityInput(i.quantity) ?? 0,
           price: Number(i.price) || 0,
+          net_weight: form.type === 'prihod' && i.net_weight !== '' && i.net_weight != null
+            ? Number(i.net_weight)
+            : null,
         })),
       };
       if (form.type === 'peremeshchenie') {
@@ -1400,7 +1416,7 @@ export default function Documents({ defaultType }) {
                               const pickedDate = picked.date.slice(0, 10);
                               return form.date && form.date >= pickedDate ? form.date : pickedDate;
                             })(),
-                            items: form.items.map((it) => ({ ...it, product_id: '', variant_id: null })),
+                            items: form.items.map((it) => ({ ...it, product_id: '', variant_id: null, net_weight: '' })),
                           })}
                           disabled={isReadOnly || !form.counterparty_id}
                           required
@@ -1563,7 +1579,7 @@ export default function Documents({ defaultType }) {
                               if (!picked?.date) return form.date;
                               return form.date && form.date >= picked.date ? form.date : picked.date;
                             })(),
-                            items: form.items.map((it) => ({ ...it, product_id: '', variant_id: null })),
+                            items: form.items.map((it) => ({ ...it, product_id: '', variant_id: null, net_weight: '' })),
                           })}
                           disabled={isReadOnly || !form.counterparty_id}
                           required
@@ -1614,6 +1630,7 @@ export default function Documents({ defaultType }) {
                       <th className="doc-items-num-col">№</th>
                       <th>Товар</th>
                       <th className="doc-items-unit-col">Ед.</th>
+                      {form.type === 'prihod' && <th className="doc-items-net-col">Нетто</th>}
                       <th>Кол-во</th>
                       <th>Цена</th>
                       <th>Сумма</th>
@@ -1692,6 +1709,28 @@ export default function Documents({ defaultType }) {
                         <td className="doc-items-unit-col">
                           <span className="doc-item-unit">{item.product_id ? (itemUnit || '—') : '—'}</span>
                         </td>
+                        {form.type === 'prihod' && (() => {
+                          const net = Number(item.net_weight) || 0;
+                          const qty = parseQuantityInput(item.quantity) ?? 0;
+                          const stockTotal = net > 0 && qty > 0 ? net * qty : null;
+                          return (
+                            <td className="doc-items-net-col">
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                value={item.net_weight ?? ''}
+                                disabled={isReadOnly}
+                                placeholder="на 1 шт"
+                                onChange={(e) => updateItem(idx, 'net_weight', normalizeQuantityInput(e.target.value))}
+                              />
+                              {stockTotal != null && (
+                                <span className="razdelka-stock-row-warning">
+                                  на склад: {stockTotal} {itemUnit || ''}
+                                </span>
+                              )}
+                            </td>
+                          );
+                        })()}
                         <td>
                           <input
                             type="text"

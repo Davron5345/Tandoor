@@ -23,6 +23,7 @@ export const PG_MIGRATION_SETTINGS_KEYS = [
   'doc_number_per_type_v1',
   'document_history_retain_v1',
   'document_item_cost_v1',
+  'document_item_net_weight_v1',
   'must_change_pwd_v1',
   'opening_balance_docs_v1',
   'performance_indexes_v1',
@@ -324,7 +325,8 @@ CREATE TABLE IF NOT EXISTS document_items (
   qiymali DOUBLE PRECISION DEFAULT 0,
   otkhod DOUBLE PRECISION DEFAULT 0,
   unit_cost DOUBLE PRECISION DEFAULT 0,
-  cost_amount DOUBLE PRECISION DEFAULT 0
+  cost_amount DOUBLE PRECISION DEFAULT 0,
+  net_weight DOUBLE PRECISION
 );
 
 CREATE TABLE IF NOT EXISTS document_history (

@@ -494,6 +494,7 @@ function migrateSchema() {
   migrateOpeningBalance();
   migrateOpeningBalanceDocuments();
   migrateDocumentItemCost();
+  migrateDocumentItemNetWeight();
   migrateShopOrderDocument();
   migrateCalculationKind();
   migrateProductKind();
@@ -701,6 +702,18 @@ function migrateDocumentItemCost() {
   const done = queryOne("SELECT value FROM settings WHERE key = 'document_item_cost_v1'");
   if (!done) {
     run("INSERT OR REPLACE INTO settings (key, value) VALUES ('document_item_cost_v1', '1')");
+    saveDb();
+  }
+}
+
+function migrateDocumentItemNetWeight() {
+  const itemCols = queryAll('PRAGMA table_info(document_items)').map((c) => c.name);
+  if (!itemCols.includes('net_weight')) {
+    run('ALTER TABLE document_items ADD COLUMN net_weight REAL');
+  }
+  const done = queryOne("SELECT value FROM settings WHERE key = 'document_item_net_weight_v1'");
+  if (!done) {
+    run("INSERT OR REPLACE INTO settings (key, value) VALUES ('document_item_net_weight_v1', '1')");
     saveDb();
   }
 }

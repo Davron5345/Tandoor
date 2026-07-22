@@ -333,10 +333,14 @@ function updateStock(documentId, reverse = false) {
     const vid = variantId(item);
 
     if (doc.type === 'prihod' && doc.to_department_id) {
+      const net = Number(item.net_weight) || 0;
+      const stockQty = Math.abs(net > 0 ? net * item.quantity : item.quantity);
+      const lineAmount = Number(item.amount) || (item.quantity * (item.price || 0));
+      const unitCost = stockQty > 0 ? lineAmount / stockQty : 0;
       if (multiplier > 0) {
-        receiveDepartmentStock(doc.to_department_id, item.product_id, qty, item.price || 0, vid);
+        receiveDepartmentStock(doc.to_department_id, item.product_id, stockQty, unitCost, vid);
       } else {
-        reverseReceiveDepartmentStock(doc.to_department_id, item.product_id, qty, item.price || 0, vid);
+        reverseReceiveDepartmentStock(doc.to_department_id, item.product_id, stockQty, unitCost, vid);
       }
       afterVariantStockChange(vid, item.product_id, branchId);
       syncBranchStockFromDepartments(branchId, item.product_id);
@@ -627,7 +631,7 @@ function normalizeItems(items) {
   if (valid.length === 0) {
     throw new Error('Добавьте хотя бы один товар в документ');
   }
-  for (const item of valid) {
+  return valid.map((item) => {
     const qty = Number(item.quantity);
     const price = Number(item.price ?? 0);
     if (!Number.isFinite(qty) || qty <= 0) {
@@ -636,8 +640,16 @@ function normalizeItems(items) {
     if (!Number.isFinite(price) || price < 0) {
       throw new Error('Цена не может быть отрицательной');
     }
-  }
-  return valid;
+    let netWeight = null;
+    if (item.net_weight !== undefined && item.net_weight !== null && item.net_weight !== '') {
+      const net = Number(item.net_weight);
+      if (!Number.isFinite(net) || net < 0) {
+        throw new Error('Нетто не может быть отрицательным');
+      }
+      netWeight = net;
+    }
+    return { ...item, quantity: qty, price, net_weight: netWeight };
+  });
 }
 
 function assertValidDate(date) {
@@ -1138,9 +1150,9 @@ export function createDocument(data, userId = null, branchId = DEFAULT_BRANCH_ID
 
     for (const item of items) {
       run(`
-        INSERT INTO document_items (id, document_id, product_id, variant_id, quantity, price, amount, item_role)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 'input')
-      `, [uuidv4(), id, item.product_id, item.variant_id || null, item.quantity, item.price, item.quantity * item.price]);
+        INSERT INTO document_items (id, document_id, product_id, variant_id, quantity, price, amount, item_role, net_weight)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'input', ?)
+      `, [uuidv4(), id, item.product_id, item.variant_id || null, item.quantity, item.price, item.quantity * item.price, item.net_weight ?? null]);
     }
 
     addHistory(id, 'created', userId);
@@ -1338,9 +1350,9 @@ export function updateDocument(id, data, userId = null, branchId = DEFAULT_BRANC
 
     for (const item of items) {
       run(`
-        INSERT INTO document_items (id, document_id, product_id, variant_id, quantity, price, amount, item_role)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 'input')
-      `, [uuidv4(), id, item.product_id, item.variant_id || null, item.quantity, item.price, item.quantity * item.price]);
+        INSERT INTO document_items (id, document_id, product_id, variant_id, quantity, price, amount, item_role, net_weight)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'input', ?)
+      `, [uuidv4(), id, item.product_id, item.variant_id || null, item.quantity, item.price, item.quantity * item.price, item.net_weight ?? null]);
     }
 
     addHistory(id, 'updated', userId);
