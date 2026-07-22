@@ -815,8 +815,11 @@ function CounterpartyDebtReport({ kind }) {
 }
 
 function ReconciliationReport() {
+  const DEFAULT_CONTRACT_ID = '__default__';
   const [counterparties, setCounterparties] = useState([]);
   const [counterpartyId, setCounterpartyId] = useState('');
+  const [contractId, setContractId] = useState('');
+  const [contracts, setContracts] = useState([]);
   const [documents, setDocuments] = useState([]);
   const [payments, setPayments] = useState([]);
   const [cpOpeningBalance, setCpOpeningBalance] = useState(0);
@@ -841,6 +844,47 @@ function ReconciliationReport() {
     [counterparties, counterpartyId],
   );
 
+  const isSupplier = selectedCounterparty?.type === 'supplier';
+
+  useEffect(() => {
+    setContractId('');
+    if (!counterpartyId || !isSupplier) {
+      setContracts([]);
+      return undefined;
+    }
+    let cancelled = false;
+    api.getCounterpartyContracts(counterpartyId)
+      .then((list) => {
+        if (!cancelled) setContracts(list);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setContracts([{
+            id: DEFAULT_CONTRACT_ID,
+            number: 'Основной договор',
+            date: null,
+            virtual: true,
+          }]);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [counterpartyId, isSupplier, branchId]);
+
+  const formatContractOption = (c) => {
+    if (!c?.date) return c?.number || 'Основной договор';
+    return `${c.number} — ${formatDate(c.date)}`;
+  };
+
+  const docMatchesContract = (doc, selectedContractId) => {
+    if (!selectedContractId) return true;
+    if (selectedContractId === DEFAULT_CONTRACT_ID) {
+      return !doc.contract_id || doc.contract_id === DEFAULT_CONTRACT_ID;
+    }
+    return doc.contract_id === selectedContractId;
+  };
+
   const load = useCallback(() => {
     if (!counterpartyId) {
       setDocuments([]);
@@ -851,11 +895,17 @@ function ReconciliationReport() {
     setLoading(true);
     setLoadError('');
     Promise.all([
-      api.getDocuments({ status: 'confirmed', date_from: dateFrom, date_to: dateTo }),
+      api.getDocuments({
+        status: 'confirmed',
+        date_from: dateFrom,
+        date_to: dateTo,
+        counterparty_id: counterpartyId,
+      }),
       api.getPayments(),
     ])
       .then(([docs, pays]) => {
-        setDocuments(docs.filter((d) => (
+        const docList = Array.isArray(docs) ? docs : (docs?.items || []);
+        setDocuments(docList.filter((d) => (
           d.counterparty_id === counterpartyId
           && (!dateFrom || d.date >= dateFrom)
           && (!dateTo || d.date <= dateTo)
@@ -883,6 +933,11 @@ function ReconciliationReport() {
       setCpOpeningBalance(0);
       return;
     }
+    // Начальное сальдо — по контрагенту целиком; при фильтре по договору не показываем
+    if (contractId) {
+      setCpOpeningBalance(0);
+      return;
+    }
     const fetcher = selectedCounterparty.type === 'supplier'
       ? api.getCreditorsReport({ include_zero: '1' })
       : api.getDebtorsReport({ include_zero: '1' });
@@ -892,14 +947,17 @@ function ReconciliationReport() {
         setCpOpeningBalance(row?.opening_balance || 0);
       })
       .catch(() => setCpOpeningBalance(0));
-  }, [counterpartyId, selectedCounterparty, branchId]);
+  }, [counterpartyId, selectedCounterparty, contractId, branchId]);
 
   const rows = useMemo(() => {
     if (!selectedCounterparty) return [];
-    const isSupplier = selectedCounterparty.type === 'supplier';
-    const docRows = documents
+    const supplier = selectedCounterparty.type === 'supplier';
+    const filteredDocs = documents.filter((d) => docMatchesContract(d, contractId));
+    const matchedDocIds = new Set(filteredDocs.map((d) => d.id));
+
+    const docRows = filteredDocs
       .map((d) => {
-        if (isSupplier && d.type === 'prihod') {
+        if (supplier && d.type === 'prihod') {
           return {
             date: d.date,
             ref: `Документ №${d.number}`,
@@ -908,7 +966,7 @@ function ReconciliationReport() {
             credit: 0,
           };
         }
-        if (isSupplier && d.type === 'return_supplier') {
+        if (supplier && d.type === 'return_supplier') {
           return {
             date: d.date,
             ref: `Документ №${d.number}`,
@@ -917,7 +975,7 @@ function ReconciliationReport() {
             credit: d.total_amount || 0,
           };
         }
-        if (!isSupplier && d.type === 'rashod') {
+        if (!supplier && d.type === 'rashod') {
           return {
             date: d.date,
             ref: `Документ №${d.number}`,
@@ -932,12 +990,16 @@ function ReconciliationReport() {
 
     const payRows = payments
       .map((p) => {
-        if (isSupplier && p.type !== 'supplier_payment') return null;
-        if (!isSupplier && p.type !== 'customer_income') return null;
+        if (supplier && p.type !== 'supplier_payment') return null;
+        if (!supplier && p.type !== 'customer_income') return null;
+        if (contractId) {
+          // При фильтре по договору — только оплаты, привязанные к документам этого договора
+          if (!p.document_id || !matchedDocIds.has(p.document_id)) return null;
+        }
         return {
           date: p.date,
           ref: `Оплата №${p.number}`,
-          operation: isSupplier ? 'Оплата поставщику' : 'Оплата от клиента',
+          operation: supplier ? 'Оплата поставщику' : 'Оплата от клиента',
           debit: 0,
           credit: p.amount || 0,
         };
@@ -962,7 +1024,7 @@ function ReconciliationReport() {
       running += (row.debit || 0) - (row.credit || 0);
       return { ...row, balance: running };
     });
-  }, [documents, payments, selectedCounterparty, cpOpeningBalance]);
+  }, [documents, payments, selectedCounterparty, cpOpeningBalance, contractId]);
 
   const totals = useMemo(() => {
     const debit = rows.reduce((s, r) => s + (r.debit || 0), 0);
@@ -981,7 +1043,13 @@ function ReconciliationReport() {
           <div className="report-filters">
             <label>
               Контрагент
-              <select value={counterpartyId} onChange={(e) => setCounterpartyId(e.target.value)}>
+              <select
+                value={counterpartyId}
+                onChange={(e) => {
+                  setCounterpartyId(e.target.value);
+                  setContractId('');
+                }}
+              >
                 <option value="">— выберите —</option>
                 {counterparties.map((c) => (
                   <option key={c.id} value={c.id}>
@@ -990,6 +1058,21 @@ function ReconciliationReport() {
                 ))}
               </select>
             </label>
+            {isSupplier && (
+              <label>
+                Договор
+                <select
+                  value={contractId}
+                  onChange={(e) => setContractId(e.target.value)}
+                  disabled={!counterpartyId}
+                >
+                  <option value="">Все договоры</option>
+                  {contracts.map((c) => (
+                    <option key={c.id} value={c.id}>{formatContractOption(c)}</option>
+                  ))}
+                </select>
+              </label>
+            )}
             <label>
               С
               <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
