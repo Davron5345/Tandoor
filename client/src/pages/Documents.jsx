@@ -1792,24 +1792,30 @@ export default function Documents({ defaultType }) {
                             </span>
                           )}
                         </td>
-                        {form.type === 'prihod' && (
-                          <td className="doc-items-net-col">
-                            <input
-                              type="text"
-                              inputMode="decimal"
-                              value={item.net_weight ?? ''}
-                              disabled={isReadOnly}
-                              placeholder="на 1 шт"
-                              title={(() => {
-                                const net = Number(item.net_weight) || 0;
-                                const qty = parseQuantityInput(item.quantity) ?? 0;
-                                if (!(net > 0 && qty > 0)) return 'Нетто на 1 шт';
-                                return `На склад: ${net * qty}${itemUnit ? ` ${itemUnit}` : ''}`;
-                              })()}
-                              onChange={(e) => updateItem(idx, 'net_weight', normalizeQuantityInput(e.target.value))}
-                            />
-                          </td>
-                        )}
+                        {form.type === 'prihod' && (() => {
+                          const net = Number(item.net_weight) || 0;
+                          const qty = parseQuantityInput(item.quantity) ?? 0;
+                          const stockTotal = net > 0 && qty > 0 ? net * qty : null;
+                          return (
+                            <td className="doc-items-net-col">
+                              <div className="doc-items-net-wrap">
+                                <input
+                                  type="text"
+                                  inputMode="decimal"
+                                  value={item.net_weight ?? ''}
+                                  disabled={isReadOnly}
+                                  placeholder="на 1 шт"
+                                  onChange={(e) => updateItem(idx, 'net_weight', normalizeQuantityInput(e.target.value))}
+                                />
+                                {stockTotal != null && (
+                                  <span className="doc-items-net-hint">
+                                    на склад: {stockTotal}{itemUnit ? ` ${itemUnit}` : ''}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                          );
+                        })()}
                         <td>
                           <input
                             type="text"
