@@ -7,10 +7,12 @@ import ProductMediaCubes, { revokePendingImages, uploadPendingProductImages } fr
 import ProductVariantEditor, {
   buildVariantsPayload,
   emptyVariant,
+  mapProductVariants,
   validateVariants,
 } from './ProductVariantEditor';
 import SupplierMultiSelectWithAdd from './SupplierMultiSelectWithAdd';
 import ProductBranchSettings, {
+  mapBranchSettingsFromApi,
   serializeBranchSettingsForApi,
 } from './ProductBranchSettings';
 import { useAuth } from '../AuthContext';
@@ -39,19 +41,26 @@ const emptyProduct = {
 };
 
 /**
- * То же окно «Новый товар» (modal-product), что в справочнике номенклатуры.
+ * Штатное окно «Новый товар» / «Карточка товара» (как в справочнике номенклатуры).
+ * create: productId не задан; edit: передать productId.
  */
 export default function ProductCreateModal({
   open,
   onClose,
   onCreated,
+  onSaved,
+  productId = null,
+  /** Уже известная карточка (из списка документа) — без полного getProducts */
+  seedProduct = null,
   initialSupplierIds = [],
+  initialTab = 'main',
 }) {
   const { show, Toast } = useToast();
   const { user } = useAuth();
   const { branches, isAdmin } = useBranch();
   const canEdit = hasPermission(user, 'products.edit');
   const canAddSupplier = hasPermission(user, 'counterparties.edit');
+  const isEdit = Boolean(productId);
 
   const [categories, setCategories] = useState([]);
   const [units, setUnits] = useState([]);
@@ -62,14 +71,19 @@ export default function ProductCreateModal({
   const [productCardTab, setProductCardTab] = useState('main');
   const [branchSettings, setBranchSettings] = useState([]);
   const [focusedVariantId, setFocusedVariantId] = useState(null);
+  const [archivedVariants, setArchivedVariants] = useState([]);
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const draftPayload = useMemo(() => ({
     form,
     productCardTab,
     branchSettings: isAdmin ? branchSettings : [],
   }), [form, productCardTab, branchSettings, isAdmin]);
-  const isFormDirty = useFormDirty(draftPayload, open ? 'product-create-quick' : null);
+  const isFormDirty = useFormDirty(
+    draftPayload,
+    open ? (isEdit ? `product-edit-${productId}` : 'product-create-quick') : null,
+  );
 
   const unitOptions = useMemo(
     () => [...units]
@@ -140,40 +154,107 @@ export default function ProductCreateModal({
     const supplierSeed = Array.isArray(initialSupplierIds)
       ? initialSupplierIds.filter(Boolean)
       : [];
+    const tab = initialTab || 'main';
+
+    setLoading(true);
     Promise.all([
       api.getProductCategories(),
       api.getUnits(),
       api.getCounterparties('supplier'),
+      isEdit && !(seedProduct && seedProduct.id === productId)
+        ? api.getProducts({ admin_list: '1' })
+        : Promise.resolve(null),
     ])
-      .then(([cats, unitRows, supplierRows]) => {
+      .then(async ([cats, unitRows, supplierRows, productList]) => {
         if (cancelled) return;
         setCategories(cats);
         setUnits(unitRows);
         setSuppliers(supplierRows);
-        setForm({
-          ...emptyProduct,
-          category_id: cats[0]?.id || 'other',
-          unit: unitRows[0]?.name || 'шт',
-          supplier_ids: supplierSeed,
-        });
-        setProductCardTab('main');
-        setFocusedVariantId(null);
-        setBranchSettings(isAdmin ? buildDefaultBranchSettings() : []);
-        clearImages();
+
+        if (isEdit) {
+          let p = (seedProduct && seedProduct.id === productId) ? seedProduct : null;
+          if (!p) {
+            const list = Array.isArray(productList) ? productList : (productList?.items || []);
+            p = list.find((row) => row.id === productId) || null;
+          }
+          if (!p) {
+            show('Товар не найден', 'error');
+            onClose?.();
+            return;
+          }
+          const priceSource = isAdmin ? (p.base_price ?? p.price) : p.price;
+          setForm({
+            name: p.name,
+            product_kind: p.product_kind || PRODUCT_KIND_GOODS,
+            category_id: p.category_id || 'other',
+            unit: p.unit || 'шт',
+            barcode: p.barcode || '',
+            sku: p.sku || '',
+            net_weight: p.net_weight ?? '',
+            gross_weight: p.gross_weight ?? '',
+            price: priceSource != null && priceSource !== '' ? formatPriceInput(priceSource) : '',
+            supplier_ids: (p.suppliers || []).map((s) => s.id),
+            has_variants: !!p.has_variants,
+            variants: p.has_variants ? mapProductVariants(p.variants || []) : [],
+          });
+          setProductCardTab(tab);
+          setFocusedVariantId(null);
+          if (p.has_variants) {
+            api.getArchivedProductVariants(p.id)
+              .then((rows) => { if (!cancelled) setArchivedVariants(rows); })
+              .catch(() => { if (!cancelled) setArchivedVariants([]); });
+          } else {
+            setArchivedVariants([]);
+            api.getProductImages(p.id)
+              .then((imgs) => { if (!cancelled) setImages(imgs || []); })
+              .catch(() => { if (!cancelled) clearImages(); });
+          }
+          if (isAdmin) {
+            try {
+              const settings = await api.getProductBranchSettings(p.id);
+              if (!cancelled) setBranchSettings(mapBranchSettingsFromApi(settings));
+            } catch (e) {
+              console.error(e);
+              if (!cancelled) setBranchSettings(buildDefaultBranchSettings(p.variants || []));
+            }
+          } else {
+            setBranchSettings([]);
+          }
+        } else {
+          setForm({
+            ...emptyProduct,
+            category_id: cats[0]?.id || 'other',
+            unit: unitRows[0]?.name || 'шт',
+            supplier_ids: supplierSeed,
+          });
+          setProductCardTab(tab);
+          setFocusedVariantId(null);
+          setArchivedVariants([]);
+          setBranchSettings(isAdmin ? buildDefaultBranchSettings() : []);
+          clearImages();
+        }
       })
-      .catch(console.error);
+      .catch((e) => {
+        console.error(e);
+        show(e.message || 'Не удалось открыть карточку товара', 'error');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
     return () => {
       cancelled = true;
     };
-    // Только при открытии модалки — не сбрасывать форму при каждом рендере родителя
+    // Только при открытии — не сбрасывать форму при каждом рендере родителя
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }, [open, productId]);
 
   if (!open) return null;
 
   const close = () => {
     clearImages();
     setFocusedVariantId(null);
+    setArchivedVariants([]);
     onClose?.();
   };
 
@@ -205,6 +286,24 @@ export default function ProductCreateModal({
       if (hasPending) {
         await uploadPendingProductImages(productIdValue, formVariant.images, savedVariant.id);
       }
+    }
+  };
+
+  const restoreVariant = async (variant) => {
+    if (!productId) return;
+    const label = variant.name || 'вариант';
+    if (!window.confirm(`Вернуть вариант «${label}» в справочник?`)) return;
+    try {
+      const updated = await api.restoreProductVariant(productId, variant.id);
+      show('Вариант восстановлен');
+      setArchivedVariants(await api.getArchivedProductVariants(productId));
+      setForm((prev) => ({
+        ...prev,
+        has_variants: true,
+        variants: mapProductVariants(updated.variants || []),
+      }));
+    } catch (e) {
+      show(e.message, 'error');
     }
   };
 
@@ -263,18 +362,33 @@ export default function ProductCreateModal({
         payload.branch_settings = serializeBranchSettingsForApi(synced);
       }
 
-      const created = await api.createProduct(payload);
-      if (form.has_variants) {
-        await uploadVariantPendingImages(created.id, created.variants || [], form.variants);
-        show('Товар с вариантами сохранён');
-      } else {
-        const hasPending = images.some((i) => i.pending);
-        if (hasPending) {
-          await uploadPendingProductImages(created.id, images);
+      if (isEdit) {
+        const updated = await api.updateProduct(productId, payload);
+        if (form.has_variants) {
+          await uploadVariantPendingImages(updated.id, updated.variants || [], form.variants);
+        } else {
+          const hasPending = images.some((i) => i.pending);
+          if (hasPending) {
+            await uploadPendingProductImages(updated.id, images);
+          }
         }
-        show(hasPending ? 'Товар и медиа сохранены' : 'Товар сохранён');
+        show('Товар сохранён');
+        onSaved?.(updated);
+      } else {
+        const created = await api.createProduct(payload);
+        if (form.has_variants) {
+          await uploadVariantPendingImages(created.id, created.variants || [], form.variants);
+          show('Товар с вариантами сохранён');
+        } else {
+          const hasPending = images.some((i) => i.pending);
+          if (hasPending) {
+            await uploadPendingProductImages(created.id, images);
+          }
+          show(hasPending ? 'Товар и медиа сохранены' : 'Товар сохранён');
+        }
+        onCreated?.(created);
+        onSaved?.(created);
       }
-      onCreated?.(created);
       close();
     } catch (e) {
       show(e.message, 'error');
@@ -289,18 +403,26 @@ export default function ProductCreateModal({
       <Modal
         wide
         className="modal-product"
-        title="Новый товар"
+        title={isEdit ? 'Карточка товара' : 'Новый товар'}
         dirty={isFormDirty}
         onClose={close}
         footer={(
           <>
             <ModalCancelButton disabled={saving} />
-            <button type="button" className="btn btn-primary" onClick={save} disabled={saving || !canEdit}>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={save}
+              disabled={saving || !canEdit || loading}
+            >
               {saving ? 'Сохранение…' : 'Сохранить'}
             </button>
           </>
         )}
       >
+        {loading ? (
+          <div className="empty" style={{ padding: 24 }}>Загрузка…</div>
+        ) : (
         <div className="product-card-tabs">
           <div className="tabs">
             <button
@@ -426,7 +548,7 @@ export default function ProductCreateModal({
                 <div className="form-section">
                   <h3 className="form-section-title">Фото</h3>
                   <ProductMediaCubes
-                    productId={null}
+                    productId={productId}
                     images={images}
                     setImages={setImages}
                     canEdit={canEdit}
@@ -517,7 +639,7 @@ export default function ProductCreateModal({
 
                 {form.has_variants ? (
                   <ProductVariantEditor
-                    productId={null}
+                    productId={productId}
                     variants={form.variants}
                     setVariants={(variants) => setForm((prev) => ({
                       ...prev,
@@ -528,7 +650,8 @@ export default function ProductCreateModal({
                     uploading={uploading}
                     setUploading={setUploading}
                     focusVariantId={focusedVariantId}
-                    archivedVariants={[]}
+                    archivedVariants={archivedVariants}
+                    onRestoreVariant={isEdit ? restoreVariant : undefined}
                   />
                 ) : (
                   <div className="product-variants-empty">
@@ -555,6 +678,7 @@ export default function ProductCreateModal({
             )}
           </div>
         </div>
+        )}
       </Modal>
     </>,
     document.body,

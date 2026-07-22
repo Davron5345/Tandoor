@@ -17,6 +17,7 @@ import {
   IconEye,
   IconHistory,
   IconMore,
+  IconEdit,
   IconPlus,
   IconTelegram,
   IconTransfer,
@@ -121,7 +122,8 @@ export default function Documents({ defaultType }) {
   const [actionsMenuId, setActionsMenuId] = useState(null);
   const [actionsMenuPos, setActionsMenuPos] = useState(null);
   const [quickSupplierOpen, setQuickSupplierOpen] = useState(false);
-  const [quickProductRow, setQuickProductRow] = useState(null);
+  /** null | { mode: 'create'|'edit', rowIndex, productId?, initialTab? } */
+  const [productModal, setProductModal] = useState(null);
   const draftKey = formDraftKey('documents', modal);
   const draftPayload = useMemo(() => ({ form }), [form]);
   useFormDraft(draftKey, draftPayload, Boolean(modal));
@@ -535,20 +537,33 @@ export default function Documents({ defaultType }) {
   };
 
   const openQuickProduct = (rowIndex) => {
-    setQuickProductRow(rowIndex);
+    setProductModal({ mode: 'create', rowIndex });
+  };
+
+  const openEditProduct = (rowIndex, productId, initialTab = 'main') => {
+    if (!productId) return;
+    setProductModal({ mode: 'edit', rowIndex, productId, initialTab });
+  };
+
+  const mergeProductIntoLists = (product) => {
+    setProducts((prev) => {
+      const without = prev.filter((p) => p.id !== product.id);
+      return [...without, product].sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+    });
+    setDocProducts((prev) => [...prev.filter((p) => p.id !== product.id), product]);
   };
 
   const onQuickProductCreated = (created) => {
     const price = created.has_variants
       ? (created.variant_price_min ?? created.price ?? 0)
       : (created.price ?? 0);
-    setProducts((prev) => [...prev, created]);
-    setDocProducts((prev) => [...prev.filter((p) => p.id !== created.id), created]);
+    mergeProductIntoLists(created);
     setForm((prev) => {
       const items = [...prev.items];
-      if (quickProductRow != null && items[quickProductRow]) {
-        items[quickProductRow] = {
-          ...items[quickProductRow],
+      const rowIndex = productModal?.rowIndex;
+      if (rowIndex != null && items[rowIndex]) {
+        items[rowIndex] = {
+          ...items[rowIndex],
           product_id: created.id,
           variant_id: null,
           price: Number(price) || 0,
@@ -556,8 +571,40 @@ export default function Documents({ defaultType }) {
       }
       return { ...prev, items };
     });
-    setQuickProductRow(null);
+    setProductModal(null);
     show('Товар создан и выбран');
+  };
+
+  const onProductSavedFromDoc = (updated) => {
+    mergeProductIntoLists(updated);
+    setForm((prev) => {
+      const items = [...prev.items];
+      const rowIndex = productModal?.rowIndex;
+      if (rowIndex == null || !items[rowIndex]) return prev;
+      const row = items[rowIndex];
+      const stillHasVariant = updated.has_variants
+        && (updated.variants || []).some((v) => v.id === row.variant_id);
+      const nextVariantId = stillHasVariant ? row.variant_id : null;
+      let nextPrice = row.price;
+      if (updated.has_variants) {
+        if (nextVariantId) {
+          const variant = (updated.variants || []).find((v) => v.id === nextVariantId);
+          if (variant?.price != null) nextPrice = Number(variant.price) || 0;
+        } else {
+          nextPrice = Number(updated.variant_price_min ?? updated.price ?? row.price) || 0;
+        }
+      } else if (updated.price != null) {
+        nextPrice = Number(updated.price) || 0;
+      }
+      items[rowIndex] = {
+        ...row,
+        product_id: updated.id,
+        variant_id: nextVariantId,
+        price: nextPrice,
+      };
+      return { ...prev, items };
+    });
+    setProductModal(null);
   };
 
   const handleTypeChange = (type) => {
@@ -1617,15 +1664,28 @@ export default function Documents({ defaultType }) {
                               && form.counterparty_id
                               && canCreateProduct
                               && !isReadOnly && (
-                              <button
-                                type="button"
-                                className="btn btn-icon btn-ghost quick-add-button"
-                                title="Создать новый товар"
-                                aria-label="Создать новый товар"
-                                onClick={() => openQuickProduct(idx)}
-                              >
-                                <IconPlus />
-                              </button>
+                              <>
+                                {item.product_id && (
+                                  <button
+                                    type="button"
+                                    className="btn btn-icon btn-ghost quick-add-button"
+                                    title="Редактировать товар"
+                                    aria-label="Редактировать товар"
+                                    onClick={() => openEditProduct(idx, item.product_id, 'variants')}
+                                  >
+                                    <IconEdit />
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  className="btn btn-icon btn-ghost quick-add-button"
+                                  title="Создать новый товар"
+                                  aria-label="Создать новый товар"
+                                  onClick={() => openQuickProduct(idx)}
+                                >
+                                  <IconPlus />
+                                </button>
+                              </>
                             )}
                           </div>
                           {isAnyReturnType(form.type) && item.product_id && (
@@ -1716,10 +1776,20 @@ export default function Documents({ defaultType }) {
       />
 
       <ProductCreateModal
-        open={quickProductRow != null}
-        onClose={() => setQuickProductRow(null)}
+        open={productModal != null}
+        onClose={() => setProductModal(null)}
+        productId={productModal?.mode === 'edit' ? productModal.productId : null}
+        seedProduct={
+          productModal?.mode === 'edit'
+            ? (docProducts.find((p) => p.id === productModal.productId)
+              || products.find((p) => p.id === productModal.productId)
+              || null)
+            : null
+        }
+        initialTab={productModal?.initialTab || 'main'}
         initialSupplierIds={form.counterparty_id ? [form.counterparty_id] : []}
         onCreated={onQuickProductCreated}
+        onSaved={productModal?.mode === 'edit' ? onProductSavedFromDoc : undefined}
       />
 
       {paymentModal && (
