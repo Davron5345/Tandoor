@@ -24,6 +24,7 @@ export const PG_MIGRATION_SETTINGS_KEYS = [
   'document_history_retain_v1',
   'document_item_cost_v1',
   'document_item_net_weight_v1',
+  'document_item_sort_order_v1',
   'must_change_pwd_v1',
   'opening_balance_docs_v1',
   'performance_indexes_v1',
@@ -326,7 +327,8 @@ CREATE TABLE IF NOT EXISTS document_items (
   otkhod DOUBLE PRECISION DEFAULT 0,
   unit_cost DOUBLE PRECISION DEFAULT 0,
   cost_amount DOUBLE PRECISION DEFAULT 0,
-  net_weight DOUBLE PRECISION
+  net_weight DOUBLE PRECISION,
+  sort_order INTEGER DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS document_history (

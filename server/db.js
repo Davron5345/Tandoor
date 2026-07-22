@@ -495,6 +495,7 @@ function migrateSchema() {
   migrateOpeningBalanceDocuments();
   migrateDocumentItemCost();
   migrateDocumentItemNetWeight();
+  migrateDocumentItemSortOrder();
   migrateShopOrderDocument();
   migrateCalculationKind();
   migrateProductKind();
@@ -716,6 +717,28 @@ function migrateDocumentItemNetWeight() {
     run("INSERT OR REPLACE INTO settings (key, value) VALUES ('document_item_net_weight_v1', '1')");
     saveDb();
   }
+}
+
+function migrateDocumentItemSortOrder() {
+  const itemCols = queryAll('PRAGMA table_info(document_items)').map((c) => c.name);
+  if (!itemCols.includes('sort_order')) {
+    run('ALTER TABLE document_items ADD COLUMN sort_order INTEGER DEFAULT 0');
+  }
+  const done = queryOne("SELECT value FROM settings WHERE key = 'document_item_sort_order_v1'");
+  if (done) return;
+
+  const docs = queryAll('SELECT DISTINCT document_id FROM document_items');
+  for (const d of docs) {
+    const rows = queryAll(
+      'SELECT id FROM document_items WHERE document_id = ? ORDER BY rowid ASC',
+      [d.document_id],
+    );
+    rows.forEach((row, idx) => {
+      run('UPDATE document_items SET sort_order = ? WHERE id = ?', [idx, row.id]);
+    });
+  }
+  run("INSERT OR REPLACE INTO settings (key, value) VALUES ('document_item_sort_order_v1', '1')");
+  saveDb();
 }
 
 function migrateProductBranchesBackfill() {

@@ -223,11 +223,11 @@ export function applyDishSaleConsumption(documentId, departmentId, branchId = DE
     `, [line.unit_cost, line.cost_amount, line.amount, line.id]);
   }
 
-  for (const line of consumption) {
+  for (const [idx, line] of consumption.entries()) {
     run(`
       INSERT INTO document_items
-        (id, document_id, product_id, variant_id, quantity, price, amount, item_role, unit_cost, cost_amount)
-      VALUES (?, ?, ?, ?, ?, ?, ?, 'consumption', ?, ?)
+        (id, document_id, product_id, variant_id, quantity, price, amount, item_role, unit_cost, cost_amount, sort_order)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 'consumption', ?, ?, ?)
     `, [
       uuidv4(),
       documentId,
@@ -238,6 +238,7 @@ export function applyDishSaleConsumption(documentId, departmentId, branchId = DE
       line.cost_amount,
       line.unit_cost,
       line.cost_amount,
+      idx,
     ]);
   }
 }

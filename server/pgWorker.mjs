@@ -76,6 +76,28 @@ async function ensureBootstrap() {
   await runStatements(PG_CREATE_INDEXES);
   // Idempotent column adds for existing deployments (CREATE IF NOT EXISTS does not alter)
   await execRaw('ALTER TABLE document_items ADD COLUMN IF NOT EXISTS net_weight DOUBLE PRECISION');
+  await execRaw('ALTER TABLE document_items ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0');
+  const sortMigrated = await execRaw(
+    'SELECT value FROM settings WHERE key = $1',
+    ['document_item_sort_order_v1'],
+  );
+  if (!sortMigrated.rows.length) {
+    await execRaw(`
+      WITH ranked AS (
+        SELECT id, ROW_NUMBER() OVER (PARTITION BY document_id ORDER BY ctid) - 1 AS rn
+        FROM document_items
+      )
+      UPDATE document_items di
+      SET sort_order = ranked.rn
+      FROM ranked
+      WHERE di.id = ranked.id
+    `);
+    await execRaw(
+      `INSERT INTO settings (key, value) VALUES ($1, '1')
+       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
+      ['document_item_sort_order_v1'],
+    );
+  }
 
   const ver = await execRaw('SELECT value FROM settings WHERE key = $1', [PG_SCHEMA_VERSION]);
   if (!ver.rows.length) {

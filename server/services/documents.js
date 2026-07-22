@@ -570,6 +570,7 @@ export function getDocument(id, branchId = null) {
         AND pds.department_id = ?
         AND IFNULL(pds.variant_id, '') = IFNULL(di.variant_id, '')
       WHERE di.document_id = ?
+      ORDER BY COALESCE(di.sort_order, 0) ASC, di.id ASC
     `;
     itemsParams = [stockDepartmentId, id];
   } else {
@@ -585,6 +586,7 @@ export function getDocument(id, branchId = null) {
       JOIN products p ON p.id = di.product_id
       LEFT JOIN product_branch_stock pbs ON pbs.product_id = p.id AND pbs.branch_id = ?
       WHERE di.document_id = ?
+      ORDER BY COALESCE(di.sort_order, 0) ASC, di.id ASC
     `;
     itemsParams = [stockBranch, stockBranch, id];
   }
@@ -789,14 +791,14 @@ function enrichRazdelkaItemPrices(items, fromDepartmentId = null, branchId = DEF
   });
 }
 
-function insertDocumentItems(documentId, items, itemRole = 'input') {
-  for (const item of items) {
+function insertDocumentItems(documentId, items, itemRole = 'input', sortOffset = 0) {
+  items.forEach((item, idx) => {
     const toza = item.toza || 0;
     const qiymali = item.qiymali || 0;
     const otkhod = item.otkhod || 0;
     run(`
-      INSERT INTO document_items (id, document_id, product_id, variant_id, quantity, price, amount, item_role, toza, qiymali, otkhod)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO document_items (id, document_id, product_id, variant_id, quantity, price, amount, item_role, toza, qiymali, otkhod, sort_order)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       uuidv4(),
       documentId,
@@ -809,8 +811,9 @@ function insertDocumentItems(documentId, items, itemRole = 'input') {
       toza,
       qiymali,
       otkhod,
+      sortOffset + idx,
     ]);
-  }
+  });
 }
 
 function prepareRazdelkaOutputs(inputItems, outputItems, fromDepartmentId = null, branchId = DEFAULT_BRANCH_ID) {
@@ -888,11 +891,11 @@ function calcRazdelkaTotal(outputItems) {
 }
 
 function insertDishSaleLines(documentId, items) {
-  for (const item of items) {
+  items.forEach((item, idx) => {
     run(`
       INSERT INTO document_items
-        (id, document_id, product_id, variant_id, quantity, price, amount, item_role, unit_cost, cost_amount)
-      VALUES (?, ?, ?, ?, ?, ?, ?, 'sale', ?, ?)
+        (id, document_id, product_id, variant_id, quantity, price, amount, item_role, unit_cost, cost_amount, sort_order)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 'sale', ?, ?, ?)
     `, [
       uuidv4(),
       documentId,
@@ -903,8 +906,9 @@ function insertDishSaleLines(documentId, items) {
       item.quantity * (item.price || 0),
       item.unit_cost || 0,
       item.cost_amount || 0,
+      idx,
     ]);
-  }
+  });
 }
 
 function persistDishSaleDocument(id, data, userId, branchId, items, willConfirm) {
@@ -1044,7 +1048,7 @@ export function createDocument(data, userId = null, branchId = DEFAULT_BRANCH_ID
       ]);
 
       insertDocumentItems(id, enrichedInputs, 'input');
-      insertDocumentItems(id, enrichedOutputs, 'output');
+      insertDocumentItems(id, enrichedOutputs, 'output', enrichedInputs.length);
       addHistory(id, 'created', userId);
 
       if (willConfirm) {
@@ -1148,12 +1152,12 @@ export function createDocument(data, userId = null, branchId = DEFAULT_BRANCH_ID
       total, data.status || 'draft',
     ]);
 
-    for (const item of items) {
+    items.forEach((item, idx) => {
       run(`
-        INSERT INTO document_items (id, document_id, product_id, variant_id, quantity, price, amount, item_role, net_weight)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 'input', ?)
-      `, [uuidv4(), id, item.product_id, item.variant_id || null, item.quantity, item.price, item.quantity * item.price, item.net_weight ?? null]);
-    }
+        INSERT INTO document_items (id, document_id, product_id, variant_id, quantity, price, amount, item_role, net_weight, sort_order)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'input', ?, ?)
+      `, [uuidv4(), id, item.product_id, item.variant_id || null, item.quantity, item.price, item.quantity * item.price, item.net_weight ?? null, idx]);
+    });
 
     addHistory(id, 'created', userId);
 
@@ -1232,7 +1236,7 @@ export function updateDocument(id, data, userId = null, branchId = DEFAULT_BRANC
 
       run('DELETE FROM document_items WHERE document_id = ?', [id]);
       insertDocumentItems(id, enrichedInputs, 'input');
-      insertDocumentItems(id, enrichedOutputs, 'output');
+      insertDocumentItems(id, enrichedOutputs, 'output', enrichedInputs.length);
       addHistory(id, 'updated', userId);
 
       if (willConfirm) {
@@ -1348,12 +1352,12 @@ export function updateDocument(id, data, userId = null, branchId = DEFAULT_BRANC
 
     run('DELETE FROM document_items WHERE document_id = ?', [id]);
 
-    for (const item of items) {
+    items.forEach((item, idx) => {
       run(`
-        INSERT INTO document_items (id, document_id, product_id, variant_id, quantity, price, amount, item_role, net_weight)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 'input', ?)
-      `, [uuidv4(), id, item.product_id, item.variant_id || null, item.quantity, item.price, item.quantity * item.price, item.net_weight ?? null]);
-    }
+        INSERT INTO document_items (id, document_id, product_id, variant_id, quantity, price, amount, item_role, net_weight, sort_order)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'input', ?, ?)
+      `, [uuidv4(), id, item.product_id, item.variant_id || null, item.quantity, item.price, item.quantity * item.price, item.net_weight ?? null, idx]);
+    });
 
     addHistory(id, 'updated', userId);
 
