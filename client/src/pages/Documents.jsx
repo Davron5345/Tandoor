@@ -45,6 +45,10 @@ const DEFAULT_CONTRACT_ID = '__default__';
 const RETURN_SUPPLIER_TYPE = 'return_supplier';
 const RETURN_CUSTOMER_TYPE = 'return_customer';
 
+function hasRealSupplierContracts(contracts = []) {
+  return contracts.some((c) => c.id !== DEFAULT_CONTRACT_ID && !c.virtual);
+}
+
 function isSupplierReturnType(type) {
   return type === RETURN_SUPPLIER_TYPE;
 }
@@ -79,7 +83,7 @@ const emptyDoc = {
   type: 'prihod',
   counterparty_id: '',
   source_document_id: '',
-  contract_id: '__default__',
+  contract_id: '',
   from_branch_id: '',
   to_branch_id: '',
   from_department_id: '',
@@ -212,9 +216,14 @@ export default function Documents({ defaultType }) {
   useEffect(() => {
     if (!modal || form.type !== 'prihod' || supplierContracts.length === 0) return;
     setForm((prev) => {
-      const cid = prev.contract_id || DEFAULT_CONTRACT_ID;
-      if (supplierContracts.some((c) => c.id === cid)) return prev;
-      return { ...prev, contract_id: supplierContracts[0].id };
+      const cid = prev.contract_id || '';
+      if (cid && supplierContracts.some((c) => c.id === cid)) return prev;
+      // Есть созданные договоры — поле пустое, пользователь выбирает сам
+      if (hasRealSupplierContracts(supplierContracts)) {
+        return cid ? { ...prev, contract_id: '' } : prev;
+      }
+      // Нет договоров — «Основной договор»
+      return { ...prev, contract_id: DEFAULT_CONTRACT_ID };
     });
   }, [supplierContracts, modal, form.type]);
 
@@ -523,7 +532,7 @@ export default function Documents({ defaultType }) {
       ...form,
       counterparty_id: counterpartyId,
       source_document_id: '',
-      contract_id: DEFAULT_CONTRACT_ID,
+      contract_id: '',
       items,
     });
   };
@@ -654,7 +663,7 @@ export default function Documents({ defaultType }) {
       type,
       counterparty_id: '',
       source_document_id: '',
-      contract_id: DEFAULT_CONTRACT_ID,
+      contract_id: '',
       to_department_id: '',
       from_department_id: '',
       items: [{ ...emptyItem }],
@@ -894,6 +903,12 @@ export default function Documents({ defaultType }) {
     try {
       if (form.type === 'prihod' && !form.counterparty_id) {
         show('Выберите поставщика', 'error');
+        return;
+      }
+      if (form.type === 'prihod'
+        && hasRealSupplierContracts(supplierContracts)
+        && !form.contract_id) {
+        show('Выберите договор', 'error');
         return;
       }
       if (isSupplierReturnType(form.type) && !form.counterparty_id) {
@@ -1442,13 +1457,16 @@ export default function Documents({ defaultType }) {
                     </div>
                     {form.type === 'prihod' && (
                       <div className="form-group">
-                        <label>Договор</label>
+                        <label>Договор{hasRealSupplierContracts(supplierContracts) ? ' *' : ''}</label>
                         <div className="quick-add-control">
                           <select
-                            value={form.contract_id || DEFAULT_CONTRACT_ID}
+                            value={form.contract_id || ''}
                             onChange={(e) => setForm({ ...form, contract_id: e.target.value })}
                             disabled={isReadOnly || !form.counterparty_id}
                           >
+                            {hasRealSupplierContracts(supplierContracts) && (
+                              <option value="">— выберите договор —</option>
+                            )}
                             {supplierContracts.map((c) => (
                               <option key={c.id} value={c.id}>{formatContractLabel(c)}</option>
                             ))}
