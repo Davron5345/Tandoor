@@ -208,7 +208,13 @@ export function getOpeningBalanceDocument(id, branchId = DEFAULT_BRANCH_ID) {
 
 function assertEditable(doc) {
   if (!doc) throw new Error('Документ не найден');
-  if (doc.status !== 'draft') throw new Error('Редактировать можно только черновик');
+  if (doc.status === 'confirmed') {
+    throw new Error('Сначала отмените проведение документа');
+  }
+  // draft и старые cancelled — можно править
+  if (doc.status !== 'draft' && doc.status !== 'cancelled') {
+    throw new Error('Редактировать можно только черновик');
+  }
 }
 
 function applyStockLines(lines, branchId) {
@@ -318,7 +324,7 @@ export function updateOpeningBalanceDocument(id, data, userId = null, branchId =
 
   transaction(() => {
     run(
-      `UPDATE documents SET date = ?, comment = ?, total_amount = ?, updated_at = datetime('now') WHERE id = ?`,
+      `UPDATE documents SET date = ?, comment = ?, total_amount = ?, status = 'draft', updated_at = datetime('now') WHERE id = ?`,
       [date, String(data.comment ?? doc.comment ?? '').trim(), total, id],
     );
     run('DELETE FROM opening_balance_lines WHERE document_id = ?', [id]);
@@ -332,7 +338,9 @@ export function updateOpeningBalanceDocument(id, data, userId = null, branchId =
 export function confirmOpeningBalanceDocument(id, userId = null, branchId = DEFAULT_BRANCH_ID) {
   const doc = getDocRow(id, branchId);
   if (!doc) throw new Error('Документ не найден');
-  if (doc.status !== 'draft') throw new Error('Провести можно только черновик');
+  if (doc.status !== 'draft' && doc.status !== 'cancelled') {
+    throw new Error('Провести можно только черновик');
+  }
 
   const lines = loadLines(id);
   if (lines.length === 0) throw new Error('Нет строк для проведения');
@@ -354,9 +362,10 @@ export function cancelOpeningBalanceDocument(id, userId = null, branchId = DEFAU
   const lines = loadLines(id);
 
   transaction(() => {
-    run(`UPDATE documents SET status = 'cancelled', updated_at = datetime('now') WHERE id = ?`, [id]);
+    // Снова черновик — можно править и провести заново (не «отменён навсегда»)
+    run(`UPDATE documents SET status = 'draft', updated_at = datetime('now') WHERE id = ?`, [id]);
     reverseStockLines(lines, branchId);
-    addHistory(id, 'cancelled', userId);
+    addHistory(id, 'unconfirmed', userId);
   });
 
   return getOpeningBalanceDocument(id, branchId);
@@ -365,7 +374,9 @@ export function cancelOpeningBalanceDocument(id, userId = null, branchId = DEFAU
 export function deleteOpeningBalanceDocument(id, branchId = DEFAULT_BRANCH_ID) {
   const doc = getDocRow(id, branchId);
   if (!doc) throw new Error('Документ не найден');
-  if (doc.status !== 'draft') throw new Error('Удалить можно только черновик');
+  if (doc.status !== 'draft' && doc.status !== 'cancelled') {
+    throw new Error('Удалить можно только черновик');
+  }
 
   transaction(() => {
     run('DELETE FROM opening_balance_lines WHERE document_id = ?', [id]);

@@ -212,7 +212,7 @@ export default function OpeningBalance() {
   const { branchId, branchName } = useBranch();
   const canEdit = hasPermission(user, 'opening_balance.edit');
 
-  const isReadOnly = !canEdit || (editId && form.status && form.status !== 'draft');
+  const isReadOnly = !canEdit || (editId && form.status === 'confirmed');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -325,6 +325,7 @@ export default function OpeningBalance() {
           variant_id: l.variant_id || null,
           department_id: l.department_id || '',
           counterparty_id: l.counterparty_id || '',
+          bank_account_id: l.bank_account_id || '',
           quantity: parseQuantityInput(l.quantity) ?? 0,
           unit_cost: l.unit_cost || 0,
           amount: l.amount || 0,
@@ -335,6 +336,26 @@ export default function OpeningBalance() {
     } catch (e) {
       show(e.message, 'error');
     }
+  };
+
+  /** Открыть на редактирование; проведённый — сначала снять проведение. */
+  const editDoc = async (d) => {
+    if (!canEdit) {
+      await openDoc(d.id);
+      return;
+    }
+    if (d.status === 'confirmed') {
+      if (!window.confirm('Документ проведён. Отменить проведение и редактировать?')) return;
+      try {
+        await api.cancelOpeningBalanceDocument(d.id);
+        show('Проведение отменено — можно править');
+        await load();
+      } catch (e) {
+        show(e.message, 'error');
+        return;
+      }
+    }
+    await openDoc(d.id);
   };
 
   const addLine = (lineType) => {
@@ -395,6 +416,7 @@ export default function OpeningBalance() {
         variant_id: l.variant_id || null,
         department_id: l.department_id || '',
         counterparty_id: l.counterparty_id || '',
+        bank_account_id: l.bank_account_id || '',
         quantity: parseQuantityInput(l.quantity) ?? 0,
         unit_cost: l.unit_cost || 0,
         amount: l.amount || 0,
@@ -458,7 +480,7 @@ export default function OpeningBalance() {
     setSaving(true);
     try {
       const doc = await api.cancelOpeningBalanceDocument(editId);
-      show('Документ отменён');
+      show('Проведение отменено — можно редактировать');
       await load();
       syncFormFromDoc(doc);
     } catch (e) {
@@ -895,9 +917,26 @@ export default function OpeningBalance() {
                         <td>{d.comment || '—'}</td>
                         <td>
                           <div className="btn-group">
-                            <button type="button" className="btn btn-sm btn-ghost" onClick={() => openDoc(d.id)}>Открыть</button>
-                            {canEdit && d.status === 'draft' && (
-                              <button type="button" className="btn btn-sm btn-danger" onClick={() => removeDoc(d.id)}>Удалить</button>
+                            {canEdit ? (
+                              <>
+                                <button type="button" className="btn btn-sm btn-primary" onClick={() => editDoc(d)}>
+                                  Редактировать
+                                </button>
+                                {d.status === 'confirmed' && (
+                                  <button type="button" className="btn btn-sm btn-ghost" onClick={() => openDoc(d.id)}>
+                                    Открыть
+                                  </button>
+                                )}
+                                {(d.status === 'draft' || d.status === 'cancelled') && (
+                                  <button type="button" className="btn btn-sm btn-danger" onClick={() => removeDoc(d.id)}>
+                                    Удалить
+                                  </button>
+                                )}
+                              </>
+                            ) : (
+                              <button type="button" className="btn btn-sm btn-ghost" onClick={() => openDoc(d.id)}>
+                                Открыть
+                              </button>
                             )}
                           </div>
                         </td>
@@ -997,7 +1036,7 @@ export default function OpeningBalance() {
 
           {canEdit && (
             <div className="opening-balance-doc-actions">
-              {(!form.status || form.status === 'draft') && (
+              {form.status !== 'confirmed' && (
                 <>
                   <button type="button" className="btn btn-primary" disabled={saving} onClick={() => save(false)}>
                     {saving ? 'Сохранение…' : 'Сохранить черновик'}
