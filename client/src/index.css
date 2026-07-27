@@ -599,10 +599,10 @@ textarea::placeholder {
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
   align-items: stretch;
   width: 100%;
-  padding: 16px 14px 18px;
+  padding: 10px 12px 12px;
   border-top: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
   background: var(--sidebar-elevated);
 }
@@ -610,6 +610,7 @@ textarea::placeholder {
 .sidebar-toggle svg,
 .theme-toggle svg,
 .sidebar-logout-btn svg,
+.sidebar-telegram-btn svg,
 .sidebar-menu-btn svg {
   width: 18px;
   height: 18px;
@@ -623,21 +624,28 @@ textarea::placeholder {
 
 .sidebar-branch-name {
   width: 100%;
-  padding: 10px 12px;
+  padding: 6px 8px;
   font-size: var(--font-sm);
   font-weight: 500;
   color: var(--text-muted);
-  border-radius: 10px;
+  border-radius: 8px;
   background: var(--surface);
   border: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  min-height: 34px;
+}
+
+.sidebar-branch-name span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .sidebar-branch-name svg {
-  width: 16px;
-  height: 16px;
+  width: 15px;
+  height: 15px;
   flex-shrink: 0;
   opacity: 0.7;
 }
@@ -681,6 +689,47 @@ textarea::placeholder {
   color: var(--text-muted);
 }
 
+.sidebar-telegram-btn {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  text-decoration: none;
+  position: relative;
+  transition: background 0.15s, color 0.15s;
+}
+
+.sidebar-telegram-btn:hover {
+  background: var(--nav-hover);
+  color: var(--nav-active-text);
+}
+
+.sidebar-telegram-btn.online {
+  color: var(--success);
+}
+
+.sidebar-telegram-btn.offline {
+  color: var(--warning);
+}
+
+.sidebar-telegram-btn.offline::after {
+  content: '';
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--warning);
+  box-shadow: 0 0 0 2px var(--surface);
+}
+
 .theme-toggle {
   width: 36px;
   height: 36px;
@@ -705,7 +754,8 @@ textarea::placeholder {
 
 [data-theme="dark"] .sidebar-toggle,
 [data-theme="dark"] .theme-toggle,
-[data-theme="dark"] .sidebar-logout-btn {
+[data-theme="dark"] .sidebar-logout-btn,
+[data-theme="dark"] .sidebar-telegram-btn {
   color: var(--sidebar-icon);
   background: var(--sidebar-control-bg);
   border: 1px solid var(--sidebar-control-border);
@@ -753,7 +803,6 @@ textarea::placeholder {
 .app.sidebar-collapsed .nav-group-chevron,
 .app.sidebar-collapsed .branch-select-wrap,
 .app.sidebar-collapsed .sidebar-branch-name,
-.app.sidebar-collapsed .telegram-badge,
 .app.sidebar-collapsed .sidebar-profile-meta {
   display: none;
 }
@@ -806,15 +855,15 @@ textarea::placeholder {
 }
 
 .app.sidebar-collapsed .sidebar-footer {
-  padding: 12px 8px 14px;
+  padding: 8px 6px 10px;
   align-items: center;
 }
 
 .app.sidebar-collapsed .sidebar-profile {
   justify-content: center;
   flex-direction: column;
-  gap: 8px;
-  padding: 8px;
+  gap: 4px;
+  padding: 6px;
   width: 100%;
 }
 
@@ -6083,9 +6132,9 @@ input[type='number']::-webkit-inner-spin-button {
   .app.sidebar-collapsed .nav-group-chevron,
   .app.sidebar-collapsed .branch-select-wrap,
   .app.sidebar-collapsed .sidebar-branch-name,
-  .app.sidebar-collapsed .telegram-badge,
   .app.sidebar-collapsed .sidebar-profile-meta,
-  .app.sidebar-collapsed .sidebar-logout-btn {
+  .app.sidebar-collapsed .sidebar-logout-btn,
+  .app.sidebar-collapsed .sidebar-telegram-btn {
     display: revert;
   }
 
@@ -6711,6 +6760,29 @@ input[type='number']::-webkit-inner-spin-button {
 
 .branch-select-wrap {
   width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 2px 0 6px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  background: var(--surface);
+}
+
+.branch-select-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.branch-select-icon svg {
+  width: 15px;
+  height: 15px;
+  display: block;
+  opacity: 0.75;
 }
 
 .branch-select-label {
@@ -6725,38 +6797,45 @@ input[type='number']::-webkit-inner-spin-button {
 }
 
 .branch-select {
+  flex: 1;
+  min-width: 0;
   width: 100%;
-  padding: 10px 12px;
-  border-radius: 10px;
-  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-  background: var(--surface);
+  padding: 6px 8px 6px 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
   color: var(--text);
-  font-size: var(--font-base);
+  font-size: var(--font-sm);
   font-weight: 500;
+}
+
+.branch-select:focus {
+  outline: none;
 }
 
 .sidebar-profile {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   width: 100%;
-  padding: 12px 14px;
-  border-radius: 12px;
+  padding: 5px 6px 5px 8px;
+  border-radius: 8px;
   background: var(--surface);
   border: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+  min-height: 40px;
 }
 
 .sidebar-profile-avatar {
-  width: 42px;
-  height: 42px;
+  width: 28px;
+  height: 28px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 10px;
+  border-radius: 8px;
   background: linear-gradient(135deg, var(--primary) 0%, #6366f1 100%);
   color: #fff;
-  font-size: var(--font-lg);
+  font-size: var(--font-sm);
   font-weight: 700;
   line-height: 1;
 }
@@ -6764,12 +6843,12 @@ input[type='number']::-webkit-inner-spin-button {
 .sidebar-profile-meta {
   flex: 1;
   min-width: 0;
-  line-height: 1.35;
+  line-height: 1.25;
 }
 
 .sidebar-user-name {
   display: block;
-  font-size: var(--font-base);
+  font-size: var(--font-sm);
   font-weight: 600;
   color: var(--text);
   letter-spacing: -0.01em;
@@ -6780,7 +6859,7 @@ input[type='number']::-webkit-inner-spin-button {
 
 .sidebar-user-role {
   display: block;
-  font-size: var(--font-sm);
+  font-size: 11px;
   color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
@@ -6788,14 +6867,14 @@ input[type='number']::-webkit-inner-spin-button {
 }
 
 .sidebar-logout-btn {
-  width: 36px;
-  height: 36px;
+  width: 30px;
+  height: 30px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   border: none;
-  border-radius: 10px;
+  border-radius: 8px;
   background: transparent;
   color: var(--text-muted);
   font-size: 18px;

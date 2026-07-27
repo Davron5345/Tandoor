@@ -500,11 +500,15 @@ function AppContent() {
         <div className="sidebar-footer">
           {isBranchAdmin && branches.length > 0 && (
             <div className="branch-select-wrap">
-              <label className="branch-select-label">Филиал</label>
+              <span className="branch-select-icon" aria-hidden>
+                <IconNavBranch />
+              </span>
               <select
                 className="branch-select"
                 value={branchId || ''}
                 onChange={(e) => setActiveBranchId(e.target.value)}
+                title="Филиал"
+                aria-label="Филиал"
               >
                 {branches.filter((b) => b.active).map((b) => (
                   <option key={b.id} value={b.id}>{b.name}</option>
@@ -513,7 +517,7 @@ function AppContent() {
             </div>
           )}
           {!isBranchAdmin && user.branch_id && (
-            <div className="sidebar-branch-name">
+            <div className="sidebar-branch-name" title={branchName}>
               <IconNavBranch />
               <span>{branchName}</span>
             </div>
@@ -528,6 +532,16 @@ function AppContent() {
                 <span className="sidebar-user-role">{user.roleLabel}</span>
               )}
             </div>
+            {hasPermission(user, 'telegram.view') && (
+              <NavLink
+                to="/telegram"
+                className={`sidebar-telegram-btn ${telegramOnline ? 'online' : 'offline'}`}
+                title={telegramOnline ? 'Telegram бот активен' : 'Telegram не настроен'}
+                aria-label={telegramOnline ? 'Telegram бот активен' : 'Telegram не настроен'}
+              >
+                <IconNavTelegram />
+              </NavLink>
+            )}
             <button
               type="button"
               className="sidebar-logout-btn"
@@ -538,12 +552,6 @@ function AppContent() {
               <IconNavLogout />
             </button>
           </div>
-          {hasPermission(user, 'telegram.view') && (
-            <div className={`telegram-badge ${telegramOnline ? 'online' : 'offline'}`}>
-              <span className="telegram-badge-dot" aria-hidden="true" />
-              <span>{telegramOnline ? 'Telegram бот активен' : 'Telegram не настроен'}</span>
-            </div>
-          )}
         </div>
         </div>
       </aside>
