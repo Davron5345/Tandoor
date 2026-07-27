@@ -372,11 +372,23 @@ CREATE TABLE IF NOT EXISTS opening_balance_lines (
   variant_id TEXT REFERENCES product_variants(id),
   department_id TEXT REFERENCES departments(id),
   counterparty_id TEXT REFERENCES counterparties(id),
+  bank_account_id TEXT,
   quantity DOUBLE PRECISION DEFAULT 0,
   unit_cost DOUBLE PRECISION DEFAULT 0,
   amount DOUBLE PRECISION DEFAULT 0,
   comment TEXT DEFAULT '',
   sort_order INTEGER DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS bank_accounts (
+  id TEXT PRIMARY KEY,
+  branch_id TEXT NOT NULL REFERENCES branches(id),
+  name TEXT NOT NULL,
+  account_number TEXT NOT NULL,
+  currency TEXT NOT NULL DEFAULT 'UZS',
+  is_default INTEGER DEFAULT 0,
+  active INTEGER DEFAULT 1,
+  created_at TEXT DEFAULT (${NOW})
 );
 
 CREATE TABLE IF NOT EXISTS branch_opening_balances (
@@ -413,7 +425,8 @@ CREATE TABLE IF NOT EXISTS payments (
   external_ref TEXT,
   import_batch_id TEXT,
   contract_id TEXT,
-  firm_id TEXT REFERENCES counterparty_firms(id)
+  firm_id TEXT REFERENCES counterparty_firms(id),
+  bank_account_id TEXT
 );
 
 CREATE TABLE IF NOT EXISTS shop_orders (
@@ -544,6 +557,9 @@ CREATE INDEX IF NOT EXISTS idx_payments_branch_date ON payments (branch_id, date
 CREATE INDEX IF NOT EXISTS idx_payments_counterparty ON payments (counterparty_id);
 CREATE INDEX IF NOT EXISTS idx_payments_document ON payments (document_id);
 CREATE INDEX IF NOT EXISTS idx_payments_external_ref ON payments (branch_id, external_ref);
+CREATE INDEX IF NOT EXISTS idx_payments_bank_account ON payments (bank_account_id, date);
+CREATE INDEX IF NOT EXISTS idx_bank_accounts_branch ON bank_accounts (branch_id, active);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_bank_accounts_number ON bank_accounts (branch_id, account_number);
 CREATE INDEX IF NOT EXISTS idx_cp_firms_counterparty ON counterparty_firms (counterparty_id, branch_id);
 CREATE INDEX IF NOT EXISTS idx_cp_firms_inn ON counterparty_firms (branch_id, inn);
 CREATE INDEX IF NOT EXISTS idx_documents_firm ON documents (firm_id);

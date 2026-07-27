@@ -67,6 +67,15 @@ export {
 } from './services/payments.js';
 
 export {
+  getBankAccounts,
+  getBankAccount,
+  createBankAccount,
+  updateBankAccount,
+  deleteBankAccount,
+  findBankAccountByNumber,
+} from './services/bankAccounts.js';
+
+export {
   previewBankStatement,
   confirmBankStatementImport,
 } from './services/bankStatementImport.js';

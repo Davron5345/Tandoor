@@ -503,6 +503,7 @@ function migrateSchema() {
   migrateCounterpartyInn();
   migratePaymentBankImport();
   migrateCounterpartyFirms();
+  migrateBankAccounts();
   sanitizeOrphanBranchReferences();
   addPerformanceIndexes();
 }
@@ -618,6 +619,93 @@ function migrateCounterpartyFirms() {
         )
     `);
     run("INSERT OR REPLACE INTO settings (key, value) VALUES ('contract_firm_link_v1', '1')");
+    saveDb();
+  }
+}
+
+function migrateBankAccounts() {
+  run(`
+    CREATE TABLE IF NOT EXISTS bank_accounts (
+      id TEXT PRIMARY KEY,
+      branch_id TEXT NOT NULL REFERENCES branches(id),
+      name TEXT NOT NULL,
+      account_number TEXT NOT NULL,
+      currency TEXT NOT NULL DEFAULT 'UZS',
+      is_default INTEGER DEFAULT 0,
+      active INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+  try {
+    run('CREATE UNIQUE INDEX IF NOT EXISTS idx_bank_accounts_number ON bank_accounts(branch_id, account_number)');
+    run('CREATE INDEX IF NOT EXISTS idx_bank_accounts_branch ON bank_accounts(branch_id, active)');
+  } catch {
+    /* ignore */
+  }
+
+  const payCols = queryAll('PRAGMA table_info(payments)').map((c) => c.name);
+  if (!payCols.includes('bank_account_id')) {
+    run('ALTER TABLE payments ADD COLUMN bank_account_id TEXT REFERENCES bank_accounts(id)');
+  }
+  const oblCols = queryAll('PRAGMA table_info(opening_balance_lines)').map((c) => c.name);
+  if (!oblCols.includes('bank_account_id')) {
+    run('ALTER TABLE opening_balance_lines ADD COLUMN bank_account_id TEXT REFERENCES bank_accounts(id)');
+  }
+  try {
+    run('CREATE INDEX IF NOT EXISTS idx_payments_bank_account ON payments(bank_account_id, date)');
+  } catch {
+    /* ignore */
+  }
+
+  const done = queryOne("SELECT value FROM settings WHERE key = 'bank_accounts_v1'");
+  if (!done) {
+    const branches = queryAll('SELECT id FROM branches');
+    for (const b of branches) {
+      const branchId = b.id || 'main';
+      const hasPay = queryOne(
+        `SELECT COUNT(*) as c FROM payments
+         WHERE branch_id = ? OR (branch_id IS NULL AND ? = 'main')`,
+        [branchId, branchId],
+      )?.c || 0;
+      if (!hasPay) {
+        const hasOb = queryOne(
+          `SELECT COUNT(*) as c FROM opening_balance_lines obl
+           JOIN documents d ON d.id = obl.document_id
+           WHERE obl.line_type = 'bank' AND d.branch_id = ?`,
+          [branchId],
+        )?.c || 0;
+        if (!hasOb) continue;
+      }
+
+      let acc = queryOne(
+        `SELECT id FROM bank_accounts WHERE branch_id = ? AND account_number = ?`,
+        [branchId, '20208000707073001001'],
+      );
+      if (!acc) {
+        const id = uuidv4();
+        run(
+          `INSERT INTO bank_accounts (id, branch_id, name, account_number, currency, is_default, active)
+           VALUES (?, ?, ?, ?, 'UZS', 1, 1)`,
+          [id, branchId, 'Основной сумовый', '20208000707073001001'],
+        );
+        acc = { id };
+      }
+      run(
+        `UPDATE payments SET bank_account_id = ?
+         WHERE bank_account_id IS NULL
+           AND (branch_id = ? OR (branch_id IS NULL AND ? = 'main'))`,
+        [acc.id, branchId, branchId],
+      );
+      run(
+        `UPDATE opening_balance_lines
+         SET bank_account_id = ?
+         WHERE bank_account_id IS NULL
+           AND line_type = 'bank'
+           AND document_id IN (SELECT id FROM documents WHERE branch_id = ?)`,
+        [acc.id, branchId],
+      );
+    }
+    run("INSERT OR REPLACE INTO settings (key, value) VALUES ('bank_accounts_v1', '1')");
     saveDb();
   }
 }

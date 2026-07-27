@@ -22,7 +22,7 @@ const LINE_LABELS = {
 const CREATE_DOC_OPTIONS = [
   { type: 'stock', label: 'Склад', hint: 'Товары и остатки на складах на дату начала учёта' },
   { type: 'cash', label: 'Касса', hint: 'Остаток наличных в кассе на дату документа' },
-  { type: 'bank', label: 'Банк', hint: 'Остаток на расчётном счёте на дату документа' },
+  { type: 'bank', label: 'Банк', hint: 'Остаток по каждому р/с на дату документа' },
   { type: 'debtor', label: 'Дебиторская задолженность', hint: 'Суммы, которые клиенты должны на дату начала учёта' },
   { type: 'creditor', label: 'Кредиторская задолженность', hint: 'Суммы, которые вы должны поставщикам на дату начала учёта' },
 ];
@@ -67,6 +67,7 @@ const emptyLine = (lineType) => ({
   variant_id: null,
   department_id: '',
   counterparty_id: '',
+  bank_account_id: '',
   quantity: 0,
   unit_cost: 0,
   amount: 0,
@@ -118,7 +119,7 @@ function isCreateFormDirty(form, lineType) {
     if (line.line_type === 'debtor' || line.line_type === 'creditor') {
       return line.counterparty_id || Number(line.amount) > 0;
     }
-    return Number(line.amount) > 0;
+    return Number(line.amount) > 0 || Boolean(line.bank_account_id);
   });
 }
 
@@ -190,6 +191,7 @@ export default function OpeningBalance() {
   const [departments, setDepartments] = useState([]);
   const [counterparties, setCounterparties] = useState([]);
   const [products, setProducts] = useState([]);
+  const [bankAccounts, setBankAccounts] = useState([]);
   const [createModalType, setCreateModalType] = useState(null);
   const [createForm, setCreateForm] = useState(emptyDoc);
   const [createSaving, setCreateSaving] = useState(false);
@@ -220,10 +222,12 @@ export default function OpeningBalance() {
       api.getDepartments({ active: '1' }),
       api.getCounterparties(),
       api.getProducts({ archived: '0' }),
-    ]).then(([depts, cps, prods]) => {
+      api.getBankAccounts({ active: '1' }).catch(() => []),
+    ]).then(([depts, cps, prods, accounts]) => {
       setDepartments(depts);
       setCounterparties(cps);
       setProducts(Array.isArray(prods) ? prods : []);
+      setBankAccounts(Array.isArray(accounts) ? accounts : []);
     }).catch(console.error);
   }, [branchId]);
 
@@ -476,6 +480,7 @@ export default function OpeningBalance() {
       onRemove,
       clientList,
       supplierList,
+      bankAccountList = [],
     } = ctx;
     const total = lineTotal(line);
     return (
@@ -521,8 +526,28 @@ export default function OpeningBalance() {
               ))}
             </select>
           )}
-          {(line.line_type === 'cash' || line.line_type === 'bank') && (
+          {line.line_type === 'cash' && (
             <span className="text-muted">Сумма на дату документа</span>
+          )}
+          {line.line_type === 'bank' && (
+            readOnly ? (
+              <span>
+                {line.bank_account_name || '—'}
+                {line.bank_account_number ? ` · ${line.bank_account_number}` : ''}
+              </span>
+            ) : (
+              <select
+                value={line.bank_account_id || ''}
+                onChange={(e) => onUpdate(index, { bank_account_id: e.target.value })}
+              >
+                <option value="">Выберите счёт…</option>
+                {bankAccountList.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name} · {a.account_number}
+                  </option>
+                ))}
+              </select>
+            )
           )}
         </td>
         <td className="col-num">
@@ -566,6 +591,7 @@ export default function OpeningBalance() {
     onRemove: removeLine,
     clientList: clients,
     supplierList: suppliers,
+    bankAccountList: bankAccounts,
   };
 
   const createLineCtx = {
@@ -574,6 +600,7 @@ export default function OpeningBalance() {
     onRemove: removeCreateLine,
     clientList: clients,
     supplierList: suppliers,
+    bankAccountList: bankAccounts,
   };
 
   const createModalLines = useMemo(
@@ -621,20 +648,76 @@ export default function OpeningBalance() {
 
         {isMoney ? (
           <div className="ob-create-modal-money">
-            <div className="form-group">
-              <label>Сумма *</label>
-              <input
-                type="text"
-                inputMode="numeric"
-                className="input-num"
-                value={formatPriceInput(createForm.lines[moneyLineIndex]?.amount || 0)}
-                onChange={(e) => {
-                  const val = parsePriceInput(e.target.value) ?? 0;
-                  updateCreateLine(moneyLineIndex, { amount: val });
-                }}
-                placeholder="0"
-              />
-            </div>
+            {createModalType === 'bank' ? (
+              <>
+                {createForm.lines
+                  .map((line, index) => ({ line, index }))
+                  .filter(({ line }) => line.line_type === 'bank')
+                  .map(({ line, index }) => (
+                    <div key={index} className="form-grid" style={{ marginBottom: 10 }}>
+                      <div className="form-group">
+                        <label>Счёт *</label>
+                        <select
+                          value={line.bank_account_id || ''}
+                          onChange={(e) => updateCreateLine(index, { bank_account_id: e.target.value })}
+                        >
+                          <option value="">— выберите р/с —</option>
+                          {bankAccounts.map((a) => (
+                            <option key={a.id} value={a.id}>
+                              {a.name} · {a.account_number}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="form-group">
+                        <label>Сумма *</label>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          className="input-num"
+                          value={formatPriceInput(line.amount || 0)}
+                          onChange={(e) => {
+                            const val = parsePriceInput(e.target.value) ?? 0;
+                            updateCreateLine(index, { amount: val });
+                          }}
+                          placeholder="0"
+                        />
+                      </div>
+                      {createForm.lines.filter((l) => l.line_type === 'bank').length > 1 && (
+                        <div className="form-group">
+                          <label>&nbsp;</label>
+                          <button type="button" className="btn btn-ghost btn-sm" onClick={() => removeCreateLine(index)}>
+                            Удалить
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                <button type="button" className="btn btn-secondary btn-sm" onClick={() => addCreateLine('bank')}>
+                  + Счёт
+                </button>
+                {bankAccounts.length === 0 && (
+                  <p className="text-muted" style={{ marginTop: 8 }}>
+                    Сначала создайте банковский счёт в разделе Банк.
+                  </p>
+                )}
+              </>
+            ) : (
+              <div className="form-group">
+                <label>Сумма *</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  className="input-num"
+                  value={formatPriceInput(createForm.lines[moneyLineIndex]?.amount || 0)}
+                  onChange={(e) => {
+                    const val = parsePriceInput(e.target.value) ?? 0;
+                    updateCreateLine(moneyLineIndex, { amount: val });
+                  }}
+                  placeholder="0"
+                />
+              </div>
+            )}
             <div className="ob-create-modal-total">
               Итого: <strong>{formatMoney(createModalTotal)}</strong>
             </div>

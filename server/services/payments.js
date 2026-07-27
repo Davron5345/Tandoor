@@ -15,6 +15,7 @@ import {
   isDebtReturnArticleId,
 } from '../cashArticles.js';
 import { getConfirmedOpeningTotals } from './openingBalanceDocuments.js';
+import { assertBankAccountInBranch } from './bankAccounts.js';
 
 export {
   getCashArticles,
@@ -157,6 +158,10 @@ export function getPayments(branchId = null, userRole = null, filters = {}) {
   if (filters.type) {
     conditions.push('p.type = ?');
     params.push(filters.type);
+  }
+  if (filters.bank_account_id) {
+    conditions.push('p.bank_account_id = ?');
+    params.push(filters.bank_account_id);
   }
 
   if (conditions.length > 0) {
@@ -303,6 +308,9 @@ export function createPayment(data, userId = null, branchId = DEFAULT_BRANCH_ID,
   assertPaymentDocumentLink(data.document_id || null, data.type, payBranchId, data.counterparty_id || null);
   assertPaymentContractLink(data.contract_id || null, data.counterparty_id || null, payBranchId);
   assertPaymentFirmLink(data.firm_id || null, data.counterparty_id || null, payBranchId);
+  if (data.bank_account_id) {
+    assertBankAccountInBranch(data.bank_account_id, payBranchId);
+  }
 
   if (data.counterparty_id) {
     let typeCheck = null;
@@ -323,14 +331,15 @@ export function createPayment(data, userId = null, branchId = DEFAULT_BRANCH_ID,
   run(`
     INSERT INTO payments (
       id, number, type, counterparty_id, document_id, amount, date, comment,
-      created_by, branch_id, article_id, external_ref, import_batch_id, contract_id, firm_id
+      created_by, branch_id, article_id, external_ref, import_batch_id, contract_id, firm_id,
+      bank_account_id
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, [
     id, number, data.type, data.counterparty_id || null, data.document_id || null,
     data.amount, data.date, data.comment || '', userId, payBranchId, data.article_id,
     data.external_ref || null, data.import_batch_id || null, data.contract_id || null,
-    data.firm_id || null,
+    data.firm_id || null, data.bank_account_id || null,
   ]);
 
   return queryOne(`
@@ -365,6 +374,9 @@ export function updatePayment(id, data, branchId = DEFAULT_BRANCH_ID, userRole =
   const documentId = data.document_id !== undefined ? data.document_id : existing.document_id;
   const contractId = data.contract_id !== undefined ? data.contract_id : existing.contract_id;
   const firmId = data.firm_id !== undefined ? data.firm_id : existing.firm_id;
+  const bankAccountId = data.bank_account_id !== undefined
+    ? data.bank_account_id
+    : existing.bank_account_id;
   assertCashArticleForPayment(articleId, payType, payBranchId);
   assertPurchasePayment({ ...data, article_id: articleId, type: payType, counterparty_id: counterpartyId }, payBranchId);
   assertClientDebtPayment({ ...data, article_id: articleId, type: payType, counterparty_id: counterpartyId }, payBranchId);
@@ -372,6 +384,9 @@ export function updatePayment(id, data, branchId = DEFAULT_BRANCH_ID, userRole =
   assertPaymentDocumentLink(documentId, payType, payBranchId, counterpartyId);
   assertPaymentContractLink(contractId, counterpartyId, payBranchId);
   assertPaymentFirmLink(firmId, counterpartyId, payBranchId);
+  if (bankAccountId) {
+    assertBankAccountInBranch(bankAccountId, payBranchId);
+  }
   if (counterpartyId) {
     let typeCheck = null;
     if (payType === 'supplier_payment') typeCheck = 'prihod';
@@ -381,7 +396,7 @@ export function updatePayment(id, data, branchId = DEFAULT_BRANCH_ID, userRole =
 
   run(`
     UPDATE payments
-    SET type=?, counterparty_id=?, document_id=?, amount=?, date=?, comment=?, article_id=?, contract_id=?, firm_id=?
+    SET type=?, counterparty_id=?, document_id=?, amount=?, date=?, comment=?, article_id=?, contract_id=?, firm_id=?, bank_account_id=?
     WHERE id=?
   `, [
     payType,
@@ -393,6 +408,7 @@ export function updatePayment(id, data, branchId = DEFAULT_BRANCH_ID, userRole =
     articleId,
     contractId || null,
     firmId || null,
+    bankAccountId || null,
     id,
   ]);
 
@@ -416,24 +432,40 @@ export function deletePayment(id, userRole = null, branchId = DEFAULT_BRANCH_ID)
   run('DELETE FROM payments WHERE id = ?', [id]);
 }
 
-/** Удалить все банковские операции за дату (выписка-день). */
-export function deletePaymentsByDate(date, userRole = null, branchId = DEFAULT_BRANCH_ID) {
+/** Удалить все банковские операции за дату (выписка-день), опционально по счёту. */
+export function deletePaymentsByDate(
+  date,
+  userRole = null,
+  branchId = DEFAULT_BRANCH_ID,
+  bankAccountId = null,
+) {
   if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(String(date))) {
     throw new Error('Укажите дату выписки (YYYY-MM-DD)');
   }
   assertPaymentShiftAccess(userRole, date);
+  const params = [date, branchId, branchId, DEFAULT_BRANCH_ID];
+  let accountSql = '';
+  if (bankAccountId) {
+    accountSql = ' AND bank_account_id = ?';
+    params.push(bankAccountId);
+  }
   const rows = queryAll(
     `SELECT id FROM payments
-     WHERE date = ? AND (branch_id = ? OR (branch_id IS NULL AND ? = ?))`,
-    [date, branchId, branchId, DEFAULT_BRANCH_ID],
+     WHERE date = ? AND (branch_id = ? OR (branch_id IS NULL AND ? = ?))${accountSql}`,
+    params,
   );
   if (!rows.length) {
-    return { ok: true, date, deleted_count: 0 };
+    return { ok: true, date, bank_account_id: bankAccountId || null, deleted_count: 0 };
   }
   run(
     `DELETE FROM payments
-     WHERE date = ? AND (branch_id = ? OR (branch_id IS NULL AND ? = ?))`,
-    [date, branchId, branchId, DEFAULT_BRANCH_ID],
+     WHERE date = ? AND (branch_id = ? OR (branch_id IS NULL AND ? = ?))${accountSql}`,
+    params,
   );
-  return { ok: true, date, deleted_count: rows.length };
+  return {
+    ok: true,
+    date,
+    bank_account_id: bankAccountId || null,
+    deleted_count: rows.length,
+  };
 }

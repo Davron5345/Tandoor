@@ -41,6 +41,7 @@ function normalizeLine(raw) {
     variant_id: raw.variant_id || null,
     department_id: raw.department_id || null,
     counterparty_id: raw.counterparty_id || null,
+    bank_account_id: raw.bank_account_id || null,
     quantity: Number(raw.quantity) || 0,
     unit_cost: Number(raw.unit_cost) || 0,
     amount: Number(raw.amount) || 0,
@@ -73,12 +74,30 @@ function normalizeLine(raw) {
   }
 
   if (base.amount < 0) throw new Error('Сумма кассы/банка не может быть отрицательной');
+  if (lineType === 'bank') {
+    if (!base.bank_account_id) {
+      throw new Error('Укажите банковский счёт в строке начального сальдо');
+    }
+    const hit = queryOne('SELECT id FROM bank_accounts WHERE id = ?', [base.bank_account_id]);
+    if (!hit) throw new Error('Банковский счёт не найден');
+  } else {
+    base.bank_account_id = null;
+  }
   return base;
 }
 
 function normalizeLines(lines) {
   if (!Array.isArray(lines)) return [];
-  return lines.map(normalizeLine);
+  const normalized = lines.map(normalizeLine);
+  const bankAccounts = new Set();
+  for (const line of normalized) {
+    if (line.line_type !== 'bank' || !line.bank_account_id) continue;
+    if (bankAccounts.has(line.bank_account_id)) {
+      throw new Error('Один банковский счёт нельзя указать дважды в начальном сальдо');
+    }
+    bankAccounts.add(line.bank_account_id);
+  }
+  return normalized;
 }
 
 function calcTotal(lines) {
@@ -90,8 +109,8 @@ function insertLines(documentId, lines) {
     run(
       `INSERT INTO opening_balance_lines
         (id, document_id, line_type, product_id, variant_id, department_id, counterparty_id,
-         quantity, unit_cost, amount, comment, sort_order)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         bank_account_id, quantity, unit_cost, amount, comment, sort_order)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         uuidv4(),
         documentId,
@@ -100,6 +119,7 @@ function insertLines(documentId, lines) {
         line.variant_id,
         line.department_id,
         line.counterparty_id,
+        line.bank_account_id || null,
         line.quantity,
         line.unit_cost,
         line.amount,
@@ -118,12 +138,16 @@ function loadLines(documentId) {
            pv.name as variant_name,
            d.name as department_name,
            c.name as counterparty_name,
-           c.type as counterparty_type
+           c.type as counterparty_type,
+           ba.name as bank_account_name,
+           ba.account_number as bank_account_number,
+           ba.currency as bank_account_currency
     FROM opening_balance_lines obl
     LEFT JOIN products p ON p.id = obl.product_id
     LEFT JOIN product_variants pv ON pv.id = obl.variant_id
     LEFT JOIN departments d ON d.id = obl.department_id
     LEFT JOIN counterparties c ON c.id = obl.counterparty_id
+    LEFT JOIN bank_accounts ba ON ba.id = obl.bank_account_id
     WHERE obl.document_id = ?
     ORDER BY obl.sort_order ASC, obl.line_type ASC
   `, [documentId]);
@@ -364,6 +388,19 @@ export function getConfirmedOpeningTotals(branchId = DEFAULT_BRANCH_ID) {
     WHERE d.type = 'opening_balance' AND d.status = 'confirmed' AND d.branch_id = ?
   `, [branchId]);
 
+  const bankRows = queryAll(`
+    SELECT obl.bank_account_id as id, COALESCE(SUM(obl.amount), 0) as amount
+    FROM opening_balance_lines obl
+    JOIN documents d ON d.id = obl.document_id
+    WHERE d.type = 'opening_balance' AND d.status = 'confirmed' AND d.branch_id = ?
+      AND obl.line_type = 'bank' AND obl.bank_account_id IS NOT NULL
+    GROUP BY obl.bank_account_id
+  `, [branchId]);
+  const bankByAccount = {};
+  for (const r of bankRows) {
+    bankByAccount[r.id] = Number(r.amount) || 0;
+  }
+
   const startDate = queryOne(`
     SELECT MIN(d.date) as d FROM documents d
     WHERE d.type = 'opening_balance' AND d.status = 'confirmed' AND d.branch_id = ?
@@ -375,6 +412,7 @@ export function getConfirmedOpeningTotals(branchId = DEFAULT_BRANCH_ID) {
     creditors: row?.creditors || 0,
     cash: row?.cash || 0,
     bank: row?.bank || 0,
+    bank_by_account: bankByAccount,
     start_date: startDate,
   };
 }

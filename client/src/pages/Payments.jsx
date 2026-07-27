@@ -17,6 +17,7 @@ const empty = {
   amount: 0,
   date: new Date().toISOString().slice(0, 10),
   comment: '',
+  bank_account_id: '',
 };
 
 function dayStatus(items) {
@@ -44,6 +45,12 @@ function isCreditPayment(p) {
 
 export default function Payments() {
   const [payments, setPayments] = useState([]);
+  const [bankAccounts, setBankAccounts] = useState([]);
+  const [selectedAccountId, setSelectedAccountId] = useState('');
+  const [accountModal, setAccountModal] = useState(null);
+  const [accountForm, setAccountForm] = useState({
+    name: '', account_number: '', currency: 'UZS', is_default: false,
+  });
   const [openingBank, setOpeningBank] = useState(0);
   const [counterparties, setCounterparties] = useState([]);
   const [documents, setDocuments] = useState([]);
@@ -64,11 +71,26 @@ export default function Payments() {
   const canEdit = hasPermission(user, 'payments.edit');
   const canDelete = hasPermission(user, 'payments.delete');
 
+  const loadAccounts = useCallback(async () => {
+    try {
+      const list = await api.getBankAccounts({ active: '1' });
+      setBankAccounts(Array.isArray(list) ? list : []);
+      setSelectedAccountId((prev) => {
+        if (prev && list.some((a) => a.id === prev)) return prev;
+        const def = list.find((a) => a.is_default) || list[0];
+        return def?.id || '';
+      });
+    } catch (err) {
+      console.error(err);
+    }
+  }, []);
+
   const load = useCallback(async () => {
     try {
+      const accountId = selectedAccountId;
       const [p, bankOpen] = await Promise.all([
-        api.getPayments(),
-        api.getBankOpening().catch(() => ({ opening_bank: 0 })),
+        api.getPayments(accountId ? { bank_account_id: accountId } : {}),
+        api.getBankOpening(accountId || undefined).catch(() => ({ opening_bank: 0 })),
       ]);
       setPayments(Array.isArray(p) ? p : (p?.items || []));
       setOpeningBank(Number(bankOpen?.opening_bank) || 0);
@@ -87,12 +109,18 @@ export default function Payments() {
     } catch (err) {
       console.error(err);
     }
-  }, [show]);
+  }, [show, selectedAccountId]);
 
+  useEffect(() => { loadAccounts(); }, [loadAccounts, branchId]);
   useEffect(() => { load(); }, [load, branchId]);
   useAutoRefresh(load, [load, branchId], {
-    enabled: !importOpen && !viewDay && !paymentModal,
+    enabled: !importOpen && !viewDay && !paymentModal && !accountModal,
   });
+
+  const selectedAccount = useMemo(
+    () => bankAccounts.find((a) => a.id === selectedAccountId) || null,
+    [bankAccounts, selectedAccountId],
+  );
 
   const allDaysWithBalances = useMemo(() => {
     const map = new Map();
@@ -162,6 +190,7 @@ export default function Payments() {
     setForm({
       ...empty,
       date: dateOverride || viewDay || empty.date,
+      bank_account_id: selectedAccountId || '',
     });
     setPaymentModal('create');
   };
@@ -174,18 +203,23 @@ export default function Payments() {
       amount: p.amount,
       date: p.date,
       comment: p.comment || '',
+      bank_account_id: p.bank_account_id || selectedAccountId || '',
     });
     setPaymentModal(p.id);
   };
 
   const save = async () => {
     try {
+      const payload = {
+        ...form,
+        bank_account_id: form.bank_account_id || selectedAccountId || null,
+      };
       if (paymentModal === 'create') {
-        await api.createPayment(form);
+        await api.createPayment(payload);
         show('Оплата добавлена');
         if (!viewDay && form.date) setViewDay(form.date);
       } else {
-        await api.updatePayment(paymentModal, form);
+        await api.updatePayment(paymentModal, payload);
         show('Оплата обновлена');
         if (viewDay && form.date && form.date !== viewDay) {
           setViewDay(form.date);
@@ -219,7 +253,7 @@ export default function Payments() {
       `Удалить выписку за ${formatDate(date)}?\nБудут удалены все операции этого дня (${count}).`,
     )) return;
     try {
-      const result = await api.deleteBankDay(date);
+      const result = await api.deleteBankDay(date, selectedAccountId || undefined);
       show(`Удалено операций: ${result.deleted_count || 0}`);
       if (viewDay === date) setViewDay(null);
       await load();
@@ -239,10 +273,17 @@ export default function Payments() {
       setImportMeta(preview);
       setImportFilter('all');
       setImportOpen(true);
+      if (preview.account_missing || preview.account_missing_message) {
+        show(preview.account_missing_message || 'Счёт из выписки не найден в справочнике', 'error');
+      } else if (preview.bank_account) {
+        setSelectedAccountId(preview.bank_account.id);
+      }
       const existing = preview.existing_dates || [];
       const diffs = existing.filter((d) => d.has_differences);
       const same = existing.filter((d) => d.identical);
-      if (diffs.length > 0) {
+      if (preview.account_missing) {
+        /* already shown */
+      } else if (diffs.length > 0) {
         show(
           `Даты уже есть и отличаются (${diffs.map((d) => formatDate(d.date)).join(', ')}). `
           + 'При сохранении выписка за эти дни будет заменена.',
@@ -375,6 +416,12 @@ export default function Payments() {
       show('Отметьте хотя бы одну строку', 'error');
       return;
     }
+    if (importMeta?.account_missing || !importMeta?.bank_account?.id) {
+      show(importMeta?.account_missing_message
+        || 'Сначала создайте банковский счёт с р/с из выписки', 'error');
+      return;
+    }
+    const bankAccountId = importMeta.bank_account.id;
     const replaceDates = [
       ...new Set([
         ...(importMeta?.replace_dates || []),
@@ -390,7 +437,12 @@ export default function Payments() {
     }
     setImportBusy(true);
     try {
-      const result = await api.confirmBankStatement(saveRows, { replace_dates: replaceDates });
+      const result = await api.confirmBankStatement(saveRows, {
+        replace_dates: replaceDates,
+        bank_account_id: bankAccountId,
+      });
+      setSelectedAccountId(bankAccountId);
+      await loadAccounts();
       const firmMsg = result.created_counterparties_count
         ? `, новых фирм: ${result.created_counterparties_count}`
         : '';
@@ -456,6 +508,40 @@ export default function Payments() {
 
       <div className="filters">
         <label className="filter-field">
+          <span className="filter-field-caption">Счёт</span>
+          <select
+            value={selectedAccountId}
+            onChange={(e) => setSelectedAccountId(e.target.value)}
+          >
+            {bankAccounts.length === 0 && <option value="">— нет счетов —</option>}
+            {bankAccounts.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.name} · {a.account_number} ({a.currency || 'UZS'})
+              </option>
+            ))}
+          </select>
+        </label>
+        {canEdit && (
+          <div className="filter-field filter-field-actions">
+            <span className="filter-field-caption filter-field-caption-spacer" aria-hidden="true">&#8203;</span>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={() => {
+                setAccountForm({
+                  name: '',
+                  account_number: importMeta?.own_account || '',
+                  currency: 'UZS',
+                  is_default: bankAccounts.length === 0,
+                });
+                setAccountModal('create');
+              }}
+            >
+              + Счёт
+            </button>
+          </div>
+        )}
+        <label className="filter-field">
           <span className="filter-field-caption">С</span>
           <input
             type="date"
@@ -486,6 +572,14 @@ export default function Payments() {
           </div>
         )}
       </div>
+
+      {selectedAccount && (
+        <p className="bank-list-footnote text-muted" style={{ marginTop: 0, paddingTop: 0 }}>
+          Сальдо по счёту «{selectedAccount.name}» · р/с {selectedAccount.account_number}
+          {' · '}
+          нач. {formatMoney(openingBank)}
+        </p>
+      )}
 
       <div className="card">
         <div className="table-wrap">
@@ -698,7 +792,7 @@ export default function Payments() {
               <button
                 type="button"
                 className="btn btn-primary"
-                disabled={importBusy || selectedImportCount === 0}
+                disabled={importBusy || selectedImportCount === 0 || importMeta?.account_missing}
                 onClick={confirmImport}
               >
                 {importBusy
@@ -713,12 +807,43 @@ export default function Payments() {
           <div className="bank-import-layout">
             <p className="bank-import-hint">
               Формат: {importMeta?.format || 'AccReferenceReport'} ({importMeta?.bank || 'Ipak Yuli'}).
+              {importMeta?.own_account
+                ? ` Р/с из файла: ${importMeta.own_account}${importMeta.bank_account ? ` → «${importMeta.bank_account.name}»` : ''}.`
+                : ' Номер своего р/с в файле не найден.'}
               {importMeta?.retail_client
                 ? ` Эквайринг → «${importMeta.retail_client.name}».`
                 : ' Нет клиента «КЛИЕНТ» — Click/Payme/терминал не привяжутся автоматически.'}
               {' '}
-              Одна дата — одна выписка: повторная загрузка с различиями заменит день при сохранении.
+              Одна дата — одна выписка по счёту.
             </p>
+
+            {importMeta?.account_missing && (
+              <div className="alert alert-error bank-import-new-firms" role="status">
+                <strong>Счёт не найден:</strong>
+                {' '}
+                {importMeta.account_missing_message}
+                {canEdit && (
+                  <>
+                    {' '}
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => {
+                        setAccountForm({
+                          name: importMeta.own_name || 'Основной сумовый',
+                          account_number: importMeta.own_account || '',
+                          currency: 'UZS',
+                          is_default: bankAccounts.length === 0,
+                        });
+                        setAccountModal('create');
+                      }}
+                    >
+                      Создать счёт {importMeta.own_account}
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
 
             {replaceDatesLive.length > 0 && (
               <div className="alert alert-error bank-import-new-firms" role="status">
@@ -875,9 +1000,96 @@ export default function Payments() {
               <label>Сумма *</label>
               <input type="number" min="0" value={form.amount} onChange={(e) => setForm({ ...form, amount: +e.target.value })} />
             </div>
+            <div className="form-group">
+              <label>Банковский счёт</label>
+              <select
+                value={form.bank_account_id || selectedAccountId || ''}
+                onChange={(e) => setForm({ ...form, bank_account_id: e.target.value })}
+              >
+                <option value="">— не выбран —</option>
+                {bankAccounts.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name} · {a.account_number}
+                  </option>
+                ))}
+              </select>
+            </div>
             <div className="form-group full">
               <label>Комментарий</label>
               <textarea rows={2} value={form.comment} onChange={(e) => setForm({ ...form, comment: e.target.value })} />
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {accountModal && (
+        <Modal
+          title="Новый банковский счёт"
+          onClose={() => setAccountModal(null)}
+          footer={
+            <>
+              <button type="button" className="btn btn-ghost" onClick={() => setAccountModal(null)}>Отмена</button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={async () => {
+                  try {
+                    const created = await api.createBankAccount(accountForm);
+                    show('Счёт создан');
+                    setAccountModal(null);
+                    await loadAccounts();
+                    if (created?.id) setSelectedAccountId(created.id);
+                    if (importOpen && importMeta?.own_account) {
+                      show('Счёт создан — загрузите выписку снова для привязки', 'error');
+                    }
+                  } catch (e) {
+                    show(e.message, 'error');
+                  }
+                }}
+              >
+                Сохранить
+              </button>
+            </>
+          }
+        >
+          <div className="form-grid">
+            <div className="form-group full">
+              <label>Название *</label>
+              <input
+                value={accountForm.name}
+                onChange={(e) => setAccountForm({ ...accountForm, name: e.target.value })}
+                placeholder="Основной сумовый"
+              />
+            </div>
+            <div className="form-group">
+              <label>Р/с *</label>
+              <input
+                value={accountForm.account_number}
+                onChange={(e) => setAccountForm({ ...accountForm, account_number: e.target.value })}
+                placeholder="20208000…"
+              />
+            </div>
+            <div className="form-group">
+              <label>Валюта</label>
+              <select
+                value={accountForm.currency}
+                onChange={(e) => setAccountForm({ ...accountForm, currency: e.target.value })}
+              >
+                <option value="UZS">UZS</option>
+                <option value="USD">USD</option>
+                <option value="EUR">EUR</option>
+              </select>
+            </div>
+            <div className="form-group full">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={Boolean(accountForm.is_default)}
+                  onChange={(e) => setAccountForm({ ...accountForm, is_default: e.target.checked })}
+                />
+                {' '}
+                Счёт по умолчанию
+              </label>
             </div>
           </div>
         </Modal>

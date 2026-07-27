@@ -81,7 +81,21 @@ async function ensureBootstrap() {
   await execRaw('ALTER TABLE payments ADD COLUMN IF NOT EXISTS import_batch_id TEXT');
   await execRaw('ALTER TABLE payments ADD COLUMN IF NOT EXISTS contract_id TEXT');
   await execRaw('ALTER TABLE payments ADD COLUMN IF NOT EXISTS firm_id TEXT');
+  await execRaw('ALTER TABLE payments ADD COLUMN IF NOT EXISTS bank_account_id TEXT');
   await execRaw('ALTER TABLE documents ADD COLUMN IF NOT EXISTS firm_id TEXT');
+  await execRaw('ALTER TABLE opening_balance_lines ADD COLUMN IF NOT EXISTS bank_account_id TEXT');
+  await execRaw(`
+    CREATE TABLE IF NOT EXISTS bank_accounts (
+      id TEXT PRIMARY KEY,
+      branch_id TEXT NOT NULL REFERENCES branches(id),
+      name TEXT NOT NULL,
+      account_number TEXT NOT NULL,
+      currency TEXT NOT NULL DEFAULT 'UZS',
+      is_default INTEGER DEFAULT 0,
+      active INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT (NOW())
+    )
+  `);
   await execRaw(`
     CREATE TABLE IF NOT EXISTS counterparty_firms (
       id TEXT PRIMARY KEY,
@@ -112,6 +126,58 @@ async function ensureBootstrap() {
     `INSERT INTO settings (key, value) VALUES ('counterparty_firms_v1', '1')
      ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
   );
+  await execRaw(
+    `INSERT INTO settings (key, value) VALUES ('bank_accounts_v1', '1')
+     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
+  );
+  const bankBackfill = await execRaw(
+    'SELECT value FROM settings WHERE key = $1',
+    ['bank_accounts_backfill_v1'],
+  );
+  if (!bankBackfill.rows.length) {
+    await execRaw(`
+      INSERT INTO bank_accounts (id, branch_id, name, account_number, currency, is_default, active)
+      SELECT 'ba_main_' || b.id, b.id, 'Основной сумовый', '20208000707073001001', 'UZS', 1, 1
+      FROM branches b
+      WHERE NOT EXISTS (
+        SELECT 1 FROM bank_accounts ba
+        WHERE ba.branch_id = b.id AND ba.account_number = '20208000707073001001'
+      )
+        AND (
+          EXISTS (
+            SELECT 1 FROM payments p
+            WHERE (p.branch_id = b.id OR (p.branch_id IS NULL AND b.id = 'main'))
+              AND p.bank_account_id IS NULL
+          ) OR EXISTS (
+            SELECT 1 FROM opening_balance_lines obl
+            JOIN documents d ON d.id = obl.document_id
+            WHERE obl.line_type = 'bank' AND obl.bank_account_id IS NULL AND d.branch_id = b.id
+          )
+        )
+    `);
+    await execRaw(`
+      UPDATE payments p
+      SET bank_account_id = ba.id
+      FROM bank_accounts ba
+      WHERE p.bank_account_id IS NULL
+        AND ba.account_number = '20208000707073001001'
+        AND (p.branch_id = ba.branch_id OR (p.branch_id IS NULL AND ba.branch_id = 'main'))
+    `);
+    await execRaw(`
+      UPDATE opening_balance_lines obl
+      SET bank_account_id = ba.id
+      FROM documents d, bank_accounts ba
+      WHERE obl.document_id = d.id
+        AND obl.line_type = 'bank'
+        AND obl.bank_account_id IS NULL
+        AND ba.branch_id = d.branch_id
+        AND ba.account_number = '20208000707073001001'
+    `);
+    await execRaw(
+      `INSERT INTO settings (key, value) VALUES ('bank_accounts_backfill_v1', '1')
+       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
+    );
+  }
   const firmLink = await execRaw(
     'SELECT value FROM settings WHERE key = $1',
     ['contract_firm_link_v1'],

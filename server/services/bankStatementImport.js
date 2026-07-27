@@ -4,6 +4,7 @@ import * as XLSX from 'xlsx';
 import db from '../db.js';
 import { DEFAULT_BRANCH_ID } from '../branches.js';
 import { createPayment, deletePaymentsByDate } from './payments.js';
+import { findBankAccountByNumber, normalizeBankAccountNumber, getBankAccount } from './bankAccounts.js';
 import {
   createCounterparty,
   createCounterpartyFirm,
@@ -289,6 +290,7 @@ export function parseAccReferenceReportBuffer(buffer) {
     throw new Error('В выписке нет колонок даты / дебета / кредита');
   }
 
+  const meta = parseStatementMeta(rows);
   const dataRows = [];
   for (let i = headerIdx + 1; i < rows.length; i += 1) {
     const row = rows[i];
@@ -309,7 +311,36 @@ export function parseAccReferenceReportBuffer(buffer) {
       innCol: cell(row, cols.inn),
     });
   }
-  return { rows: dataRows, cols };
+  return { rows: dataRows, cols, meta };
+}
+
+function parseStatementMeta(rows) {
+  let ownAccount = null;
+  let ownName = null;
+  let openingBalance = null;
+  let closingBalance = null;
+  for (const row of rows) {
+    const text = String(row?.[0] || row?.[1] || '');
+    if (!ownAccount) {
+      const m = text.match(/Сч[её]т\s*:\s*(\d{16,20})/i);
+      if (m) {
+        ownAccount = normalizeBankAccountNumber(m[1]);
+        const namePart = text.replace(/Сч[её]т\s*:\s*\d{16,20}/i, '').trim();
+        if (namePart) ownName = namePart.replace(/^["«]|["»]$/g, '').trim() || null;
+      }
+    }
+    if (openingBalance == null && /Остаток на начало/i.test(text)) {
+      const nums = text.match(/([\d\s]+[.,]\d{2})/g) || [];
+      if (nums[0]) openingBalance = parseAmount(nums[0]);
+      if (nums[1]) closingBalance = parseAmount(nums[1]);
+    }
+  }
+  return {
+    own_account: ownAccount,
+    own_name: ownName,
+    opening_balance: openingBalance,
+    closing_balance: closingBalance,
+  };
 }
 
 function classifyRow(raw, ctx) {
@@ -485,6 +516,7 @@ function classifyRow(raw, ctx) {
     selected,
     already_imported: alreadyImported || identicalDate,
     replaces_date: Boolean(willReplaceDate),
+    bank_account_id: ctx.bankAccountId || null,
     match_reason: matchReason,
   };
 }
@@ -530,14 +562,22 @@ function collectNewAccounts(rows) {
  * Parse file and enrich rows with counterparty / contract suggestions for a branch.
  */
 export function previewBankStatement(buffer, branchId = DEFAULT_BRANCH_ID) {
-  const { rows: rawRows } = parseAccReferenceReportBuffer(buffer);
+  const { rows: rawRows, meta } = parseAccReferenceReportBuffer(buffer);
   const counterparties = getCounterparties(null, branchId);
   const retailClient = findRetailClient(counterparties);
   const retailContracts = retailClient
     ? getCounterpartyContracts(retailClient.id, branchId)
     : [];
   const ownInns = buildOwnInns(rawRows);
-  const existingDates = buildExistingDateDiffs(rawRows, branchId);
+
+  const ownAccountNumber = meta?.own_account || null;
+  const matchedAccount = ownAccountNumber
+    ? findBankAccountByNumber(ownAccountNumber, branchId)
+    : null;
+  const accountMissing = Boolean(ownAccountNumber) && !matchedAccount;
+  const bankAccountId = matchedAccount?.id || null;
+
+  const existingDates = buildExistingDateDiffs(rawRows, branchId, bankAccountId);
   const replaceDateSet = new Set(
     existingDates.filter((d) => d.has_differences).map((d) => d.date),
   );
@@ -549,10 +589,16 @@ export function previewBankStatement(buffer, branchId = DEFAULT_BRANCH_ID) {
   for (const raw of rawRows) {
     const ref = makeExternalRef(raw);
     if (existingRefs.has(ref)) continue;
+    const hitParams = [ref, branchId, branchId, DEFAULT_BRANCH_ID];
+    let accountSql = '';
+    if (bankAccountId) {
+      accountSql = ' AND bank_account_id = ?';
+      hitParams.push(bankAccountId);
+    }
     const hit = queryOne(
       `SELECT id, date FROM payments
-       WHERE external_ref = ? AND (branch_id = ? OR (branch_id IS NULL AND ? = ?))`,
-      [ref, branchId, branchId, DEFAULT_BRANCH_ID],
+       WHERE external_ref = ? AND (branch_id = ? OR (branch_id IS NULL AND ? = ?))${accountSql}`,
+      hitParams,
     );
     if (hit) existingRefs.set(ref, hit);
   }
@@ -566,8 +612,17 @@ export function previewBankStatement(buffer, branchId = DEFAULT_BRANCH_ID) {
     replaceDateSet,
     identicalDateSet,
     branchId,
+    bankAccountId,
+    accountMissing,
   };
-  const rows = rawRows.map((r) => classifyRow(r, ctx));
+  let rows = rawRows.map((r) => classifyRow(r, ctx));
+  if (accountMissing) {
+    rows = rows.map((r) => ({
+      ...r,
+      selected: false,
+      match_reason: `нет счёта р/с ${ownAccountNumber} в справочнике — создайте счёт`,
+    }));
+  }
 
   rows.sort((a, b) => {
     const aPri = a.is_new_firm ? 0 : (a.is_new_account ? 1 : 2);
@@ -587,6 +642,22 @@ export function previewBankStatement(buffer, branchId = DEFAULT_BRANCH_ID) {
   return {
     bank: 'Ipak Yuli',
     format: 'AccReferenceReport',
+    own_account: ownAccountNumber,
+    own_name: meta?.own_name || null,
+    statement_opening: meta?.opening_balance ?? null,
+    statement_closing: meta?.closing_balance ?? null,
+    bank_account: matchedAccount
+      ? {
+        id: matchedAccount.id,
+        name: matchedAccount.name,
+        account_number: matchedAccount.account_number,
+        currency: matchedAccount.currency,
+      }
+      : null,
+    account_missing: accountMissing,
+    account_missing_message: accountMissing
+      ? `В справочнике нет счёта с р/с ${ownAccountNumber}. Создайте счёт и загрузите выписку снова.`
+      : (!ownAccountNumber ? 'В файле не найден номер своего р/с (строка «Счет: …»).' : null),
     retail_client: retailClient
       ? { id: retailClient.id, name: retailClient.name }
       : null,
@@ -603,7 +674,7 @@ export function previewBankStatement(buffer, branchId = DEFAULT_BRANCH_ID) {
   };
 }
 
-function buildExistingDateDiffs(rawRows, branchId) {
+function buildExistingDateDiffs(rawRows, branchId, bankAccountId = null) {
   const byDate = new Map();
   for (const raw of rawRows) {
     if (!raw.date) continue;
@@ -613,10 +684,16 @@ function buildExistingDateDiffs(rawRows, branchId) {
 
   const result = [];
   for (const [date, newRaws] of byDate) {
+    const params = [date, branchId, branchId, DEFAULT_BRANCH_ID];
+    let accountSql = '';
+    if (bankAccountId) {
+      accountSql = ' AND bank_account_id = ?';
+      params.push(bankAccountId);
+    }
     const existing = queryAll(
-      `SELECT id, amount, type, external_ref, import_batch_id FROM payments
-       WHERE date = ? AND (branch_id = ? OR (branch_id IS NULL AND ? = ?))`,
-      [date, branchId, branchId, DEFAULT_BRANCH_ID],
+      `SELECT id, amount, type, external_ref, import_batch_id from payments
+       WHERE date = ? AND (branch_id = ? OR (branch_id IS NULL AND ? = ?))${accountSql}`,
+      params,
     );
     if (!existing.length) continue;
 
@@ -785,6 +862,16 @@ export function confirmBankStatementImport(
     throw new Error('Нет строк для импорта');
   }
 
+  const bankAccountId = options.bankAccountId
+    || selectedRows.find((r) => r.bank_account_id)?.bank_account_id
+    || null;
+  if (!bankAccountId) {
+    throw new Error('Укажите банковский счёт из справочника (р/с из файла не найден)');
+  }
+  if (!getBankAccount(bankAccountId, branchId)) {
+    throw new Error('Банковский счёт не найден в справочнике');
+  }
+
   const datesInSelection = [...new Set(selectedRows.map((r) => r.date).filter(Boolean))];
   let replaceDates = Array.isArray(options.replaceDates)
     ? options.replaceDates.filter(Boolean)
@@ -793,9 +880,10 @@ export function confirmBankStatementImport(
     replaceDates = datesInSelection.filter((date) => {
       const hit = queryOne(
         `SELECT id FROM payments
-         WHERE date = ? AND (branch_id = ? OR (branch_id IS NULL AND ? = ?))
+         WHERE date = ? AND bank_account_id = ?
+           AND (branch_id = ? OR (branch_id IS NULL AND ? = ?))
          LIMIT 1`,
-        [date, branchId, branchId, DEFAULT_BRANCH_ID],
+        [date, bankAccountId, branchId, branchId, DEFAULT_BRANCH_ID],
       );
       return Boolean(hit);
     });
@@ -813,7 +901,7 @@ export function confirmBankStatementImport(
 
   transaction(() => {
     for (const date of replaceDates) {
-      const result = deletePaymentsByDate(date, userRole, branchId);
+      const result = deletePaymentsByDate(date, userRole, branchId, bankAccountId);
       replaced.push(result);
     }
 
@@ -834,8 +922,9 @@ export function confirmBankStatementImport(
       if (row.external_ref && !replaceSet.has(row.date)) {
         const exists = queryOne(
           `SELECT id FROM payments
-           WHERE external_ref = ? AND (branch_id = ? OR (branch_id IS NULL AND ? = ?))`,
-          [row.external_ref, branchId, branchId, DEFAULT_BRANCH_ID],
+           WHERE external_ref = ? AND bank_account_id = ?
+             AND (branch_id = ? OR (branch_id IS NULL AND ? = ?))`,
+          [row.external_ref, bankAccountId, branchId, branchId, DEFAULT_BRANCH_ID],
         );
         if (exists) {
           skipped.push({ reason: 'уже загружено', external_ref: row.external_ref, payment_id: exists.id });
@@ -879,6 +968,7 @@ export function confirmBankStatementImport(
         comment,
         external_ref: row.external_ref || null,
         import_batch_id: batchId,
+        bank_account_id: bankAccountId,
       }, userId, branchId, userRole);
 
       created.push(payment);
@@ -887,6 +977,7 @@ export function confirmBankStatementImport(
 
   return {
     import_batch_id: batchId,
+    bank_account_id: bankAccountId,
     created_count: created.length,
     skipped_count: skipped.length,
     replaced_dates: replaced,

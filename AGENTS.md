@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-07-27 (Банк: удаление/замена выписки дня)
+**Последнее обновление документации:** 2026-07-27 (банковские счета и сальдо по р/с)
 
 ---
 
@@ -167,7 +167,7 @@ npm run db:reset-operations    # Сброс операционных данны�
 | Склад | `departments`, `product_department_stock`, `product_branch_stock` |
 | Документы | `documents` (+ `firm_id` у прихода), `document_items` (+ `net_weight` в строках прихода), `document_history`, `opening_balance_lines` |
 | Контрагенты | `counterparties`, `counterparty_firms` (юрлица: ИНН, bank_account, mfo), `counterparty_contracts` (title, number, date, end_date, direction, amount, `firm_id`) |
-| Финансы | `payments` (+ `external_ref`, `import_batch_id`, `contract_id`, `firm_id`), `cash_articles`, `branch_opening_balances` |
+| Финансы | `payments` (+ `external_ref`, `import_batch_id`, `contract_id`, `firm_id`, `bank_account_id`), `bank_accounts`, `cash_articles`, `branch_opening_balances` |
 | Калькуляции | `calculations`, `calculation_items`, `calculation_sources` |
 | Auth/Admin | `users`, `sessions`, `roles`, `role_permissions`, `audit_log`, `visit_log`, `blocked_devices` |
 | MyShop/Mobile | `shop_orders`, `shop_order_items`, `push_subscriptions`, `staff_locations`, `staff_location_history` |
@@ -330,24 +330,26 @@ Frontend зеркало: `client/src/permissions.js`.
 ### 9.8 Начальное сальдо
 
 Типы строк: stock, debtor, creditor, cash, bank. Документ `opening_balance` + `opening_balance_lines`.
+Строки **bank** требуют `bank_account_id` (остаток вручную по каждому р/с из справочника `bank_accounts`).
 
 ### 9.9 Импорт банковской выписки (Ipak Yuli)
 
 - Формат: Excel `AccReferenceReport*.xlsx` (Internet Bank Ipak Yuli, «Справка о работе счета»)
-- UI: `/payments` → «Загрузить выписку» → превью (строки **сгруппированы по датам**) → подтверждение
-- После импорта в списке Банка: **одна календарная дата = одна «Выписка»** (как документ); внутри — операции дня (`payments`); открытие/редактирование/удаление строк
-- Удаление выписки: `DELETE /api/payments/by-date/:date` (все операции дня)
-- Повторная загрузка той же даты: превью сравнивает с существующими (`existing_dates`); при различиях — уведомление; при сохранении день **заменяется** (не дублируется); без изменений — строки сняты с выбора
-- В списке и карточке дня: **сальдо нач. / дебет (расход) / кредит (приход) / сальдо кон.**; обороты за день; сальдо от `opening_balance` банка + нарастающий итог по дням (`GET /api/payments/bank-opening`)
-- Ручные операции попадают в выписку своей даты; фильтры С/По по дате
+- **Справочник счетов** `bank_accounts` (название, р/с, валюта); из шапки файла (`Счет: 2020…`) определяется р/с; **если счёта нет — предупреждение**, сохранение блокируется
+- UI: `/payments` → выбор счёта → «Загрузить выписку» → превью (строки **сгруппированы по датам**) → подтверждение
+- После импорта в списке Банка: **одна календарная дата = одна «Выписка»** по выбранному счёту; внутри — операции дня (`payments`); открытие/редактирование/удаление строк
+- Удаление выписки: `DELETE /api/payments/by-date/:date?bank_account_id=`
+- Повторная загрузка той же даты (того же счёта): diff → замена без дублей
+- В списке и карточке дня: **сальдо нач. / дебет / кредит / сальдо кон.** от НС этого счёта + обороты дней (`GET /api/payments/bank-opening?bank_account_id=`)
+- Ручные операции попадают в выписку своей даты и счёта; фильтры С/По по дате
 - Операции остаются в `payments` (не складской `documents.type`); P&L/долги без изменений
-- API: `POST /api/payments/import/parse` (multipart `file`), `POST /api/payments/import/confirm` `{ rows }`
+- API: `GET/POST/PUT/DELETE /api/bank-accounts`; `POST /api/payments/import/parse`, `POST /api/payments/import/confirm` `{ rows, bank_account_id, replace_dates }`
 - **Дебет:** оплата поставщику по ИНН — сверка **ИНН + название + р/с**: новый ИНН → новая фирма; ИНН и название совпали, р/с другой → новый счёт у той же фирмы; иначе legacy `counterparties.inn`; комиссии банка → `other_expense`; расход клиенту по ИНН → `other_expense`
 - **Кредит эквайринг** (Click / Payme / терминал UnionPay|SmartVista): `customer_income` на контрагента **«КЛИЕНТ»** + договор с номером, содержащим Click / Payme / Терминал
 - **Кредит** по ИНН клиента/поставщика: приход от клиента или возврат от поставщика
 - Новые юрлица без ИНН/названия в справочнике: уведомление в превью; при сохранении автосоздание поставщика + фирмы (можно выбрать существующего вручную)
 - ИНН и название совпали, р/с другой: флаг `is_new_account` — при сохранении обновляется `counterparty_firms.bank_account`
-- Дедупликация: `payments.external_ref`; пакет: `import_batch_id`; договор на оплате: `contract_id`; фирма: `payments.firm_id`
+- Дедупликация: `payments.external_ref`; пакет: `import_batch_id`; договор на оплате: `contract_id`; фирма: `payments.firm_id`; счёт: `payments.bank_account_id`
 - Привязка к складским документам — следующий этап
 
 ### 9.10 Фирмы поставщика (юрлица)
@@ -406,7 +408,7 @@ GET  /api/auth/roles
 | `/api/calculations` | catalog.routes.js | Калькуляции |
 | `/api/documents` | documents.routes.js | Складские документы (`date_from`, `date_to`, `counterparty_id`, type, status) |
 | `/api/counterparties` | counterparties.routes.js | Контрагенты, договоры (`/:id/contracts` CRUD), `/:id/firms` — юрлица поставщика (CRUD) |
-| `/api/payments` | finance.routes.js | Оплаты, касса; `GET /bank-opening`; `DELETE /by-date/:date` — удалить выписку дня; `POST /import/parse|confirm` (+ `replace_dates`) |
+| `/api/payments` | finance.routes.js | Оплаты; `GET/POST/PUT/DELETE /api/bank-accounts`; `GET /bank-opening?bank_account_id=`; `DELETE /by-date/:date?bank_account_id=`; import parse/confirm |
 | `/api/cash-articles` | finance.routes.js | Статьи кассы |
 | `/api/stats`, `/api/reports/*` | org.routes.js | Отчёты, дашборд; `/api/reports/supplier-debts?date_from&date_to&supplier_id` — оборотная ведомость поставщиков |
 | `/api/branches`, `/api/departments`, `/api/users` | org.routes.js | Оргструктура |
@@ -438,7 +440,7 @@ GET  /api/auth/roles
 | `/calculations` | Calculations.jsx | calculations.view |
 | `/dish-sales` | DishSales.jsx | documents.dish_sale |
 | `/cashier` | Cashier.jsx | cashier.* |
-| `/payments` | Payments.jsx | payments.view; список по датам («Выписка») с сальдо/дебет/кредит; открытие дня → операции; импорт AccReferenceReport |
+| `/payments` | Payments.jsx | payments.view; справочник счетов; список по датам выбранного счёта с сальдо/дебет/кредит; импорт AccReferenceReport |
 | `/cash-articles` | CashArticles.jsx | cash_articles.view |
 | `/reports/*` | Reports.jsx | reports.view; `/reports/supplier-debts` — долги поставщикам; акт сверки — фильтр «Фирма» у поставщика |
 | `/opening-balance` | OpeningBalance.jsx | opening_balance.view |
@@ -664,6 +666,7 @@ GET  /api/auth/roles
 | 2026-07-27 | Банк: день = документ «Выписка»; внутри операции; превью импорта по датам |
 | 2026-07-27 | Банк: колонки дебет/кредит (обороты), сальдо нач./кон. от НС банка; `GET /api/payments/bank-opening` |
 | 2026-07-27 | Банк: удаление выписки за дату; повторный импорт той же даты — diff и замена без дублей |
+| 2026-07-27 | Банк: справочник `bank_accounts`; сальдо/выписки по р/с; НС bank с `bank_account_id`; импорт матчит р/с из файла |
 
 ---
 

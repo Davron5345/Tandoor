@@ -305,8 +305,23 @@ export const api = {
   deleteDocument: (id) => request(`/documents/${id}`, { method: 'DELETE' }),
   getDocumentHistory: (id) => request(`/documents/${id}/history`),
 
-  getPayments: () => request('/payments'),
-  getBankOpening: () => request('/payments/bank-opening'),
+  getPayments: (params = {}) => {
+    const q = new URLSearchParams(
+      Object.fromEntries(Object.entries(params).filter(([, v]) => v != null && v !== '')),
+    ).toString();
+    return request(`/payments${q ? `?${q}` : ''}`);
+  },
+  getBankOpening: (bankAccountId) => {
+    const q = bankAccountId ? `?bank_account_id=${encodeURIComponent(bankAccountId)}` : '';
+    return request(`/payments/bank-opening${q}`);
+  },
+  getBankAccounts: (params = {}) => {
+    const q = new URLSearchParams(params).toString();
+    return request(`/bank-accounts${q ? `?${q}` : ''}`);
+  },
+  createBankAccount: (data) => request('/bank-accounts', { method: 'POST', body: JSON.stringify(data) }),
+  updateBankAccount: (id, data) => request(`/bank-accounts/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteBankAccount: (id) => request(`/bank-accounts/${id}`, { method: 'DELETE' }),
   getCashShiftSummary: (date) => request(`/payments/shift-summary?date=${encodeURIComponent(date)}`),
   getCashArticles: (params = {}) => {
     const q = new URLSearchParams(params).toString();
@@ -339,9 +354,13 @@ export const api = {
     body: JSON.stringify({
       rows,
       replace_dates: options.replace_dates || undefined,
+      bank_account_id: options.bank_account_id || undefined,
     }),
   }),
-  deleteBankDay: (date) => request(`/payments/by-date/${encodeURIComponent(date)}`, { method: 'DELETE' }),
+  deleteBankDay: (date, bankAccountId) => {
+    const q = bankAccountId ? `?bank_account_id=${encodeURIComponent(bankAccountId)}` : '';
+    return request(`/payments/by-date/${encodeURIComponent(date)}${q}`, { method: 'DELETE' });
+  },
   createPayment: (data) => request('/payments', { method: 'POST', body: JSON.stringify(data) }),
   updatePayment: (id, data) => request(`/payments/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deletePayment: (id) => request(`/payments/${id}`, { method: 'DELETE' }),

@@ -14,6 +14,38 @@ const statementUpload = multer({
 });
 
 export function registerFinanceRoutes(app) {
+  app.get('/api/bank-accounts', requireAnyPermission(
+    'payments.view', 'payments.edit', 'opening_balance.view', 'opening_balance.edit',
+  ), attachBranch, (req, res) => {
+    res.json(svc.getBankAccounts(req.branchId, {
+      activeOnly: req.query.active === '1' || req.query.active === 'true',
+    }));
+  });
+
+  app.post('/api/bank-accounts', requirePermission('payments.edit'), attachBranch, (req, res) => {
+    try {
+      res.status(201).json(svc.createBankAccount(req.body, req.branchId));
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
+  app.put('/api/bank-accounts/:id', requirePermission('payments.edit'), attachBranch, (req, res) => {
+    try {
+      res.json(svc.updateBankAccount(req.params.id, req.body, req.branchId));
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
+  app.delete('/api/bank-accounts/:id', requirePermission('payments.edit'), attachBranch, (req, res) => {
+    try {
+      res.json(svc.deleteBankAccount(req.params.id, req.branchId));
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
   app.get('/api/cash-articles', requireAnyPermission(
     'cashier.view', 'cashier.edit', 'payments.view', 'payments.edit',
   ), attachBranch, (req, res) => {
@@ -87,9 +119,11 @@ export function registerFinanceRoutes(app) {
     try {
       const rows = req.body?.rows;
       const replaceDates = req.body?.replace_dates;
+      const bankAccountId = req.body?.bank_account_id || null;
       res.status(201).json(
         svc.confirmBankStatementImport(rows, req.user.id, req.branchId, req.user.role, {
           replaceDates,
+          bankAccountId,
         }),
       );
     } catch (e) {
@@ -99,7 +133,12 @@ export function registerFinanceRoutes(app) {
 
   app.delete('/api/payments/by-date/:date', requireAnyPermission('payments.delete', 'cashier.delete'), attachBranch, (req, res) => {
     try {
-      res.json(svc.deletePaymentsByDate(req.params.date, req.user.role, req.branchId));
+      res.json(svc.deletePaymentsByDate(
+        req.params.date,
+        req.user.role,
+        req.branchId,
+        req.query.bank_account_id || null,
+      ));
     } catch (e) {
       res.status(400).json({ error: e.message });
     }
@@ -118,9 +157,15 @@ export function registerFinanceRoutes(app) {
     'payments.view', 'payments.edit',
   ), attachBranch, (req, res) => {
     const opening = getConfirmedOpeningTotals(req.branchId);
+    const accountId = req.query.bank_account_id || null;
+    const openingBank = accountId
+      ? (opening.bank_by_account?.[accountId] || 0)
+      : (opening.bank || 0);
     res.json({
-      opening_bank: opening.bank || 0,
+      opening_bank: openingBank,
+      bank_by_account: opening.bank_by_account || {},
       start_date: opening.start_date || null,
+      bank_account_id: accountId,
     });
   });
 

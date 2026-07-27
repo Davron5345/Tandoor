@@ -44,12 +44,20 @@ test('opening balance document affects reports and money balances', async () => 
     branch_id: 'main',
   });
 
+  const { createBankAccount } = await import('../services/bankAccounts.js');
+  const bankAcc = createBankAccount({
+    name: 'Основной сумовый',
+    account_number: '20208000707073001001',
+    currency: 'UZS',
+    is_default: true,
+  }, 'main');
+
   const draft = createOpeningBalanceDocument({
     date: '2026-01-01',
     comment: 'Старт учёта',
     lines: [
       { line_type: 'cash', amount: 1000000 },
-      { line_type: 'bank', amount: 500000 },
+      { line_type: 'bank', amount: 500000, bank_account_id: bankAcc.id },
       { line_type: 'debtor', counterparty_id: client.id, amount: 500000 },
       { line_type: 'creditor', counterparty_id: supplier.id, amount: 300000 },
       {
