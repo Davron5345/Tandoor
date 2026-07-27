@@ -272,7 +272,7 @@ textarea::placeholder {
 
 .sidebar-panel {
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
   height: 100%;
   min-height: 0;
   background: var(--sidebar-bg);
@@ -282,6 +282,10 @@ textarea::placeholder {
   border-radius: 0;
   box-shadow: 4px 0 24px rgba(15, 23, 42, 0.04);
   overflow: hidden;
+}
+
+.app.sidebar-account-open .sidebar-panel {
+  grid-template-rows: auto auto minmax(0, 1fr);
 }
 
 [data-theme="dark"] .sidebar-panel {
@@ -326,7 +330,8 @@ textarea::placeholder {
 }
 
 .sidebar-toggle,
-.sidebar-reopen {
+.sidebar-reopen,
+.sidebar-account-toggle {
   width: 36px;
   height: 36px;
   flex-shrink: 0;
@@ -344,9 +349,21 @@ textarea::placeholder {
 }
 
 .sidebar-toggle:hover,
-.sidebar-reopen:hover {
+.sidebar-reopen:hover,
+.sidebar-account-toggle:hover {
   background: var(--nav-active-bg);
   color: var(--nav-active-text);
+}
+
+.sidebar-account-toggle svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+  transition: transform 0.18s ease;
+}
+
+.sidebar-account-toggle.is-open svg {
+  transform: rotate(180deg);
 }
 
 .main-topbar {
@@ -800,14 +817,16 @@ textarea::placeholder {
 }
 
 [data-theme="dark"] .sidebar-toggle,
-[data-theme="dark"] .theme-toggle {
+[data-theme="dark"] .theme-toggle,
+[data-theme="dark"] .sidebar-account-toggle {
   color: var(--sidebar-icon);
   background: var(--sidebar-control-bg);
   border: 1px solid var(--sidebar-control-border);
 }
 
 [data-theme="dark"] .sidebar-toggle:hover,
-[data-theme="dark"] .theme-toggle:hover {
+[data-theme="dark"] .theme-toggle:hover,
+[data-theme="dark"] .sidebar-account-toggle:hover {
   color: var(--nav-active-text);
   background: var(--nav-active-bg);
   border-color: color-mix(in srgb, var(--nav-active-text) 45%, transparent);
