@@ -524,21 +524,40 @@ export default function Payments() {
         {canEdit && (
           <div className="filter-field filter-field-actions">
             <span className="filter-field-caption filter-field-caption-spacer" aria-hidden="true">&#8203;</span>
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
-              onClick={() => {
-                setAccountForm({
-                  name: '',
-                  account_number: importMeta?.own_account || '',
-                  currency: 'UZS',
-                  is_default: bankAccounts.length === 0,
-                });
-                setAccountModal('create');
-              }}
-            >
-              + Счёт
-            </button>
+            <div className="btn-group">
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => {
+                  setAccountForm({
+                    name: '',
+                    account_number: importMeta?.own_account || '',
+                    currency: 'UZS',
+                    is_default: bankAccounts.length === 0,
+                  });
+                  setAccountModal('create');
+                }}
+              >
+                + Счёт
+              </button>
+              {selectedAccount && (
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => {
+                    setAccountForm({
+                      name: selectedAccount.name || '',
+                      account_number: selectedAccount.account_number || '',
+                      currency: selectedAccount.currency || 'UZS',
+                      is_default: Boolean(selectedAccount.is_default),
+                    });
+                    setAccountModal(selectedAccount.id);
+                  }}
+                >
+                  Изменить
+                </button>
+              )}
+            </div>
           </div>
         )}
         <label className="filter-field">
@@ -1026,7 +1045,7 @@ export default function Payments() {
 
       {accountModal && (
         <Modal
-          title="Новый банковский счёт"
+          title={accountModal === 'create' ? 'Новый банковский счёт' : 'Редактировать счёт'}
           onClose={() => setAccountModal(null)}
           footer={
             <>
@@ -1036,13 +1055,20 @@ export default function Payments() {
                 className="btn btn-primary"
                 onClick={async () => {
                   try {
-                    const created = await api.createBankAccount(accountForm);
-                    show('Счёт создан');
-                    setAccountModal(null);
-                    await loadAccounts();
-                    if (created?.id) setSelectedAccountId(created.id);
-                    if (importOpen && importMeta?.own_account) {
-                      show('Счёт создан — загрузите выписку снова для привязки', 'error');
+                    if (accountModal === 'create') {
+                      const created = await api.createBankAccount(accountForm);
+                      show('Счёт создан');
+                      setAccountModal(null);
+                      await loadAccounts();
+                      if (created?.id) setSelectedAccountId(created.id);
+                      if (importOpen && importMeta?.own_account) {
+                        show('Счёт создан — загрузите выписку снова для привязки', 'error');
+                      }
+                    } else {
+                      await api.updateBankAccount(accountModal, accountForm);
+                      show('Счёт обновлён');
+                      setAccountModal(null);
+                      await loadAccounts();
                     }
                   } catch (e) {
                     show(e.message, 'error');
