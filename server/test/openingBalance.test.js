@@ -46,7 +46,7 @@ test('opening balance document affects reports and money balances', async () => 
 
   const { createBankAccount } = await import('../services/bankAccounts.js');
   const bankAcc = createBankAccount({
-    name: 'Основной сумовый',
+    name: 'Основной',
     account_number: '20208000707073001001',
     currency: 'UZS',
     is_default: true,

@@ -11697,10 +11697,50 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
   max-width: 100%;
 }
 
+.bank-days-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 8px 12px 0;
+}
+
+.bank-columns-menu {
+  position: relative;
+}
+
+.bank-columns-dropdown {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 20;
+  min-width: 180px;
+  padding: 8px;
+  background: var(--bg-elevated, var(--bg));
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px color-mix(in srgb, #000 12%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bank-columns-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  padding: 4px 6px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.bank-columns-item:hover {
+  background: color-mix(in srgb, var(--border) 40%, transparent);
+}
+
 .bank-days-table {
   width: 100%;
   min-width: 0;
-  table-layout: fixed;
+  table-layout: auto;
   font-size: 13px;
 }
 

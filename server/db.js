@@ -686,7 +686,7 @@ function migrateBankAccounts() {
         run(
           `INSERT INTO bank_accounts (id, branch_id, name, account_number, currency, is_default, active)
            VALUES (?, ?, ?, ?, 'UZS', 1, 1)`,
-          [id, branchId, 'Основной сумовый', '20208000707073001001'],
+          [id, branchId, 'Основной', '20208000707073001001'],
         );
         acc = { id };
       }
@@ -706,6 +706,16 @@ function migrateBankAccounts() {
       );
     }
     run("INSERT OR REPLACE INTO settings (key, value) VALUES ('bank_accounts_v1', '1')");
+    saveDb();
+  }
+
+  const renameDone = queryOne("SELECT value FROM settings WHERE key = 'bank_account_rename_osnovnoy_v1'");
+  if (!renameDone) {
+    run(
+      `UPDATE bank_accounts SET name = 'Основной'
+       WHERE name = 'Основной сумовый' OR name = 'Основной сумовой'`,
+    );
+    run("INSERT OR REPLACE INTO settings (key, value) VALUES ('bank_account_rename_osnovnoy_v1', '1')");
     saveDb();
   }
 }

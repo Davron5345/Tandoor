@@ -10,6 +10,37 @@ import { IconButton, IconEye, IconEdit, IconTrash } from '../components/ActionIc
 
 const INCOME_TYPES = new Set(['customer_income', 'other_income']);
 
+const BANK_DAY_COLUMNS = [
+  { id: 'number', label: '№', always: false },
+  { id: 'date', label: 'Дата', always: true },
+  { id: 'type', label: 'Тип', always: false },
+  { id: 'count', label: 'Опер.', always: false },
+  { id: 'opening', label: 'Сальдо нач.', always: false },
+  { id: 'debit', label: 'Дебет', always: false },
+  { id: 'credit', label: 'Кредит', always: false },
+  { id: 'closing', label: 'Сальдо кон.', always: false },
+  { id: 'status', label: 'Статус', always: false },
+  { id: 'actions', label: 'Действия', always: true },
+];
+
+const BANK_DAY_COLS_STORAGE = 'bank_days_visible_columns_v1';
+
+function loadBankDayColumns() {
+  try {
+    const raw = localStorage.getItem(BANK_DAY_COLS_STORAGE);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function defaultBankDayColumns() {
+  return BANK_DAY_COLUMNS.map((c) => c.id);
+}
+
 const empty = {
   type: 'supplier_payment',
   counterparty_id: '',
@@ -64,6 +95,9 @@ export default function Payments() {
   const [importBusy, setImportBusy] = useState(false);
   const [importFilter, setImportFilter] = useState('all');
   const [importOpen, setImportOpen] = useState(false);
+  const [columnsOpen, setColumnsOpen] = useState(false);
+  const [visibleColumns, setVisibleColumns] = useState(() => loadBankDayColumns() || defaultBankDayColumns());
+  const columnsMenuRef = useRef(null);
   const fileRef = useRef(null);
   const { show, Toast } = useToast();
   const { user } = useAuth();
@@ -113,9 +147,40 @@ export default function Payments() {
 
   useEffect(() => { loadAccounts(); }, [loadAccounts, branchId]);
   useEffect(() => { load(); }, [load, branchId]);
+  useEffect(() => {
+    localStorage.setItem(BANK_DAY_COLS_STORAGE, JSON.stringify(visibleColumns));
+  }, [visibleColumns]);
+  useEffect(() => {
+    if (!columnsOpen) return undefined;
+    const onPointer = (e) => {
+      if (!columnsMenuRef.current?.contains(e.target)) setColumnsOpen(false);
+    };
+    const onKey = (e) => {
+      if (e.key === 'Escape') setColumnsOpen(false);
+    };
+    document.addEventListener('mousedown', onPointer);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onPointer);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [columnsOpen]);
   useAutoRefresh(load, [load, branchId], {
     enabled: !importOpen && !viewDay && !paymentModal && !accountModal,
   });
+
+  const colVisible = useCallback((id) => visibleColumns.includes(id), [visibleColumns]);
+  const toggleColumn = (id) => {
+    const meta = BANK_DAY_COLUMNS.find((c) => c.id === id);
+    if (meta?.always) return;
+    setVisibleColumns((prev) => (
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    ));
+  };
+  const visibleColCount = useMemo(
+    () => BANK_DAY_COLUMNS.filter((c) => colVisible(c.id)).length,
+    [colVisible],
+  );
 
   const selectedAccount = useMemo(
     () => bankAccounts.find((a) => a.id === selectedAccountId) || null,
@@ -601,57 +666,106 @@ export default function Payments() {
       )}
 
       <div className="card bank-days-card">
+        <div className="bank-days-toolbar">
+          <div className="bank-columns-menu" ref={columnsMenuRef}>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={() => setColumnsOpen((v) => !v)}
+            >
+              Столбцы
+            </button>
+            {columnsOpen && (
+              <div className="bank-columns-dropdown" role="menu">
+                {BANK_DAY_COLUMNS.map((col) => (
+                  <label key={col.id} className="bank-columns-item">
+                    <input
+                      type="checkbox"
+                      checked={colVisible(col.id)}
+                      disabled={col.always}
+                      onChange={() => toggleColumn(col.id)}
+                    />
+                    <span>{col.label}</span>
+                  </label>
+                ))}
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => setVisibleColumns(defaultBankDayColumns())}
+                >
+                  Показать все
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
         <div className="table-wrap bank-days-wrap">
           <table className="bank-days-table">
             <thead>
               <tr>
-                <th>№</th>
-                <th>Дата</th>
-                <th>Тип</th>
-                <th>Опер.</th>
-                <th className="num">Сальдо нач.</th>
-                <th className="num">Дебет<br /><span className="th-sub">расход</span></th>
-                <th className="num">Кредит<br /><span className="th-sub">приход</span></th>
-                <th className="num">Сальдо кон.</th>
-                <th>Статус</th>
-                <th></th>
+                {colVisible('number') && <th>№</th>}
+                {colVisible('date') && <th>Дата</th>}
+                {colVisible('type') && <th>Тип</th>}
+                {colVisible('count') && <th>Опер.</th>}
+                {colVisible('opening') && <th className="num">Сальдо нач.</th>}
+                {colVisible('debit') && (
+                  <th className="num">Дебет<br /><span className="th-sub">расход</span></th>
+                )}
+                {colVisible('credit') && (
+                  <th className="num">Кредит<br /><span className="th-sub">приход</span></th>
+                )}
+                {colVisible('closing') && <th className="num">Сальдо кон.</th>}
+                {colVisible('status') && <th>Статус</th>}
+                {colVisible('actions') && <th></th>}
               </tr>
             </thead>
             <tbody>
               {paymentDays.map((day) => (
                 <tr key={day.date}>
-                  <td>{day.number}</td>
-                  <td>{formatDate(day.date)}</td>
-                  <td>
-                    <span className="badge badge-supplier bank-type-badge" title={selectedAccount?.name || 'Счёт'}>
-                      {selectedAccount?.name || 'Счёт'}
-                    </span>
-                  </td>
-                  <td>{day.count}</td>
-                  <td className="num">{formatMoney(day.opening)}</td>
-                  <td className="num bank-amt-debit">{day.debit ? formatMoney(day.debit) : '—'}</td>
-                  <td className="num bank-amt-credit">{day.credit ? formatMoney(day.credit) : '—'}</td>
-                  <td className="num"><strong>{formatMoney(day.closing)}</strong></td>
-                  <td>
-                    <span className={`badge badge-${day.status.key}`}>{day.status.label}</span>
-                  </td>
-                  <td>
-                    <div className="btn-group btn-group-icons doc-actions">
-                      <IconButton title="Открыть" onClick={() => setViewDay(day.date)}>
-                        <IconEye />
-                      </IconButton>
-                      {canDelete && (
-                        <IconButton title="Удалить выписку" danger onClick={() => removeDay(day.date)}>
-                          <IconTrash />
+                  {colVisible('number') && <td>{day.number}</td>}
+                  {colVisible('date') && <td>{formatDate(day.date)}</td>}
+                  {colVisible('type') && (
+                    <td>
+                      <span className="badge badge-supplier bank-type-badge" title={selectedAccount?.name || 'Счёт'}>
+                        {selectedAccount?.name || 'Счёт'}
+                      </span>
+                    </td>
+                  )}
+                  {colVisible('count') && <td>{day.count}</td>}
+                  {colVisible('opening') && <td className="num">{formatMoney(day.opening)}</td>}
+                  {colVisible('debit') && (
+                    <td className="num bank-amt-debit">{day.debit ? formatMoney(day.debit) : '—'}</td>
+                  )}
+                  {colVisible('credit') && (
+                    <td className="num bank-amt-credit">{day.credit ? formatMoney(day.credit) : '—'}</td>
+                  )}
+                  {colVisible('closing') && (
+                    <td className="num"><strong>{formatMoney(day.closing)}</strong></td>
+                  )}
+                  {colVisible('status') && (
+                    <td>
+                      <span className={`badge badge-${day.status.key}`}>{day.status.label}</span>
+                    </td>
+                  )}
+                  {colVisible('actions') && (
+                    <td>
+                      <div className="btn-group btn-group-icons doc-actions">
+                        <IconButton title="Открыть" onClick={() => setViewDay(day.date)}>
+                          <IconEye />
                         </IconButton>
-                      )}
-                    </div>
-                  </td>
+                        {canDelete && (
+                          <IconButton title="Удалить выписку" danger onClick={() => removeDay(day.date)}>
+                            <IconTrash />
+                          </IconButton>
+                        )}
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))}
               {paymentDays.length === 0 && (
                 <tr>
-                  <td colSpan={10} className="empty">
+                  <td colSpan={Math.max(visibleColCount, 1)} className="empty">
                     {payments.length === 0 ? 'Операций пока нет' : 'Нет выписок за выбранный период'}
                   </td>
                 </tr>
@@ -851,7 +965,7 @@ export default function Payments() {
                       className="btn btn-secondary btn-sm"
                       onClick={() => {
                         setAccountForm({
-                          name: importMeta.own_name || 'Основной сумовый',
+                          name: importMeta.own_name || 'Основной',
                           account_number: importMeta.own_account || '',
                           currency: 'UZS',
                           is_default: bankAccounts.length === 0,
@@ -1086,7 +1200,7 @@ export default function Payments() {
               <input
                 value={accountForm.name}
                 onChange={(e) => setAccountForm({ ...accountForm, name: e.target.value })}
-                placeholder="Основной сумовый"
+                placeholder="Основной"
               />
             </div>
             <div className="form-group">

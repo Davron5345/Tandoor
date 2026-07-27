@@ -137,7 +137,7 @@ async function ensureBootstrap() {
   if (!bankBackfill.rows.length) {
     await execRaw(`
       INSERT INTO bank_accounts (id, branch_id, name, account_number, currency, is_default, active)
-      SELECT 'ba_main_' || b.id, b.id, 'Основной сумовый', '20208000707073001001', 'UZS', 1, 1
+      SELECT 'ba_main_' || b.id, b.id, 'Основной', '20208000707073001001', 'UZS', 1, 1
       FROM branches b
       WHERE NOT EXISTS (
         SELECT 1 FROM bank_accounts ba
@@ -175,6 +175,20 @@ async function ensureBootstrap() {
     `);
     await execRaw(
       `INSERT INTO settings (key, value) VALUES ('bank_accounts_backfill_v1', '1')
+       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
+    );
+  }
+  const renameOsnovnoy = await execRaw(
+    'SELECT value FROM settings WHERE key = $1',
+    ['bank_account_rename_osnovnoy_v1'],
+  );
+  if (!renameOsnovnoy.rows.length) {
+    await execRaw(
+      `UPDATE bank_accounts SET name = 'Основной'
+       WHERE name IN ('Основной сумовый', 'Основной сумовой')`,
+    );
+    await execRaw(
+      `INSERT INTO settings (key, value) VALUES ('bank_account_rename_osnovnoy_v1', '1')
        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
     );
   }
