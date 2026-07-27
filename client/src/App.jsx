@@ -55,6 +55,7 @@ import {
 } from './components/NavIcons';
 
 const SIDEBAR_COLLAPSED_KEY = 'warehouse-sidebar-collapsed';
+const SIDEBAR_ACCOUNT_OPEN_KEY = 'warehouse-sidebar-account-open';
 
 function filterNavItems(user, items) {
   return items.filter((item) => !item.perm || hasPermission(user, item.perm));
@@ -150,6 +151,14 @@ function buildAppNav(user) {
 function readSidebarCollapsed() {
   try {
     return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function readSidebarAccountOpen() {
+  try {
+    return localStorage.getItem(SIDEBAR_ACCOUNT_OPEN_KEY) === '1';
   } catch {
     return false;
   }
@@ -286,6 +295,7 @@ function AppContent() {
   const [openNavGroup, setOpenNavGroup] = useState(null);
   const [openFlyoutGroup, setOpenFlyoutGroup] = useState(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(readSidebarCollapsed);
+  const [accountOpen, setAccountOpen] = useState(readSidebarAccountOpen);
   const { theme, toggleTheme } = useTheme();
   const { user, loading, logout } = useAuth();
   const { branches, branchId, branchName, setActiveBranchId, isAdmin: isBranchAdmin } = useBranch();
@@ -386,8 +396,18 @@ function AppContent() {
     });
   };
 
+  const toggleAccount = () => {
+    setAccountOpen((open) => {
+      const next = !open;
+      try {
+        localStorage.setItem(SIDEBAR_ACCOUNT_OPEN_KEY, next ? '1' : '0');
+      } catch { /* ignore */ }
+      return next;
+    });
+  };
+
   return (
-    <div className={`app${sidebarCollapsed ? ' sidebar-collapsed' : ''}${isCashierLayout ? ' app-cashier-mode' : ''}${isMyShopStore ? ' app-myshop-mode' : ''}${isMyShopConstructor ? ' app-myshop-constructor-mode' : ''}`}>
+    <div className={`app${sidebarCollapsed ? ' sidebar-collapsed' : ''}${accountOpen ? ' sidebar-account-open' : ''}${isCashierLayout ? ' app-cashier-mode' : ''}${isMyShopStore ? ' app-myshop-mode' : ''}${isMyShopConstructor ? ' app-myshop-constructor-mode' : ''}`}>
       {!isCashierLayout && (
       <aside className="sidebar">
         <div className="sidebar-panel">
@@ -400,6 +420,16 @@ function AppContent() {
             </div>
           </div>
           <div className="sidebar-header-actions">
+            <button
+              type="button"
+              className={`sidebar-account-toggle${accountOpen ? ' is-open' : ''}`}
+              onClick={toggleAccount}
+              title={accountOpen ? 'Скрыть профиль и филиал' : 'Показать профиль и филиал'}
+              aria-label={accountOpen ? 'Скрыть профиль и филиал' : 'Показать профиль и филиал'}
+              aria-expanded={accountOpen}
+            >
+              <IconNavChevronDown />
+            </button>
             <button
               type="button"
               className="sidebar-toggle"
@@ -419,6 +449,7 @@ function AppContent() {
             </button>
           </div>
         </div>
+        {accountOpen && (
         <div className="sidebar-account">
           {isBranchAdmin && branches.length > 0 && (
             <div className="branch-select-wrap">
@@ -477,6 +508,7 @@ function AppContent() {
             </button>
           </div>
         </div>
+        )}
         <div className="sidebar-body">
           <nav className="nav">
             {canViewDashboard && (
