@@ -98,9 +98,20 @@ function lineBadgeClass(type) {
 
 function lineTotal(line) {
   if (line.line_type === 'stock') {
-    return (parseQuantityInput(line.quantity) ?? 0) * (Number(line.unit_cost) || 0);
+    return (parseQuantityInput(line.quantity) ?? 0) * (parsePriceInput(line.unit_cost) ?? Number(line.unit_cost) || 0);
   }
-  return Number(line.amount) || 0;
+  return parsePriceInput(line.amount) ?? Number(line.amount) || 0;
+}
+
+function serializeObLines(lines) {
+  return (lines || []).map((l) => ({
+    ...l,
+    quantity: parseQuantityInput(l.quantity) ?? Number(l.quantity) || 0,
+    unit_cost: parsePriceInput(l.unit_cost) ?? Number(l.unit_cost) || 0,
+    amount: l.line_type === 'stock'
+      ? ((parseQuantityInput(l.quantity) ?? 0) * (parsePriceInput(l.unit_cost) ?? Number(l.unit_cost) || 0))
+      : (parsePriceInput(l.amount) ?? Number(l.amount) || 0),
+  }));
 }
 
 function defaultNewDocLines(lineType) {
@@ -114,12 +125,13 @@ function isCreateFormDirty(form, lineType) {
     if (line.line_type !== lineType) return false;
     if (line.comment?.trim()) return true;
     if (line.line_type === 'stock') {
-      return line.product_id || line.department_id || Number(line.quantity) > 0 || Number(line.unit_cost) > 0;
+      return line.product_id || line.department_id || Number(line.quantity) > 0
+        || (parsePriceInput(line.unit_cost) ?? Number(line.unit_cost) || 0) > 0;
     }
     if (line.line_type === 'debtor' || line.line_type === 'creditor') {
-      return line.counterparty_id || Number(line.amount) > 0;
+      return line.counterparty_id || (parsePriceInput(line.amount) ?? Number(line.amount) || 0) > 0;
     }
-    return Number(line.amount) > 0 || Boolean(line.bank_account_id);
+    return (parsePriceInput(line.amount) ?? Number(line.amount) || 0) > 0 || Boolean(line.bank_account_id);
   });
 }
 
@@ -250,7 +262,8 @@ export default function OpeningBalance() {
       const lines = [...f.lines];
       lines[index] = { ...lines[index], ...patch };
       if (lines[index].line_type === 'stock') {
-        lines[index].amount = (parseQuantityInput(lines[index].quantity) ?? 0) * (Number(lines[index].unit_cost) || 0);
+        lines[index].amount = (parseQuantityInput(lines[index].quantity) ?? 0)
+          * (parsePriceInput(lines[index].unit_cost) ?? Number(lines[index].unit_cost) || 0);
       }
       return { ...f, lines };
     });
@@ -280,7 +293,7 @@ export default function OpeningBalance() {
       let doc = await api.createOpeningBalanceDocument({
         date: createForm.date,
         comment: createForm.comment,
-        lines,
+        lines: serializeObLines(lines),
       });
       if (andConfirm) {
         doc = await api.confirmOpeningBalanceDocument(doc.id);
@@ -346,7 +359,8 @@ export default function OpeningBalance() {
       const lines = [...f.lines];
       lines[index] = { ...lines[index], ...patch };
       if (lines[index].line_type === 'stock') {
-        lines[index].amount = (parseQuantityInput(lines[index].quantity) ?? 0) * (Number(lines[index].unit_cost) || 0);
+        lines[index].amount = (parseQuantityInput(lines[index].quantity) ?? 0)
+          * (parsePriceInput(lines[index].unit_cost) ?? Number(lines[index].unit_cost) || 0);
       }
       return { ...f, lines };
     });
@@ -401,7 +415,7 @@ export default function OpeningBalance() {
     }
     setSaving(true);
     try {
-      const payload = { date: form.date, comment: form.comment, lines: form.lines };
+      const payload = { date: form.date, comment: form.comment, lines: serializeObLines(form.lines) };
       let doc;
       if (editId) {
         doc = await api.updateOpeningBalanceDocument(editId, payload);
@@ -565,12 +579,16 @@ export default function OpeningBalance() {
           {!readOnly ? (
             <input
               type="text"
-              inputMode="numeric"
+              inputMode="decimal"
               className="input-compact input-num"
-              value={formatPriceInput(line.line_type === 'stock' ? line.unit_cost : line.amount)}
+              value={
+                typeof (line.line_type === 'stock' ? line.unit_cost : line.amount) === 'string'
+                  ? (line.line_type === 'stock' ? line.unit_cost : line.amount)
+                  : formatPriceInput(line.line_type === 'stock' ? line.unit_cost : line.amount)
+              }
               onChange={(e) => {
-                const val = parsePriceInput(e.target.value) ?? 0;
-                onUpdate(index, line.line_type === 'stock' ? { unit_cost: val } : { amount: val });
+                const text = formatPriceInput(e.target.value);
+                onUpdate(index, line.line_type === 'stock' ? { unit_cost: text } : { amount: text });
               }}
             />
           ) : formatMoney(line.line_type === 'stock' ? line.unit_cost : line.amount)}
@@ -673,14 +691,13 @@ export default function OpeningBalance() {
                         <label>Сумма *</label>
                         <input
                           type="text"
-                          inputMode="numeric"
+                          inputMode="decimal"
                           className="input-num"
-                          value={formatPriceInput(line.amount || 0)}
+                          value={typeof line.amount === 'string' ? line.amount : formatPriceInput(line.amount || 0)}
                           onChange={(e) => {
-                            const val = parsePriceInput(e.target.value) ?? 0;
-                            updateCreateLine(index, { amount: val });
+                            updateCreateLine(index, { amount: formatPriceInput(e.target.value) });
                           }}
-                          placeholder="0"
+                          placeholder="0,00"
                         />
                       </div>
                       {createForm.lines.filter((l) => l.line_type === 'bank').length > 1 && (
@@ -707,14 +724,17 @@ export default function OpeningBalance() {
                 <label>Сумма *</label>
                 <input
                   type="text"
-                  inputMode="numeric"
+                  inputMode="decimal"
                   className="input-num"
-                  value={formatPriceInput(createForm.lines[moneyLineIndex]?.amount || 0)}
+                  value={
+                    typeof createForm.lines[moneyLineIndex]?.amount === 'string'
+                      ? createForm.lines[moneyLineIndex].amount
+                      : formatPriceInput(createForm.lines[moneyLineIndex]?.amount || 0)
+                  }
                   onChange={(e) => {
-                    const val = parsePriceInput(e.target.value) ?? 0;
-                    updateCreateLine(moneyLineIndex, { amount: val });
+                    updateCreateLine(moneyLineIndex, { amount: formatPriceInput(e.target.value) });
                   }}
-                  placeholder="0"
+                  placeholder="0,00"
                 />
               </div>
             )}

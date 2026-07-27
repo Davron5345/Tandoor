@@ -46,7 +46,7 @@ const empty = {
   type: 'supplier_payment',
   counterparty_id: '',
   document_id: '',
-  amount: 0,
+  amount: '',
   date: new Date().toISOString().slice(0, 10),
   comment: '',
   bank_account_id: '',
@@ -292,7 +292,7 @@ export default function Payments() {
       type: p.type,
       counterparty_id: p.counterparty_id || '',
       document_id: p.document_id || '',
-      amount: p.amount,
+      amount: formatPriceInput(p.amount),
       date: p.date,
       comment: p.comment || '',
       bank_account_id: p.bank_account_id || selectedAccountId || '',
@@ -302,8 +302,14 @@ export default function Payments() {
 
   const save = async () => {
     try {
+      const amount = parsePriceInput(form.amount);
+      if (amount == null || amount <= 0) {
+        window.alert('Укажите сумму');
+        return;
+      }
       const payload = {
         ...form,
+        amount,
         bank_account_id: form.bank_account_id || selectedAccountId || null,
       };
       if (paymentModal === 'create') {
@@ -1200,11 +1206,11 @@ export default function Payments() {
               <label>Сумма *</label>
               <input
                 type="text"
-                inputMode="numeric"
+                inputMode="decimal"
                 className="input-num"
-                value={formatPriceInput(form.amount)}
-                onChange={(e) => setForm({ ...form, amount: parsePriceInput(e.target.value) ?? 0 })}
-                placeholder="0"
+                value={form.amount}
+                onChange={(e) => setForm({ ...form, amount: formatPriceInput(e.target.value) })}
+                placeholder="0,00"
               />
             </div>
             <div className="form-group">

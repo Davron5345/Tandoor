@@ -498,16 +498,53 @@ export function formatMoney(n) {
   }).format(Number(n) || 0)} сум`;
 }
 
+/**
+ * Поле суммы/цены: пробелы тысяч, дробь через «,» или «.» (до 2 знаков).
+ * Хвостовая запятая при вводе сохраняется («12,»).
+ */
 export function formatPriceInput(value) {
-  const digits = String(value ?? '').replace(/\D/g, '');
-  if (!digits) return '';
-  return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(Number(digits));
+  if (value === '' || value == null) return '';
+  let raw = String(value).replace(/\s/g, '');
+  raw = raw.replace(/[^\d.,]/g, '');
+  if (!raw) return '';
+
+  const sepIdx = raw.search(/[.,]/);
+  let intRaw = raw;
+  let fracRaw = null;
+  let trailingSep = false;
+
+  if (sepIdx !== -1) {
+    intRaw = raw.slice(0, sepIdx).replace(/[.,]/g, '');
+    const after = raw.slice(sepIdx + 1).replace(/[.,]/g, '');
+    trailingSep = after.length === 0;
+    fracRaw = after.slice(0, 2);
+  } else {
+    intRaw = raw.replace(/[.,]/g, '');
+  }
+
+  if (intRaw === '' && !trailingSep && (fracRaw == null || fracRaw === '')) {
+    return '';
+  }
+
+  const intFormatted = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 })
+    .format(Number(intRaw || '0'));
+
+  if (trailingSep) return `${intFormatted},`;
+  if (fracRaw != null && fracRaw !== '') return `${intFormatted},${fracRaw}`;
+  return intFormatted;
 }
 
 export function parsePriceInput(value) {
-  const digits = String(value ?? '').replace(/\D/g, '');
-  if (!digits) return null;
-  return Number(digits);
+  if (value === '' || value == null) return null;
+  let s = String(value).replace(/\s/g, '').replace(',', '.');
+  s = s.replace(/[^\d.]/g, '');
+  const dot = s.indexOf('.');
+  if (dot !== -1) {
+    s = `${s.slice(0, dot + 1)}${s.slice(dot + 1).replace(/\./g, '').slice(0, 2)}`;
+  }
+  if (s === '' || s === '.') return null;
+  const num = Number(s);
+  return Number.isFinite(num) ? num : null;
 }
 
 /** Sanitize quantity while typing: digits and one decimal separator (. or ,). */
