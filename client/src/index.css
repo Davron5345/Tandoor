@@ -11686,6 +11686,28 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
   color: var(--text-muted);
 }
 
+.bank-day-party {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.bank-day-party-name {
+  font-weight: 500;
+  line-height: 1.25;
+}
+
+.bank-day-party-firm {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 220px;
+}
+
 .bank-days-table .th-sub {
   font-weight: 400;
   font-size: 11px;

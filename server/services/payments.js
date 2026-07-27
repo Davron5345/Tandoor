@@ -118,7 +118,8 @@ export function getPayments(branchId = null, userRole = null, filters = {}) {
            d.number as document_number, u.name as created_by_name,
            b.name as branch_name, ca.name as article_name, ca.code as article_code,
            ca.direction as article_direction,
-           cc.number as contract_number
+           cc.number as contract_number,
+           cf.name as firm_name, cf.inn as firm_inn
     FROM payments p
     LEFT JOIN counterparties c ON c.id = p.counterparty_id
     LEFT JOIN documents d ON d.id = p.document_id
@@ -126,6 +127,7 @@ export function getPayments(branchId = null, userRole = null, filters = {}) {
     LEFT JOIN branches b ON b.id = p.branch_id
     LEFT JOIN cash_articles ca ON ca.id = p.article_id
     LEFT JOIN counterparty_contracts cc ON cc.id = p.contract_id
+    LEFT JOIN counterparty_firms cf ON cf.id = p.firm_id
   `;
   const params = [];
   const conditions = [];
@@ -345,12 +347,14 @@ export function createPayment(data, userId = null, branchId = DEFAULT_BRANCH_ID,
 
   return queryOne(`
     SELECT p.*, c.name as counterparty_name, d.number as document_number, ca.name as article_name,
-           cc.number as contract_number
+           ca.code as article_code, cc.number as contract_number,
+           cf.name as firm_name, cf.inn as firm_inn
     FROM payments p
     LEFT JOIN counterparties c ON c.id = p.counterparty_id
     LEFT JOIN documents d ON d.id = p.document_id
     LEFT JOIN cash_articles ca ON ca.id = p.article_id
     LEFT JOIN counterparty_contracts cc ON cc.id = p.contract_id
+    LEFT JOIN counterparty_firms cf ON cf.id = p.firm_id
     WHERE p.id = ?
   `, [id]);
 }
@@ -415,12 +419,14 @@ export function updatePayment(id, data, branchId = DEFAULT_BRANCH_ID, userRole =
 
   return queryOne(`
     SELECT p.*, c.name as counterparty_name, d.number as document_number, ca.name as article_name,
-           cc.number as contract_number
+           ca.code as article_code, cc.number as contract_number,
+           cf.name as firm_name, cf.inn as firm_inn
     FROM payments p
     LEFT JOIN counterparties c ON c.id = p.counterparty_id
     LEFT JOIN documents d ON d.id = p.document_id
     LEFT JOIN cash_articles ca ON ca.id = p.article_id
     LEFT JOIN counterparty_contracts cc ON cc.id = p.contract_id
+    LEFT JOIN counterparty_firms cf ON cf.id = p.firm_id
     WHERE p.id = ?
   `, [id]);
 }

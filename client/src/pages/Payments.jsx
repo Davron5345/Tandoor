@@ -894,7 +894,20 @@ export default function Payments() {
                       <tr key={p.id}>
                         <td>{p.number}</td>
                         <td>{paymentTypeLabel(p)}</td>
-                        <td>{p.counterparty_name || '—'}</td>
+                        <td>
+                          {p.counterparty_name || p.firm_name ? (
+                            <div className="bank-day-party">
+                              <span className="bank-day-party-name">
+                                {p.counterparty_name || '—'}
+                              </span>
+                              {p.firm_name && p.firm_name !== p.counterparty_name && (
+                                <span className="bank-day-party-firm" title={p.firm_inn ? `ИНН ${p.firm_inn}` : undefined}>
+                                  {p.firm_name}
+                                </span>
+                              )}
+                            </div>
+                          ) : '—'}
+                        </td>
                         <td>{p.contract_number || '—'}</td>
                         <td>{p.document_number || '—'}</td>
                         <td className="num bank-amt-debit">
