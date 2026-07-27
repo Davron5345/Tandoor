@@ -14,6 +14,7 @@ import {
   findCounterpartyFirmByInn,
   DEFAULT_CONTRACT_ID,
 } from './counterparties.js';
+import { BANK_SERVICE_ARTICLE_CODE, cashArticleId } from '../cashArticleDefaults.js';
 
 const { queryOne, queryAll, transaction } = db;
 
@@ -25,7 +26,21 @@ const ACQUIRING_CHANNELS = [
   { id: 'terminal', label: 'Терминал', patterns: [/UNIONPAY/i, /SMARTVISTA/i, /ТЕР:/i, /ТЕРМИНАЛ/i, /ИНКАССАЦ/i] },
 ];
 
-const COMMISSION_RE = /комиссионн/i;
+/** Комиссия / РКО банка в выписке (название, назначение, счёт 16401). */
+export function isBankServiceFee(raw) {
+  const name = String(raw?.name || '');
+  const purpose = String(raw?.purpose || '');
+  const account = String(raw?.account || '').replace(/\D/g, '');
+  const text = `${name}\n${purpose}`;
+  if (/комиссионн/i.test(text)) return true;
+  if (/услуг[аи]\s+банка/i.test(text)) return true;
+  if (/банковск\w*\s+услуг/i.test(text)) return true;
+  if (/оп\.?\s*обс/i.test(text)) return true;
+  if (/расч[её]тно.?кассов/i.test(text)) return true;
+  if (/^16401/.test(account) || account.includes('16401')) return true;
+  return false;
+}
+
 const OWN_NAME_RE = /MAHALLA|МАХАЛЛ/i;
 const CLIENT_NAME_RE = /^клиент$/i;
 
@@ -372,11 +387,17 @@ function classifyRow(raw, ctx) {
   let isNewFirm = false;
   let isNewAccount = false;
   let firmMatch = null;
+  let articleId = null;
 
-  if (COMMISSION_RE.test(raw.name) || /16401/.test(raw.account)) {
+  if (direction === 'debit' && isBankServiceFee(raw)) {
     type = 'other_expense';
     selected = true;
-    matchReason = 'комиссия банка';
+    articleId = cashArticleId(ctx.branchId || DEFAULT_BRANCH_ID, BANK_SERVICE_ARTICLE_CODE);
+    matchReason = 'услуга банка (комиссия / РКО)';
+    isNewFirm = false;
+    isNewAccount = false;
+    counterparty = null;
+    firmMatch = null;
   } else if (channel) {
     type = 'customer_income';
     channelId = channel.id;
@@ -499,7 +520,9 @@ function classifyRow(raw, ctx) {
     doc_no: raw.docNo,
     purpose: raw.purpose,
     inn: counterpartyInn,
-    suggested_name: suggestedName || null,
+    suggested_name: (direction === 'debit' && isBankServiceFee(raw))
+      ? null
+      : (suggestedName || null),
     suggested_type: suggestedCounterpartyType(type),
     is_new_firm: isNewFirm && !alreadyImported && !identicalDate,
     is_new_account: isNewAccount && !alreadyImported && !identicalDate && !isNewFirm,
@@ -513,6 +536,7 @@ function classifyRow(raw, ctx) {
     contract_number: contract?.number || null,
     channel: channelId,
     channel_label: channelLabel,
+    article_id: articleId,
     selected,
     already_imported: alreadyImported || identicalDate,
     replaces_date: Boolean(willReplaceDate),
@@ -934,13 +958,23 @@ export function confirmBankStatementImport(
 
       let counterpartyId = row.counterparty_id || null;
       let firmId = row.firm_id || null;
-      if (!counterpartyId && (row.is_new_firm || row.inn || row.suggested_name)) {
+      const payType = row.type || (row.direction === 'debit' ? 'supplier_payment' : 'customer_income');
+      let articleId = row.article_id || null;
+      const bankFee = payType === 'other_expense' && (
+        articleId === cashArticleId(branchId, BANK_SERVICE_ARTICLE_CODE)
+        || isBankServiceFee(row)
+      );
+      if (bankFee) {
+        articleId = articleId || cashArticleId(branchId, BANK_SERVICE_ARTICLE_CODE);
+        counterpartyId = null;
+        firmId = null;
+      } else if (!counterpartyId && (row.is_new_firm || row.inn || row.suggested_name)) {
         const resolved = resolveOrCreateCounterparty(row, branchId, cpCache, createdCounterparties);
         counterpartyId = resolved.counterpartyId;
         firmId = firmId || resolved.firmId;
       }
 
-      if (row.is_new_account && counterpartyId && firmId) {
+      if (!bankFee && row.is_new_account && counterpartyId && firmId) {
         const accKey = `${firmId}:${normalizeAccount(row.account) || row.account}`;
         if (!accountUpdateDone.has(accKey)) {
           accountUpdateDone.add(accKey);
@@ -952,20 +986,22 @@ export function confirmBankStatementImport(
       if (row.channel_label) commentParts.push(row.channel_label);
       if (row.contract_number) commentParts.push(`дог. ${row.contract_number}`);
       if (row.doc_no) commentParts.push(`№${row.doc_no}`);
+      if (row.name && bankFee) commentParts.push(String(row.name).slice(0, 120));
       if (row.purpose) commentParts.push(String(row.purpose).slice(0, 240));
       const comment = (row.comment != null && String(row.comment).trim())
         ? String(row.comment).trim()
         : commentParts.join(' · ');
 
       const payment = createPayment({
-        type: row.type || (row.direction === 'debit' ? 'supplier_payment' : 'customer_income'),
+        type: payType,
         counterparty_id: counterpartyId,
         firm_id: firmId,
-        contract_id: row.contract_id || null,
+        contract_id: bankFee ? null : (row.contract_id || null),
         document_id: null,
         amount,
         date: row.date,
         comment,
+        article_id: articleId,
         external_ref: row.external_ref || null,
         import_batch_id: batchId,
         bank_account_id: bankAccountId,

@@ -119,6 +119,19 @@ export const PAYMENT_TYPES = {
   other_expense: 'Прочий расход',
 };
 
+/** Подпись типа оплаты с учётом статьи (комиссия банка → «Услуга банка»). */
+export function paymentTypeLabel(payment) {
+  if (!payment) return '';
+  if (
+    payment.article_code === 'exp_bank_service'
+    || payment.article_name === 'Услуга банка'
+    || (typeof payment.article_id === 'string' && payment.article_id.endsWith('__exp_bank_service'))
+  ) {
+    return 'Услуга банка';
+  }
+  return PAYMENT_TYPES[payment.type] || payment.type || '';
+}
+
 export const DOC_TYPE_LABELS = {
   prihod: 'Приход',
   rashod: 'Расход',

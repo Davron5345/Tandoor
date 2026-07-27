@@ -15,6 +15,7 @@ export const SURPLUS_ARTICLE_CODE = 'inc_surplus';
 export const SHORTAGE_ARTICLE_CODE = 'exp_shortage';
 export const CLIENT_DEBT_ARTICLE_CODE = 'exp_client_debt';
 export const DEBT_RETURN_ARTICLE_CODE = 'inc_debt_return';
+export const BANK_SERVICE_ARTICLE_CODE = 'exp_bank_service';
 
 export const DEFAULT_CASH_ARTICLES = [
   { code: 'inc_sales', name: 'Выручка', direction: 'income', sort_order: 1 },
@@ -29,6 +30,7 @@ export const DEFAULT_CASH_ARTICLES = [
   { code: 'exp_other', name: 'Прочий расход', direction: 'expense', sort_order: 5 },
   { code: SHORTAGE_ARTICLE_CODE, name: 'Недостача', direction: 'expense', sort_order: 6 },
   { code: CLIENT_DEBT_ARTICLE_CODE, name: 'Долг клиентам', direction: 'expense', sort_order: 7 },
+  { code: BANK_SERVICE_ARTICLE_CODE, name: 'Услуга банка', direction: 'expense', sort_order: 8 },
 ];
 
 export function cashArticleId(branchId, code) {

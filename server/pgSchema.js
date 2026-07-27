@@ -16,6 +16,7 @@ export const PG_MIGRATION_SETTINGS_KEYS = [
   'cash_articles_surplus_v1',
   'cash_articles_client_debt_v1',
   'cash_articles_debt_return_v1',
+  'cash_articles_bank_service_v1',
   'counterparties_branch_v1',
   'counterparty_contracts_v1',
   'contract_firm_link_v1',

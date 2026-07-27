@@ -116,7 +116,8 @@ export function getPayments(branchId = null, userRole = null, filters = {}) {
   let sql = `
     SELECT p.*, c.name as counterparty_name, c.type as counterparty_type,
            d.number as document_number, u.name as created_by_name,
-           b.name as branch_name, ca.name as article_name, ca.direction as article_direction,
+           b.name as branch_name, ca.name as article_name, ca.code as article_code,
+           ca.direction as article_direction,
            cc.number as contract_number
     FROM payments p
     LEFT JOIN counterparties c ON c.id = p.counterparty_id

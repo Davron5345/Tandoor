@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { api, formatMoney, formatDate } from '../api';
-import { PAYMENT_TYPES } from '../permissions';
+import { PAYMENT_TYPES, paymentTypeLabel } from '../permissions';
 import Modal, { useToast } from '../components/Modal';
 import { hasPermission } from '../permissions';
 import { useAuth } from '../AuthContext';
@@ -893,7 +893,7 @@ export default function Payments() {
                     return (
                       <tr key={p.id}>
                         <td>{p.number}</td>
-                        <td>{PAYMENT_TYPES[p.type] || p.type}</td>
+                        <td>{paymentTypeLabel(p)}</td>
                         <td>{p.counterparty_name || '—'}</td>
                         <td>{p.contract_number || '—'}</td>
                         <td>{p.document_number || '—'}</td>
@@ -1309,20 +1309,25 @@ function ImportDateGroup({ group, counterpartiesForImportRow, updateImportRow })
             {formatMoney(r.amount)}
           </td>
           <td>
-            <select
-              value={r.type}
-              disabled={r.already_imported}
-              onChange={(e) => updateImportRow(r.external_ref, {
-                type: e.target.value,
-                counterparty_id: '',
-                counterparty_name: null,
-                is_new_firm: Boolean(r.inn || r.suggested_name),
-              })}
-            >
-              {Object.entries(PAYMENT_TYPES).map(([k, v]) => (
-                <option key={k} value={k}>{v}</option>
-              ))}
-            </select>
+            {r.article_id && String(r.article_id).includes('exp_bank_service') ? (
+              <span title={r.match_reason || ''}>Услуга банка</span>
+            ) : (
+              <select
+                value={r.type}
+                disabled={r.already_imported}
+                onChange={(e) => updateImportRow(r.external_ref, {
+                  type: e.target.value,
+                  counterparty_id: '',
+                  counterparty_name: null,
+                  article_id: null,
+                  is_new_firm: Boolean(r.inn || r.suggested_name),
+                })}
+              >
+                {Object.entries(PAYMENT_TYPES).map(([k, v]) => (
+                  <option key={k} value={k}>{v}</option>
+                ))}
+              </select>
+            )}
           </td>
           <td>{r.inn || '—'}</td>
           <td>

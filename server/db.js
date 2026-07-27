@@ -479,6 +479,7 @@ function migrateSchema() {
   migrateCashArticlesSurplusShortage();
   migrateCashArticlesClientDebt();
   migrateCashArticlesDebtReturn();
+  migrateCashArticlesBankService();
   migrateDocumentHistoryRetention();
   migrateMustChangePassword();
   migrateAuditLog();
@@ -2135,6 +2136,58 @@ function migrateCashArticlesDebtReturn() {
   }
 
   run("INSERT OR REPLACE INTO settings (key, value) VALUES ('cash_articles_debt_return_v1', '1')");
+  saveDb();
+}
+
+function migrateCashArticlesBankService() {
+  const done = queryOne("SELECT value FROM settings WHERE key = 'cash_articles_bank_service_v1'");
+  if (done) return;
+
+  ensureMainBranchExists();
+
+  const extraArticles = DEFAULT_CASH_ARTICLES.filter((a) => a.code === 'exp_bank_service');
+
+  const branchIds = new Set(queryAll('SELECT id FROM branches').map((b) => b.id));
+  for (const row of queryAll('SELECT DISTINCT branch_id as id FROM cash_articles WHERE branch_id IS NOT NULL')) {
+    branchIds.add(row.id);
+  }
+  if (!branchIds.size) branchIds.add('main');
+
+  for (const branchId of branchIds) {
+    for (const article of extraArticles) {
+      const id = cashArticleId(branchId, article.code);
+      run(
+        `INSERT OR IGNORE INTO cash_articles
+          (id, name, direction, sort_order, active, branch_id, code)
+         VALUES (?, ?, ?, ?, 1, ?, ?)`,
+        [id, article.name, article.direction, article.sort_order, branchId, article.code],
+      );
+      // Already imported bank commissions → «Услуга банка» (без ложного контрагента)
+      run(
+        `UPDATE payments
+         SET article_id = ?,
+             counterparty_id = NULL,
+             firm_id = NULL
+         WHERE type = 'other_expense'
+           AND (branch_id = ? OR (branch_id IS NULL AND ? = 'main'))
+           AND (
+             comment LIKE '%комиссионн%'
+             OR comment LIKE '%оп.обс%'
+             OR comment LIKE '%оп обс%'
+             OR comment LIKE '%услуг%банка%'
+           )
+           AND (
+             article_id IS NULL
+             OR article_id = ''
+             OR article_id LIKE '%exp_other%'
+             OR article_id = 'ca_exp_other'
+           )`,
+        [id, branchId, branchId],
+      );
+    }
+  }
+
+  run("INSERT OR REPLACE INTO settings (key, value) VALUES ('cash_articles_bank_service_v1', '1')");
   saveDb();
 }
 
