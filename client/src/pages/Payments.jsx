@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { api, formatMoney, formatDate } from '../api';
 import { PAYMENT_TYPES } from '../permissions';
 import Modal, { useToast } from '../components/Modal';
@@ -96,8 +97,11 @@ export default function Payments() {
   const [importFilter, setImportFilter] = useState('all');
   const [importOpen, setImportOpen] = useState(false);
   const [columnsOpen, setColumnsOpen] = useState(false);
+  const [columnsDropdownStyle, setColumnsDropdownStyle] = useState(null);
   const [visibleColumns, setVisibleColumns] = useState(() => loadBankDayColumns() || defaultBankDayColumns());
   const columnsMenuRef = useRef(null);
+  const columnsTriggerRef = useRef(null);
+  const columnsDropdownRef = useRef(null);
   const fileRef = useRef(null);
   const { show, Toast } = useToast();
   const { user } = useAuth();
@@ -151,18 +155,41 @@ export default function Payments() {
     localStorage.setItem(BANK_DAY_COLS_STORAGE, JSON.stringify(visibleColumns));
   }, [visibleColumns]);
   useEffect(() => {
-    if (!columnsOpen) return undefined;
+    if (!columnsOpen) {
+      setColumnsDropdownStyle(null);
+      return undefined;
+    }
+    const updatePosition = () => {
+      if (!columnsTriggerRef.current) return;
+      const rect = columnsTriggerRef.current.getBoundingClientRect();
+      const width = 220;
+      const left = Math.min(rect.right - width, window.innerWidth - width - 12);
+      setColumnsDropdownStyle({
+        position: 'fixed',
+        top: rect.bottom + 4,
+        left: Math.max(12, left),
+        width,
+        zIndex: 1100,
+      });
+    };
+    updatePosition();
     const onPointer = (e) => {
-      if (!columnsMenuRef.current?.contains(e.target)) setColumnsOpen(false);
+      const t = e.target;
+      if (columnsMenuRef.current?.contains(t) || columnsDropdownRef.current?.contains(t)) return;
+      setColumnsOpen(false);
     };
     const onKey = (e) => {
       if (e.key === 'Escape') setColumnsOpen(false);
     };
     document.addEventListener('mousedown', onPointer);
     document.addEventListener('keydown', onKey);
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
     return () => {
       document.removeEventListener('mousedown', onPointer);
       document.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
     };
   }, [columnsOpen]);
   useAutoRefresh(load, [load, branchId], {
@@ -667,16 +694,24 @@ export default function Payments() {
 
       <div className="card bank-days-card">
         <div className="bank-days-toolbar">
-          <div className="bank-columns-menu" ref={columnsMenuRef}>
+          <div className={`bank-columns-menu${columnsOpen ? ' is-open' : ''}`} ref={columnsMenuRef}>
             <button
+              ref={columnsTriggerRef}
               type="button"
               className="btn btn-ghost btn-sm"
+              aria-haspopup="true"
+              aria-expanded={columnsOpen}
               onClick={() => setColumnsOpen((v) => !v)}
             >
               Столбцы
             </button>
-            {columnsOpen && (
-              <div className="bank-columns-dropdown" role="menu">
+            {columnsOpen && columnsDropdownStyle && createPortal(
+              <div
+                ref={columnsDropdownRef}
+                className="bank-columns-dropdown"
+                role="menu"
+                style={columnsDropdownStyle}
+              >
                 {BANK_DAY_COLUMNS.map((col) => (
                   <label key={col.id} className="bank-columns-item">
                     <input
@@ -690,12 +725,13 @@ export default function Payments() {
                 ))}
                 <button
                   type="button"
-                  className="btn btn-ghost btn-sm"
+                  className="btn btn-ghost btn-sm bank-columns-reset"
                   onClick={() => setVisibleColumns(defaultBankDayColumns())}
                 >
                   Показать все
                 </button>
-              </div>
+              </div>,
+              document.body,
             )}
           </div>
         </div>
