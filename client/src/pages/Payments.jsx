@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { api, formatMoney, formatDate } from '../api';
+import { api, formatMoney, formatDate, formatPriceInput, parsePriceInput } from '../api';
 import { PAYMENT_TYPES, paymentTypeLabel, paymentAcquiringLabel } from '../permissions';
 import Modal, { useToast } from '../components/Modal';
 import { hasPermission } from '../permissions';
@@ -292,7 +292,7 @@ export default function Payments() {
       type: p.type,
       counterparty_id: p.counterparty_id || '',
       document_id: p.document_id || '',
-      amount: p.amount,
+      amount: Math.round(Number(p.amount) || 0),
       date: p.date,
       comment: p.comment || '',
       bank_account_id: p.bank_account_id || selectedAccountId || '',
@@ -304,6 +304,7 @@ export default function Payments() {
     try {
       const payload = {
         ...form,
+        amount: Math.round(Number(form.amount) || 0),
         bank_account_id: form.bank_account_id || selectedAccountId || null,
       };
       if (paymentModal === 'create') {
@@ -1198,7 +1199,14 @@ export default function Payments() {
             </div>
             <div className="form-group">
               <label>Сумма *</label>
-              <input type="number" min="0" value={form.amount} onChange={(e) => setForm({ ...form, amount: +e.target.value })} />
+              <input
+                type="text"
+                inputMode="numeric"
+                className="input-num"
+                value={formatPriceInput(form.amount)}
+                onChange={(e) => setForm({ ...form, amount: parsePriceInput(e.target.value) ?? 0 })}
+                placeholder="0"
+              />
             </div>
             <div className="form-group">
               <label>Банковский счёт</label>

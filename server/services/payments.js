@@ -303,7 +303,8 @@ export function createPayment(data, userId = null, branchId = DEFAULT_BRANCH_ID,
     throw new Error('Нет доступа к выбранному филиалу');
   }
   const number = data.number || generatePaymentNumber(payBranchId);
-  if (!data.amount || data.amount <= 0) throw new Error('Укажите сумму больше нуля');
+  const amount = Math.round(Number(data.amount) || 0);
+  if (!amount || amount <= 0) throw new Error('Укажите сумму больше нуля');
   assertPaymentShiftAccess(userRole, data.date);
   assertCashArticleForPayment(data.article_id, data.type, payBranchId);
   assertPurchasePayment(data, payBranchId);
@@ -341,7 +342,7 @@ export function createPayment(data, userId = null, branchId = DEFAULT_BRANCH_ID,
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, [
     id, number, data.type, data.counterparty_id || null, data.document_id || null,
-    data.amount, data.date, data.comment || '', userId, payBranchId, data.article_id,
+    amount, data.date, data.comment || '', userId, payBranchId, data.article_id,
     data.external_ref || null, data.import_batch_id || null, data.contract_id || null,
     data.firm_id || null, data.bank_account_id || null,
   ]);
@@ -409,7 +410,7 @@ export function updatePayment(id, data, branchId = DEFAULT_BRANCH_ID, userRole =
     payType,
     counterpartyId,
     documentId,
-    data.amount ?? existing.amount,
+    data.amount !== undefined ? Math.round(Number(data.amount) || 0) : existing.amount,
     data.date || existing.date,
     data.comment ?? existing.comment,
     articleId,
