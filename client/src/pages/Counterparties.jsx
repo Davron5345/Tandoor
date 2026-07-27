@@ -166,8 +166,6 @@ export default function Counterparties() {
                 <th>Тип</th>
                 <th className="num" title="Складские документы + операции банка">Упоминания</th>
                 <th>Телефон</th>
-                <th>Telegram ID</th>
-                <th>Email</th>
                 <th></th>
               </tr>
             </thead>
@@ -193,8 +191,6 @@ export default function Counterparties() {
                     )}
                   </td>
                   <td>{c.phone ? formatUzPhone(c.phone) : '—'}</td>
-                  <td>{c.telegram_chat_id || '—'}</td>
-                  <td>{c.email || '—'}</td>
                   <td>
                     {canEdit ? (
                       <div className="btn-group btn-group-icons">
