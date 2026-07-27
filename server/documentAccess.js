@@ -13,9 +13,12 @@ export function assertDocumentTypeAccess(role, type) {
   }
 }
 
-export function assertDocumentBranchAccess(user, doc) {
-  if (user.role === 'admin') return;
-  const branchId = user.branch_id;
+/**
+ * Документ должен относиться к активному филиалу (филиал = отдельная фирма).
+ * Перемещение видно на обоих концах (from/to). Админ тоже не обходит — только смена активного филиала.
+ */
+export function assertDocumentBranchAccess(user, doc, activeBranchId = null) {
+  const branchId = activeBranchId || user?.branch_id;
   if (!branchId) throw new Error('Сотрудник не привязан к филиалу');
   const allowed = doc.branch_id === branchId
     || doc.from_branch_id === branchId
@@ -23,9 +26,11 @@ export function assertDocumentBranchAccess(user, doc) {
   if (!allowed) throw new Error('Нет доступа к документу этого филиала');
 }
 
+/** Контрагент без branch_id или чужого филиала недоступен. */
 export function assertCounterpartyBranchAccess(user, counterparty, branchId) {
-  if (user.role === 'admin') return;
-  if (counterparty?.branch_id && counterparty.branch_id !== branchId) {
+  if (!counterparty) throw new Error('Контрагент не найден');
+  const cpBranch = counterparty.branch_id || null;
+  if (!cpBranch || cpBranch !== branchId) {
     throw new Error('Нет доступа к контрагенту этого филиала');
   }
 }

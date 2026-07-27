@@ -170,7 +170,7 @@ function getCounterpartyDebtRows(branchId, counterpartyType, docType, paymentTyp
         SELECT SUM(p.amount)
         FROM payments p
         LEFT JOIN documents d ON d.id = p.document_id
-        WHERE p.branch_id = ?
+        WHERE (p.branch_id = ? OR (p.branch_id IS NULL AND ? = ?))
           AND p.type = ?
           AND (
             (
@@ -196,6 +196,8 @@ function getCounterpartyDebtRows(branchId, counterpartyType, docType, paymentTyp
     docType,
     branchId,
     branchId,
+    branchId,
+    DEFAULT_BRANCH_ID,
     paymentType,
     docType,
     includeUnlinkedPayments ? 1 : 0,
@@ -333,7 +335,8 @@ export function getSupplierDebtMovementReport(
         SELECT SUM(p.amount)
         FROM payments p
         LEFT JOIN documents d ON d.id = p.document_id
-        WHERE p.branch_id = ? AND p.type = 'supplier_payment' AND p.date < ?
+        WHERE (p.branch_id = ? OR (p.branch_id IS NULL AND ? = ?))
+          AND p.type = 'supplier_payment' AND p.date < ?
           AND (
             (
               p.document_id IS NOT NULL
@@ -365,7 +368,8 @@ export function getSupplierDebtMovementReport(
         SELECT SUM(p.amount)
         FROM payments p
         LEFT JOIN documents d ON d.id = p.document_id
-        WHERE p.branch_id = ? AND p.type = 'supplier_payment'
+        WHERE (p.branch_id = ? OR (p.branch_id IS NULL AND ? = ?))
+          AND p.type = 'supplier_payment'
           AND p.date >= ? AND p.date <= ?
           AND (
             (
@@ -389,10 +393,10 @@ export function getSupplierDebtMovementReport(
     branchId,
     branchId, dateFrom,
     branchId, dateFrom,
-    branchId, dateFrom, unlinkedFlag,
+    branchId, branchId, DEFAULT_BRANCH_ID, dateFrom, unlinkedFlag,
     branchId, dateFrom, dateTo,
     branchId, dateFrom, dateTo,
-    branchId, dateFrom, dateTo, unlinkedFlag,
+    branchId, branchId, DEFAULT_BRANCH_ID, dateFrom, dateTo, unlinkedFlag,
     branchId,
     ...supplierParams,
   ]);

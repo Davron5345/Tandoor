@@ -520,7 +520,38 @@ export function getDocuments(filters = {}) {
   return queryAll(sql, params);
 }
 
+function assertActiveBranchOwnership(requestedBranchId, activeBranchId) {
+  if (requestedBranchId && requestedBranchId !== activeBranchId) {
+    throw new Error('Нет доступа к выбранному филиалу');
+  }
+}
+
+/** Перемещение: списывать можно только со своего филиала (активный = источник). */
+function resolveTransferBranchIds(data, activeBranchId, existing = null) {
+  const fromBranchId = data.from_branch_id
+    ?? existing?.from_branch_id
+    ?? existing?.branch_id
+    ?? activeBranchId;
+  const toBranchId = data.to_branch_id
+    ?? existing?.to_branch_id
+    ?? fromBranchId;
+  if (fromBranchId !== activeBranchId) {
+    throw new Error('Списание возможно только со склада своего филиала');
+  }
+  return { docBranchId: fromBranchId, fromBranchId, toBranchId };
+}
+
+function documentVisibleInBranchSql(alias = 'd') {
+  return `(${alias}.branch_id = ? OR ${alias}.from_branch_id = ? OR ${alias}.to_branch_id = ?)`;
+}
+
 export function getDocument(id, branchId = null) {
+  const params = [id];
+  let branchFilter = '';
+  if (branchId) {
+    branchFilter = ` AND ${documentVisibleInBranchSql('d')}`;
+    params.push(branchId, branchId, branchId);
+  }
   const doc = queryOne(`
     SELECT d.*, c.name as counterparty_name, c.type as counterparty_type,
            c.phone as counterparty_phone, c.telegram_chat_id,
@@ -536,8 +567,8 @@ export function getDocument(id, branchId = null) {
     LEFT JOIN branches tb ON tb.id = d.to_branch_id
     LEFT JOIN departments fd ON fd.id = d.from_department_id
     LEFT JOIN departments td ON td.id = d.to_department_id
-    WHERE d.id = ?
-  `, [id]);
+    WHERE d.id = ?${branchFilter}
+  `, params);
 
   if (!doc) return null;
 
@@ -912,7 +943,8 @@ function insertDishSaleLines(documentId, items) {
 }
 
 function persistDishSaleDocument(id, data, userId, branchId, items, willConfirm) {
-  const docBranchId = data.branch_id || branchId;
+  assertActiveBranchOwnership(data.branch_id, branchId);
+  const docBranchId = branchId;
   const fromDept = data.from_department_id;
   const total = items.reduce((s, i) => s + i.quantity * i.price, 0);
   const number = data.number || generateDocNumber(docBranchId, 'dish_sale');
@@ -954,7 +986,8 @@ function persistDishSaleDocument(id, data, userId, branchId, items, willConfirm)
 }
 
 function updateDishSaleDocument(id, existing, data, userId, branchId, items) {
-  const docBranchId = data.branch_id || existing.branch_id || branchId;
+  assertActiveBranchOwnership(data.branch_id, branchId);
+  const docBranchId = branchId;
   const fromDept = data.from_department_id ?? existing.from_department_id ?? null;
   const wasConfirmed = existing.status === 'confirmed';
   const willConfirm = data.status === 'confirmed' || (wasConfirmed && data.status !== 'draft');
@@ -1003,7 +1036,8 @@ export function createDocument(data, userId = null, branchId = DEFAULT_BRANCH_ID
   assertValidDate(data.date);
   if (data.type === 'dish_sale') {
     const items = normalizeItems(data.items);
-    const docBranchId = data.branch_id || branchId;
+    assertActiveBranchOwnership(data.branch_id, branchId);
+    const docBranchId = branchId;
     const fromDept = data.from_department_id || null;
     if (!fromDept) throw new Error('Выберите склад списания ингредиентов');
     assertDepartmentInBranch(fromDept, docBranchId);
@@ -1017,7 +1051,8 @@ export function createDocument(data, userId = null, branchId = DEFAULT_BRANCH_ID
   if (data.type === 'razdelka') {
     const { inputItems } = normalizeRazdelkaItems(data);
     const calculationId = data.calculation_id || null;
-    const docBranchId = data.branch_id || branchId;
+    assertActiveBranchOwnership(data.branch_id, branchId);
+    const docBranchId = branchId;
     const fromDept = data.from_department_id || null;
     const toDept = data.to_department_id || null;
     const outputItems = buildRazdelkaOutputItemsFromInput(inputItems, calculationId);
@@ -1062,13 +1097,15 @@ export function createDocument(data, userId = null, branchId = DEFAULT_BRANCH_ID
 
   const items = normalizeItems(data.items);
 
-  const docBranchId = data.type === 'peremeshchenie'
-    ? (data.from_branch_id || branchId)
-    : (data.branch_id || branchId);
-  const fromBranchId = data.type === 'peremeshchenie' ? (data.from_branch_id || branchId) : null;
-  const toBranchId = data.type === 'peremeshchenie'
-    ? (data.to_branch_id || data.from_branch_id || branchId)
-    : null;
+  let docBranchId;
+  let fromBranchId = null;
+  let toBranchId = null;
+  if (data.type === 'peremeshchenie') {
+    ({ docBranchId, fromBranchId, toBranchId } = resolveTransferBranchIds(data, branchId));
+  } else {
+    assertActiveBranchOwnership(data.branch_id, branchId);
+    docBranchId = branchId;
+  }
   const fromDepartmentId = data.type === 'peremeshchenie' ? (data.from_department_id || null) : null;
   let toDepartmentId = data.type === 'peremeshchenie' ? (data.to_department_id || null) : null;
   let rashodFromDepartmentId = null;
@@ -1172,42 +1209,48 @@ export function createDocument(data, userId = null, branchId = DEFAULT_BRANCH_ID
 }
 
 export function updateDocument(id, data, userId = null, branchId = DEFAULT_BRANCH_ID) {
-  const existing = queryOne('SELECT * FROM documents WHERE id = ?', [id]);
-  if (!existing) throw new Error('Документ не найден');
-  if (existing.status === 'cancelled') throw new Error('Отменённый документ нельзя редактировать');
+  const existingDoc = queryOne(
+    `SELECT * FROM documents WHERE id = ?
+      AND (branch_id = ? OR from_branch_id = ? OR to_branch_id = ?)`,
+    [id, branchId, branchId, branchId],
+  );
+  if (!existingDoc) throw new Error('Документ не найден');
+  if (existingDoc.status === 'cancelled') throw new Error('Отменённый документ нельзя редактировать');
   if (data.date !== undefined) assertValidDate(data.date);
 
-  const docType = data.type || existing.type;
+  const docType = data.type || existingDoc.type;
 
   if (docType === 'dish_sale') {
     const items = normalizeItems(data.items);
-    const fromDept = data.from_department_id ?? existing.from_department_id ?? null;
+    assertActiveBranchOwnership(data.branch_id, branchId);
+    const fromDept = data.from_department_id ?? existingDoc.from_department_id ?? null;
     if (!fromDept) throw new Error('Выберите склад списания ингредиентов');
-    assertDepartmentInBranch(fromDept, data.branch_id || existing.branch_id || branchId);
-    const counterpartyId = data.counterparty_id ?? existing.counterparty_id;
+    assertDepartmentInBranch(fromDept, branchId);
+    const counterpartyId = data.counterparty_id ?? existingDoc.counterparty_id;
     if (counterpartyId) {
-      assertCounterpartyBranch(counterpartyId, data.branch_id || existing.branch_id || branchId, 'rashod');
+      assertCounterpartyBranch(counterpartyId, branchId, 'rashod');
     }
-    return updateDishSaleDocument(id, existing, data, userId, branchId, items);
+    return updateDishSaleDocument(id, existingDoc, data, userId, branchId, items);
   }
 
   if (docType === 'razdelka') {
     const { inputItems } = normalizeRazdelkaItems(data);
-    const calculationId = data.calculation_id ?? existing.calculation_id ?? null;
-    const docBranchId = data.branch_id || existing.branch_id || branchId;
-    const fromDept = data.from_department_id ?? existing.from_department_id ?? null;
-    const toDept = data.to_department_id ?? existing.to_department_id ?? null;
+    const calculationId = data.calculation_id ?? existingDoc.calculation_id ?? null;
+    assertActiveBranchOwnership(data.branch_id, branchId);
+    const docBranchId = branchId;
+    const fromDept = data.from_department_id ?? existingDoc.from_department_id ?? null;
+    const toDept = data.to_department_id ?? existingDoc.to_department_id ?? null;
     const outputItems = buildRazdelkaOutputItemsFromInput(inputItems, calculationId);
     const enrichedInputs = enrichRazdelkaItemPrices(inputItems, fromDept, docBranchId);
     const enrichedOutputs = prepareRazdelkaOutputs(inputItems, outputItems, fromDept, docBranchId);
-    const wasConfirmed = existing.status === 'confirmed';
+    const wasConfirmed = existingDoc.status === 'confirmed';
     const willConfirm = data.status === 'confirmed' || (wasConfirmed && data.status !== 'draft');
 
     validateRazdelka(docBranchId, fromDept, toDept, enrichedInputs, false, [], true);
 
     transaction(() => {
       if (wasConfirmed) {
-        assertRazdelkaCanReverse(id, existing);
+        assertRazdelkaCanReverse(id, existingDoc);
         updateStock(id, true);
       }
 
@@ -1229,7 +1272,7 @@ export function updateDocument(id, data, userId = null, branchId = DEFAULT_BRANC
         fromDept,
         toDept,
         total,
-        data.status || existing.status,
+        data.status || existingDoc.status,
         calculationId,
         id,
       ]);
@@ -1249,33 +1292,33 @@ export function updateDocument(id, data, userId = null, branchId = DEFAULT_BRANC
     return getDocument(id, docBranchId);
   }
 
-  const counterpartyId = data.counterparty_id ?? existing.counterparty_id;
+  const counterpartyId = data.counterparty_id ?? existingDoc.counterparty_id;
   const items = normalizeItems(data.items);
 
-  const docBranchId = docType === 'peremeshchenie'
-    ? (data.from_branch_id || existing.from_branch_id || existing.branch_id || branchId)
-    : (data.branch_id || existing.branch_id || branchId);
-  const fromBranchId = docType === 'peremeshchenie'
-    ? (data.from_branch_id || existing.from_branch_id || docBranchId)
-    : null;
-  const toBranchId = docType === 'peremeshchenie'
-    ? (data.to_branch_id ?? existing.to_branch_id ?? fromBranchId)
-    : null;
+  let docBranchId;
+  let fromBranchId = null;
+  let toBranchId = null;
+  if (docType === 'peremeshchenie') {
+    ({ docBranchId, fromBranchId, toBranchId } = resolveTransferBranchIds(data, branchId, existingDoc));
+  } else {
+    assertActiveBranchOwnership(data.branch_id, branchId);
+    docBranchId = branchId;
+  }
   const fromDepartmentId = docType === 'peremeshchenie'
-    ? (data.from_department_id ?? existing.from_department_id ?? null)
+    ? (data.from_department_id ?? existingDoc.from_department_id ?? null)
     : null;
   let toDepartmentId = docType === 'peremeshchenie'
-    ? (data.to_department_id ?? existing.to_department_id ?? null)
+    ? (data.to_department_id ?? existingDoc.to_department_id ?? null)
     : null;
   let rashodFromDepartmentId = null;
 
   if (docType === 'prihod') {
-    toDepartmentId = data.to_department_id ?? existing.to_department_id ?? null;
+    toDepartmentId = data.to_department_id ?? existingDoc.to_department_id ?? null;
     if (!toDepartmentId) throw new Error('Выберите отдел для прихода');
     assertDepartmentInBranch(toDepartmentId, docBranchId);
   }
   if (docType === 'return_customer') {
-    toDepartmentId = data.to_department_id ?? existing.to_department_id ?? null;
+    toDepartmentId = data.to_department_id ?? existingDoc.to_department_id ?? null;
     if (!toDepartmentId) throw new Error('Выберите отдел для возврата');
     assertDepartmentInBranch(toDepartmentId, docBranchId);
     if (!counterpartyId) throw new Error('Выберите клиента для возврата');
@@ -1284,9 +1327,9 @@ export function updateDocument(id, data, userId = null, branchId = DEFAULT_BRANC
     throw new Error('Выберите поставщика для возврата');
   }
   const sourceDocumentId = (docType === 'return_supplier' || docType === 'return_customer')
-    ? (data.source_document_id ?? existing.source_document_id ?? null)
+    ? (data.source_document_id ?? existingDoc.source_document_id ?? null)
     : null;
-  const returnDate = data.date || existing.date;
+  const returnDate = data.date || existingDoc.date;
   if (docType === 'return_supplier') {
     assertReturnSupplierSourceDocument(sourceDocumentId, docBranchId, counterpartyId, returnDate);
   }
@@ -1295,7 +1338,7 @@ export function updateDocument(id, data, userId = null, branchId = DEFAULT_BRANC
   }
 
   if (isOutgoingDocType(docType)) {
-    rashodFromDepartmentId = data.from_department_id ?? existing.from_department_id ?? null;
+    rashodFromDepartmentId = data.from_department_id ?? existingDoc.from_department_id ?? null;
     if (!rashodFromDepartmentId) throw new Error('Выберите отдел для расхода/возврата');
     assertDepartmentInBranch(rashodFromDepartmentId, docBranchId);
   }
@@ -1314,7 +1357,7 @@ export function updateDocument(id, data, userId = null, branchId = DEFAULT_BRANC
     validatePeremeshchenie(fromBranchId, toBranchId, fromDepartmentId, toDepartmentId, items);
   }
 
-  const wasConfirmed = existing.status === 'confirmed';
+  const wasConfirmed = existingDoc.status === 'confirmed';
   const willConfirm = data.status === 'confirmed' || (wasConfirmed && data.status !== 'draft');
 
   transaction(() => {
@@ -1331,7 +1374,7 @@ export function updateDocument(id, data, userId = null, branchId = DEFAULT_BRANC
     const savedFromDepartmentId = isOutgoingDocType(docType) ? rashodFromDepartmentId : fromDepartmentId;
     const contractId = isSupplierCounterpartyDoc(docType)
       ? resolveDocumentContractId(
-        data.contract_id ?? (existing.contract_id || DEFAULT_CONTRACT_ID),
+        data.contract_id ?? (existingDoc.contract_id || DEFAULT_CONTRACT_ID),
         counterpartyId,
         docBranchId,
       )
@@ -1347,7 +1390,7 @@ export function updateDocument(id, data, userId = null, branchId = DEFAULT_BRANC
       data.counterparty_id || null, contractId, data.date, data.comment || '',
       data.from_location || '', data.to_location || '',
       docBranchId, fromBranchId, toBranchId, savedFromDepartmentId, toDepartmentId, sourceDocumentId,
-      total, data.status || existing.status, id,
+      total, data.status || existingDoc.status, id,
     ]);
 
     run('DELETE FROM document_items WHERE document_id = ?', [id]);

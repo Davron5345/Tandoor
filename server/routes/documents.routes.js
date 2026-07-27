@@ -57,7 +57,7 @@ export function registerDocumentRoutes(app) {
       return res.status(403).json({ error: 'Недостаточно прав' });
     }
     try {
-      assertDocumentBranchAccess(req.user, doc);
+      assertDocumentBranchAccess(req.user, doc, req.branchId);
     } catch (e) {
       return res.status(403).json({ error: e.message });
     }
@@ -92,7 +92,7 @@ export function registerDocumentRoutes(app) {
       const existing = svc.getDocument(req.params.id, req.branchId);
       if (!existing) return res.status(404).json({ error: 'Не найден' });
       assertDocumentTypeAccess(req.user.role, req.body.type || existing.type);
-      assertDocumentBranchAccess(req.user, existing);
+      assertDocumentBranchAccess(req.user, existing, req.branchId);
       const doc = svc.updateDocument(req.params.id, req.body, req.user.id, req.branchId);
       res.json(doc);
     } catch (e) {
@@ -105,7 +105,7 @@ export function registerDocumentRoutes(app) {
       const existing = svc.getDocument(req.params.id, req.branchId);
       if (!existing) return res.status(404).json({ error: 'Не найден' });
       assertDocumentTypeAccess(req.user.role, existing.type);
-      assertDocumentBranchAccess(req.user, existing);
+      assertDocumentBranchAccess(req.user, existing, req.branchId);
       const doc = svc.confirmDocument(req.params.id, req.user.id);
       logAudit(req, 'document.confirm', {
         entity_type: 'document',
@@ -129,7 +129,7 @@ export function registerDocumentRoutes(app) {
       const existing = svc.getDocument(req.params.id, req.branchId);
       if (!existing) return res.status(404).json({ error: 'Не найден' });
       assertDocumentTypeAccess(req.user.role, existing.type);
-      assertDocumentBranchAccess(req.user, existing);
+      assertDocumentBranchAccess(req.user, existing, req.branchId);
       const doc = svc.cancelDocument(req.params.id, req.user.id);
       logAudit(req, 'document.cancel', {
         entity_type: 'document',
@@ -147,7 +147,7 @@ export function registerDocumentRoutes(app) {
       const existing = svc.getDocument(req.params.id, req.branchId);
       if (!existing) return res.status(404).json({ error: 'Не найден' });
       assertDocumentTypeAccess(req.user.role, existing.type);
-      assertDocumentBranchAccess(req.user, existing);
+      assertDocumentBranchAccess(req.user, existing, req.branchId);
       res.json(svc.deleteDocument(req.params.id));
     } catch (e) {
       res.status(400).json({ error: e.message });
@@ -161,7 +161,7 @@ export function registerDocumentRoutes(app) {
       return res.status(403).json({ error: 'Недостаточно прав' });
     }
     try {
-      assertDocumentBranchAccess(req.user, doc);
+      assertDocumentBranchAccess(req.user, doc, req.branchId);
     } catch (e) {
       return res.status(403).json({ error: e.message });
     }

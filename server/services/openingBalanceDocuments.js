@@ -4,6 +4,7 @@ import { DEFAULT_BRANCH_ID, getBranch } from '../branches.js';
 import { assertDepartmentInBranch, syncBranchStockFromDepartments } from '../departments.js';
 import { setDepartmentStock, syncVariantCatalogStock } from '../inventoryCost.js';
 import { getCounterparty } from './counterparties.js';
+import { assertBankAccountInBranch } from './bankAccounts.js';
 
 const { queryAll, queryOne, run, transaction } = db;
 
@@ -29,7 +30,7 @@ function lineAmount(line) {
   return Number(line.amount) || 0;
 }
 
-function normalizeLine(raw) {
+function normalizeLine(raw, branchId = DEFAULT_BRANCH_ID) {
   const lineType = String(raw.line_type || '').trim();
   if (!OPENING_LINE_TYPES.has(lineType)) {
     throw new Error(`Неизвестный тип строки: ${lineType || '(пусто)'}`);
@@ -51,6 +52,7 @@ function normalizeLine(raw) {
   if (lineType === 'stock') {
     if (!base.product_id) throw new Error('Укажите товар в строке остатка');
     if (!base.department_id) throw new Error('Укажите склад в строке остатка');
+    assertDepartmentInBranch(base.department_id, branchId);
     if (base.quantity < 0) throw new Error('Количество не может быть отрицательным');
     if (base.unit_cost < 0) throw new Error('Себестоимость не может быть отрицательной');
     base.amount = base.quantity * base.unit_cost;
@@ -59,7 +61,7 @@ function normalizeLine(raw) {
 
   if (lineType === 'debtor' || lineType === 'creditor') {
     if (!base.counterparty_id) throw new Error('Укажите контрагента');
-    const cp = getCounterparty(base.counterparty_id, null);
+    const cp = getCounterparty(base.counterparty_id, branchId);
     if (!cp) throw new Error('Контрагент не найден');
     if (lineType === 'debtor' && cp.type !== 'client') {
       throw new Error(`«${cp.name}» — не клиент (дебитор)`);
@@ -78,17 +80,16 @@ function normalizeLine(raw) {
     if (!base.bank_account_id) {
       throw new Error('Укажите банковский счёт в строке начального сальдо');
     }
-    const hit = queryOne('SELECT id FROM bank_accounts WHERE id = ?', [base.bank_account_id]);
-    if (!hit) throw new Error('Банковский счёт не найден');
+    assertBankAccountInBranch(base.bank_account_id, branchId);
   } else {
     base.bank_account_id = null;
   }
   return base;
 }
 
-function normalizeLines(lines) {
+function normalizeLines(lines, branchId = DEFAULT_BRANCH_ID) {
   if (!Array.isArray(lines)) return [];
-  const normalized = lines.map(normalizeLine);
+  const normalized = lines.map((line) => normalizeLine(line, branchId));
   const bankAccounts = new Set();
   for (const line of normalized) {
     if (line.line_type !== 'bank' || !line.bank_account_id) continue;
@@ -266,7 +267,7 @@ export function createOpeningBalanceDocument(data, userId = null, branchId = DEF
   const date = String(data.date || '').slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Укажите дату документа');
 
-  const lines = normalizeLines(data.lines || []);
+  const lines = normalizeLines(data.lines || [], branchId);
   if (lines.length === 0) throw new Error('Добавьте хотя бы одну строку');
 
   const id = uuidv4();
@@ -299,12 +300,13 @@ export function updateOpeningBalanceDocument(id, data, userId = null, branchId =
   const date = data.date !== undefined ? String(data.date).slice(0, 10) : doc.date;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Укажите дату документа');
 
-  const lines = data.lines !== undefined ? normalizeLines(data.lines) : loadLines(id).map((l) => ({
+  const lines = data.lines !== undefined ? normalizeLines(data.lines, branchId) : loadLines(id).map((l) => ({
     line_type: l.line_type,
     product_id: l.product_id,
     variant_id: l.variant_id,
     department_id: l.department_id,
     counterparty_id: l.counterparty_id,
+    bank_account_id: l.bank_account_id,
     quantity: l.quantity,
     unit_cost: l.unit_cost,
     amount: l.amount,

@@ -172,9 +172,9 @@ export function registerOrgRoutes(app) {
     }
   });
 
-  app.delete('/api/users/:id', requirePermission('users.edit'), (req, res) => {
+  app.delete('/api/users/:id', requirePermission('users.edit'), attachBranch, (req, res) => {
     try {
-      deleteUser(req.params.id);
+      deleteUser(req.params.id, req.user);
       res.json({ ok: true });
     } catch (e) {
       res.status(400).json({ error: e.message });

@@ -13,7 +13,6 @@ test('filterDocumentsForUser limits types without full access', () => {
     { id: '2', type: 'rashod' },
     { id: '3', type: 'razdelka' },
   ];
-  // Role without documents.view / type permissions (cashier has documents.view by default)
   const filtered = filterDocumentsForUser(docs, 'role_without_docs');
   assert.equal(filtered.length, 0);
 });
@@ -27,19 +26,31 @@ test('warehouse role sees allowed document types', () => {
   assert.equal(filtered.length, 2);
 });
 
-test('assertDocumentBranchAccess blocks foreign branch', () => {
+test('assertDocumentBranchAccess blocks foreign branch for everyone including admin', () => {
   const user = { role: 'warehouse', branch_id: 'branch-a' };
   const doc = { branch_id: 'branch-b' };
   assert.throws(
-    () => assertDocumentBranchAccess(user, doc),
+    () => assertDocumentBranchAccess(user, doc, 'branch-a'),
+    /филиала/,
+  );
+  assert.throws(
+    () => assertDocumentBranchAccess({ role: 'admin', branch_id: null }, doc, 'branch-a'),
     /филиала/,
   );
 });
 
-test('admin bypasses branch access checks', () => {
-  const user = { role: 'admin', branch_id: null };
-  const doc = { branch_id: 'branch-b' };
-  assert.doesNotThrow(() => assertDocumentBranchAccess(user, doc));
+test('assertDocumentBranchAccess allows transfer endpoints for active branch', () => {
+  const user = { role: 'warehouse', branch_id: 'branch-a' };
+  assert.doesNotThrow(() => assertDocumentBranchAccess(user, {
+    branch_id: 'branch-a',
+    from_branch_id: 'branch-a',
+    to_branch_id: 'branch-b',
+  }, 'branch-a'));
+  assert.doesNotThrow(() => assertDocumentBranchAccess(user, {
+    branch_id: 'branch-a',
+    from_branch_id: 'branch-a',
+    to_branch_id: 'branch-b',
+  }, 'branch-b'));
 });
 
 test('assertDocumentTypeAccess validates role permissions', () => {
@@ -50,10 +61,18 @@ test('assertDocumentTypeAccess validates role permissions', () => {
   assert.doesNotThrow(() => assertDocumentTypeAccess('warehouse', 'prihod'));
 });
 
-test('assertCounterpartyBranchAccess validates counterparty branch', () => {
+test('assertCounterpartyBranchAccess rejects missing or foreign branch', () => {
   const user = { role: 'warehouse', branch_id: 'main' };
   assert.throws(
     () => assertCounterpartyBranchAccess(user, { branch_id: 'other' }, 'main'),
+    /контрагент/,
+  );
+  assert.throws(
+    () => assertCounterpartyBranchAccess(user, { branch_id: null }, 'main'),
+    /контрагент/,
+  );
+  assert.throws(
+    () => assertCounterpartyBranchAccess({ role: 'admin' }, { branch_id: 'other' }, 'main'),
     /контрагент/,
   );
 });

@@ -265,10 +265,16 @@ export function updateUser(id, data, requester = null) {
   return queryOne('SELECT id, username, name, role, active, created_at FROM users WHERE id = ?', [id]);
 }
 
-export function deleteUser(id) {
+export function deleteUser(id, requester = null) {
   const user = queryOne('SELECT * FROM users WHERE id = ?', [id]);
   if (!user) throw new Error('Сотрудник не найден');
   if (isProtectedAdmin(user)) throw new Error('Нельзя удалить главного администратора');
+  if (requester && requester.role !== 'admin') {
+    if (!requester.branch_id) throw new Error('Сотрудник не привязан к филиалу');
+    if (!user.branch_id || user.branch_id !== requester.branch_id) {
+      throw new Error('Нельзя удалять сотрудников другого филиала');
+    }
+  }
   revokeUserSessions(id);
   run('DELETE FROM users WHERE id = ?', [id]);
 }

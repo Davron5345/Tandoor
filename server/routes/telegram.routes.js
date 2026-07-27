@@ -53,16 +53,19 @@ export function registerTelegramRoutes(app) {
 
   app.post('/api/telegram/send', requirePermission('telegram.send'), attachBranch, async (req, res) => {
     const { counterparty_id, message, document_id } = req.body;
-    const cp = db.queryOne('SELECT * FROM counterparties WHERE id = ?', [counterparty_id]);
+    const cp = db.queryOne(
+      'SELECT * FROM counterparties WHERE id = ? AND branch_id = ?',
+      [counterparty_id, req.branchId],
+    );
     if (!cp) return res.status(404).json({ error: 'Контрагент не найден' });
 
     try {
       assertCounterpartyBranchAccess(req.user, cp, req.branchId);
       if (document_id) {
-        const doc = svc.getDocument(document_id);
+        const doc = svc.getDocument(document_id, req.branchId);
         if (!doc) return res.status(404).json({ error: 'Документ не найден' });
         assertDocumentTypeAccess(req.user.role, doc.type);
-        assertDocumentBranchAccess(req.user, doc);
+        assertDocumentBranchAccess(req.user, doc, req.branchId);
       }
     } catch (e) {
       return res.status(403).json({ error: e.message });
@@ -77,13 +80,13 @@ export function registerTelegramRoutes(app) {
   });
 
   app.post('/api/telegram/send-document/:id', requirePermission('telegram.send'), attachBranch, async (req, res) => {
-    const doc = svc.getDocument(req.params.id);
+    const doc = svc.getDocument(req.params.id, req.branchId);
     if (!doc) return res.status(404).json({ error: 'Документ не найден' });
     if (!doc.counterparty_id) return res.status(400).json({ error: 'У документа нет контрагента' });
 
     try {
       assertDocumentTypeAccess(req.user.role, doc.type);
-      assertDocumentBranchAccess(req.user, doc);
+      assertDocumentBranchAccess(req.user, doc, req.branchId);
     } catch (e) {
       return res.status(403).json({ error: e.message });
     }

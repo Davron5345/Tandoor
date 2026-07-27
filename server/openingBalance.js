@@ -8,8 +8,9 @@ const { queryOne, run } = db;
 function getCashMovementsSince(branchId, asOfDate) {
   const incomeTypes = ['customer_income', 'other_income'];
   const expenseTypes = ['supplier_payment', 'other_expense'];
-  const incomeParams = [branchId, ...incomeTypes];
-  const expenseParams = [branchId, ...expenseTypes];
+  const branchFilter = '(branch_id = ? OR (branch_id IS NULL AND ? = ?))';
+  const incomeParams = [branchId, branchId, DEFAULT_BRANCH_ID, ...incomeTypes];
+  const expenseParams = [branchId, branchId, DEFAULT_BRANCH_ID, ...expenseTypes];
   let dateFilter = '';
   if (asOfDate) {
     dateFilter = ' AND date >= ?';
@@ -19,13 +20,13 @@ function getCashMovementsSince(branchId, asOfDate) {
 
   const income = queryOne(
     `SELECT COALESCE(SUM(amount), 0) as v FROM payments
-     WHERE branch_id = ? AND type IN (${incomeTypes.map(() => '?').join(',')})${dateFilter}`,
+     WHERE ${branchFilter} AND type IN (${incomeTypes.map(() => '?').join(',')})${dateFilter}`,
     incomeParams,
   ).v;
 
   const expense = queryOne(
     `SELECT COALESCE(SUM(amount), 0) as v FROM payments
-     WHERE branch_id = ? AND type IN (${expenseTypes.map(() => '?').join(',')})${dateFilter}`,
+     WHERE ${branchFilter} AND type IN (${expenseTypes.map(() => '?').join(',')})${dateFilter}`,
     expenseParams,
   ).v;
 
