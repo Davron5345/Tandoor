@@ -42,6 +42,7 @@ export function formatContractOptionLabel(c) {
 export default function ContractEditModal({
   open,
   counterpartyId,
+  firmId = null,
   contractId = null,
   initial = null,
   onClose,
@@ -76,6 +77,7 @@ export default function ContractEditModal({
         end_date: form.end_date || null,
         direction: form.direction || null,
         amount: parsePriceInput(form.amount) || 0,
+        firm_id: firmId || initial?.firm_id || null,
       };
       const saved = contractId
         ? await api.updateCounterpartyContract(counterpartyId, contractId, payload)

@@ -2,18 +2,15 @@ import { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { api } from '../api';
 import Modal, { ModalCancelButton, useToast } from './Modal';
-import { IconButton, IconEdit, IconPlus, IconTrash } from './ActionIcons';
+import { IconButton, IconContract, IconEdit, IconTrash } from './ActionIcons';
 import { useFormDirty } from '../hooks/useFormDirty';
-import ContractEditModal, { formatContractOptionLabel } from './ContractEditModal';
-
-export { formatContractOptionLabel };
+import CounterpartyContractsModal from './CounterpartyContractsModal';
 
 const emptyFirm = {
   name: '',
   inn: '',
   bank_account: '',
   mfo: '',
-  contract_id: '',
   is_default: false,
 };
 
@@ -23,26 +20,23 @@ function firmToForm(f) {
     inn: f.inn || '',
     bank_account: f.bank_account || '',
     mfo: f.mfo || '',
-    contract_id: f.contract_id || '',
     is_default: Boolean(f.is_default),
   };
 }
 
 export default function CounterpartyFirmsModal({
   counterpartyId,
-  contracts: contractsProp = [],
   canEdit,
   onClose,
   onChanged,
   onContractsChanged,
 }) {
   const [firms, setFirms] = useState([]);
-  const [contracts, setContracts] = useState(contractsProp);
   const [loading, setLoading] = useState(true);
   const [editModal, setEditModal] = useState(null); // 'create' | firmId
   const [firmForm, setFirmForm] = useState(emptyFirm);
   const [saving, setSaving] = useState(false);
-  const [contractEditor, setContractEditor] = useState(null); // null | { id, initial }
+  const [contractsFirm, setContractsFirm] = useState(null); // firm row or null
   const { show, Toast } = useToast();
   const isFirmDirty = useFormDirty(firmForm, editModal ? `firm-${editModal}` : null);
 
@@ -59,24 +53,9 @@ export default function CounterpartyFirmsModal({
       .finally(() => setLoading(false));
   }, [counterpartyId]);
 
-  const loadContracts = useCallback(() => {
-    if (!counterpartyId) {
-      setContracts([]);
-      return;
-    }
-    api.getCounterpartyContracts(counterpartyId)
-      .then((list) => setContracts(list.filter((c) => c.id !== '__default__' && !c.virtual)))
-      .catch(() => setContracts([]));
-  }, [counterpartyId]);
-
   useEffect(() => {
     loadFirms();
-    loadContracts();
-  }, [loadFirms, loadContracts]);
-
-  useEffect(() => {
-    setContracts(contractsProp.filter((c) => c.id !== '__default__' && !c.virtual));
-  }, [contractsProp]);
+  }, [loadFirms]);
 
   const openCreate = () => {
     setFirmForm(emptyFirm);
@@ -89,7 +68,6 @@ export default function CounterpartyFirmsModal({
   };
 
   const closeEdit = () => {
-    setContractEditor(null);
     setEditModal(null);
     setFirmForm(emptyFirm);
   };
@@ -128,8 +106,6 @@ export default function CounterpartyFirmsModal({
     }
   };
 
-  const selectedContract = contracts.find((c) => c.id === firmForm.contract_id) || null;
-
   return createPortal(
     <>
       {Toast}
@@ -148,7 +124,7 @@ export default function CounterpartyFirmsModal({
         )}
       >
         <p className="text-muted cp-contracts-hint">
-          Юрлица и ИНН для банковских платежей. Выписка и акт сверки сопоставляются по ИНН фирмы.
+          Юрлица и ИНН для банковских платежей. Договоры каждой фирмы — по иконке списка.
         </p>
 
         {loading ? (
@@ -173,18 +149,26 @@ export default function CounterpartyFirmsModal({
                     <td>{f.name}{f.is_default ? ' · основная' : ''}</td>
                     <td>{f.inn || '—'}</td>
                     <td onClick={(e) => e.stopPropagation()}>
-                      {canEdit && (
-                        <div className="btn-group btn-group-icons">
+                      <div className="btn-group btn-group-icons">
+                        {canEdit && (
                           <IconButton title="Изменить" onClick={() => openEdit(f)}>
                             <IconEdit />
                           </IconButton>
-                          {!f.is_used && (
-                            <IconButton title="Удалить" danger onClick={() => removeFirm(f.id)}>
-                              <IconTrash />
-                            </IconButton>
-                          )}
-                        </div>
-                      )}
+                        )}
+                        <IconButton
+                          title={f.contracts_count
+                            ? `Договоры (${f.contracts_count})`
+                            : 'Договоры'}
+                          onClick={() => setContractsFirm(f)}
+                        >
+                          <IconContract />
+                        </IconButton>
+                        {canEdit && !f.is_used && (
+                          <IconButton title="Удалить" danger onClick={() => removeFirm(f.id)}>
+                            <IconTrash />
+                          </IconButton>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -263,60 +247,24 @@ export default function CounterpartyFirmsModal({
                 maxLength={20}
               />
             </div>
-            <div className="form-group full">
-              <label>Договор</label>
-              <div className="quick-add-control">
-                <select
-                  value={firmForm.contract_id}
-                  onChange={(e) => setFirmForm({ ...firmForm, contract_id: e.target.value })}
-                >
-                  <option value="">— не выбран —</option>
-                  {contracts.map((c) => (
-                    <option key={c.id} value={c.id}>{formatContractOptionLabel(c)}</option>
-                  ))}
-                </select>
-                {canEdit && selectedContract && (
-                  <button
-                    type="button"
-                    className="btn btn-icon btn-ghost quick-add-button"
-                    title="Редактировать договор"
-                    aria-label="Редактировать договор"
-                    onClick={() => setContractEditor({ id: selectedContract.id, initial: selectedContract })}
-                  >
-                    <IconEdit />
-                  </button>
-                )}
-                {canEdit && (
-                  <button
-                    type="button"
-                    className="btn btn-icon btn-ghost quick-add-button"
-                    title="Создать договор"
-                    aria-label="Создать договор"
-                    onClick={() => setContractEditor({ id: null, initial: null })}
-                  >
-                    <IconPlus />
-                  </button>
-                )}
-              </div>
-            </div>
           </div>
         </Modal>
       )}
 
-      <ContractEditModal
-        open={Boolean(contractEditor)}
-        counterpartyId={counterpartyId}
-        contractId={contractEditor?.id || null}
-        initial={contractEditor?.initial || null}
-        onClose={() => setContractEditor(null)}
-        onSaved={(saved) => {
-          loadContracts();
-          onContractsChanged?.();
-          if (saved?.id) {
-            setFirmForm((prev) => ({ ...prev, contract_id: saved.id }));
-          }
-        }}
-      />
+      {contractsFirm && (
+        <CounterpartyContractsModal
+          counterpartyId={counterpartyId}
+          firmId={contractsFirm.id}
+          firmName={contractsFirm.name}
+          canEdit={canEdit}
+          onClose={() => setContractsFirm(null)}
+          onChanged={() => {
+            loadFirms();
+            onContractsChanged?.();
+            onChanged?.();
+          }}
+        />
+      )}
     </>,
     document.body,
   );

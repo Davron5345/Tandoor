@@ -228,7 +228,7 @@ export default function Counterparties() {
                     <span className="text-muted">
                       {firms.length > 0
                         ? firms.map((f) => f.name).join(', ')
-                        : 'юрлица и ИНН для оплат'}
+                        : 'юрлица, ИНН и договоры'}
                     </span>
                   </div>
                   <button
@@ -240,25 +240,25 @@ export default function Counterparties() {
                   </button>
                 </div>
               )}
-              <div className="cp-link-row">
-                <div className="cp-link-text">
-                  <strong>Договоры</strong>
-                  <span className="text-muted">
-                    {contracts.length > 0
-                      ? contracts.map((c) => c.title || c.number).join(', ')
-                      : (form.type === 'client'
-                        ? 'Click / Payme / Терминал'
-                        : 'основной, если не заданы')}
-                  </span>
+              {form.type === 'client' && (
+                <div className="cp-link-row">
+                  <div className="cp-link-text">
+                    <strong>Договоры</strong>
+                    <span className="text-muted">
+                      {contracts.length > 0
+                        ? contracts.map((c) => c.title || c.number).join(', ')
+                        : 'Click / Payme / Терминал'}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => setContractsModalOpen(true)}
+                  >
+                    {contracts.length > 0 ? `Договоры (${contracts.length})` : 'Добавить'}
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-sm"
-                  onClick={() => setContractsModalOpen(true)}
-                >
-                  {contracts.length > 0 ? `Договоры (${contracts.length})` : 'Добавить'}
-                </button>
-              </div>
+              )}
             </div>
           )}
         </Modal>
@@ -267,7 +267,6 @@ export default function Counterparties() {
       {firmsModalOpen && modal && modal !== 'create' && form.type === 'supplier' && (
         <CounterpartyFirmsModal
           counterpartyId={modal}
-          contracts={contracts}
           canEdit={canEdit}
           onClose={() => setFirmsModalOpen(false)}
           onChanged={() => {
@@ -278,7 +277,7 @@ export default function Counterparties() {
         />
       )}
 
-      {contractsModalOpen && modal && modal !== 'create' && (
+      {contractsModalOpen && modal && modal !== 'create' && form.type === 'client' && (
         <CounterpartyContractsModal
           counterpartyId={modal}
           counterpartyType={form.type}

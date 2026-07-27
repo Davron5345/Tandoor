@@ -102,6 +102,7 @@ async function ensureBootstrap() {
   await execRaw('ALTER TABLE counterparty_contracts ADD COLUMN IF NOT EXISTS end_date TEXT');
   await execRaw('ALTER TABLE counterparty_contracts ADD COLUMN IF NOT EXISTS direction TEXT');
   await execRaw('ALTER TABLE counterparty_contracts ADD COLUMN IF NOT EXISTS amount DOUBLE PRECISION DEFAULT 0');
+  await execRaw('ALTER TABLE counterparty_contracts ADD COLUMN IF NOT EXISTS firm_id TEXT');
   await runStatements(PG_CREATE_INDEXES);
   await execRaw(
     `INSERT INTO settings (key, value) VALUES ('counterparty_inn_v1', '1')
@@ -111,6 +112,22 @@ async function ensureBootstrap() {
     `INSERT INTO settings (key, value) VALUES ('counterparty_firms_v1', '1')
      ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
   );
+  const firmLink = await execRaw(
+    'SELECT value FROM settings WHERE key = $1',
+    ['contract_firm_link_v1'],
+  );
+  if (!firmLink.rows.length) {
+    await execRaw(`
+      UPDATE counterparty_contracts c
+      SET firm_id = f.id
+      FROM counterparty_firms f
+      WHERE c.firm_id IS NULL AND f.contract_id = c.id
+    `);
+    await execRaw(
+      `INSERT INTO settings (key, value) VALUES ('contract_firm_link_v1', '1')
+       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
+    );
+  }
   const firmsBackfill = await execRaw(
     'SELECT value FROM settings WHERE key = $1',
     ['counterparty_firms_backfill_v1'],

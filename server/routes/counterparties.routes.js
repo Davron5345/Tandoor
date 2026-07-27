@@ -37,7 +37,9 @@ export function registerCounterpartyRoutes(app) {
 
   app.get('/api/counterparties/:id/contracts', requireAnyPermission('counterparties.view', 'counterparties.edit', 'documents.view', 'documents.edit'), attachBranch, (req, res) => {
     try {
-      res.json(svc.getCounterpartyContracts(req.params.id, req.branchId));
+      res.json(svc.getCounterpartyContracts(req.params.id, req.branchId, {
+        firmId: req.query.firm_id || null,
+      }));
     } catch (e) {
       res.status(400).json({ error: e.message });
     }

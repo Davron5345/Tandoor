@@ -111,23 +111,34 @@ export function deleteCounterparty(id, branchId = DEFAULT_BRANCH_ID) {
   run('DELETE FROM counterparties WHERE id = ? AND branch_id = ?', [id, branchId]);
 }
 
-export function getCounterpartyContracts(counterpartyId, branchId = DEFAULT_BRANCH_ID) {
+export function getCounterpartyContracts(counterpartyId, branchId = DEFAULT_BRANCH_ID, options = {}) {
   const cp = getCounterparty(counterpartyId, branchId);
   if (!cp) throw new Error('Контрагент не найден');
+  const firmId = options.firmId || options.firm_id || null;
 
-  const contracts = queryAll(`
-    SELECT id, counterparty_id, branch_id, number, title, date, end_date, direction, amount,
+  const params = [counterpartyId, branchId];
+  let sql = `
+    SELECT id, counterparty_id, branch_id, firm_id, number, title, date, end_date, direction, amount,
            is_default, created_at
     FROM counterparty_contracts
     WHERE counterparty_id = ? AND branch_id = ?
-    ORDER BY is_default DESC, date DESC, number
-  `, [counterpartyId, branchId]);
+  `;
+  if (firmId) {
+    sql += ' AND firm_id = ?';
+    params.push(firmId);
+  } else if (options.unassignedOnly) {
+    sql += " AND (firm_id IS NULL OR firm_id = '')";
+  }
+  sql += ' ORDER BY is_default DESC, date DESC, number';
 
-  if (contracts.length === 0) {
+  const contracts = queryAll(sql, params);
+
+  if (contracts.length === 0 && !firmId) {
     return [{
       id: DEFAULT_CONTRACT_ID,
       counterparty_id: counterpartyId,
       branch_id: branchId,
+      firm_id: null,
       number: 'Основной договор',
       title: null,
       date: null,
@@ -147,7 +158,17 @@ export function getCounterpartyContracts(counterpartyId, branchId = DEFAULT_BRAN
       AND counterparty_id = ?
       AND (branch_id = ? OR branch_id IS NULL)
   `, [counterpartyId, branchId]);
-  const usedIds = new Set(usedRows.map((r) => r.contract_id));
+  const usedPay = queryAll(`
+    SELECT DISTINCT contract_id
+    FROM payments
+    WHERE contract_id IS NOT NULL AND contract_id != ''
+      AND counterparty_id = ?
+      AND (branch_id = ? OR (branch_id IS NULL AND ? = ?))
+  `, [counterpartyId, branchId, branchId, DEFAULT_BRANCH_ID]);
+  const usedIds = new Set([
+    ...usedRows.map((r) => r.contract_id),
+    ...usedPay.map((r) => r.contract_id),
+  ]);
 
   return contracts.map((c) => ({
     ...c,
@@ -166,14 +187,23 @@ export function createCounterpartyContract(counterpartyId, data, branchId = DEFA
   const amountValue = Number.isFinite(amount) && amount >= 0 ? amount : 0;
 
   const id = uuidv4();
+  let firmId = data.firm_id || data.firmId || null;
+  if (firmId) {
+    const firm = queryOne(
+      'SELECT id FROM counterparty_firms WHERE id = ? AND counterparty_id = ? AND branch_id = ?',
+      [firmId, counterpartyId, branchId],
+    );
+    if (!firm) throw new Error('Фирма не найдена у этого поставщика');
+  }
   run(`
     INSERT INTO counterparty_contracts
-      (id, counterparty_id, branch_id, number, title, date, end_date, direction, amount, is_default)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      (id, counterparty_id, branch_id, firm_id, number, title, date, end_date, direction, amount, is_default)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, [
     id,
     counterpartyId,
     branchId,
+    firmId,
     number,
     title,
     data.date || null,
@@ -182,6 +212,14 @@ export function createCounterpartyContract(counterpartyId, data, branchId = DEFA
     amountValue,
     data.is_default ? 1 : 0,
   ]);
+
+  // Если у фирмы ещё нет contract_id — поставить этот договор
+  if (firmId) {
+    const firm = queryOne('SELECT contract_id FROM counterparty_firms WHERE id = ?', [firmId]);
+    if (firm && !firm.contract_id) {
+      run('UPDATE counterparty_firms SET contract_id = ? WHERE id = ?', [id, firmId]);
+    }
+  }
 
   const created = queryOne('SELECT * FROM counterparty_contracts WHERE id = ?', [id]);
   return { ...created, is_used: false, virtual: false };
@@ -210,21 +248,26 @@ export function updateCounterpartyContract(counterpartyId, contractId, data, bra
     const amount = Number(data.amount);
     amountValue = Number.isFinite(amount) && amount >= 0 ? amount : 0;
   }
+  let firmId = row.firm_id || null;
+  if (data.firm_id !== undefined || data.firmId !== undefined) {
+    firmId = data.firm_id || data.firmId || null;
+    if (firmId) {
+      const firm = queryOne(
+        'SELECT id FROM counterparty_firms WHERE id = ? AND counterparty_id = ? AND branch_id = ?',
+        [firmId, counterpartyId, branchId],
+      );
+      if (!firm) throw new Error('Фирма не найдена у этого поставщика');
+    }
+  }
 
   run(`
     UPDATE counterparty_contracts
-    SET number = ?, title = ?, date = ?, end_date = ?, direction = ?, amount = ?
+    SET number = ?, title = ?, date = ?, end_date = ?, direction = ?, amount = ?, firm_id = ?
     WHERE id = ? AND counterparty_id = ? AND branch_id = ?
-  `, [number, title, date, endDate, direction, amountValue, contractId, counterpartyId, branchId]);
-
-  const updated = queryOne('SELECT * FROM counterparty_contracts WHERE id = ?', [contractId]);
-  const used = queryOne(
-    `SELECT id FROM documents
-     WHERE contract_id = ? AND counterparty_id = ?
-     LIMIT 1`,
-    [contractId, counterpartyId],
-  );
-  return { ...updated, is_used: Boolean(used), virtual: false };
+  `, [number, title, date, endDate, direction, amountValue, firmId, contractId, counterpartyId, branchId]);
+  return getCounterpartyContracts(counterpartyId, branchId, firmId ? { firmId } : {})
+    .find((c) => c.id === contractId)
+    || { ...queryOne('SELECT * FROM counterparty_contracts WHERE id = ?', [contractId]), is_used: false, virtual: false };
 }
 
 function normalizeContractDirection(value) {
@@ -293,7 +336,19 @@ export function getCounterpartyFirms(counterpartyId, branchId = DEFAULT_BRANCH_I
     ...usedPay.map((r) => r.firm_id),
   ]);
 
-  return firms.map((f) => ({ ...f, is_used: usedIds.has(f.id) }));
+  const counts = queryAll(`
+    SELECT firm_id, COUNT(*) as cnt
+    FROM counterparty_contracts
+    WHERE counterparty_id = ? AND branch_id = ? AND firm_id IS NOT NULL
+    GROUP BY firm_id
+  `, [counterpartyId, branchId]);
+  const countByFirm = new Map(counts.map((r) => [r.firm_id, Number(r.cnt) || 0]));
+
+  return firms.map((f) => ({
+    ...f,
+    is_used: usedIds.has(f.id),
+    contracts_count: countByFirm.get(f.id) || 0,
+  }));
 }
 
 export function findCounterpartyFirmByInn(inn, branchId = DEFAULT_BRANCH_ID) {

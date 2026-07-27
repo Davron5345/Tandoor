@@ -602,6 +602,24 @@ function migrateCounterpartyFirms() {
     run("INSERT OR REPLACE INTO settings (key, value) VALUES ('counterparty_firms_v1', '1')");
     saveDb();
   }
+
+  const firmLinkDone = queryOne("SELECT value FROM settings WHERE key = 'contract_firm_link_v1'");
+  if (!firmLinkDone) {
+    run(`
+      UPDATE counterparty_contracts
+      SET firm_id = (
+        SELECT f.id FROM counterparty_firms f
+        WHERE f.contract_id = counterparty_contracts.id
+        LIMIT 1
+      )
+      WHERE firm_id IS NULL
+        AND EXISTS (
+          SELECT 1 FROM counterparty_firms f WHERE f.contract_id = counterparty_contracts.id
+        )
+    `);
+    run("INSERT OR REPLACE INTO settings (key, value) VALUES ('contract_firm_link_v1', '1')");
+    saveDb();
+  }
 }
 
 function migrateCalculationKind() {
@@ -1353,6 +1371,14 @@ function migrateCounterpartyContracts() {
   }
   if (!contractCols.includes('amount')) {
     run('ALTER TABLE counterparty_contracts ADD COLUMN amount REAL DEFAULT 0');
+  }
+  if (!contractCols.includes('firm_id')) {
+    run('ALTER TABLE counterparty_contracts ADD COLUMN firm_id TEXT');
+  }
+  try {
+    run('CREATE INDEX IF NOT EXISTS idx_cp_contracts_firm ON counterparty_contracts(firm_id)');
+  } catch {
+    /* ignore */
   }
 
   const docCols = queryAll('PRAGMA table_info(documents)').map((c) => c.name);

@@ -273,7 +273,12 @@ export const api = {
   ),
 
   getCounterparties: (type) => request(`/counterparties${type ? `?type=${type}` : ''}`),
-  getCounterpartyContracts: (id) => request(`/counterparties/${id}/contracts`),
+  getCounterpartyContracts: (id, params = {}) => {
+    const q = new URLSearchParams(
+      Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null)),
+    ).toString();
+    return request(`/counterparties/${id}/contracts${q ? `?${q}` : ''}`);
+  },
   createCounterpartyContract: (id, data) => request(`/counterparties/${id}/contracts`, { method: 'POST', body: JSON.stringify(data) }),
   updateCounterpartyContract: (id, contractId, data) => request(`/counterparties/${id}/contracts/${contractId}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteCounterpartyContract: (id, contractId) => request(`/counterparties/${id}/contracts/${contractId}`, { method: 'DELETE' }),

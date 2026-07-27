@@ -23,11 +23,12 @@ export function IconEdit() {
   );
 }
 
-export function IconCopy() {
+export function IconContract() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
-      <rect x="9" y="9" width="11" height="11" rx="2" fill="none" stroke="currentColor" strokeWidth="1.8" />
-      <path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M8 3h7l4 4v14a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinejoin="round" />
+      <path d="M15 3v4h4" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinejoin="round" />
+      <path d="M10 12h6M10 16h6" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
     </svg>
   );
 }

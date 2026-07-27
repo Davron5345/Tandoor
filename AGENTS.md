@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-07-27 (карточка контрагента без скролла)
+**Последнее обновление документации:** 2026-07-27 (договоры привязаны к фирме)
 
 ---
 
@@ -166,7 +166,7 @@ npm run db:reset-operations    # Сброс операционных данны�
 | Каталог | `products`, `product_variants`, `product_categories`, `units`, `product_images`, `product_suppliers`, `product_branches`, `product_variant_branches` |
 | Склад | `departments`, `product_department_stock`, `product_branch_stock` |
 | Документы | `documents` (+ `firm_id` у прихода), `document_items` (+ `net_weight` в строках прихода), `document_history`, `opening_balance_lines` |
-| Контрагенты | `counterparties`, `counterparty_firms` (юрлица: ИНН, bank_account, mfo, договор), `counterparty_contracts` (title, number, date, end_date, direction, amount) |
+| Контрагенты | `counterparties`, `counterparty_firms` (юрлица: ИНН, bank_account, mfo), `counterparty_contracts` (title, number, date, end_date, direction, amount, `firm_id`) |
 | Финансы | `payments` (+ `external_ref`, `import_batch_id`, `contract_id`, `firm_id`), `cash_articles`, `branch_opening_balances` |
 | Калькуляции | `calculations`, `calculation_items`, `calculation_sources` |
 | Auth/Admin | `users`, `sessions`, `roles`, `role_permissions`, `audit_log`, `visit_log`, `blocked_devices` |
@@ -347,8 +347,9 @@ Frontend зеркало: `client/src/permissions.js`.
 ### 9.10 Фирмы поставщика (юрлица)
 
 - **Контрагент-поставщик** — торговое имя (напр. «Мурод»); **фирмы** (`counterparty_firms`) — юрлица с ИНН для оплат и сверки
-- У поставщика в карточке (`/counterparties`): компактная форма без бокового скролла; кнопки «Фирмы (N)» / «Договоры (N)» открывают вложенные окна (`CounterpartyFirmsModal`, `CounterpartyContractsModal`); редактирование фирмы — название, ИНН, МФО, р/с, договор; договор (`ContractEditModal`) — название, номер, дата, входящий/исходящий, сумма `1 000` + прописью, срок окончания
-- API договоров: `GET/POST /api/counterparties/:id/contracts`, `PUT/DELETE /api/counterparties/:id/contracts/:contractId`
+- У поставщика в карточке (`/counterparties`): компактная форма; «Фирмы (N)» → список фирм; у каждой фирмы кнопки: изменить · **договоры** · удалить; договоры фирмы — `firm_id` в `counterparty_contracts`
+- У клиента: кнопка «Договоры» в карточке (Click/Payme/Терминал)
+- API договоров: `GET/POST /api/counterparties/:id/contracts?firm_id=`, `PUT/DELETE .../contracts/:contractId`
 - API: `GET/POST /api/counterparties/:id/firms`, `PUT/DELETE /api/counterparties/:id/firms/:firmId`
 - Импорт выписки и ручные оплаты: `firm_id` на платеже; поиск по ИНН через `findCounterpartyFirmByInn`
 - **Акт сверки** (`/reports/reconciliation`): фильтр «Фирма» (все / конкретная); строки без `firm_id` видны только при «Все фирмы»
@@ -652,6 +653,7 @@ GET  /api/auth/roles
 | 2026-07-27 | Договоры: поля title/direction/amount/end_date; «+» у договора в окне фирмы |
 | 2026-07-27 | Договоры: редактирование (PUT); сумма `1 000` + прописью под полем (`amountInWords`) |
 | 2026-07-27 | Карточка контрагента: компактная без скролла; договоры во вложенном окне |
+| 2026-07-27 | Договоры привязаны к фирме (`firm_id`); иконка договоров между edit и delete в списке фирм |
 
 ---
 

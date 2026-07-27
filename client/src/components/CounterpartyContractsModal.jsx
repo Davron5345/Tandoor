@@ -8,6 +8,8 @@ import ContractEditModal from './ContractEditModal';
 export default function CounterpartyContractsModal({
   counterpartyId,
   counterpartyType = 'supplier',
+  firmId = null,
+  firmName = '',
   canEdit,
   onClose,
   onChanged,
@@ -24,11 +26,12 @@ export default function CounterpartyContractsModal({
       return;
     }
     setLoading(true);
-    api.getCounterpartyContracts(counterpartyId)
+    const params = firmId ? { firm_id: firmId } : undefined;
+    api.getCounterpartyContracts(counterpartyId, params)
       .then((list) => setContracts(list.filter((c) => c.id !== '__default__' && !c.virtual)))
       .catch(() => setContracts([]))
       .finally(() => setLoading(false));
-  }, [counterpartyId]);
+  }, [counterpartyId, firmId]);
 
   useEffect(() => {
     loadContracts();
@@ -47,11 +50,15 @@ export default function CounterpartyContractsModal({
     }
   };
 
+  const title = firmName
+    ? `Договоры · ${firmName}`
+    : 'Договоры';
+
   return createPortal(
     <>
       {Toast}
       <Modal
-        title="Договоры"
+        title={title}
         onClose={onClose}
         footer={(
           <>
@@ -69,9 +76,11 @@ export default function CounterpartyContractsModal({
         )}
       >
         <p className="text-muted cp-contracts-hint">
-          {counterpartyType === 'client'
-            ? 'Для эквайринга создайте клиента «КЛИЕНТ» и договоры Click, Payme, Терминал.'
-            : 'Если договоров нет, в приходе используется «Основной договор».'}
+          {firmId
+            ? 'Договоры этой фирмы. Используются в приходе и оплатах.'
+            : (counterpartyType === 'client'
+              ? 'Для эквайринга создайте договоры Click, Payme, Терминал.'
+              : 'Если договоров нет, в приходе используется «Основной договор».')}
         </p>
 
         {loading ? (
@@ -134,6 +143,7 @@ export default function CounterpartyContractsModal({
       <ContractEditModal
         open={Boolean(contractEditor)}
         counterpartyId={counterpartyId}
+        firmId={firmId}
         contractId={contractEditor?.id || null}
         initial={contractEditor?.initial || null}
         onClose={() => setContractEditor(null)}
