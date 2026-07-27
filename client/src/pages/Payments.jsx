@@ -6,6 +6,10 @@ import { hasPermission } from '../permissions';
 import { useAuth } from '../AuthContext';
 import { useBranch } from '../BranchContext';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
+import { IconButton, IconEye, IconEdit, IconTrash } from '../components/ActionIcons';
+
+const INCOME_TYPES = new Set(['customer_income', 'other_income']);
+const EXPENSE_TYPES = new Set(['supplier_payment', 'other_expense']);
 
 const empty = {
   type: 'supplier_payment',
@@ -16,16 +20,40 @@ const empty = {
   comment: '',
 };
 
+function dayStatus(items) {
+  const imported = items.filter((p) => p.import_batch_id).length;
+  if (!items.length) return { key: 'draft', label: 'Пусто' };
+  if (imported === items.length) return { key: 'confirmed', label: 'Загружена' };
+  if (imported === 0) return { key: 'draft', label: 'Вручную' };
+  return { key: 'supplier', label: 'Смешанная' };
+}
+
+function sumDay(items) {
+  let income = 0;
+  let expense = 0;
+  for (const p of items) {
+    const amt = Number(p.amount) || 0;
+    if (INCOME_TYPES.has(p.type)) income += amt;
+    else if (EXPENSE_TYPES.has(p.type)) expense += amt;
+    else expense += amt;
+  }
+  return { income, expense };
+}
+
 export default function Payments() {
   const [payments, setPayments] = useState([]);
   const [counterparties, setCounterparties] = useState([]);
   const [documents, setDocuments] = useState([]);
-  const [modal, setModal] = useState(null);
+  const [viewDay, setViewDay] = useState(null);
+  const [paymentModal, setPaymentModal] = useState(null);
   const [form, setForm] = useState(empty);
+  const [filterDateFrom, setFilterDateFrom] = useState('');
+  const [filterDateTo, setFilterDateTo] = useState('');
   const [importRows, setImportRows] = useState([]);
   const [importMeta, setImportMeta] = useState(null);
   const [importBusy, setImportBusy] = useState(false);
   const [importFilter, setImportFilter] = useState('all');
+  const [importOpen, setImportOpen] = useState(false);
   const fileRef = useRef(null);
   const { show, Toast } = useToast();
   const { user } = useAuth();
@@ -36,7 +64,7 @@ export default function Payments() {
   const load = useCallback(async () => {
     try {
       const p = await api.getPayments();
-      setPayments(p);
+      setPayments(Array.isArray(p) ? p : (p?.items || []));
       setCounterparties([]);
       setDocuments([]);
     } catch (err) {
@@ -55,9 +83,59 @@ export default function Payments() {
   }, [show]);
 
   useEffect(() => { load(); }, [load, branchId]);
-  useAutoRefresh(load, [load, branchId], { enabled: !modal });
+  useAutoRefresh(load, [load, branchId], {
+    enabled: !importOpen && !viewDay && !paymentModal,
+  });
 
-  const openCreate = () => { setForm({ ...empty }); setModal('create'); };
+  const paymentDays = useMemo(() => {
+    const map = new Map();
+    for (const p of payments) {
+      const d = p.date;
+      if (!d) continue;
+      if (!map.has(d)) map.set(d, []);
+      map.get(d).push(p);
+    }
+    const dates = [...map.keys()].sort((a, b) => (a < b ? 1 : -1));
+    return dates
+      .map((date, idx) => {
+        const items = map.get(date);
+        const { income, expense } = sumDay(items);
+        return {
+          date,
+          number: dates.length - idx,
+          items,
+          count: items.length,
+          income,
+          expense,
+          status: dayStatus(items),
+        };
+      })
+      .filter((day) => {
+        if (filterDateFrom && day.date < filterDateFrom) return false;
+        if (filterDateTo && day.date > filterDateTo) return false;
+        return true;
+      });
+  }, [payments, filterDateFrom, filterDateTo]);
+
+  const dayItems = useMemo(() => {
+    if (!viewDay) return [];
+    return payments
+      .filter((p) => p.date === viewDay)
+      .slice()
+      .sort((a, b) => (b.number || 0) - (a.number || 0));
+  }, [payments, viewDay]);
+
+  const dayTotals = useMemo(() => sumDay(dayItems), [dayItems]);
+  const dayStatusInfo = useMemo(() => dayStatus(dayItems), [dayItems]);
+
+  const openCreate = (dateOverride) => {
+    setForm({
+      ...empty,
+      date: dateOverride || viewDay || empty.date,
+    });
+    setPaymentModal('create');
+  };
+
   const openEdit = (p) => {
     setForm({
       type: p.type,
@@ -67,20 +145,24 @@ export default function Payments() {
       date: p.date,
       comment: p.comment || '',
     });
-    setModal(p.id);
+    setPaymentModal(p.id);
   };
 
   const save = async () => {
     try {
-      if (modal === 'create') {
+      if (paymentModal === 'create') {
         await api.createPayment(form);
         show('Оплата добавлена');
+        if (!viewDay && form.date) setViewDay(form.date);
       } else {
-        await api.updatePayment(modal, form);
+        await api.updatePayment(paymentModal, form);
         show('Оплата обновлена');
+        if (viewDay && form.date && form.date !== viewDay) {
+          setViewDay(form.date);
+        }
       }
-      setModal(null);
-      load();
+      setPaymentModal(null);
+      await load();
     } catch (e) {
       show(e.message, 'error');
     }
@@ -91,7 +173,10 @@ export default function Payments() {
     try {
       await api.deletePayment(p.id);
       show('Удалено');
-      load();
+      const next = payments.filter((x) => x.id !== p.id);
+      setPayments(next);
+      if (viewDay && !next.some((x) => x.date === viewDay)) setViewDay(null);
+      await load();
     } catch (e) {
       show(e.message, 'error');
     }
@@ -107,7 +192,7 @@ export default function Payments() {
       setImportRows((preview.rows || []).map((r) => ({ ...r })));
       setImportMeta(preview);
       setImportFilter('all');
-      setModal('import');
+      setImportOpen(true);
       if (preview.new_firms_count > 0) {
         show(`Найдено новых фирм: ${preview.new_firms_count} — создадутся при сохранении`, 'error');
       } else if (preview.new_accounts_count > 0) {
@@ -133,6 +218,23 @@ export default function Payments() {
     }
     return importRows;
   }, [importRows, importFilter]);
+
+  const importRowsByDate = useMemo(() => {
+    const sorted = [...visibleImportRows].sort((a, b) => {
+      if (a.date !== b.date) return a.date < b.date ? 1 : -1;
+      return String(a.external_ref || '').localeCompare(String(b.external_ref || ''));
+    });
+    const groups = [];
+    let current = null;
+    for (const r of sorted) {
+      if (!current || current.date !== r.date) {
+        current = { date: r.date, rows: [] };
+        groups.push(current);
+      }
+      current.rows.push(r);
+    }
+    return groups;
+  }, [visibleImportRows]);
 
   const selectedImportCount = importRows.filter((r) => r.selected && !r.already_imported).length;
 
@@ -195,6 +297,13 @@ export default function Payments() {
     )));
   };
 
+  const closeImport = (force = false) => {
+    if (importBusy && !force) return;
+    setImportOpen(false);
+    setImportRows([]);
+    setImportMeta(null);
+  };
+
   const confirmImport = async () => {
     const rows = importRows.filter((r) => r.selected && !r.already_imported);
     if (!rows.length) {
@@ -210,12 +319,12 @@ export default function Payments() {
       const accMsg = result.updated_accounts_count
         ? `, новых р/с: ${result.updated_accounts_count}`
         : '';
+      const dates = new Set(rows.map((r) => r.date).filter(Boolean));
       show(`Создано операций: ${result.created_count}${firmMsg}${accMsg}`
-        + (result.skipped_count ? `, пропущено: ${result.skipped_count}` : ''));
-      setModal(null);
-      setImportRows([]);
-      setImportMeta(null);
-      load();
+        + (result.skipped_count ? `, пропущено: ${result.skipped_count}` : '')
+        + (dates.size ? ` · дней: ${dates.size}` : ''));
+      closeImport(true);
+      await load();
     } catch (err) {
       show(err.message || 'Ошибка импорта', 'error');
     } finally {
@@ -248,9 +357,11 @@ export default function Payments() {
               disabled={importBusy}
               onClick={() => fileRef.current?.click()}
             >
-              {importBusy && modal !== 'import' ? 'Чтение…' : 'Загрузить выписку'}
+              {importBusy && !importOpen ? 'Чтение…' : 'Загрузить выписку'}
             </button>
-            <button type="button" className="btn btn-primary" onClick={openCreate}>+ Новая операция</button>
+            <button type="button" className="btn btn-primary" onClick={() => openCreate()}>
+              + Новая операция
+            </button>
             <input
               ref={fileRef}
               type="file"
@@ -262,73 +373,185 @@ export default function Payments() {
         )}
       </div>
 
+      <div className="filters">
+        <label className="filter-field">
+          <span className="filter-field-caption">С</span>
+          <input
+            type="date"
+            value={filterDateFrom}
+            max={filterDateTo || undefined}
+            onChange={(e) => setFilterDateFrom(e.target.value)}
+          />
+        </label>
+        <label className="filter-field">
+          <span className="filter-field-caption">По</span>
+          <input
+            type="date"
+            value={filterDateTo}
+            min={filterDateFrom || undefined}
+            onChange={(e) => setFilterDateTo(e.target.value)}
+          />
+        </label>
+        {(filterDateFrom || filterDateTo) && (
+          <div className="filter-field filter-field-actions">
+            <span className="filter-field-caption filter-field-caption-spacer" aria-hidden="true">&#8203;</span>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={() => { setFilterDateFrom(''); setFilterDateTo(''); }}
+            >
+              Сбросить
+            </button>
+          </div>
+        )}
+      </div>
+
       <div className="card">
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>№</th>
-                <th>Тип</th>
-                <th>Контрагент</th>
-                <th>Договор</th>
-                <th>Документ</th>
+                <th>Номер</th>
                 <th>Дата</th>
-                <th>Сумма</th>
-                <th></th>
+                <th>Тип</th>
+                <th>Операций</th>
+                <th>Приход</th>
+                <th>Расход</th>
+                <th>Статус</th>
+                <th>Действия</th>
               </tr>
             </thead>
             <tbody>
-              {payments.map((p) => (
-                <tr key={p.id}>
-                  <td>{p.number}</td>
-                  <td>{PAYMENT_TYPES[p.type]}</td>
-                  <td>{p.counterparty_name || '—'}</td>
-                  <td>{p.contract_number || '—'}</td>
-                  <td>{p.document_number || '—'}</td>
-                  <td>{formatDate(p.date)}</td>
-                  <td>{formatMoney(p.amount)}</td>
+              {paymentDays.map((day) => (
+                <tr key={day.date}>
+                  <td>{day.number}</td>
+                  <td>{formatDate(day.date)}</td>
                   <td>
-                    {canEdit && (
-                      <div className="btn-group">
-                        <button type="button" className="btn btn-ghost btn-sm" onClick={() => openEdit(p)}>Изменить</button>
-                        {canDelete && (
-                          <button type="button" className="btn btn-danger btn-sm" onClick={() => remove(p)}>Удалить</button>
-                        )}
-                      </div>
-                    )}
+                    <span className="badge badge-supplier">Выписка</span>
+                  </td>
+                  <td>{day.count}</td>
+                  <td>{day.income ? formatMoney(day.income) : '—'}</td>
+                  <td>{day.expense ? formatMoney(day.expense) : '—'}</td>
+                  <td>
+                    <span className={`badge badge-${day.status.key}`}>{day.status.label}</span>
+                  </td>
+                  <td>
+                    <div className="btn-group btn-group-icons doc-actions">
+                      <IconButton title="Открыть" onClick={() => setViewDay(day.date)}>
+                        <IconEye />
+                      </IconButton>
+                    </div>
                   </td>
                 </tr>
               ))}
-              {payments.length === 0 && (
-                <tr><td colSpan={8} className="empty">Операций пока нет</td></tr>
+              {paymentDays.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="empty">
+                    {payments.length === 0 ? 'Операций пока нет' : 'Нет выписок за выбранный период'}
+                  </td>
+                </tr>
               )}
             </tbody>
           </table>
         </div>
       </div>
 
-      {modal === 'import' && (
+      {viewDay && (
+        <Modal
+          title={`Выписка · ${formatDate(viewDay)}`}
+          wide
+          className="modal-bank-day"
+          onClose={() => setViewDay(null)}
+          footer={
+            <>
+              <button type="button" className="btn btn-ghost" onClick={() => setViewDay(null)}>
+                Закрыть
+              </button>
+              {canEdit && (
+                <button type="button" className="btn btn-primary" onClick={() => openCreate(viewDay)}>
+                  + Операция
+                </button>
+              )}
+            </>
+          }
+        >
+          <div className="bank-day-layout">
+            <div className="bank-day-meta">
+              <span className={`badge badge-${dayStatusInfo.key}`}>{dayStatusInfo.label}</span>
+              <span className="text-muted">
+                Операций: {dayItems.length}
+                {' · '}
+                Приход: {formatMoney(dayTotals.income)}
+                {' · '}
+                Расход: {formatMoney(dayTotals.expense)}
+              </span>
+            </div>
+            <div className="table-wrap bank-day-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th>№</th>
+                    <th>Тип</th>
+                    <th>Контрагент</th>
+                    <th>Договор</th>
+                    <th>Документ</th>
+                    <th>Сумма</th>
+                    <th>Комментарий</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {dayItems.map((p) => (
+                    <tr key={p.id}>
+                      <td>{p.number}</td>
+                      <td>{PAYMENT_TYPES[p.type] || p.type}</td>
+                      <td>{p.counterparty_name || '—'}</td>
+                      <td>{p.contract_number || '—'}</td>
+                      <td>{p.document_number || '—'}</td>
+                      <td>{formatMoney(p.amount)}</td>
+                      <td className="bank-day-comment" title={p.comment || ''}>
+                        {(p.comment || '').slice(0, 80)}
+                        {(p.comment || '').length > 80 ? '…' : ''}
+                      </td>
+                      <td>
+                        {canEdit && (
+                          <div className="btn-group btn-group-icons">
+                            <IconButton title="Изменить" onClick={() => openEdit(p)}>
+                              <IconEdit />
+                            </IconButton>
+                            {canDelete && (
+                              <IconButton title="Удалить" danger onClick={() => remove(p)}>
+                                <IconTrash />
+                              </IconButton>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                  {dayItems.length === 0 && (
+                    <tr><td colSpan={8} className="empty">Нет операций за этот день</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {importOpen && (
         <Modal
           title="Импорт банковской выписки"
           wide
           className="modal-bank-import"
-          onClose={() => {
-            if (importBusy) return;
-            setModal(null);
-            setImportRows([]);
-            setImportMeta(null);
-          }}
+          onClose={closeImport}
           footer={
             <>
               <button
                 type="button"
                 className="btn btn-ghost"
                 disabled={importBusy}
-                onClick={() => {
-                  setModal(null);
-                  setImportRows([]);
-                  setImportMeta(null);
-                }}
+                onClick={closeImport}
               >
                 Отмена
               </button>
@@ -350,7 +573,7 @@ export default function Payments() {
                 ? ` Эквайринг → «${importMeta.retail_client.name}».`
                 : ' Нет клиента «КЛИЕНТ» — Click/Payme/терминал не привяжутся автоматически.'}
               {' '}
-              Новые фирмы создаются при сохранении. Если ИНН и название совпали, а р/с другой — это новый счёт у той же фирмы.
+              Новые фирмы создаются при сохранении. Строки сгруппированы по датам — после сохранения каждая дата станет отдельной выпиской.
             </p>
 
             {newFirmsLive.length > 0 && (
@@ -417,82 +640,15 @@ export default function Payments() {
                   </tr>
                 </thead>
                 <tbody>
-                  {visibleImportRows.map((r) => (
-                    <tr
-                      key={r.external_ref}
-                      className={
-                        r.is_new_firm && !r.counterparty_id
-                          ? 'bank-import-row-new'
-                          : (r.is_new_account ? 'bank-import-row-new-account' : undefined)
-                      }
-                      style={r.already_imported ? { opacity: 0.55 } : undefined}
-                    >
-                      <td>
-                        <input
-                          type="checkbox"
-                          checked={Boolean(r.selected)}
-                          disabled={r.already_imported}
-                          onChange={(e) => updateImportRow(r.external_ref, { selected: e.target.checked })}
-                        />
-                      </td>
-                      <td>{formatDate(r.date)}</td>
-                      <td>
-                        {r.direction === 'debit' ? '−' : '+'}
-                        {formatMoney(r.amount)}
-                      </td>
-                      <td>
-                        <select
-                          value={r.type}
-                          disabled={r.already_imported}
-                          onChange={(e) => updateImportRow(r.external_ref, {
-                            type: e.target.value,
-                            counterparty_id: '',
-                            counterparty_name: null,
-                            is_new_firm: Boolean(r.inn || r.suggested_name),
-                          })}
-                        >
-                          {Object.entries(PAYMENT_TYPES).map(([k, v]) => (
-                            <option key={k} value={k}>{v}</option>
-                          ))}
-                        </select>
-                      </td>
-                      <td>{r.inn || '—'}</td>
-                      <td>
-                        <select
-                          value={r.counterparty_id || ''}
-                          disabled={r.already_imported}
-                          onChange={(e) => {
-                            const id = e.target.value || null;
-                            const cp = counterparties.find((c) => c.id === id);
-                            updateImportRow(r.external_ref, {
-                              counterparty_id: id,
-                              counterparty_name: cp?.name || null,
-                            });
-                          }}
-                          title={r.match_reason || ''}
-                        >
-                          <option value="">
-                            {r.is_new_firm
-                              ? `+ Создать: ${r.suggested_name || r.name}${r.inn ? ` (${r.inn})` : ''}`
-                              : '— не выбран —'}
-                          </option>
-                          {counterpartiesForImportRow(r).map((c) => (
-                            <option key={c.id} value={c.id}>
-                              {c.name}{c.inn ? ` (${c.inn})` : ''}
-                            </option>
-                          ))}
-                        </select>
-                        <div className="text-muted bank-import-match-reason">
-                          {r.match_reason || r.name}
-                        </div>
-                      </td>
-                      <td>{r.contract_number || r.channel_label || '—'}</td>
-                      <td className="bank-import-purpose" title={r.purpose}>
-                        {(r.purpose || '').slice(0, 120)}{(r.purpose || '').length > 120 ? '…' : ''}
-                      </td>
-                    </tr>
+                  {importRowsByDate.map((group) => (
+                    <ImportDateGroup
+                      key={group.date || 'nodate'}
+                      group={group}
+                      counterpartiesForImportRow={counterpartiesForImportRow}
+                      updateImportRow={updateImportRow}
+                    />
                   ))}
-                  {visibleImportRows.length === 0 && (
+                  {importRowsByDate.length === 0 && (
                     <tr><td colSpan={8} className="empty">Нет строк</td></tr>
                   )}
                 </tbody>
@@ -502,13 +658,13 @@ export default function Payments() {
         </Modal>
       )}
 
-      {modal && modal !== 'import' && (
+      {paymentModal && (
         <Modal
-          title={modal === 'create' ? 'Новая оплата' : 'Редактировать оплату'}
-          onClose={() => setModal(null)}
+          title={paymentModal === 'create' ? 'Новая операция' : 'Редактировать операцию'}
+          onClose={() => setPaymentModal(null)}
           footer={
             <>
-              <button type="button" className="btn btn-ghost" onClick={() => setModal(null)}>Отмена</button>
+              <button type="button" className="btn btn-ghost" onClick={() => setPaymentModal(null)}>Отмена</button>
               <button type="button" className="btn btn-primary" onClick={save}>Сохранить</button>
             </>
           }
@@ -556,5 +712,94 @@ export default function Payments() {
         </Modal>
       )}
     </div>
+  );
+}
+
+function ImportDateGroup({ group, counterpartiesForImportRow, updateImportRow }) {
+  return (
+    <>
+      <tr className="bank-import-date-header">
+        <td colSpan={8}>
+          <strong>{formatDate(group.date)}</strong>
+          <span className="text-muted"> · {group.rows.length} опер.</span>
+        </td>
+      </tr>
+      {group.rows.map((r) => (
+        <tr
+          key={r.external_ref}
+          className={
+            r.is_new_firm && !r.counterparty_id
+              ? 'bank-import-row-new'
+              : (r.is_new_account ? 'bank-import-row-new-account' : undefined)
+          }
+          style={r.already_imported ? { opacity: 0.55 } : undefined}
+        >
+          <td>
+            <input
+              type="checkbox"
+              checked={Boolean(r.selected)}
+              disabled={r.already_imported}
+              onChange={(e) => updateImportRow(r.external_ref, { selected: e.target.checked })}
+            />
+          </td>
+          <td>{formatDate(r.date)}</td>
+          <td>
+            {r.direction === 'debit' ? '−' : '+'}
+            {formatMoney(r.amount)}
+          </td>
+          <td>
+            <select
+              value={r.type}
+              disabled={r.already_imported}
+              onChange={(e) => updateImportRow(r.external_ref, {
+                type: e.target.value,
+                counterparty_id: '',
+                counterparty_name: null,
+                is_new_firm: Boolean(r.inn || r.suggested_name),
+              })}
+            >
+              {Object.entries(PAYMENT_TYPES).map(([k, v]) => (
+                <option key={k} value={k}>{v}</option>
+              ))}
+            </select>
+          </td>
+          <td>{r.inn || '—'}</td>
+          <td>
+            <select
+              value={r.counterparty_id || ''}
+              disabled={r.already_imported}
+              onChange={(e) => {
+                const id = e.target.value || null;
+                const list = counterpartiesForImportRow(r);
+                const cp = list.find((c) => c.id === id);
+                updateImportRow(r.external_ref, {
+                  counterparty_id: id,
+                  counterparty_name: cp?.name || null,
+                });
+              }}
+              title={r.match_reason || ''}
+            >
+              <option value="">
+                {r.is_new_firm
+                  ? `+ Создать: ${r.suggested_name || r.name}${r.inn ? ` (${r.inn})` : ''}`
+                  : '— не выбран —'}
+              </option>
+              {counterpartiesForImportRow(r).map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}{c.inn ? ` (${c.inn})` : ''}
+                </option>
+              ))}
+            </select>
+            <div className="text-muted bank-import-match-reason">
+              {r.match_reason || r.name}
+            </div>
+          </td>
+          <td>{r.contract_number || r.channel_label || '—'}</td>
+          <td className="bank-import-purpose" title={r.purpose}>
+            {(r.purpose || '').slice(0, 120)}{(r.purpose || '').length > 120 ? '…' : ''}
+          </td>
+        </tr>
+      ))}
+    </>
   );
 }

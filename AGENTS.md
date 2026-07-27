@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-07-27 (договоры в карточке фирмы)
+**Последнее обновление документации:** 2026-07-27 (Банк: день = выписка)
 
 ---
 
@@ -334,7 +334,10 @@ Frontend зеркало: `client/src/permissions.js`.
 ### 9.9 Импорт банковской выписки (Ipak Yuli)
 
 - Формат: Excel `AccReferenceReport*.xlsx` (Internet Bank Ipak Yuli, «Справка о работе счета»)
-- UI: `/payments` → «Загрузить выписку» → превью → подтверждение
+- UI: `/payments` → «Загрузить выписку» → превью (строки **сгруппированы по датам**) → подтверждение
+- После импорта в списке Банка: **одна календарная дата = одна «Выписка»** (как документ); внутри — операции дня (`payments`); открытие/редактирование/удаление строк
+- Ручные операции попадают в выписку своей даты; фильтры С/По по дате
+- Операции остаются в `payments` (не складской `documents.type`); P&L/долги без изменений
 - API: `POST /api/payments/import/parse` (multipart `file`), `POST /api/payments/import/confirm` `{ rows }`
 - **Дебет:** оплата поставщику по ИНН — сверка **ИНН + название + р/с**: новый ИНН → новая фирма; ИНН и название совпали, р/с другой → новый счёт у той же фирмы; иначе legacy `counterparties.inn`; комиссии банка → `other_expense`; расход клиенту по ИНН → `other_expense`
 - **Кредит эквайринг** (Click / Payme / терминал UnionPay|SmartVista): `customer_income` на контрагента **«КЛИЕНТ»** + договор с номером, содержащим Click / Payme / Терминал
@@ -432,7 +435,7 @@ GET  /api/auth/roles
 | `/calculations` | Calculations.jsx | calculations.view |
 | `/dish-sales` | DishSales.jsx | documents.dish_sale |
 | `/cashier` | Cashier.jsx | cashier.* |
-| `/payments` | Payments.jsx | payments.view; кнопка «Загрузить выписку» (Ipak Yuli AccReferenceReport) |
+| `/payments` | Payments.jsx | payments.view; список по датам («Выписка»); открытие дня → операции; «Загрузить выписку» (Ipak Yuli AccReferenceReport) |
 | `/cash-articles` | CashArticles.jsx | cash_articles.view |
 | `/reports/*` | Reports.jsx | reports.view; `/reports/supplier-debts` — долги поставщикам; акт сверки — фильтр «Фирма» у поставщика |
 | `/opening-balance` | OpeningBalance.jsx | opening_balance.view |
@@ -655,6 +658,7 @@ GET  /api/auth/roles
 | 2026-07-27 | Карточка контрагента: компактная без скролла; договоры во вложенном окне |
 | 2026-07-27 | Договоры привязаны к фирме (`firm_id`); иконка договоров между edit и delete в списке фирм |
 | 2026-07-27 | В окне «Редактировать фирму» — список договоров + создать/редактировать |
+| 2026-07-27 | Банк: день = документ «Выписка»; внутри операции; превью импорта по датам |
 
 ---
 
