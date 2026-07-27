@@ -11320,6 +11320,87 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
   overflow: auto;
 }
 
+/* Bank statement import: large fixed panel (no floating scroll jump) */
+.modal-overlay:has(.modal-bank-import) {
+  align-items: stretch;
+  justify-content: center;
+  overflow: hidden;
+  padding: 10px 12px;
+}
+
+.modal-bank-import {
+  width: min(100%, 1480px);
+  height: 100%;
+  max-height: none;
+  margin: 0 auto;
+  align-self: stretch;
+  border-radius: 10px;
+}
+
+.modal-bank-import .modal-body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  padding-bottom: 12px;
+}
+
+.bank-import-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  flex: 1;
+  height: 100%;
+}
+
+.bank-import-hint {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.45;
+  flex-shrink: 0;
+}
+
+.bank-import-new-firms {
+  flex-shrink: 0;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.bank-import-toolbar {
+  flex-shrink: 0;
+  margin-bottom: 0;
+  align-items: end;
+}
+
+.bank-import-toolbar-actions .btn-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.bank-import-table {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.bank-import-row-new td {
+  background: color-mix(in srgb, var(--danger, #c62828) 8%, transparent);
+}
+
+.bank-import-match-reason {
+  font-size: 11px;
+  margin-top: 2px;
+}
+
+.bank-import-purpose {
+  max-width: 280px;
+  font-size: 12px;
+}
+
 .ob-create-modal-hint {
   margin: 0;
   font-size: 14px;

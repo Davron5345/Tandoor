@@ -108,7 +108,9 @@ export default function Payments() {
       setImportMeta(preview);
       setImportFilter('all');
       setModal('import');
-      if (!preview.retail_client) {
+      if (preview.new_firms_count > 0) {
+        show(`Найдено новых фирм: ${preview.new_firms_count} — создадутся при сохранении`, 'error');
+      } else if (!preview.retail_client) {
         show('Создайте клиента «КЛИЕНТ» и договоры Click / Payme / Терминал — для эквайринга', 'error');
       }
     } catch (err) {
@@ -122,6 +124,7 @@ export default function Payments() {
     if (importFilter === 'selected') return importRows.filter((r) => r.selected);
     if (importFilter === 'debit') return importRows.filter((r) => r.direction === 'debit');
     if (importFilter === 'credit') return importRows.filter((r) => r.direction === 'credit');
+    if (importFilter === 'new') return importRows.filter((r) => r.is_new_firm && !r.counterparty_id);
     if (importFilter === 'unmatched') {
       return importRows.filter((r) => !r.counterparty_id && !r.already_imported);
     }
@@ -130,10 +133,34 @@ export default function Payments() {
 
   const selectedImportCount = importRows.filter((r) => r.selected && !r.already_imported).length;
 
+  const newFirmsLive = useMemo(() => {
+    const map = new Map();
+    for (const r of importRows) {
+      if (!r.is_new_firm || r.counterparty_id || r.already_imported) continue;
+      const key = r.inn || r.suggested_name || r.name;
+      if (!key || map.has(key)) continue;
+      map.set(key, {
+        inn: r.inn,
+        name: r.suggested_name || r.name,
+        type: r.suggested_type,
+      });
+    }
+    return [...map.values()];
+  }, [importRows]);
+
   const updateImportRow = (externalRef, patch) => {
-    setImportRows((rows) => rows.map((r) => (
-      r.external_ref === externalRef ? { ...r, ...patch } : r
-    )));
+    setImportRows((rows) => rows.map((r) => {
+      if (r.external_ref !== externalRef) return r;
+      const next = { ...r, ...patch };
+      if (Object.prototype.hasOwnProperty.call(patch, 'counterparty_id')) {
+        if (patch.counterparty_id) {
+          next.is_new_firm = false;
+        } else if (r.inn || r.suggested_name) {
+          next.is_new_firm = true;
+        }
+      }
+      return next;
+    }));
   };
 
   const toggleAllVisible = (checked) => {
@@ -154,7 +181,10 @@ export default function Payments() {
     setImportBusy(true);
     try {
       const result = await api.confirmBankStatement(rows);
-      show(`Создано операций: ${result.created_count}`
+      const firmMsg = result.created_counterparties_count
+        ? `, новых фирм: ${result.created_counterparties_count}`
+        : '';
+      show(`Создано операций: ${result.created_count}${firmMsg}`
         + (result.skipped_count ? `, пропущено: ${result.skipped_count}` : ''));
       setModal(null);
       setImportRows([]);
@@ -255,6 +285,7 @@ export default function Payments() {
         <Modal
           title="Импорт банковской выписки"
           wide
+          className="modal-bank-import"
           onClose={() => {
             if (importBusy) return;
             setModal(null);
@@ -281,120 +312,149 @@ export default function Payments() {
                 disabled={importBusy || selectedImportCount === 0}
                 onClick={confirmImport}
               >
-                {importBusy ? 'Создание…' : `Создать оплаты (${selectedImportCount})`}
+                {importBusy ? 'Создание…' : `Сохранить (${selectedImportCount})`}
               </button>
             </>
           }
         >
-          <p className="text-muted" style={{ marginTop: 0 }}>
-            Формат: {importMeta?.format || 'AccReferenceReport'} ({importMeta?.bank || 'Ipak Yuli'}).
-            Строки сгруппированы по контрагенту / ИНН.
-            {importMeta?.retail_client
-              ? ` Эквайринг → «${importMeta.retail_client.name}».`
-              : ' Нет клиента «КЛИЕНТ» — Click/Payme/терминал не привяжутся автоматически.'}
-          </p>
-          <div className="form-grid" style={{ marginBottom: 12 }}>
-            <div className="form-group">
-              <label>Фильтр</label>
-              <select value={importFilter} onChange={(e) => setImportFilter(e.target.value)}>
-                <option value="all">Все ({importRows.length})</option>
-                <option value="selected">Выбранные ({selectedImportCount})</option>
-                <option value="debit">Расход (дебет)</option>
-                <option value="credit">Приход (кредит)</option>
-                <option value="unmatched">Без контрагента</option>
-              </select>
+          <div className="bank-import-layout">
+            <p className="bank-import-hint">
+              Формат: {importMeta?.format || 'AccReferenceReport'} ({importMeta?.bank || 'Ipak Yuli'}).
+              {importMeta?.retail_client
+                ? ` Эквайринг → «${importMeta.retail_client.name}».`
+                : ' Нет клиента «КЛИЕНТ» — Click/Payme/терминал не привяжутся автоматически.'}
+              {' '}
+              Новые фирмы без ИНН/названия в справочнике создаются при сохранении; если фирма уже есть — выберите вручную.
+            </p>
+
+            {newFirmsLive.length > 0 && (
+              <div className="alert alert-error bank-import-new-firms" role="status">
+                <strong>Новые фирмы ({newFirmsLive.length}):</strong>
+                {' '}
+                при сохранении будут добавлены в справочник —
+                {' '}
+                {newFirmsLive.map((f) => `${f.name}${f.inn ? ` (${f.inn})` : ''}`).join('; ')}.
+                Можно вручную выбрать существующего контрагента в строке.
+              </div>
+            )}
+
+            <div className="bank-import-toolbar form-grid">
+              <div className="form-group">
+                <label>Фильтр</label>
+                <select value={importFilter} onChange={(e) => setImportFilter(e.target.value)}>
+                  <option value="all">Все ({importRows.length})</option>
+                  <option value="selected">Выбранные ({selectedImportCount})</option>
+                  <option value="new">Новые фирмы ({newFirmsLive.length})</option>
+                  <option value="debit">Расход (дебет)</option>
+                  <option value="credit">Приход (кредит)</option>
+                  <option value="unmatched">Без контрагента</option>
+                </select>
+              </div>
+              <div className="form-group bank-import-toolbar-actions">
+                <label>&nbsp;</label>
+                <div className="btn-group">
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={() => toggleAllVisible(true)}>
+                    Выбрать видимые
+                  </button>
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => toggleAllVisible(false)}>
+                    Снять видимые
+                  </button>
+                </div>
+              </div>
             </div>
-            <div className="form-group" style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
-              <button type="button" className="btn btn-secondary btn-sm" onClick={() => toggleAllVisible(true)}>
-                Выбрать видимые
-              </button>
-              <button type="button" className="btn btn-ghost btn-sm" onClick={() => toggleAllVisible(false)}>
-                Снять видимые
-              </button>
-            </div>
-          </div>
-          <div className="table-wrap" style={{ maxHeight: '55vh', overflow: 'auto' }}>
-            <table>
-              <thead>
-                <tr>
-                  <th></th>
-                  <th>Дата</th>
-                  <th>Сумма</th>
-                  <th>Тип</th>
-                  <th>ИНН</th>
-                  <th>Контрагент</th>
-                  <th>Договор / канал</th>
-                  <th>Назначение</th>
-                </tr>
-              </thead>
-              <tbody>
-                {visibleImportRows.map((r) => (
-                  <tr key={r.external_ref} style={r.already_imported ? { opacity: 0.55 } : undefined}>
-                    <td>
-                      <input
-                        type="checkbox"
-                        checked={Boolean(r.selected)}
-                        disabled={r.already_imported}
-                        onChange={(e) => updateImportRow(r.external_ref, { selected: e.target.checked })}
-                      />
-                    </td>
-                    <td>{formatDate(r.date)}</td>
-                    <td>
-                      {r.direction === 'debit' ? '−' : '+'}
-                      {formatMoney(r.amount)}
-                    </td>
-                    <td>
-                      <select
-                        value={r.type}
-                        disabled={r.already_imported}
-                        onChange={(e) => updateImportRow(r.external_ref, {
-                          type: e.target.value,
-                          counterparty_id: '',
-                          counterparty_name: null,
-                        })}
-                      >
-                        {Object.entries(PAYMENT_TYPES).map(([k, v]) => (
-                          <option key={k} value={k}>{v}</option>
-                        ))}
-                      </select>
-                    </td>
-                    <td>{r.inn || '—'}</td>
-                    <td>
-                      <select
-                        value={r.counterparty_id || ''}
-                        disabled={r.already_imported}
-                        onChange={(e) => {
-                          const id = e.target.value || null;
-                          const cp = counterparties.find((c) => c.id === id);
-                          updateImportRow(r.external_ref, {
-                            counterparty_id: id,
-                            counterparty_name: cp?.name || null,
-                          });
-                        }}
-                        title={r.match_reason || ''}
-                      >
-                        <option value="">— не выбран —</option>
-                        {counterpartiesForImportRow(r).map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.name}{c.inn ? ` (${c.inn})` : ''}
-                          </option>
-                        ))}
-                      </select>
-                      <div className="text-muted" style={{ fontSize: 11, marginTop: 2 }}>
-                        {r.match_reason || r.name}
-                      </div>
-                    </td>
-                    <td>{r.contract_number || r.channel_label || '—'}</td>
-                    <td style={{ maxWidth: 280, fontSize: 12 }} title={r.purpose}>
-                      {(r.purpose || '').slice(0, 120)}{(r.purpose || '').length > 120 ? '…' : ''}
-                    </td>
+
+            <div className="table-wrap bank-import-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th></th>
+                    <th>Дата</th>
+                    <th>Сумма</th>
+                    <th>Тип</th>
+                    <th>ИНН</th>
+                    <th>Контрагент</th>
+                    <th>Договор / канал</th>
+                    <th>Назначение</th>
                   </tr>
-                ))}
-                {visibleImportRows.length === 0 && (
-                  <tr><td colSpan={8} className="empty">Нет строк</td></tr>
-                )}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {visibleImportRows.map((r) => (
+                    <tr
+                      key={r.external_ref}
+                      className={r.is_new_firm && !r.counterparty_id ? 'bank-import-row-new' : undefined}
+                      style={r.already_imported ? { opacity: 0.55 } : undefined}
+                    >
+                      <td>
+                        <input
+                          type="checkbox"
+                          checked={Boolean(r.selected)}
+                          disabled={r.already_imported}
+                          onChange={(e) => updateImportRow(r.external_ref, { selected: e.target.checked })}
+                        />
+                      </td>
+                      <td>{formatDate(r.date)}</td>
+                      <td>
+                        {r.direction === 'debit' ? '−' : '+'}
+                        {formatMoney(r.amount)}
+                      </td>
+                      <td>
+                        <select
+                          value={r.type}
+                          disabled={r.already_imported}
+                          onChange={(e) => updateImportRow(r.external_ref, {
+                            type: e.target.value,
+                            counterparty_id: '',
+                            counterparty_name: null,
+                            is_new_firm: Boolean(r.inn || r.suggested_name),
+                          })}
+                        >
+                          {Object.entries(PAYMENT_TYPES).map(([k, v]) => (
+                            <option key={k} value={k}>{v}</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td>{r.inn || '—'}</td>
+                      <td>
+                        <select
+                          value={r.counterparty_id || ''}
+                          disabled={r.already_imported}
+                          onChange={(e) => {
+                            const id = e.target.value || null;
+                            const cp = counterparties.find((c) => c.id === id);
+                            updateImportRow(r.external_ref, {
+                              counterparty_id: id,
+                              counterparty_name: cp?.name || null,
+                            });
+                          }}
+                          title={r.match_reason || ''}
+                        >
+                          <option value="">
+                            {r.is_new_firm
+                              ? `+ Создать: ${r.suggested_name || r.name}${r.inn ? ` (${r.inn})` : ''}`
+                              : '— не выбран —'}
+                          </option>
+                          {counterpartiesForImportRow(r).map((c) => (
+                            <option key={c.id} value={c.id}>
+                              {c.name}{c.inn ? ` (${c.inn})` : ''}
+                            </option>
+                          ))}
+                        </select>
+                        <div className="text-muted bank-import-match-reason">
+                          {r.match_reason || r.name}
+                        </div>
+                      </td>
+                      <td>{r.contract_number || r.channel_label || '—'}</td>
+                      <td className="bank-import-purpose" title={r.purpose}>
+                        {(r.purpose || '').slice(0, 120)}{(r.purpose || '').length > 120 ? '…' : ''}
+                      </td>
+                    </tr>
+                  ))}
+                  {visibleImportRows.length === 0 && (
+                    <tr><td colSpan={8} className="empty">Нет строк</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </Modal>
       )}

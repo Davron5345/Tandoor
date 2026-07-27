@@ -4,7 +4,12 @@ import * as XLSX from 'xlsx';
 import db from '../db.js';
 import { DEFAULT_BRANCH_ID } from '../branches.js';
 import { createPayment } from './payments.js';
-import { getCounterparties, getCounterpartyContracts, DEFAULT_CONTRACT_ID } from './counterparties.js';
+import {
+  createCounterparty,
+  getCounterparties,
+  getCounterpartyContracts,
+  DEFAULT_CONTRACT_ID,
+} from './counterparties.js';
 
 const { queryOne } = db;
 
@@ -120,6 +125,22 @@ function normalizeName(name) {
     .trim();
 }
 
+function cleanFirmName(name, inn = null) {
+  let n = String(name || '').replace(/\s+/g, ' ').trim();
+  if (!n) return '';
+  if (inn) {
+    n = n.replace(new RegExp(`\\b${inn}\\b`, 'g'), ' ').replace(/\s+/g, ' ').trim();
+  }
+  n = n.replace(/\b\d{9}\b/g, ' ').replace(/\s+/g, ' ').trim();
+  return n;
+}
+
+function suggestedCounterpartyType(paymentType) {
+  if (paymentType === 'supplier_payment' || paymentType === 'other_income') return 'supplier';
+  if (paymentType === 'customer_income' || paymentType === 'other_expense') return 'client';
+  return 'supplier';
+}
+
 function findRetailClient(counterparties) {
   const clients = counterparties.filter((c) => c.type === 'client');
   return clients.find((c) => CLIENT_NAME_RE.test(String(c.name || '').trim()))
@@ -152,7 +173,6 @@ function buildOwnInns(rawRows) {
       for (const inn of extractInns(name, purpose, row.innCol)) own.add(inn);
     }
   }
-  // Known from sample / typical Mahalla9O
   own.add('311330873');
   return own;
 }
@@ -254,6 +274,7 @@ function classifyRow(raw, ctx) {
   const counterpartyInn = pickCounterpartyInn(raw.name, raw.purpose, raw.innCol, ownInns);
   const externalRef = makeExternalRef(raw);
   const alreadyImported = existingRefs.has(externalRef);
+  const suggestedName = cleanFirmName(raw.name, counterpartyInn);
 
   let type = direction === 'debit' ? 'supplier_payment' : 'customer_income';
   let counterparty = null;
@@ -262,6 +283,7 @@ function classifyRow(raw, ctx) {
   let matchReason = '';
   let channelId = null;
   let channelLabel = null;
+  let isNewFirm = false;
 
   if (COMMISSION_RE.test(raw.name) || /16401/.test(raw.account)) {
     type = 'other_expense';
@@ -289,9 +311,18 @@ function classifyRow(raw, ctx) {
         : 'расход клиенту по имени';
     } else {
       type = 'supplier_payment';
-      matchReason = counterparty
-        ? (counterpartyInn ? `поставщик по ИНН ${counterpartyInn}` : 'поставщик по имени')
-        : (counterpartyInn ? `ИНН ${counterpartyInn} не найден в справочнике` : 'поставщик не распознан');
+      if (counterparty) {
+        matchReason = counterpartyInn
+          ? `поставщик по ИНН ${counterpartyInn}`
+          : 'поставщик по имени';
+      } else if (counterpartyInn || suggestedName) {
+        isNewFirm = true;
+        matchReason = counterpartyInn
+          ? `новая фирма: ${suggestedName || raw.name} (ИНН ${counterpartyInn}) — создастся при сохранении`
+          : `новая фирма: ${suggestedName} — создастся при сохранении`;
+      } else {
+        matchReason = 'поставщик не распознан';
+      }
     }
   } else {
     counterparty = matchByInn(counterparties, counterpartyInn)
@@ -303,9 +334,18 @@ function classifyRow(raw, ctx) {
         : 'приход от поставщика по имени';
     } else {
       type = 'customer_income';
-      matchReason = counterparty
-        ? (counterpartyInn ? `клиент по ИНН ${counterpartyInn}` : 'клиент по имени')
-        : (counterpartyInn ? `ИНН ${counterpartyInn} не найден` : 'контрагент не распознан');
+      if (counterparty) {
+        matchReason = counterpartyInn
+          ? `клиент по ИНН ${counterpartyInn}`
+          : 'клиент по имени';
+      } else if (counterpartyInn || suggestedName) {
+        isNewFirm = true;
+        matchReason = counterpartyInn
+          ? `новая фирма: ${suggestedName || raw.name} (ИНН ${counterpartyInn}) — создастся при сохранении`
+          : `новая фирма: ${suggestedName} — создастся при сохранении`;
+      } else {
+        matchReason = 'контрагент не распознан';
+      }
     }
   }
 
@@ -326,6 +366,9 @@ function classifyRow(raw, ctx) {
     doc_no: raw.docNo,
     purpose: raw.purpose,
     inn: counterpartyInn,
+    suggested_name: suggestedName || null,
+    suggested_type: suggestedCounterpartyType(type),
+    is_new_firm: isNewFirm && !alreadyImported,
     type,
     counterparty_id: counterparty?.id || null,
     counterparty_name: counterparty?.name || null,
@@ -337,6 +380,21 @@ function classifyRow(raw, ctx) {
     already_imported: alreadyImported,
     match_reason: matchReason,
   };
+}
+
+function collectNewFirms(rows) {
+  const map = new Map();
+  for (const r of rows) {
+    if (!r.is_new_firm || r.already_imported) continue;
+    const key = r.inn || normalizeName(r.suggested_name || r.name);
+    if (!key || map.has(key)) continue;
+    map.set(key, {
+      inn: r.inn || null,
+      name: r.suggested_name || cleanFirmName(r.name, r.inn) || r.name,
+      type: r.suggested_type || suggestedCounterpartyType(r.type),
+    });
+  }
+  return [...map.values()].sort((a, b) => String(a.name).localeCompare(String(b.name), 'ru'));
 }
 
 /**
@@ -367,14 +425,19 @@ export function previewBankStatement(buffer, branchId = DEFAULT_BRANCH_ID) {
   };
   const rows = rawRows.map((r) => classifyRow(r, ctx));
 
-  // Sort: matched counterparties first, then by name/inn, then date
   rows.sort((a, b) => {
-    const an = (a.counterparty_name || a.name || '').localeCompare(b.counterparty_name || b.name || '', 'ru');
+    const aNew = a.is_new_firm ? 0 : 1;
+    const bNew = b.is_new_firm ? 0 : 1;
+    if (aNew !== bNew) return aNew - bNew;
+    const an = (a.counterparty_name || a.suggested_name || a.name || '')
+      .localeCompare(b.counterparty_name || b.suggested_name || b.name || '', 'ru');
     if (an !== 0) return an;
     const ai = (a.inn || '').localeCompare(b.inn || '');
     if (ai !== 0) return ai;
     return String(a.date).localeCompare(String(b.date));
   });
+
+  const newFirms = collectNewFirms(rows);
 
   return {
     bank: 'Ipak Yuli',
@@ -382,14 +445,49 @@ export function previewBankStatement(buffer, branchId = DEFAULT_BRANCH_ID) {
     retail_client: retailClient
       ? { id: retailClient.id, name: retailClient.name }
       : null,
+    new_firms: newFirms,
+    new_firms_count: newFirms.length,
     total: rows.length,
     selected_count: rows.filter((r) => r.selected).length,
     rows,
   };
 }
 
+function resolveOrCreateCounterparty(row, branchId, cache, createdList) {
+  if (row.counterparty_id) return row.counterparty_id;
+
+  const inn = normalizeInn(row.inn);
+  const name = (row.suggested_name || cleanFirmName(row.name, inn) || '').trim();
+  if (!row.is_new_firm && !inn && !name) return null;
+  if (!name && !inn) return null;
+
+  const cacheKey = inn || `name:${normalizeName(name)}`;
+  if (cache.has(cacheKey)) return cache.get(cacheKey);
+
+  const existing = getCounterparties(null, branchId);
+  const found = (inn && matchByInn(existing, inn))
+    || (name && matchByName(existing, name, suggestedCounterpartyType(row.type)));
+  if (found) {
+    cache.set(cacheKey, found.id);
+    return found.id;
+  }
+
+  const type = row.suggested_type || suggestedCounterpartyType(row.type);
+  const created = createCounterparty({
+    name: name || `ИНН ${inn}`,
+    type,
+    inn: inn || '',
+    notes: 'Создано из банковской выписки',
+  }, branchId);
+  cache.set(cacheKey, created.id);
+  if (inn) cache.set(inn, created.id);
+  createdList.push(created);
+  return created.id;
+}
+
 /**
  * Create payments from confirmed preview rows.
+ * Unmatched firms (is_new_firm) are created as counterparties on save.
  */
 export function confirmBankStatementImport(rows, userId, branchId = DEFAULT_BRANCH_ID, userRole = null) {
   if (!Array.isArray(rows) || rows.length === 0) {
@@ -398,6 +496,8 @@ export function confirmBankStatementImport(rows, userId, branchId = DEFAULT_BRAN
   const batchId = uuidv4();
   const created = [];
   const skipped = [];
+  const createdCounterparties = [];
+  const cpCache = new Map();
 
   for (const row of rows) {
     if (!row || row.selected === false) {
@@ -425,6 +525,11 @@ export function confirmBankStatementImport(rows, userId, branchId = DEFAULT_BRAN
       }
     }
 
+    let counterpartyId = row.counterparty_id || null;
+    if (!counterpartyId && (row.is_new_firm || row.inn || row.suggested_name)) {
+      counterpartyId = resolveOrCreateCounterparty(row, branchId, cpCache, createdCounterparties);
+    }
+
     const commentParts = [];
     if (row.channel_label) commentParts.push(row.channel_label);
     if (row.contract_number) commentParts.push(`дог. ${row.contract_number}`);
@@ -436,7 +541,7 @@ export function confirmBankStatementImport(rows, userId, branchId = DEFAULT_BRAN
 
     const payment = createPayment({
       type: row.type || (row.direction === 'debit' ? 'supplier_payment' : 'customer_income'),
-      counterparty_id: row.counterparty_id || null,
+      counterparty_id: counterpartyId,
       contract_id: row.contract_id || null,
       document_id: null,
       amount,
@@ -453,6 +558,8 @@ export function confirmBankStatementImport(rows, userId, branchId = DEFAULT_BRAN
     import_batch_id: batchId,
     created_count: created.length,
     skipped_count: skipped.length,
+    created_counterparties_count: createdCounterparties.length,
+    created_counterparties: createdCounterparties,
     created,
     skipped,
   };
