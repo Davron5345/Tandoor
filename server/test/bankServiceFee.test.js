@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { isBankServiceFee } from '../services/bankStatementImport.js';
+import { isBankServiceFee, detectAcquiringChannelLabel } from '../services/bankStatementImport.js';
 
 test('isBankServiceFee detects commission name', () => {
   assert.equal(isBankServiceFee({
@@ -27,4 +27,19 @@ test('isBankServiceFee ignores normal supplier payment', () => {
     account: '20208000900000000099',
     debit: 500000,
   }), false);
+});
+
+test('detectAcquiringChannelLabel: inkasso from name', () => {
+  assert.equal(
+    detectAcquiringChannelLabel('Инкассированная денежная выручка', '№8743791 · 00650Инк выручка'),
+    'Инкассо',
+  );
+});
+
+test('detectAcquiringChannelLabel: payme and terminal', () => {
+  assert.equal(detectAcquiringChannelLabel('PAYME', 'Зачисление'), 'Payme');
+  assert.equal(
+    detectAcquiringChannelLabel('SmartVista', 'Выручка по торговому терминалу'),
+    'Терминал',
+  );
 });
