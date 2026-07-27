@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-07-27 (импорт месяца: лимит тела запроса)
+**Последнее обновление документации:** 2026-07-27 (Банк: канал под Клиентом)
 
 ---
 
@@ -347,7 +347,7 @@ Frontend зеркало: `client/src/permissions.js`.
 - Операции остаются в `payments` (не складской `documents.type`); P&L/долги без изменений
 - API: `GET/POST/PUT/DELETE /api/bank-accounts`; `POST /api/payments/import/parse`, `POST /api/payments/import/confirm` `{ rows, bank_account_id, replace_dates }`
 - **Дебет:** оплата поставщику по ИНН — сверка **ИНН + название + р/с**: новый ИНН → новая фирма; ИНН и название совпали, р/с другой → новый счёт у той же фирмы; иначе legacy `counterparties.inn`; **комиссии банка / РКО** (`комиссионн`, `оп.обс`, счёт `16401`) → `other_expense` + статья **«Услуга банка»** (`exp_bank_service`); расход клиенту по ИНН → `other_expense`
-- **Кредит эквайринг** (Click / Payme / терминал UnionPay|SmartVista): `customer_income` на контрагента **«КЛИЕНТ»** + договор с номером, содержащим Click / Payme / Терминал
+- **Кредит эквайринг** (Click / Payme / терминал UnionPay|SmartVista / **инкассо**): `customer_income` на контрагента **«КЛИЕНТ»** + договор с номером, содержащим Click / Payme / Терминал / Инкассо; в списке дня под «Клиент» показывается канал (Payme, Click, Терминал, Инкассо)
 - **Кредит** по ИНН клиента/поставщика: приход от клиента или возврат от поставщика
 - Новые юрлица без ИНН/названия в справочнике: уведомление в превью; при сохранении автосоздание поставщика + фирмы (можно выбрать существующего вручную)
 - ИНН и название совпали, р/с другой: флаг `is_new_account` — при сохранении обновляется `counterparty_firms.bank_account`
@@ -442,7 +442,7 @@ GET  /api/auth/roles
 | `/calculations` | Calculations.jsx | calculations.view |
 | `/dish-sales` | DishSales.jsx | documents.dish_sale |
 | `/cashier` | Cashier.jsx | cashier.* |
-| `/payments` | Payments.jsx | payments.view; справочник счетов («Основной»); список по датам с сальдо/дебет/кредит; в операциях дня под поставщиком — название фирмы; выбор видимых столбцов; импорт AccReferenceReport |
+| `/payments` | Payments.jsx | payments.view; справочник счетов («Основной»); список по датам; под поставщиком — фирма, под клиентом — канал (Payme/Click/Терминал/Инкассо); выбор столбцов; импорт AccReferenceReport |
 | `/cash-articles` | CashArticles.jsx | cash_articles.view |
 | `/reports/*` | Reports.jsx | reports.view; `/reports/supplier-debts` — долги поставщикам; акт сверки — фильтр «Фирма» у поставщика |
 | `/opening-balance` | OpeningBalance.jsx | opening_balance.view |
@@ -674,6 +674,7 @@ GET  /api/auth/roles
 | 2026-07-27 | Импорт выписки: комиссии/РКО → статья «Услуга банка»; без ложного контрагента |
 | 2026-07-27 | Банк: в операциях дня под контрагентом показывается название фирмы |
 | 2026-07-27 | Импорт выписки: лимит JSON 20mb + урезанный payload (месяц без «request entity too large») |
+| 2026-07-27 | Банк: инкассо как канал клиента; под «Клиент» показывается Payme/Click/Терминал/Инкассо |
 
 ---
 

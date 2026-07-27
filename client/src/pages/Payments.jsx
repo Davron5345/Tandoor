@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { api, formatMoney, formatDate } from '../api';
-import { PAYMENT_TYPES, paymentTypeLabel } from '../permissions';
+import { PAYMENT_TYPES, paymentTypeLabel, paymentAcquiringLabel } from '../permissions';
 import Modal, { useToast } from '../components/Modal';
 import { hasPermission } from '../permissions';
 import { useAuth } from '../AuthContext';
@@ -895,16 +895,32 @@ export default function Payments() {
                         <td>{p.number}</td>
                         <td>{paymentTypeLabel(p)}</td>
                         <td>
-                          {p.counterparty_name || p.firm_name ? (
+                          {p.counterparty_name || p.firm_name || paymentAcquiringLabel(p) ? (
                             <div className="bank-day-party">
                               <span className="bank-day-party-name">
                                 {p.counterparty_name || '—'}
                               </span>
-                              {p.firm_name && p.firm_name !== p.counterparty_name && (
-                                <span className="bank-day-party-firm" title={p.firm_inn ? `ИНН ${p.firm_inn}` : undefined}>
-                                  {p.firm_name}
-                                </span>
-                              )}
+                              {(() => {
+                                const channel = paymentAcquiringLabel(p);
+                                if (channel) {
+                                  return (
+                                    <span className="bank-day-party-firm" title="Сервис / канал">
+                                      {channel}
+                                    </span>
+                                  );
+                                }
+                                if (p.firm_name && p.firm_name !== p.counterparty_name) {
+                                  return (
+                                    <span
+                                      className="bank-day-party-firm"
+                                      title={p.firm_inn ? `ИНН ${p.firm_inn}` : undefined}
+                                    >
+                                      {p.firm_name}
+                                    </span>
+                                  );
+                                }
+                                return null;
+                              })()}
                             </div>
                           ) : '—'}
                         </td>

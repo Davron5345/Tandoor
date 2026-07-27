@@ -24,7 +24,20 @@ const HEADER_MARKERS = ['дата документа', 'оборот дебет'
 const ACQUIRING_CHANNELS = [
   { id: 'click', label: 'Click', patterns: [/\bCLICK\b/i, /CLICK\s*AJ/i] },
   { id: 'payme', label: 'Payme', patterns: [/\bPAYME\b/i] },
-  { id: 'terminal', label: 'Терминал', patterns: [/UNIONPAY/i, /SMARTVISTA/i, /ТЕР:/i, /ТЕРМИНАЛ/i, /ИНКАССАЦ/i] },
+  // Инкассо раньше терминала: иначе «Инк» попадал в «Терминал»
+  {
+    id: 'inkasso',
+    label: 'Инкассо',
+    patterns: [
+      /инкассир/i,
+      /инкассац/i,
+      /инкассов/i,
+      /денежн\w*\s+выручк/i,
+      /00650\s*инк/i,
+      /\bинк\b/i,
+    ],
+  },
+  { id: 'terminal', label: 'Терминал', patterns: [/UNIONPAY/i, /SMARTVISTA/i, /ТЕР:/i, /ТЕРМИНАЛ/i] },
 ];
 
 /** Комиссия / РКО банка в выписке (название, назначение, счёт 16401). */
@@ -137,6 +150,10 @@ function detectAcquiringChannel(name, purpose) {
   return null;
 }
 
+export function detectAcquiringChannelLabel(name, purpose) {
+  return detectAcquiringChannel(name, purpose)?.label || null;
+}
+
 function normalizeName(name) {
   return String(name || '')
     .toLowerCase()
@@ -219,7 +236,8 @@ function matchContractForChannel(contracts, channel) {
   const keywords = {
     click: ['click', 'клик'],
     payme: ['payme', 'пейм'],
-    terminal: ['терминал', 'terminal', 'pos', 'union'],
+    inkasso: ['инкассо', 'inkasso', 'инк'],
+    terminal: ['терминал', 'terminal', 'pos', 'union', 'smartvista'],
   }[channel.id] || [channel.label.toLowerCase()];
 
   for (const kw of keywords) {
@@ -416,7 +434,7 @@ function classifyRow(raw, ctx) {
       ? (contract
         ? `эквайринг → ${retailClient.name} / ${contract.number}`
         : `эквайринг → ${retailClient.name} (добавьте договор «${channel.label}»)`)
-      : 'эквайринг: создайте клиента «КЛИЕНТ» и договоры Click / Payme / Терминал';
+      : 'эквайринг: создайте клиента «КЛИЕНТ» и договоры Click / Payme / Терминал / Инкассо';
   } else if (direction === 'debit') {
     firmMatch = counterpartyInn ? findCounterpartyFirmByInn(counterpartyInn, ctx.branchId) : null;
     if (firmMatch) {

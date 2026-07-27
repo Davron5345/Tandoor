@@ -132,6 +132,42 @@ export function paymentTypeLabel(payment) {
   return PAYMENT_TYPES[payment.type] || payment.type || '';
 }
 
+/**
+ * Канал эквайринга / инкассо для отображения под «Клиент»
+ * (договор, префикс комментария или текст назначения).
+ */
+export function paymentAcquiringLabel(payment) {
+  if (!payment || payment.type !== 'customer_income') return null;
+
+  const fromContract = String(payment.contract_number || '');
+  const contractRules = [
+    [/click|клик/i, 'Click'],
+    [/payme|пейм/i, 'Payme'],
+    [/инкасс/i, 'Инкассо'],
+    [/терминал|terminal|union|smartvista|pos/i, 'Терминал'],
+  ];
+  for (const [re, label] of contractRules) {
+    if (re.test(fromContract)) return label;
+  }
+
+  const comment = String(payment.comment || '');
+  const prefix = comment.match(/^(Click|Payme|Терминал|Инкассо)\b/i);
+  if (prefix) {
+    const raw = prefix[1];
+    if (/^click$/i.test(raw)) return 'Click';
+    if (/^payme$/i.test(raw)) return 'Payme';
+    if (/^инкассо$/i.test(raw)) return 'Инкассо';
+    if (/^терминал$/i.test(raw)) return 'Терминал';
+  }
+
+  const blob = `${payment.counterparty_name || ''}\n${comment}`;
+  if (/инкассир|инкассац|инкассов|денежн\w*\s+выручк/i.test(blob)) return 'Инкассо';
+  if (/\bCLICK\b|CLICK\s*AJ/i.test(blob)) return 'Click';
+  if (/\bPAYME\b/i.test(blob)) return 'Payme';
+  if (/UNIONPAY|SMARTVISTA|ТЕР:|ТЕРМИНАЛ/i.test(blob)) return 'Терминал';
+  return null;
+}
+
 export const DOC_TYPE_LABELS = {
   prihod: 'Приход',
   rashod: 'Расход',
