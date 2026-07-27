@@ -6,15 +6,14 @@ export default function CounterpartyFormFields({ form, setForm, lockType = null 
   const isSupplier = (typeLocked ? lockType : form.type) === 'supplier';
 
   return (
-    <div className="form-grid">
+    <div className="form-grid form-grid-compact">
       <div className="form-group">
         <label>{isSupplier ? 'Название поставщика *' : 'Название *'}</label>
-        <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-        {isSupplier && (
-          <small className="text-muted" style={{ display: 'block', marginTop: 4 }}>
-            Как вы называете поставщика в работе (например «Мурод»). Юрлица и ИНН — в блоке ниже.
-          </small>
-        )}
+        <input
+          value={form.name}
+          onChange={(e) => setForm({ ...form, name: e.target.value })}
+          placeholder={isSupplier ? 'Напр. Мурод' : ''}
+        />
       </div>
       <div className="form-group">
         <label>Тип *</label>
@@ -53,23 +52,19 @@ export default function CounterpartyFormFields({ form, setForm, lockType = null 
         <input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
       </div>
       <div className="form-group">
-        <label>Telegram Chat ID</label>
+        <label>Telegram</label>
         <input
           value={form.telegram_chat_id}
           onChange={(e) => setForm({ ...form, telegram_chat_id: e.target.value })}
-          placeholder="Получить через /start в боте"
+          placeholder="Chat ID"
         />
       </div>
-      <div className="form-group full">
+      <div className="form-group">
         <label>Адрес</label>
         <input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
       </div>
-      <div className="form-group full">
-        <label>Заметки</label>
-        <textarea rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
-      </div>
       <div className="form-group">
-        <label>Начальное сальдо</label>
+        <label title="Удобнее задавать в документе «Начальное сальдо»">Сальдо</label>
         <input
           type="text"
           inputMode="numeric"
@@ -79,9 +74,14 @@ export default function CounterpartyFormFields({ form, setForm, lockType = null 
             opening_balance: parsePriceInput(e.target.value) ?? 0,
           })}
         />
-        <small className="text-muted" style={{ display: 'block', marginTop: 4 }}>
-          Удобнее задавать в документе «Начальное сальдо»
-        </small>
+      </div>
+      <div className="form-group full">
+        <label>Заметки</label>
+        <input
+          value={form.notes}
+          onChange={(e) => setForm({ ...form, notes: e.target.value })}
+          placeholder="Кратко"
+        />
       </div>
     </div>
   );

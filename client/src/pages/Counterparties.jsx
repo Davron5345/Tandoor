@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { api, formatDate, formatPriceInput } from '../api';
+import { api } from '../api';
 import Modal, { useToast, ModalCancelButton } from '../components/Modal';
 import CounterpartyFormFields, { emptyCounterpartyForm } from '../components/CounterpartyFormFields';
 import { IconButton, IconEdit, IconTrash } from '../components/ActionIcons';
@@ -16,7 +16,7 @@ import {
   promptRestoreDraft,
 } from '../hooks/useFormDraft';
 import CounterpartyFirmsModal from '../components/CounterpartyFirmsModal';
-import ContractEditModal from '../components/ContractEditModal';
+import CounterpartyContractsModal from '../components/CounterpartyContractsModal';
 import { useFormDirty } from '../hooks/useFormDirty';
 import { hasPermission } from '../permissions';
 
@@ -28,7 +28,7 @@ export default function Counterparties() {
   const [contracts, setContracts] = useState([]);
   const [firms, setFirms] = useState([]);
   const [firmsModalOpen, setFirmsModalOpen] = useState(false);
-  const [contractEditor, setContractEditor] = useState(null); // null | { id, initial }
+  const [contractsModalOpen, setContractsModalOpen] = useState(false);
   const draftKey = formDraftKey('counterparties', modal);
   const draftPayload = useMemo(() => ({ form }), [form]);
   useFormDraft(draftKey, draftPayload, Boolean(modal));
@@ -74,7 +74,7 @@ export default function Counterparties() {
       setContracts([]);
       setFirms([]);
       setFirmsModalOpen(false);
-      setContractEditor(null);
+      setContractsModalOpen(false);
     }
   }, [modal, form.type, branchId]);
 
@@ -123,23 +123,18 @@ export default function Counterparties() {
     }
   };
 
-  const removeContract = async (contractId) => {
-    if (!canEdit || modal === 'create') return;
-    if (!window.confirm('Удалить договор?')) return;
-    try {
-      await api.deleteCounterpartyContract(modal, contractId);
-      loadContracts(modal);
-      show('Договор удалён');
-    } catch (e) {
-      show(e.message, 'error');
-    }
-  };
-
   const remove = async (id) => {
     if (!confirm('Удалить контрагента?')) return;
     await api.deleteCounterparty(id);
     show('Удалено');
     load();
+  };
+
+  const closeMainModal = () => {
+    clearFormDraft(draftKey);
+    setFirmsModalOpen(false);
+    setContractsModalOpen(false);
+    setModal(null);
   };
 
   return (
@@ -212,118 +207,58 @@ export default function Counterparties() {
       {modal && (
         <Modal
           title={modal === 'create' ? 'Новый контрагент' : 'Редактировать контрагента'}
+          className="modal-cp"
           dirty={isFormDirty}
-          onClose={() => {
-            clearFormDraft(draftKey);
-            setFirmsModalOpen(false);
-            setModal(null);
-          }}
-          footer={
+          onClose={closeMainModal}
+          footer={(
             <>
               <ModalCancelButton />
               <button type="button" className="btn btn-primary" onClick={save}>Сохранить</button>
             </>
-          }
+          )}
         >
           <CounterpartyFormFields form={form} setForm={setForm} />
 
-          {modal !== 'create' && form.type === 'supplier' && (
-            <div className="cp-contracts-block">
-              <div className="cp-firms-summary">
-                <h3>Фирмы для оплаты</h3>
+          {modal !== 'create' && (
+            <div className="cp-links-block">
+              {form.type === 'supplier' && (
+                <div className="cp-link-row">
+                  <div className="cp-link-text">
+                    <strong>Фирмы</strong>
+                    <span className="text-muted">
+                      {firms.length > 0
+                        ? firms.map((f) => f.name).join(', ')
+                        : 'юрлица и ИНН для оплат'}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => setFirmsModalOpen(true)}
+                  >
+                    {firms.length > 0 ? `Фирмы (${firms.length})` : 'Добавить'}
+                  </button>
+                </div>
+              )}
+              <div className="cp-link-row">
+                <div className="cp-link-text">
+                  <strong>Договоры</strong>
+                  <span className="text-muted">
+                    {contracts.length > 0
+                      ? contracts.map((c) => c.title || c.number).join(', ')
+                      : (form.type === 'client'
+                        ? 'Click / Payme / Терминал'
+                        : 'основной, если не заданы')}
+                  </span>
+                </div>
                 <button
                   type="button"
                   className="btn btn-secondary btn-sm"
-                  onClick={() => setFirmsModalOpen(true)}
+                  onClick={() => setContractsModalOpen(true)}
                 >
-                  {firms.length > 0 ? `Фирмы (${firms.length})` : 'Добавить фирмы'}
+                  {contracts.length > 0 ? `Договоры (${contracts.length})` : 'Добавить'}
                 </button>
               </div>
-              {firms.length > 0 ? (
-                <ul className="cp-firms-compact-list">
-                  {firms.map((f) => (
-                    <li key={f.id}>
-                      {f.name}
-                      {f.inn ? ` · ${f.inn}` : ''}
-                      {f.is_default ? ' · основная' : ''}
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-muted cp-contracts-hint">
-                  Юрлица с ИНН для банковских платежей и акта сверки.
-                </p>
-              )}
-            </div>
-          )}
-
-          {modal !== 'create' && (
-            <div className="cp-contracts-block">
-              <h3>Договоры</h3>
-              <p className="text-muted cp-contracts-hint">
-                {form.type === 'client'
-                  ? 'Для розничных поступлений создайте клиента «КЛИЕНТ» и договоры Click, Payme, Терминал — их подхватит загрузка банковской выписки.'
-                  : 'Если договоров нет, в приходных документах используется «Основной договор».'}
-              </p>
-              {contracts.length > 0 && (
-                <div className="table-wrap cp-contracts-table">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Название</th>
-                        <th>Номер</th>
-                        <th>Дата</th>
-                        <th>Тип</th>
-                        <th>Сумма</th>
-                        <th>Срок</th>
-                        <th></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {contracts.map((c) => (
-                        <tr key={c.id}>
-                          <td>{c.title || '—'}</td>
-                          <td>{c.number}</td>
-                          <td>{c.date ? formatDate(c.date) : '—'}</td>
-                          <td>
-                            {c.direction === 'incoming'
-                              ? 'Входящий'
-                              : (c.direction === 'outgoing' ? 'Исходящий' : '—')}
-                          </td>
-                          <td>{c.amount ? formatPriceInput(Math.round(Number(c.amount))) : '—'}</td>
-                          <td>{c.end_date ? formatDate(c.end_date) : '—'}</td>
-                          <td>
-                            {canEdit && (
-                              <div className="btn-group btn-group-icons">
-                                <IconButton
-                                  title="Изменить"
-                                  onClick={() => setContractEditor({ id: c.id, initial: c })}
-                                >
-                                  <IconEdit />
-                                </IconButton>
-                                {!c.is_used && (
-                                  <IconButton title="Удалить" danger onClick={() => removeContract(c.id)}>
-                                    <IconTrash />
-                                  </IconButton>
-                                )}
-                              </div>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-              {canEdit && (
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={() => setContractEditor({ id: null, initial: null })}
-                >
-                  + Добавить договор
-                </button>
-              )}
             </div>
           )}
         </Modal>
@@ -343,14 +278,13 @@ export default function Counterparties() {
         />
       )}
 
-      {modal && modal !== 'create' && (
-        <ContractEditModal
-          open={Boolean(contractEditor)}
+      {contractsModalOpen && modal && modal !== 'create' && (
+        <CounterpartyContractsModal
           counterpartyId={modal}
-          contractId={contractEditor?.id || null}
-          initial={contractEditor?.initial || null}
-          onClose={() => setContractEditor(null)}
-          onSaved={() => loadContracts(modal)}
+          counterpartyType={form.type}
+          canEdit={canEdit}
+          onClose={() => setContractsModalOpen(false)}
+          onChanged={() => loadContracts(modal)}
         />
       )}
     </div>
