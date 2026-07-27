@@ -2,7 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import db from '../db.js';
 import { DEFAULT_BRANCH_ID } from '../branches.js';
 import { hasPermission } from '../permissions.js';
-import { assertCounterpartyBranch } from './counterparties.js';
+import { assertCounterpartyBranch, DEFAULT_CONTRACT_ID } from './counterparties.js';
 import {
   getCashArticles,
   getCashArticlesAll,
@@ -115,13 +115,15 @@ export function getPayments(branchId = null, userRole = null, filters = {}) {
   let sql = `
     SELECT p.*, c.name as counterparty_name, c.type as counterparty_type,
            d.number as document_number, u.name as created_by_name,
-           b.name as branch_name, ca.name as article_name, ca.direction as article_direction
+           b.name as branch_name, ca.name as article_name, ca.direction as article_direction,
+           cc.number as contract_number
     FROM payments p
     LEFT JOIN counterparties c ON c.id = p.counterparty_id
     LEFT JOIN documents d ON d.id = p.document_id
     LEFT JOIN users u ON u.id = p.created_by
     LEFT JOIN branches b ON b.id = p.branch_id
     LEFT JOIN cash_articles ca ON ca.id = p.article_id
+    LEFT JOIN counterparty_contracts cc ON cc.id = p.contract_id
   `;
   const params = [];
   const conditions = [];
@@ -264,6 +266,17 @@ function assertPaymentDocumentLink(documentId, paymentType, payBranchId, counter
   return doc;
 }
 
+function assertPaymentContractLink(contractId, counterpartyId, payBranchId) {
+  if (!contractId) return;
+  if (contractId === DEFAULT_CONTRACT_ID) return;
+  if (!counterpartyId) throw new Error('Договор можно указать только вместе с контрагентом');
+  const row = queryOne(
+    'SELECT id FROM counterparty_contracts WHERE id = ? AND counterparty_id = ? AND branch_id = ?',
+    [contractId, counterpartyId, payBranchId],
+  );
+  if (!row) throw new Error('Договор не найден у выбранного контрагента');
+}
+
 export function createPayment(data, userId = null, branchId = DEFAULT_BRANCH_ID, userRole = null) {
   const id = uuidv4();
   const payBranchId = branchId || data.branch_id || DEFAULT_BRANCH_ID;
@@ -278,6 +291,7 @@ export function createPayment(data, userId = null, branchId = DEFAULT_BRANCH_ID,
   assertClientDebtPayment(data, payBranchId);
   assertDebtReturnPayment(data, payBranchId);
   assertPaymentDocumentLink(data.document_id || null, data.type, payBranchId, data.counterparty_id || null);
+  assertPaymentContractLink(data.contract_id || null, data.counterparty_id || null, payBranchId);
 
   if (data.counterparty_id) {
     let typeCheck = null;
@@ -286,20 +300,35 @@ export function createPayment(data, userId = null, branchId = DEFAULT_BRANCH_ID,
     assertCounterpartyBranch(data.counterparty_id, payBranchId, typeCheck);
   }
 
+  if (data.external_ref) {
+    const dup = queryOne(
+      `SELECT id FROM payments
+       WHERE external_ref = ? AND (branch_id = ? OR (branch_id IS NULL AND ? = ?))`,
+      [data.external_ref, payBranchId, payBranchId, DEFAULT_BRANCH_ID],
+    );
+    if (dup) throw new Error('Эта операция из выписки уже загружена');
+  }
+
   run(`
-    INSERT INTO payments (id, number, type, counterparty_id, document_id, amount, date, comment, created_by, branch_id, article_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO payments (
+      id, number, type, counterparty_id, document_id, amount, date, comment,
+      created_by, branch_id, article_id, external_ref, import_batch_id, contract_id
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, [
     id, number, data.type, data.counterparty_id || null, data.document_id || null,
     data.amount, data.date, data.comment || '', userId, payBranchId, data.article_id,
+    data.external_ref || null, data.import_batch_id || null, data.contract_id || null,
   ]);
 
   return queryOne(`
-    SELECT p.*, c.name as counterparty_name, d.number as document_number, ca.name as article_name
+    SELECT p.*, c.name as counterparty_name, d.number as document_number, ca.name as article_name,
+           cc.number as contract_number
     FROM payments p
     LEFT JOIN counterparties c ON c.id = p.counterparty_id
     LEFT JOIN documents d ON d.id = p.document_id
     LEFT JOIN cash_articles ca ON ca.id = p.article_id
+    LEFT JOIN counterparty_contracts cc ON cc.id = p.contract_id
     WHERE p.id = ?
   `, [id]);
 }
@@ -322,11 +351,13 @@ export function updatePayment(id, data, branchId = DEFAULT_BRANCH_ID, userRole =
   const payType = data.type || existing.type;
   const articleId = data.article_id ?? existing.article_id;
   const documentId = data.document_id !== undefined ? data.document_id : existing.document_id;
+  const contractId = data.contract_id !== undefined ? data.contract_id : existing.contract_id;
   assertCashArticleForPayment(articleId, payType, payBranchId);
   assertPurchasePayment({ ...data, article_id: articleId, type: payType, counterparty_id: counterpartyId }, payBranchId);
   assertClientDebtPayment({ ...data, article_id: articleId, type: payType, counterparty_id: counterpartyId }, payBranchId);
   assertDebtReturnPayment({ ...data, article_id: articleId, type: payType, counterparty_id: counterpartyId }, payBranchId);
   assertPaymentDocumentLink(documentId, payType, payBranchId, counterpartyId);
+  assertPaymentContractLink(contractId, counterpartyId, payBranchId);
   if (counterpartyId) {
     let typeCheck = null;
     if (payType === 'supplier_payment') typeCheck = 'prihod';
@@ -336,7 +367,7 @@ export function updatePayment(id, data, branchId = DEFAULT_BRANCH_ID, userRole =
 
   run(`
     UPDATE payments
-    SET type=?, counterparty_id=?, document_id=?, amount=?, date=?, comment=?, article_id=?
+    SET type=?, counterparty_id=?, document_id=?, amount=?, date=?, comment=?, article_id=?, contract_id=?
     WHERE id=?
   `, [
     payType,
@@ -346,15 +377,18 @@ export function updatePayment(id, data, branchId = DEFAULT_BRANCH_ID, userRole =
     data.date || existing.date,
     data.comment ?? existing.comment,
     articleId,
+    contractId || null,
     id,
   ]);
 
   return queryOne(`
-    SELECT p.*, c.name as counterparty_name, d.number as document_number, ca.name as article_name
+    SELECT p.*, c.name as counterparty_name, d.number as document_number, ca.name as article_name,
+           cc.number as contract_number
     FROM payments p
     LEFT JOIN counterparties c ON c.id = p.counterparty_id
     LEFT JOIN documents d ON d.id = p.document_id
     LEFT JOIN cash_articles ca ON ca.id = p.article_id
+    LEFT JOIN counterparty_contracts cc ON cc.id = p.contract_id
     WHERE p.id = ?
   `, [id]);
 }

@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-07-22 (акт сверки: фильтр по договору)
+**Последнее обновление документации:** 2026-07-27 (импорт банковской выписки Ipak Yuli)
 
 ---
 
@@ -166,8 +166,8 @@ npm run db:reset-operations    # Сброс операционных данны�
 | Каталог | `products`, `product_variants`, `product_categories`, `units`, `product_images`, `product_suppliers`, `product_branches`, `product_variant_branches` |
 | Склад | `departments`, `product_department_stock`, `product_branch_stock` |
 | Документы | `documents`, `document_items` (+ `net_weight` в строках прихода), `document_history`, `opening_balance_lines` |
-| Контрагенты | `counterparties`, `counterparty_contracts` |
-| Финансы | `payments`, `cash_articles`, `branch_opening_balances` |
+| Контрагенты | `counterparties` (+ `inn`), `counterparty_contracts` |
+| Финансы | `payments` (+ `external_ref`, `import_batch_id`, `contract_id`), `cash_articles`, `branch_opening_balances` |
 | Калькуляции | `calculations`, `calculation_items`, `calculation_sources` |
 | Auth/Admin | `users`, `sessions`, `roles`, `role_permissions`, `audit_log`, `visit_log`, `blocked_devices` |
 | MyShop/Mobile | `shop_orders`, `shop_order_items`, `push_subscriptions`, `staff_locations`, `staff_location_history` |
@@ -331,6 +331,17 @@ Frontend зеркало: `client/src/permissions.js`.
 
 Типы строк: stock, debtor, creditor, cash, bank. Документ `opening_balance` + `opening_balance_lines`.
 
+### 9.9 Импорт банковской выписки (Ipak Yuli)
+
+- Формат: Excel `AccReferenceReport*.xlsx` (Internet Bank Ipak Yuli, «Справка о работе счета»)
+- UI: `/payments` → «Загрузить выписку» → превью → подтверждение
+- API: `POST /api/payments/import/parse` (multipart `file`), `POST /api/payments/import/confirm` `{ rows }`
+- **Дебет:** оплата поставщику по ИНН (`counterparties.inn` или ИНН в наименовании/назначении); комиссии банка → `other_expense`; расход клиенту по ИНН → `other_expense`
+- **Кредит эквайринг** (Click / Payme / терминал UnionPay|SmartVista): `customer_income` на контрагента **«КЛИЕНТ»** + договор с номером, содержащим Click / Payme / Терминал
+- **Кредит** по ИНН клиента/поставщика: приход от клиента или возврат от поставщика
+- Дедупликация: `payments.external_ref`; пакет: `import_batch_id`; договор на оплате: `contract_id`
+- Привязка к складским документам — следующий этап
+
 ---
 
 ## 10. API (сводка)
@@ -375,7 +386,7 @@ GET  /api/auth/roles
 | `/api/calculations` | catalog.routes.js | Калькуляции |
 | `/api/documents` | documents.routes.js | Складские документы (`date_from`, `date_to`, `counterparty_id`, type, status) |
 | `/api/counterparties` | counterparties.routes.js | Контрагенты, договоры |
-| `/api/payments` | finance.routes.js | Оплаты, касса |
+| `/api/payments` | finance.routes.js | Оплаты, касса; `POST /api/payments/import/parse`, `POST /api/payments/import/confirm` — выписка AccReferenceReport |
 | `/api/cash-articles` | finance.routes.js | Статьи кассы |
 | `/api/stats`, `/api/reports/*` | org.routes.js | Отчёты, дашборд; `/api/reports/supplier-debts?date_from&date_to&supplier_id` — оборотная ведомость поставщиков |
 | `/api/branches`, `/api/departments`, `/api/users` | org.routes.js | Оргструктура |
@@ -407,7 +418,7 @@ GET  /api/auth/roles
 | `/calculations` | Calculations.jsx | calculations.view |
 | `/dish-sales` | DishSales.jsx | documents.dish_sale |
 | `/cashier` | Cashier.jsx | cashier.* |
-| `/payments` | Payments.jsx | payments.view |
+| `/payments` | Payments.jsx | payments.view; кнопка «Загрузить выписку» (Ipak Yuli AccReferenceReport) |
 | `/cash-articles` | CashArticles.jsx | cash_articles.view |
 | `/reports/*` | Reports.jsx | reports.view; `/reports/supplier-debts` — долги поставщикам за период (скачать JPEG/PDF) |
 | `/opening-balance` | OpeningBalance.jsx | opening_balance.view |
@@ -619,6 +630,7 @@ GET  /api/auth/roles
 | 2026-07-22 | Договоры: `is_used` в API; урна только у неиспользованных (`ContractSelect` в приходе, справочник контрагентов) |
 | 2026-07-22 | Документы: `document_items.sort_order` — порядок позиций как при вводе, при открытии не переставляется |
 | 2026-07-22 | Акт сверки: фильтр «Договор» для поставщика (документы договора + оплаты по ним) |
+| 2026-07-27 | Банк: импорт выписки Ipak Yuli AccReferenceReport; ИНН контрагента; договоры у клиента «КЛИЕНТ» (Click/Payme/Терминал); `payments.external_ref` / `contract_id` |
 
 ---
 

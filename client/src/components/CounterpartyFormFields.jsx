@@ -22,6 +22,16 @@ export default function CounterpartyFormFields({ form, setForm, lockType = null 
         </select>
       </div>
       <div className="form-group">
+        <label>ИНН</label>
+        <input
+          value={form.inn || ''}
+          onChange={(e) => setForm({ ...form, inn: e.target.value.replace(/\D/g, '').slice(0, 9) })}
+          placeholder="123456789"
+          inputMode="numeric"
+          maxLength={9}
+        />
+      </div>
+      <div className="form-group">
         <label>Телефон</label>
         <input
           type="tel"
@@ -77,5 +87,6 @@ export const emptyCounterpartyForm = {
   telegram_chat_id: '',
   address: '',
   notes: '',
+  inn: '',
   opening_balance: 0,
 };

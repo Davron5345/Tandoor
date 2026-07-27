@@ -60,6 +60,11 @@ export {
 } from './services/payments.js';
 
 export {
+  previewBankStatement,
+  confirmBankStatementImport,
+} from './services/bankStatementImport.js';
+
+export {
   logTelegramMessage,
   getTelegramMessages,
   getSetting,

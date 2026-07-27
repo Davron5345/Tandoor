@@ -305,6 +305,28 @@ export const api = {
   createCashArticle: (data) => request('/cash-articles', { method: 'POST', body: JSON.stringify(data) }),
   updateCashArticle: (id, data) => request(`/cash-articles/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteCashArticle: (id) => request(`/cash-articles/${id}`, { method: 'DELETE' }),
+  parseBankStatement: async (file) => {
+    const form = new FormData();
+    form.append('file', file);
+    const params = new URLSearchParams();
+    if (activeBranchId) params.set('branch_id', activeBranchId);
+    const qs = params.toString();
+    const url = `${getApiBaseUrl()}/api/payments/import/parse${qs ? `?${qs}` : ''}`;
+    const headers = {};
+    const nativeToken = getNativeSessionToken();
+    if (nativeToken) {
+      headers.Authorization = `Bearer ${nativeToken}`;
+      headers['X-Native-Client'] = '1';
+    }
+    const res = await fetch(url, { method: 'POST', credentials: 'include', headers, body: form });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Ошибка разбора выписки');
+    return data;
+  },
+  confirmBankStatement: (rows) => request('/payments/import/confirm', {
+    method: 'POST',
+    body: JSON.stringify({ rows }),
+  }),
   createPayment: (data) => request('/payments', { method: 'POST', body: JSON.stringify(data) }),
   updatePayment: (id, data) => request(`/payments/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deletePayment: (id) => request(`/payments/${id}`, { method: 'DELETE' }),

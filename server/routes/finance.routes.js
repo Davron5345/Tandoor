@@ -1,5 +1,16 @@
+import multer from 'multer';
 import * as svc from '../services.js';
 import { requirePermission, requireAnyPermission, attachBranch } from '../middleware.js';
+
+const statementUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 8 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const name = String(file.originalname || '').toLowerCase();
+    if (name.endsWith('.xlsx') || name.endsWith('.xls')) cb(null, true);
+    else cb(new Error('Загрузите файл Excel (.xlsx) выписки AccReferenceReport'));
+  },
+});
 
 export function registerFinanceRoutes(app) {
   app.get('/api/cash-articles', requireAnyPermission(
@@ -44,6 +55,39 @@ export function registerFinanceRoutes(app) {
       const date = req.query.date;
       if (!date) return res.status(400).json({ error: 'Укажите date' });
       res.json(svc.getCashShiftSummary(req.branchId, date));
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
+  app.post(
+    '/api/payments/import/parse',
+    requirePermission('payments.edit'),
+    attachBranch,
+    (req, res, next) => {
+      statementUpload.single('file')(req, res, (err) => {
+        if (err) return res.status(400).json({ error: err.message });
+        next();
+      });
+    },
+    (req, res) => {
+      try {
+        if (!req.file?.buffer?.length) {
+          return res.status(400).json({ error: 'Прикрепите файл выписки (.xlsx)' });
+        }
+        res.json(svc.previewBankStatement(req.file.buffer, req.branchId));
+      } catch (e) {
+        res.status(400).json({ error: e.message });
+      }
+    },
+  );
+
+  app.post('/api/payments/import/confirm', requirePermission('payments.edit'), attachBranch, (req, res) => {
+    try {
+      const rows = req.body?.rows;
+      res.status(201).json(
+        svc.confirmBankStatementImport(rows, req.user.id, req.branchId, req.user.role),
+      );
     } catch (e) {
       res.status(400).json({ error: e.message });
     }

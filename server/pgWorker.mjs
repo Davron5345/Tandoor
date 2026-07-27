@@ -77,6 +77,19 @@ async function ensureBootstrap() {
   // Idempotent column adds for existing deployments (CREATE IF NOT EXISTS does not alter)
   await execRaw('ALTER TABLE document_items ADD COLUMN IF NOT EXISTS net_weight DOUBLE PRECISION');
   await execRaw('ALTER TABLE document_items ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0');
+  await execRaw('ALTER TABLE counterparties ADD COLUMN IF NOT EXISTS inn TEXT');
+  await execRaw('ALTER TABLE payments ADD COLUMN IF NOT EXISTS external_ref TEXT');
+  await execRaw('ALTER TABLE payments ADD COLUMN IF NOT EXISTS import_batch_id TEXT');
+  await execRaw('ALTER TABLE payments ADD COLUMN IF NOT EXISTS contract_id TEXT');
+  await execRaw('CREATE INDEX IF NOT EXISTS idx_payments_external_ref ON payments (branch_id, external_ref)');
+  await execRaw(
+    `INSERT INTO settings (key, value) VALUES ('counterparty_inn_v1', '1')
+     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
+  );
+  await execRaw(
+    `INSERT INTO settings (key, value) VALUES ('payment_bank_import_v1', '1')
+     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
+  );
   const sortMigrated = await execRaw(
     'SELECT value FROM settings WHERE key = $1',
     ['document_item_sort_order_v1'],

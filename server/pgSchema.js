@@ -18,6 +18,8 @@ export const PG_MIGRATION_SETTINGS_KEYS = [
   'cash_articles_debt_return_v1',
   'counterparties_branch_v1',
   'counterparty_contracts_v1',
+  'counterparty_inn_v1',
+  'payment_bank_import_v1',
   'department_avg_cost_v1',
   'departments_v1',
   'doc_number_per_type_v1',
@@ -180,6 +182,7 @@ CREATE TABLE IF NOT EXISTS counterparties (
   telegram_chat_id TEXT,
   address TEXT,
   notes TEXT,
+  inn TEXT,
   created_at TEXT DEFAULT (${NOW}),
   updated_at TEXT DEFAULT (${NOW}),
   branch_id TEXT REFERENCES branches(id),
@@ -385,7 +388,10 @@ CREATE TABLE IF NOT EXISTS payments (
   created_by TEXT,
   created_at TEXT DEFAULT (${NOW}),
   branch_id TEXT REFERENCES branches(id),
-  article_id TEXT
+  article_id TEXT,
+  external_ref TEXT,
+  import_batch_id TEXT,
+  contract_id TEXT
 );
 
 CREATE TABLE IF NOT EXISTS shop_orders (
@@ -515,6 +521,7 @@ CREATE INDEX IF NOT EXISTS idx_document_history_document ON document_history (do
 CREATE INDEX IF NOT EXISTS idx_payments_branch_date ON payments (branch_id, date, type);
 CREATE INDEX IF NOT EXISTS idx_payments_counterparty ON payments (counterparty_id);
 CREATE INDEX IF NOT EXISTS idx_payments_document ON payments (document_id);
+CREATE INDEX IF NOT EXISTS idx_payments_external_ref ON payments (branch_id, external_ref);
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions (user_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_device ON sessions (device_id);
 CREATE INDEX IF NOT EXISTS idx_shop_orders_document ON shop_orders (document_id);

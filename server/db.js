@@ -500,8 +500,45 @@ function migrateSchema() {
   migrateCalculationKind();
   migrateProductKind();
   migrateUnits();
+  migrateCounterpartyInn();
+  migratePaymentBankImport();
   sanitizeOrphanBranchReferences();
   addPerformanceIndexes();
+}
+
+function migrateCounterpartyInn() {
+  const cols = queryAll('PRAGMA table_info(counterparties)').map((c) => c.name);
+  if (!cols.includes('inn')) {
+    run('ALTER TABLE counterparties ADD COLUMN inn TEXT');
+  }
+  const done = queryOne("SELECT value FROM settings WHERE key = 'counterparty_inn_v1'");
+  if (!done) {
+    run("INSERT OR REPLACE INTO settings (key, value) VALUES ('counterparty_inn_v1', '1')");
+    saveDb();
+  }
+}
+
+function migratePaymentBankImport() {
+  const cols = queryAll('PRAGMA table_info(payments)').map((c) => c.name);
+  if (!cols.includes('external_ref')) {
+    run('ALTER TABLE payments ADD COLUMN external_ref TEXT');
+  }
+  if (!cols.includes('import_batch_id')) {
+    run('ALTER TABLE payments ADD COLUMN import_batch_id TEXT');
+  }
+  if (!cols.includes('contract_id')) {
+    run('ALTER TABLE payments ADD COLUMN contract_id TEXT');
+  }
+  try {
+    run('CREATE INDEX IF NOT EXISTS idx_payments_external_ref ON payments(branch_id, external_ref)');
+  } catch {
+    /* ignore */
+  }
+  const done = queryOne("SELECT value FROM settings WHERE key = 'payment_bank_import_v1'");
+  if (!done) {
+    run("INSERT OR REPLACE INTO settings (key, value) VALUES ('payment_bank_import_v1', '1')");
+    saveDb();
+  }
 }
 
 function migrateCalculationKind() {

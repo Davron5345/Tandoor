@@ -54,7 +54,7 @@ export default function Counterparties() {
   };
 
   useEffect(() => {
-    if (modal && modal !== 'create' && form.type === 'supplier') {
+    if (modal && modal !== 'create') {
       loadContracts(modal);
     } else {
       setContracts([]);
@@ -164,6 +164,7 @@ export default function Counterparties() {
               <tr>
                 <th className="col-index">№</th>
                 <th>Название</th>
+                <th>ИНН</th>
                 <th>Тип</th>
                 <th>Телефон</th>
                 <th>Telegram ID</th>
@@ -176,6 +177,7 @@ export default function Counterparties() {
                 <tr key={c.id}>
                   <td className="col-index muted">{index + 1}</td>
                   <td>{c.name}</td>
+                  <td>{c.inn || '—'}</td>
                   <td>
                     <span className={`badge badge-${c.type}`}>
                       {c.type === 'supplier' ? 'Поставщик' : 'Клиент'}
@@ -220,11 +222,13 @@ export default function Counterparties() {
         >
           <CounterpartyFormFields form={form} setForm={setForm} />
 
-          {modal !== 'create' && form.type === 'supplier' && (
+          {modal !== 'create' && (
             <div className="cp-contracts-block">
               <h3>Договоры</h3>
               <p className="text-muted cp-contracts-hint">
-                Если договоров нет, в приходных документах используется «Основной договор».
+                {form.type === 'client'
+                  ? 'Для розничных поступлений создайте клиента «КЛИЕНТ» и договоры Click, Payme, Терминал — их подхватит загрузка банковской выписки.'
+                  : 'Если договоров нет, в приходных документах используется «Основной договор».'}
               </p>
               {contracts.length > 0 && (
                 <div className="table-wrap cp-contracts-table">
