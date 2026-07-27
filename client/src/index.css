@@ -625,8 +625,8 @@ textarea::placeholder {
 .sidebar-logout-btn svg,
 .sidebar-telegram-btn svg,
 .sidebar-menu-btn svg {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   display: block;
 }
 
@@ -635,32 +635,45 @@ textarea::placeholder {
   height: 17px;
 }
 
+.sidebar-toggle svg,
+.theme-toggle svg {
+  width: 18px;
+  height: 18px;
+}
+
 .sidebar-branch-name {
   width: 100%;
-  padding: 6px 8px;
+  padding: 0;
   font-size: var(--font-sm);
   font-weight: 500;
   color: var(--text-muted);
   border-radius: 8px;
-  background: var(--surface);
-  border: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+  background: transparent;
+  border: none;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   min-height: 34px;
 }
 
-.sidebar-branch-name span {
+.sidebar-branch-name > span:last-child {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .sidebar-branch-name svg {
-  width: 15px;
-  height: 15px;
+  width: 16px;
+  height: 16px;
   flex-shrink: 0;
-  opacity: 0.7;
+  opacity: 1;
 }
 
 .telegram-badge {
@@ -702,7 +715,8 @@ textarea::placeholder {
   color: var(--text-muted);
 }
 
-.sidebar-telegram-btn {
+.sidebar-telegram-btn,
+.sidebar-logout-btn {
   width: 30px;
   height: 30px;
   flex-shrink: 0;
@@ -710,37 +724,57 @@ textarea::placeholder {
   align-items: center;
   justify-content: center;
   border: none;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--text-muted);
+  border-radius: 9px;
+  background: linear-gradient(135deg, var(--primary) 0%, #6366f1 100%);
+  color: #fff;
   text-decoration: none;
   position: relative;
-  transition: background 0.15s, color 0.15s;
+  cursor: pointer;
+  box-shadow: 0 3px 10px color-mix(in srgb, var(--primary) 30%, transparent);
+  transition: filter 0.15s, box-shadow 0.15s, background 0.15s;
 }
 
-.sidebar-telegram-btn:hover {
-  background: var(--nav-hover);
-  color: var(--nav-active-text);
+.sidebar-telegram-btn:hover,
+.sidebar-logout-btn:hover {
+  filter: brightness(1.06);
+  color: #fff;
+  background: linear-gradient(135deg, var(--primary) 0%, #6366f1 100%);
+}
+
+.sidebar-logout-btn:hover {
+  background: linear-gradient(135deg, var(--danger) 0%, #e11d48 100%);
+  box-shadow: 0 3px 10px color-mix(in srgb, var(--danger) 35%, transparent);
 }
 
 .sidebar-telegram-btn.online {
-  color: var(--success);
+  color: #fff;
+  background: linear-gradient(135deg, var(--success) 0%, #16a34a 100%);
+  box-shadow: 0 3px 10px color-mix(in srgb, var(--success) 35%, transparent);
 }
 
 .sidebar-telegram-btn.offline {
-  color: var(--warning);
+  color: #fff;
+  background: linear-gradient(135deg, var(--warning) 0%, #d97706 100%);
+  box-shadow: 0 3px 10px color-mix(in srgb, var(--warning) 35%, transparent);
 }
 
 .sidebar-telegram-btn.offline::after {
   content: '';
   position: absolute;
-  top: 5px;
-  right: 5px;
+  top: 4px;
+  right: 4px;
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--warning);
-  box-shadow: 0 0 0 2px var(--surface);
+  background: #fff;
+  box-shadow: none;
+}
+
+.sidebar-telegram-btn svg,
+.sidebar-logout-btn svg {
+  width: 16px;
+  height: 16px;
+  display: block;
 }
 
 .theme-toggle {
@@ -766,17 +800,14 @@ textarea::placeholder {
 }
 
 [data-theme="dark"] .sidebar-toggle,
-[data-theme="dark"] .theme-toggle,
-[data-theme="dark"] .sidebar-logout-btn,
-[data-theme="dark"] .sidebar-telegram-btn {
+[data-theme="dark"] .theme-toggle {
   color: var(--sidebar-icon);
   background: var(--sidebar-control-bg);
   border: 1px solid var(--sidebar-control-border);
 }
 
 [data-theme="dark"] .sidebar-toggle:hover,
-[data-theme="dark"] .theme-toggle:hover,
-[data-theme="dark"] .sidebar-logout-btn:hover {
+[data-theme="dark"] .theme-toggle:hover {
   color: var(--nav-active-text);
   background: var(--nav-active-bg);
   border-color: color-mix(in srgb, var(--nav-active-text) 45%, transparent);
@@ -6775,27 +6806,32 @@ input[type='number']::-webkit-inner-spin-button {
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   min-height: 34px;
-  padding: 0 2px 0 6px;
+  padding: 0;
   border-radius: 8px;
-  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-  background: var(--surface);
+  border: none;
+  background: transparent;
 }
 
 .branch-select-icon {
+  width: 30px;
+  height: 30px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--text-muted);
   flex-shrink: 0;
+  border-radius: 9px;
+  background: linear-gradient(135deg, var(--primary) 0%, #6366f1 100%);
+  color: #fff;
+  box-shadow: 0 3px 10px color-mix(in srgb, var(--primary) 30%, transparent);
 }
 
 .branch-select-icon svg {
-  width: 15px;
-  height: 15px;
+  width: 16px;
+  height: 16px;
   display: block;
-  opacity: 0.75;
+  opacity: 1;
 }
 
 .branch-select-label {
@@ -6813,10 +6849,10 @@ input[type='number']::-webkit-inner-spin-button {
   flex: 1;
   min-width: 0;
   width: 100%;
-  padding: 6px 8px 6px 0;
-  border: none;
+  padding: 6px 8px;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
   border-radius: 8px;
-  background: transparent;
+  background: var(--surface);
   color: var(--text);
   font-size: var(--font-sm);
   font-weight: 500;
@@ -6824,6 +6860,7 @@ input[type='number']::-webkit-inner-spin-button {
 
 .branch-select:focus {
   outline: none;
+  border-color: color-mix(in srgb, var(--primary) 40%, var(--border));
 }
 
 .sidebar-profile {
@@ -6839,18 +6876,19 @@ input[type='number']::-webkit-inner-spin-button {
 }
 
 .sidebar-profile-avatar {
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
+  border-radius: 9px;
   background: linear-gradient(135deg, var(--primary) 0%, #6366f1 100%);
   color: #fff;
   font-size: var(--font-sm);
   font-weight: 700;
   line-height: 1;
+  box-shadow: 0 3px 10px color-mix(in srgb, var(--primary) 30%, transparent);
 }
 
 .sidebar-profile-meta {
@@ -6879,26 +6917,10 @@ input[type='number']::-webkit-inner-spin-button {
   text-overflow: ellipsis;
 }
 
+/* стили logout/telegram — выше, рядом с logo-mark (синий mark) */
 .sidebar-logout-btn {
-  width: 30px;
-  height: 30px;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--text-muted);
   font-size: 18px;
   line-height: 1;
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-}
-
-.sidebar-logout-btn:hover {
-  background: color-mix(in srgb, var(--danger) 12%, transparent);
-  color: var(--danger);
 }
 
 /* legacy — keep for other pages if referenced */
