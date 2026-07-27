@@ -9,7 +9,6 @@ import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import { IconButton, IconEye, IconEdit, IconTrash } from '../components/ActionIcons';
 
 const INCOME_TYPES = new Set(['customer_income', 'other_income']);
-const EXPENSE_TYPES = new Set(['supplier_payment', 'other_expense']);
 
 const empty = {
   type: 'supplier_payment',
@@ -29,19 +28,23 @@ function dayStatus(items) {
 }
 
 function sumDay(items) {
-  let income = 0;
-  let expense = 0;
+  let credit = 0; // приход / оборот кредит
+  let debit = 0; // расход / оборот дебет
   for (const p of items) {
     const amt = Number(p.amount) || 0;
-    if (INCOME_TYPES.has(p.type)) income += amt;
-    else if (EXPENSE_TYPES.has(p.type)) expense += amt;
-    else expense += amt;
+    if (INCOME_TYPES.has(p.type)) credit += amt;
+    else debit += amt;
   }
-  return { income, expense };
+  return { credit, debit, income: credit, expense: debit };
+}
+
+function isCreditPayment(p) {
+  return INCOME_TYPES.has(p.type);
 }
 
 export default function Payments() {
   const [payments, setPayments] = useState([]);
+  const [openingBank, setOpeningBank] = useState(0);
   const [counterparties, setCounterparties] = useState([]);
   const [documents, setDocuments] = useState([]);
   const [viewDay, setViewDay] = useState(null);
@@ -63,8 +66,12 @@ export default function Payments() {
 
   const load = useCallback(async () => {
     try {
-      const p = await api.getPayments();
+      const [p, bankOpen] = await Promise.all([
+        api.getPayments(),
+        api.getBankOpening().catch(() => ({ opening_bank: 0 })),
+      ]);
       setPayments(Array.isArray(p) ? p : (p?.items || []));
+      setOpeningBank(Number(bankOpen?.opening_bank) || 0);
       setCounterparties([]);
       setDocuments([]);
     } catch (err) {
@@ -87,7 +94,7 @@ export default function Payments() {
     enabled: !importOpen && !viewDay && !paymentModal,
   });
 
-  const paymentDays = useMemo(() => {
+  const allDaysWithBalances = useMemo(() => {
     const map = new Map();
     for (const p of payments) {
       const d = p.date;
@@ -95,27 +102,43 @@ export default function Payments() {
       if (!map.has(d)) map.set(d, []);
       map.get(d).push(p);
     }
-    const dates = [...map.keys()].sort((a, b) => (a < b ? 1 : -1));
-    return dates
-      .map((date, idx) => {
-        const items = map.get(date);
-        const { income, expense } = sumDay(items);
-        return {
-          date,
-          number: dates.length - idx,
-          items,
-          count: items.length,
-          income,
-          expense,
-          status: dayStatus(items),
-        };
-      })
-      .filter((day) => {
-        if (filterDateFrom && day.date < filterDateFrom) return false;
-        if (filterDateTo && day.date > filterDateTo) return false;
-        return true;
-      });
-  }, [payments, filterDateFrom, filterDateTo]);
+    const datesAsc = [...map.keys()].sort((a, b) => (a < b ? -1 : 1));
+    let running = openingBank;
+    return datesAsc.map((date) => {
+      const items = map.get(date);
+      const { credit, debit } = sumDay(items);
+      const opening = running;
+      const closing = opening + credit - debit;
+      running = closing;
+      return {
+        date,
+        items,
+        count: items.length,
+        credit,
+        debit,
+        income: credit,
+        expense: debit,
+        opening,
+        closing,
+        status: dayStatus(items),
+      };
+    });
+  }, [payments, openingBank]);
+
+  const paymentDays = useMemo(() => {
+    const filtered = allDaysWithBalances.filter((day) => {
+      if (filterDateFrom && day.date < filterDateFrom) return false;
+      if (filterDateTo && day.date > filterDateTo) return false;
+      return true;
+    });
+    const desc = [...filtered].reverse();
+    return desc.map((day, idx) => ({ ...day, number: desc.length - idx }));
+  }, [allDaysWithBalances, filterDateFrom, filterDateTo]);
+
+  const dayDoc = useMemo(
+    () => (viewDay ? allDaysWithBalances.find((d) => d.date === viewDay) : null),
+    [allDaysWithBalances, viewDay],
+  );
 
   const dayItems = useMemo(() => {
     if (!viewDay) return [];
@@ -125,8 +148,15 @@ export default function Payments() {
       .sort((a, b) => (b.number || 0) - (a.number || 0));
   }, [payments, viewDay]);
 
-  const dayTotals = useMemo(() => sumDay(dayItems), [dayItems]);
-  const dayStatusInfo = useMemo(() => dayStatus(dayItems), [dayItems]);
+  const dayTotals = useMemo(() => (
+    dayDoc
+      ? { credit: dayDoc.credit, debit: dayDoc.debit, income: dayDoc.credit, expense: dayDoc.debit }
+      : sumDay(dayItems)
+  ), [dayDoc, dayItems]);
+  const dayStatusInfo = useMemo(
+    () => (dayDoc ? dayDoc.status : dayStatus(dayItems)),
+    [dayDoc, dayItems],
+  );
 
   const openCreate = (dateOverride) => {
     setForm({
@@ -408,15 +438,17 @@ export default function Payments() {
 
       <div className="card">
         <div className="table-wrap">
-          <table>
+          <table className="bank-days-table">
             <thead>
               <tr>
                 <th>Номер</th>
                 <th>Дата</th>
                 <th>Тип</th>
                 <th>Операций</th>
-                <th>Приход</th>
-                <th>Расход</th>
+                <th className="num">Сальдо нач.</th>
+                <th className="num">Дебет<br /><span className="th-sub">расход</span></th>
+                <th className="num">Кредит<br /><span className="th-sub">приход</span></th>
+                <th className="num">Сальдо кон.</th>
                 <th>Статус</th>
                 <th>Действия</th>
               </tr>
@@ -430,8 +462,10 @@ export default function Payments() {
                     <span className="badge badge-supplier">Выписка</span>
                   </td>
                   <td>{day.count}</td>
-                  <td>{day.income ? formatMoney(day.income) : '—'}</td>
-                  <td>{day.expense ? formatMoney(day.expense) : '—'}</td>
+                  <td className="num">{formatMoney(day.opening)}</td>
+                  <td className="num bank-amt-debit">{day.debit ? formatMoney(day.debit) : '—'}</td>
+                  <td className="num bank-amt-credit">{day.credit ? formatMoney(day.credit) : '—'}</td>
+                  <td className="num"><strong>{formatMoney(day.closing)}</strong></td>
                   <td>
                     <span className={`badge badge-${day.status.key}`}>{day.status.label}</span>
                   </td>
@@ -446,7 +480,7 @@ export default function Payments() {
               ))}
               {paymentDays.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="empty">
+                  <td colSpan={10} className="empty">
                     {payments.length === 0 ? 'Операций пока нет' : 'Нет выписок за выбранный период'}
                   </td>
                 </tr>
@@ -454,6 +488,16 @@ export default function Payments() {
             </tbody>
           </table>
         </div>
+        {paymentDays.length > 0 && (
+          <div className="bank-list-footnote text-muted">
+            Сальдо от начального остатка банка
+            {' '}
+            ({formatMoney(openingBank)}
+            )
+            {' '}
+            + обороты по дням. Дебет = расход, кредит = приход.
+          </div>
+        )}
       </div>
 
       {viewDay && (
@@ -476,15 +520,27 @@ export default function Payments() {
           }
         >
           <div className="bank-day-layout">
+            <div className="bank-day-summary">
+              <div className="bank-day-summary-item">
+                <span className="bank-day-summary-label">Сальдо на начало</span>
+                <strong>{formatMoney(dayDoc?.opening ?? openingBank)}</strong>
+              </div>
+              <div className="bank-day-summary-item">
+                <span className="bank-day-summary-label">Оборот дебет (расход)</span>
+                <strong className="bank-amt-debit">{formatMoney(dayTotals.debit)}</strong>
+              </div>
+              <div className="bank-day-summary-item">
+                <span className="bank-day-summary-label">Оборот кредит (приход)</span>
+                <strong className="bank-amt-credit">{formatMoney(dayTotals.credit)}</strong>
+              </div>
+              <div className="bank-day-summary-item">
+                <span className="bank-day-summary-label">Сальдо на конец</span>
+                <strong>{formatMoney(dayDoc?.closing ?? ((dayDoc?.opening ?? openingBank) + dayTotals.credit - dayTotals.debit))}</strong>
+              </div>
+            </div>
             <div className="bank-day-meta">
               <span className={`badge badge-${dayStatusInfo.key}`}>{dayStatusInfo.label}</span>
-              <span className="text-muted">
-                Операций: {dayItems.length}
-                {' · '}
-                Приход: {formatMoney(dayTotals.income)}
-                {' · '}
-                Расход: {formatMoney(dayTotals.expense)}
-              </span>
+              <span className="text-muted">Операций: {dayItems.length}</span>
             </div>
             <div className="table-wrap bank-day-table">
               <table>
@@ -495,44 +551,63 @@ export default function Payments() {
                     <th>Контрагент</th>
                     <th>Договор</th>
                     <th>Документ</th>
-                    <th>Сумма</th>
+                    <th className="num">Дебет</th>
+                    <th className="num">Кредит</th>
                     <th>Комментарий</th>
                     <th></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {dayItems.map((p) => (
-                    <tr key={p.id}>
-                      <td>{p.number}</td>
-                      <td>{PAYMENT_TYPES[p.type] || p.type}</td>
-                      <td>{p.counterparty_name || '—'}</td>
-                      <td>{p.contract_number || '—'}</td>
-                      <td>{p.document_number || '—'}</td>
-                      <td>{formatMoney(p.amount)}</td>
-                      <td className="bank-day-comment" title={p.comment || ''}>
-                        {(p.comment || '').slice(0, 80)}
-                        {(p.comment || '').length > 80 ? '…' : ''}
-                      </td>
-                      <td>
-                        {canEdit && (
-                          <div className="btn-group btn-group-icons">
-                            <IconButton title="Изменить" onClick={() => openEdit(p)}>
-                              <IconEdit />
-                            </IconButton>
-                            {canDelete && (
-                              <IconButton title="Удалить" danger onClick={() => remove(p)}>
-                                <IconTrash />
+                  {dayItems.map((p) => {
+                    const credit = isCreditPayment(p);
+                    return (
+                      <tr key={p.id}>
+                        <td>{p.number}</td>
+                        <td>{PAYMENT_TYPES[p.type] || p.type}</td>
+                        <td>{p.counterparty_name || '—'}</td>
+                        <td>{p.contract_number || '—'}</td>
+                        <td>{p.document_number || '—'}</td>
+                        <td className="num bank-amt-debit">
+                          {!credit && p.amount ? formatMoney(p.amount) : '—'}
+                        </td>
+                        <td className="num bank-amt-credit">
+                          {credit && p.amount ? formatMoney(p.amount) : '—'}
+                        </td>
+                        <td className="bank-day-comment" title={p.comment || ''}>
+                          {(p.comment || '').slice(0, 80)}
+                          {(p.comment || '').length > 80 ? '…' : ''}
+                        </td>
+                        <td>
+                          {canEdit && (
+                            <div className="btn-group btn-group-icons">
+                              <IconButton title="Изменить" onClick={() => openEdit(p)}>
+                                <IconEdit />
                               </IconButton>
-                            )}
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                              {canDelete && (
+                                <IconButton title="Удалить" danger onClick={() => remove(p)}>
+                                  <IconTrash />
+                                </IconButton>
+                              )}
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                   {dayItems.length === 0 && (
-                    <tr><td colSpan={8} className="empty">Нет операций за этот день</td></tr>
+                    <tr><td colSpan={9} className="empty">Нет операций за этот день</td></tr>
                   )}
                 </tbody>
+                {dayItems.length > 0 && (
+                  <tfoot>
+                    <tr className="bank-day-totals-row">
+                      <td colSpan={5}><strong>Итого оборот</strong></td>
+                      <td className="num bank-amt-debit"><strong>{formatMoney(dayTotals.debit)}</strong></td>
+                      <td className="num bank-amt-credit"><strong>{formatMoney(dayTotals.credit)}</strong></td>
+                      <td colSpan={2} />
+                    </tr>
+                  </tfoot>
+                )}
               </table>
             </div>
           </div>

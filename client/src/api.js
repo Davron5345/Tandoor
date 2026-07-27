@@ -306,6 +306,7 @@ export const api = {
   getDocumentHistory: (id) => request(`/documents/${id}/history`),
 
   getPayments: () => request('/payments'),
+  getBankOpening: () => request('/payments/bank-opening'),
   getCashShiftSummary: (date) => request(`/payments/shift-summary?date=${encodeURIComponent(date)}`),
   getCashArticles: (params = {}) => {
     const q = new URLSearchParams(params).toString();

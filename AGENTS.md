@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-07-27 (Банк: день = выписка)
+**Последнее обновление документации:** 2026-07-27 (Банк: дебет/кредит и сальдо)
 
 ---
 
@@ -336,6 +336,7 @@ Frontend зеркало: `client/src/permissions.js`.
 - Формат: Excel `AccReferenceReport*.xlsx` (Internet Bank Ipak Yuli, «Справка о работе счета»)
 - UI: `/payments` → «Загрузить выписку» → превью (строки **сгруппированы по датам**) → подтверждение
 - После импорта в списке Банка: **одна календарная дата = одна «Выписка»** (как документ); внутри — операции дня (`payments`); открытие/редактирование/удаление строк
+- В списке и карточке дня: **сальдо нач. / дебет (расход) / кредит (приход) / сальдо кон.**; обороты за день; сальдо от `opening_balance` банка + нарастающий итог по дням (`GET /api/payments/bank-opening`)
 - Ручные операции попадают в выписку своей даты; фильтры С/По по дате
 - Операции остаются в `payments` (не складской `documents.type`); P&L/долги без изменений
 - API: `POST /api/payments/import/parse` (multipart `file`), `POST /api/payments/import/confirm` `{ rows }`
@@ -403,7 +404,7 @@ GET  /api/auth/roles
 | `/api/calculations` | catalog.routes.js | Калькуляции |
 | `/api/documents` | documents.routes.js | Складские документы (`date_from`, `date_to`, `counterparty_id`, type, status) |
 | `/api/counterparties` | counterparties.routes.js | Контрагенты, договоры (`/:id/contracts` CRUD), `/:id/firms` — юрлица поставщика (CRUD) |
-| `/api/payments` | finance.routes.js | Оплаты, касса; `POST /api/payments/import/parse`, `POST /api/payments/import/confirm` — выписка AccReferenceReport |
+| `/api/payments` | finance.routes.js | Оплаты, касса; `GET /api/payments/bank-opening` — начальное сальдо банка; `POST /api/payments/import/parse`, `POST /api/payments/import/confirm` — выписка AccReferenceReport |
 | `/api/cash-articles` | finance.routes.js | Статьи кассы |
 | `/api/stats`, `/api/reports/*` | org.routes.js | Отчёты, дашборд; `/api/reports/supplier-debts?date_from&date_to&supplier_id` — оборотная ведомость поставщиков |
 | `/api/branches`, `/api/departments`, `/api/users` | org.routes.js | Оргструктура |
@@ -435,7 +436,7 @@ GET  /api/auth/roles
 | `/calculations` | Calculations.jsx | calculations.view |
 | `/dish-sales` | DishSales.jsx | documents.dish_sale |
 | `/cashier` | Cashier.jsx | cashier.* |
-| `/payments` | Payments.jsx | payments.view; список по датам («Выписка»); открытие дня → операции; «Загрузить выписку» (Ipak Yuli AccReferenceReport) |
+| `/payments` | Payments.jsx | payments.view; список по датам («Выписка») с сальдо/дебет/кредит; открытие дня → операции; импорт AccReferenceReport |
 | `/cash-articles` | CashArticles.jsx | cash_articles.view |
 | `/reports/*` | Reports.jsx | reports.view; `/reports/supplier-debts` — долги поставщикам; акт сверки — фильтр «Фирма» у поставщика |
 | `/opening-balance` | OpeningBalance.jsx | opening_balance.view |
@@ -659,6 +660,7 @@ GET  /api/auth/roles
 | 2026-07-27 | Договоры привязаны к фирме (`firm_id`); иконка договоров между edit и delete в списке фирм |
 | 2026-07-27 | В окне «Редактировать фирму» — список договоров + создать/редактировать |
 | 2026-07-27 | Банк: день = документ «Выписка»; внутри операции; превью импорта по датам |
+| 2026-07-27 | Банк: колонки дебет/кредит (обороты), сальдо нач./кон. от НС банка; `GET /api/payments/bank-opening` |
 
 ---
 

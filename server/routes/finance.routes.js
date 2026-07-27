@@ -1,6 +1,7 @@
 import multer from 'multer';
 import * as svc from '../services.js';
 import { requirePermission, requireAnyPermission, attachBranch } from '../middleware.js';
+import { getConfirmedOpeningTotals } from '../services/openingBalanceDocuments.js';
 
 const statementUpload = multer({
   storage: multer.memoryStorage(),
@@ -98,6 +99,18 @@ export function registerFinanceRoutes(app) {
     'payments.view', 'payments.edit',
   ), attachBranch, (req, res) => {
     res.json(svc.getPayments(req.branchId, req.user.role, req.query));
+  });
+
+  /** Начальное сальдо банка (из проведённого НС) для выписок по дням */
+  app.get('/api/payments/bank-opening', requireAnyPermission(
+    'cashier.view', 'cashier.edit', 'cashier.delete',
+    'payments.view', 'payments.edit',
+  ), attachBranch, (req, res) => {
+    const opening = getConfirmedOpeningTotals(req.branchId);
+    res.json({
+      opening_bank: opening.bank || 0,
+      start_date: opening.start_date || null,
+    });
   });
 
   app.post('/api/payments', requireAnyPermission('cashier.edit', 'payments.edit'), attachBranch, (req, res) => {
