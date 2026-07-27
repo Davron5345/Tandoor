@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-07-27 (импорт: ИНН только из названия)
+**Последнее обновление документации:** 2026-07-27 (справочник: счётчик упоминаний)
 
 ---
 
@@ -435,7 +435,7 @@ GET  /api/auth/roles
 | `/products` | Products.jsx | products.view |
 | `/product-categories` | ProductCategories.jsx | products.view |
 | `/units` | Units.jsx | products.view |
-| `/counterparties` | Counterparties.jsx | counterparties.view; компактная карточка без скролла; у поставщиков — «Фирмы» / «Договоры» открывают вложенные окна |
+| `/counterparties` | Counterparties.jsx | counterparties.view; колонка «Упоминания» = документы + оплаты/выписки; у поставщиков — «Фирмы» / «Договоры» |
 | `/prihod`, `/rashod`, `/return-*`, `/transfer` | Documents.jsx | documents.*; фильтры: дата С/По, контрагент/поставщик, статус |
 | `/documents` | Documents.jsx | documents.view; те же фильтры + тип документа |
 | `/razdelka` | Razdelka.jsx | documents.razdelka |
@@ -676,6 +676,7 @@ GET  /api/auth/roles
 | 2026-07-27 | Импорт выписки: лимит JSON 20mb + урезанный payload (месяц без «request entity too large») |
 | 2026-07-27 | Банк: инкассо как канал клиента; под «Клиент» показывается Payme/Click/Терминал/Инкассо |
 | 2026-07-27 | Импорт выписки: ИНН контрагента строго из названия, не из назначения платежа |
+| 2026-07-27 | Справочник контрагентов: счётчик упоминаний (документы + выписки/оплаты) |
 
 ---
 

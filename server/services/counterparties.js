@@ -469,9 +469,29 @@ export function enrichCounterpartiesWithFirms(rows, branchId = DEFAULT_BRANCH_ID
     if (!byCp.has(f.counterparty_id)) byCp.set(f.counterparty_id, []);
     byCp.get(f.counterparty_id).push(f);
   }
+
+  const docCounts = queryAll(`
+    SELECT counterparty_id, COUNT(*) as c
+    FROM documents
+    WHERE counterparty_id IS NOT NULL AND counterparty_id != ''
+      AND (branch_id = ? OR (branch_id IS NULL AND ? = ?))
+    GROUP BY counterparty_id
+  `, [branchId, branchId, DEFAULT_BRANCH_ID]);
+  const payCounts = queryAll(`
+    SELECT counterparty_id, COUNT(*) as c
+    FROM payments
+    WHERE counterparty_id IS NOT NULL AND counterparty_id != ''
+      AND (branch_id = ? OR (branch_id IS NULL AND ? = ?))
+    GROUP BY counterparty_id
+  `, [branchId, branchId, DEFAULT_BRANCH_ID]);
+  const docsByCp = new Map(docCounts.map((r) => [r.counterparty_id, Number(r.c) || 0]));
+  const paysByCp = new Map(payCounts.map((r) => [r.counterparty_id, Number(r.c) || 0]));
+
   return rows.map((cp) => {
     const cpFirms = byCp.get(cp.id) || [];
     const inns = cpFirms.map((f) => f.inn).filter(Boolean);
+    const documentsCount = docsByCp.get(cp.id) || 0;
+    const paymentsCount = paysByCp.get(cp.id) || 0;
     return {
       ...cp,
       firms: cpFirms,
@@ -479,6 +499,9 @@ export function enrichCounterpartiesWithFirms(rows, branchId = DEFAULT_BRANCH_ID
       firms_label: cpFirms.length
         ? (cpFirms.length === 1 ? (inns[0] || cpFirms[0].name) : `${cpFirms.length} фирмы`)
         : (cp.inn || ''),
+      documents_count: documentsCount,
+      payments_count: paymentsCount,
+      mentions_count: documentsCount + paymentsCount,
     };
   });
 }

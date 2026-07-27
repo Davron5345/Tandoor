@@ -165,6 +165,7 @@ export default function Counterparties() {
                 <th>Название</th>
                 <th>Фирмы / ИНН</th>
                 <th>Тип</th>
+                <th className="num" title="Складские документы + операции банка">Упоминания</th>
                 <th>Телефон</th>
                 <th>Telegram ID</th>
                 <th>Email</th>
@@ -181,6 +182,16 @@ export default function Counterparties() {
                     <span className={`badge badge-${c.type}`}>
                       {c.type === 'supplier' ? 'Поставщик' : 'Клиент'}
                     </span>
+                  </td>
+                  <td
+                    className="num"
+                    title={`Документы: ${c.documents_count || 0} · Выписки/оплаты: ${c.payments_count || 0}`}
+                  >
+                    {(c.mentions_count || 0) > 0 ? (
+                      <span className="cp-mentions-count">{c.mentions_count}</span>
+                    ) : (
+                      <span className="muted">0</span>
+                    )}
                   </td>
                   <td>{c.phone ? formatUzPhone(c.phone) : '—'}</td>
                   <td>{c.telegram_chat_id || '—'}</td>
