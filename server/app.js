@@ -57,7 +57,9 @@ export function createApp() {
   const app = express();
 
   app.use(cors(createCorsOptions()));
-  app.use(express.json());
+  // Bank statement confirm can send hundreds of rows with purpose text
+  app.use(express.json({ limit: '20mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '20mb' }));
   app.use(csrfOriginCheck);
 
   app.use((req, res, next) => {
@@ -78,6 +80,11 @@ export function createApp() {
   // Centralized error handler: map known patterns to correct HTTP status codes
   app.use((err, req, res, _next) => {
     if (res.headersSent) return;
+    if (err?.type === 'entity.too.large' || err?.status === 413 || /request entity too large/i.test(err?.message || '')) {
+      return res.status(413).json({
+        error: 'Слишком большой объём данных. Сохраните выписку ещё раз — лимит увеличен, или загрузите файл по частям (например по неделям).',
+      });
+    }
     const msg = err?.message || String(err);
     const notFound = /не найден|not found/i.test(msg);
     const conflict = /уже занят|уже существует|нельзя удалить|используется/i.test(msg);

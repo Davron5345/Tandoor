@@ -281,9 +281,11 @@ function makeExternalRef(parts) {
     parts.date,
     parts.docNo,
     parts.account,
+    parts.name,
     parts.debit,
     parts.credit,
     String(parts.purpose || '').slice(0, 120),
+    parts.rowIndex ?? '',
   ].join('|');
   return crypto.createHash('sha256').update(raw).digest('hex').slice(0, 40);
 }
@@ -325,6 +327,7 @@ export function parseAccReferenceReportBuffer(buffer) {
       credit,
       purpose: cell(row, cols.purpose),
       innCol: cell(row, cols.inn),
+      rowIndex: dataRows.length,
     });
   }
   return { rows: dataRows, cols, meta };

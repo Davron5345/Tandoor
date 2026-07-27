@@ -1298,9 +1298,9 @@ function ImportDateGroup({ group, counterpartiesForImportRow, updateImportRow })
           <span className="text-muted"> · {group.rows.length} опер.</span>
         </td>
       </tr>
-      {group.rows.map((r) => (
+      {group.rows.map((r, idx) => (
         <tr
-          key={r.external_ref}
+          key={`${r.external_ref || 'row'}-${idx}`}
           className={
             r.is_new_firm && !r.counterparty_id
               ? 'bank-import-row-new'

@@ -11548,23 +11548,27 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
   margin: 0;
   font-size: 13px;
   line-height: 1.4;
+  max-height: 120px;
+  overflow-y: auto;
 }
 
 .bank-import-toolbar {
   flex-shrink: 0;
   margin-bottom: 0;
   align-items: end;
+  padding-right: 4px;
 }
 
 .bank-import-toolbar-actions .btn-group {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  justify-content: flex-end;
 }
 
 .bank-import-table {
   flex: 1;
-  min-height: 0;
+  min-height: 180px;
   overflow: auto;
 }
 
