@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-07-27 (фирмы поставщика: отдельное окно в карточке)
+**Последнее обновление документации:** 2026-07-27 (фирмы: счёт/МФО, окно редактирования)
 
 ---
 
@@ -166,7 +166,7 @@ npm run db:reset-operations    # Сброс операционных данны�
 | Каталог | `products`, `product_variants`, `product_categories`, `units`, `product_images`, `product_suppliers`, `product_branches`, `product_variant_branches` |
 | Склад | `departments`, `product_department_stock`, `product_branch_stock` |
 | Документы | `documents` (+ `firm_id` у прихода), `document_items` (+ `net_weight` в строках прихода), `document_history`, `opening_balance_lines` |
-| Контрагенты | `counterparties`, `counterparty_firms` (юрлица с ИНН у поставщика), `counterparty_contracts` |
+| Контрагенты | `counterparties`, `counterparty_firms` (юрлица: ИНН, bank_account, mfo, договор), `counterparty_contracts` |
 | Финансы | `payments` (+ `external_ref`, `import_batch_id`, `contract_id`, `firm_id`), `cash_articles`, `branch_opening_balances` |
 | Калькуляции | `calculations`, `calculation_items`, `calculation_sources` |
 | Auth/Admin | `users`, `sessions`, `roles`, `role_permissions`, `audit_log`, `visit_log`, `blocked_devices` |
@@ -346,7 +346,7 @@ Frontend зеркало: `client/src/permissions.js`.
 ### 9.10 Фирмы поставщика (юрлица)
 
 - **Контрагент-поставщик** — торговое имя (напр. «Мурод»); **фирмы** (`counterparty_firms`) — юрлица с ИНН для оплат и сверки
-- У поставщика в карточке (`/counterparties`): кнопка «Фирмы (N)» открывает вложенное окно `CounterpartyFirmsModal` — название, ИНН (9 цифр), опционально договор
+- У поставщика в карточке (`/counterparties`): кнопка «Фирмы (N)» открывает вложенное окно `CounterpartyFirmsModal` — список (название + ИНН); редактирование/создание — отдельное окно с полями: название, ИНН, МФО, банковский счёт, договор
 - API: `GET/POST /api/counterparties/:id/firms`, `PUT/DELETE /api/counterparties/:id/firms/:firmId`
 - Импорт выписки и ручные оплаты: `firm_id` на платеже; поиск по ИНН через `findCounterpartyFirmByInn`
 - **Акт сверки** (`/reports/reconciliation`): фильтр «Фирма» (все / конкретная); строки без `firm_id` видны только при «Все фирмы»
@@ -645,6 +645,7 @@ GET  /api/auth/roles
 | 2026-07-27 | Импорт выписки: новые фирмы по ИНН/названию создаются при сохранении; крупная фиксированная модалка |
 | 2026-07-27 | Фирмы поставщика: `counterparty_firms`, `firm_id` в payments/documents; CRUD в справочнике; акт сверки по фирме; миграция ИНН → фирма |
 | 2026-07-27 | UI фирм: компактная карточка поставщика + вложенное окно `CounterpartyFirmsModal` |
+| 2026-07-27 | Фирмы: поля bank_account/mfo; в списке только название+ИНН; полное редактирование во вложенном окне |
 
 ---
 

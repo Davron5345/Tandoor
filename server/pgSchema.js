@@ -215,6 +215,8 @@ CREATE TABLE IF NOT EXISTS counterparty_firms (
   branch_id TEXT NOT NULL REFERENCES branches(id),
   name TEXT NOT NULL,
   inn TEXT,
+  bank_account TEXT,
+  mfo TEXT,
   contract_id TEXT REFERENCES counterparty_contracts(id),
   is_default INTEGER DEFAULT 0,
   created_at TEXT DEFAULT (${NOW})

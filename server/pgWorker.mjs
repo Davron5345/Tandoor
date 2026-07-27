@@ -89,11 +89,15 @@ async function ensureBootstrap() {
       branch_id TEXT NOT NULL REFERENCES branches(id),
       name TEXT NOT NULL,
       inn TEXT,
+      bank_account TEXT,
+      mfo TEXT,
       contract_id TEXT REFERENCES counterparty_contracts(id),
       is_default INTEGER DEFAULT 0,
       created_at TEXT DEFAULT (NOW())
     )
   `);
+  await execRaw('ALTER TABLE counterparty_firms ADD COLUMN IF NOT EXISTS bank_account TEXT');
+  await execRaw('ALTER TABLE counterparty_firms ADD COLUMN IF NOT EXISTS mfo TEXT');
   await runStatements(PG_CREATE_INDEXES);
   await execRaw(
     `INSERT INTO settings (key, value) VALUES ('counterparty_inn_v1', '1')

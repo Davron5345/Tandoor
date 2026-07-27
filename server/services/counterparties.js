@@ -188,12 +188,22 @@ function normalizeFirmInn(value) {
   return digits.length === 9 ? digits : null;
 }
 
+function normalizeBankAccount(value) {
+  const digits = String(value || '').replace(/\D/g, '');
+  return digits || null;
+}
+
+function normalizeMfo(value) {
+  const digits = String(value || '').replace(/\D/g, '').slice(0, 5);
+  return digits || null;
+}
+
 export function getCounterpartyFirms(counterpartyId, branchId = DEFAULT_BRANCH_ID) {
   const cp = getCounterparty(counterpartyId, branchId);
   if (!cp) throw new Error('Контрагент не найден');
   const firms = queryAll(`
-    SELECT f.id, f.counterparty_id, f.branch_id, f.name, f.inn, f.contract_id,
-           f.is_default, f.created_at, cc.number as contract_number
+    SELECT f.id, f.counterparty_id, f.branch_id, f.name, f.inn, f.bank_account, f.mfo,
+           f.contract_id, f.is_default, f.created_at, cc.number as contract_number
     FROM counterparty_firms f
     LEFT JOIN counterparty_contracts cc ON cc.id = f.contract_id
     WHERE f.counterparty_id = ? AND f.branch_id = ?
@@ -251,15 +261,18 @@ export function createCounterpartyFirm(counterpartyId, data, branchId = DEFAULT_
 
   const id = uuidv4();
   const isDefault = data.is_default ? 1 : 0;
+  const bankAccount = normalizeBankAccount(data.bank_account);
+  const mfo = normalizeMfo(data.mfo);
   if (isDefault) {
     run('UPDATE counterparty_firms SET is_default = 0 WHERE counterparty_id = ? AND branch_id = ?', [
       counterpartyId, branchId,
     ]);
   }
   run(`
-    INSERT INTO counterparty_firms (id, counterparty_id, branch_id, name, inn, contract_id, is_default)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `, [id, counterpartyId, branchId, name, inn, data.contract_id || null, isDefault]);
+    INSERT INTO counterparty_firms
+      (id, counterparty_id, branch_id, name, inn, bank_account, mfo, contract_id, is_default)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `, [id, counterpartyId, branchId, name, inn, bankAccount, mfo, data.contract_id || null, isDefault]);
 
   return getCounterpartyFirms(counterpartyId, branchId).find((f) => f.id === id);
 }
@@ -287,7 +300,13 @@ export function updateCounterpartyFirm(counterpartyId, firmId, data, branchId = 
     );
     if (!contract) throw new Error('Договор не найден у этого поставщика');
   }
-  const isDefault = data.is_default ? 1 : (row.is_default || 0);
+  const bankAccount = data.bank_account !== undefined
+    ? normalizeBankAccount(data.bank_account)
+    : row.bank_account;
+  const mfo = data.mfo !== undefined ? normalizeMfo(data.mfo) : row.mfo;
+  const isDefault = data.is_default !== undefined
+    ? (data.is_default ? 1 : 0)
+    : (row.is_default || 0);
   if (isDefault) {
     run('UPDATE counterparty_firms SET is_default = 0 WHERE counterparty_id = ? AND branch_id = ?', [
       counterpartyId, branchId,
@@ -295,9 +314,9 @@ export function updateCounterpartyFirm(counterpartyId, firmId, data, branchId = 
   }
   run(`
     UPDATE counterparty_firms
-    SET name = ?, inn = ?, contract_id = ?, is_default = ?
+    SET name = ?, inn = ?, bank_account = ?, mfo = ?, contract_id = ?, is_default = ?
     WHERE id = ? AND counterparty_id = ? AND branch_id = ?
-  `, [name, inn, contractId, isDefault, firmId, counterpartyId, branchId]);
+  `, [name, inn, bankAccount, mfo, contractId, isDefault, firmId, counterpartyId, branchId]);
   return getCounterpartyFirms(counterpartyId, branchId).find((f) => f.id === firmId);
 }
 

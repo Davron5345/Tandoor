@@ -2909,6 +2909,14 @@ input[type='number']::-webkit-inner-spin-button {
   margin-top: 4px;
 }
 
+.cp-firm-row {
+  cursor: pointer;
+}
+
+.cp-firm-row:hover {
+  background: var(--surface-hover, rgba(0, 0, 0, 0.03));
+}
+
 .text-muted {
   color: var(--text-muted);
 }

@@ -550,6 +550,8 @@ function migrateCounterpartyFirms() {
       branch_id TEXT NOT NULL REFERENCES branches(id),
       name TEXT NOT NULL,
       inn TEXT,
+      bank_account TEXT,
+      mfo TEXT,
       contract_id TEXT REFERENCES counterparty_contracts(id),
       is_default INTEGER DEFAULT 0,
       created_at TEXT DEFAULT (datetime('now'))
@@ -563,6 +565,13 @@ function migrateCounterpartyFirms() {
   const payCols = queryAll('PRAGMA table_info(payments)').map((c) => c.name);
   if (!payCols.includes('firm_id')) {
     run('ALTER TABLE payments ADD COLUMN firm_id TEXT REFERENCES counterparty_firms(id)');
+  }
+  const firmCols = queryAll('PRAGMA table_info(counterparty_firms)').map((c) => c.name);
+  if (!firmCols.includes('bank_account')) {
+    run('ALTER TABLE counterparty_firms ADD COLUMN bank_account TEXT');
+  }
+  if (!firmCols.includes('mfo')) {
+    run('ALTER TABLE counterparty_firms ADD COLUMN mfo TEXT');
   }
   try {
     run('CREATE INDEX IF NOT EXISTS idx_cp_firms_counterparty ON counterparty_firms(counterparty_id, branch_id)');
