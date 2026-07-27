@@ -201,9 +201,18 @@ export default function Counterparties() {
                         <IconButton title="Изменить" onClick={() => openEdit(c)}>
                           <IconEdit />
                         </IconButton>
-                        <IconButton title="Удалить" danger onClick={() => remove(c.id)}>
-                          <IconTrash />
-                        </IconButton>
+                        {(c.mentions_count || 0) === 0 ? (
+                          <IconButton title="Удалить" danger onClick={() => remove(c.id)}>
+                            <IconTrash />
+                          </IconButton>
+                        ) : (
+                          <IconButton
+                            title={`Нельзя удалить: есть упоминания (${c.mentions_count})`}
+                            disabled
+                          >
+                            <IconTrash />
+                          </IconButton>
+                        )}
                       </div>
                     ) : '—'}
                   </td>

@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-07-27 (Клиент: каналы как фирмы)
+**Последнее обновление документации:** 2026-07-27 (удаление контрагента только без упоминаний)
 
 ---
 
@@ -435,7 +435,7 @@ GET  /api/auth/roles
 | `/products` | Products.jsx | products.view |
 | `/product-categories` | ProductCategories.jsx | products.view |
 | `/units` | Units.jsx | products.view |
-| `/counterparties` | Counterparties.jsx | counterparties.view; «Упоминания»; у поставщиков — фирмы; у «Клиент» — каналы оплаты (Click/Payme/Терминал/…) |
+| `/counterparties` | Counterparties.jsx | counterparties.view; «Упоминания»; удаление только при 0 упоминаний; у поставщиков — фирмы; у «Клиент» — каналы оплаты |
 | `/prihod`, `/rashod`, `/return-*`, `/transfer` | Documents.jsx | documents.*; фильтры: дата С/По, контрагент/поставщик, статус |
 | `/documents` | Documents.jsx | documents.view; те же фильтры + тип документа |
 | `/razdelka` | Razdelka.jsx | documents.razdelka |
@@ -678,6 +678,7 @@ GET  /api/auth/roles
 | 2026-07-27 | Импорт выписки: ИНН контрагента строго из названия, не из назначения платежа |
 | 2026-07-27 | Справочник контрагентов: счётчик упоминаний (документы + выписки/оплаты) |
 | 2026-07-27 | Клиент «Клиент»: каналы Click/Payme/Терминал/Инкассо/Humo/Uzcard/Uzum как фирмы + автосид |
+| 2026-07-27 | Контрагенты: удаление только если упоминаний 0 (UI + API) |
 
 ---
 

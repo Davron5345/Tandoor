@@ -85,23 +85,22 @@ export function deleteCounterparty(id, branchId = DEFAULT_BRANCH_ID) {
   const existing = getCounterparty(id, branchId);
   if (!existing) throw new Error('Контрагент не найден');
 
-  const docCount = queryOne(
-    'SELECT COUNT(*) as c FROM documents WHERE counterparty_id = ?',
-    [id],
-  )?.c || 0;
-  if (docCount > 0) {
+  const docCount = Number(queryOne(
+    `SELECT COUNT(*) as c FROM documents
+     WHERE counterparty_id = ?
+       AND (branch_id = ? OR (branch_id IS NULL AND ? = ?))`,
+    [id, branchId, branchId, DEFAULT_BRANCH_ID],
+  )?.c || 0);
+  const payCount = Number(queryOne(
+    `SELECT COUNT(*) as c FROM payments
+     WHERE counterparty_id = ?
+       AND (branch_id = ? OR (branch_id IS NULL AND ? = ?))`,
+    [id, branchId, branchId, DEFAULT_BRANCH_ID],
+  )?.c || 0);
+  const mentions = docCount + payCount;
+  if (mentions > 0) {
     throw new Error(
-      `Нельзя удалить контрагента: он используется в ${docCount} документах. Сначала удалите или переназначьте их.`,
-    );
-  }
-
-  const payCount = queryOne(
-    'SELECT COUNT(*) as c FROM payments WHERE counterparty_id = ?',
-    [id],
-  )?.c || 0;
-  if (payCount > 0) {
-    throw new Error(
-      `Нельзя удалить контрагента: он используется в ${payCount} платежах. Сначала удалите или переназначьте их.`,
+      `Нельзя удалить: есть упоминания (${mentions}: документов ${docCount}, выписок/оплат ${payCount})`,
     );
   }
 
