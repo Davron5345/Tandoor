@@ -152,6 +152,24 @@ function bootstrapPostgresSeeds() {
     );
   }
 
+  // Дозасеять новые системные статьи (в т.ч. «Услуга банка») по всем филиалам
+  const branchIds = new Set(queryAll('SELECT id FROM branches').map((b) => b.id));
+  for (const row of queryAll('SELECT DISTINCT branch_id as id FROM cash_articles WHERE branch_id IS NOT NULL')) {
+    branchIds.add(row.id);
+  }
+  if (!branchIds.size) branchIds.add('main');
+  for (const branchId of branchIds) {
+    for (const article of DEFAULT_CASH_ARTICLES) {
+      const id = cashArticleId(branchId, article.code);
+      run(
+        `INSERT OR IGNORE INTO cash_articles
+          (id, name, direction, sort_order, active, branch_id, code)
+         VALUES (?, ?, ?, ?, 1, ?, ?)`,
+        [id, article.name, article.direction, article.sort_order, branchId, article.code],
+      );
+    }
+  }
+
   const bob = queryOne('SELECT branch_id FROM branch_opening_balances WHERE branch_id = ?', ['main']);
   if (!bob) {
     run('INSERT INTO branch_opening_balances (branch_id, cash_balance, notes) VALUES (?, 0, ?)', ['main', '']);
@@ -170,6 +188,7 @@ export async function initDb() {
     console.log(`🐘 База: Postgres (${mode})`);
     pgInit(process.env.DATABASE_URL, dataDir);
     bootstrapPostgresSeeds();
+    migrateCashArticlesBankService();
     seedIfEmpty();
     return null;
   }
@@ -2140,9 +2159,6 @@ function migrateCashArticlesDebtReturn() {
 }
 
 function migrateCashArticlesBankService() {
-  const done = queryOne("SELECT value FROM settings WHERE key = 'cash_articles_bank_service_v1'");
-  if (done) return;
-
   ensureMainBranchExists();
 
   const extraArticles = DEFAULT_CASH_ARTICLES.filter((a) => a.code === 'exp_bank_service');
@@ -2162,6 +2178,15 @@ function migrateCashArticlesBankService() {
          VALUES (?, ?, ?, ?, 1, ?, ?)`,
         [id, article.name, article.direction, article.sort_order, branchId, article.code],
       );
+    }
+  }
+
+  const done = queryOne("SELECT value FROM settings WHERE key = 'cash_articles_bank_service_v1'");
+  if (done) return;
+
+  for (const branchId of branchIds) {
+    for (const article of extraArticles) {
+      const id = cashArticleId(branchId, article.code);
       // Already imported bank commissions → «Услуга банка» (без ложного контрагента)
       run(
         `UPDATE payments

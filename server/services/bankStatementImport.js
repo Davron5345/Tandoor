@@ -14,7 +14,8 @@ import {
   findCounterpartyFirmByInn,
   DEFAULT_CONTRACT_ID,
 } from './counterparties.js';
-import { BANK_SERVICE_ARTICLE_CODE, cashArticleId } from '../cashArticleDefaults.js';
+import { BANK_SERVICE_ARTICLE_CODE } from '../cashArticleDefaults.js';
+import { ensureDefaultCashArticle } from '../cashArticles.js';
 
 const { queryOne, queryAll, transaction } = db;
 
@@ -392,7 +393,10 @@ function classifyRow(raw, ctx) {
   if (direction === 'debit' && isBankServiceFee(raw)) {
     type = 'other_expense';
     selected = true;
-    articleId = cashArticleId(ctx.branchId || DEFAULT_BRANCH_ID, BANK_SERVICE_ARTICLE_CODE);
+    articleId = ensureDefaultCashArticle(
+      ctx.branchId || DEFAULT_BRANCH_ID,
+      BANK_SERVICE_ARTICLE_CODE,
+    );
     matchReason = 'услуга банка (комиссия / РКО)';
     isNewFirm = false;
     isNewAccount = false;
@@ -961,11 +965,11 @@ export function confirmBankStatementImport(
       const payType = row.type || (row.direction === 'debit' ? 'supplier_payment' : 'customer_income');
       let articleId = row.article_id || null;
       const bankFee = payType === 'other_expense' && (
-        articleId === cashArticleId(branchId, BANK_SERVICE_ARTICLE_CODE)
+        (typeof articleId === 'string' && articleId.endsWith(`__${BANK_SERVICE_ARTICLE_CODE}`))
         || isBankServiceFee(row)
       );
       if (bankFee) {
-        articleId = articleId || cashArticleId(branchId, BANK_SERVICE_ARTICLE_CODE);
+        articleId = ensureDefaultCashArticle(branchId, BANK_SERVICE_ARTICLE_CODE);
         counterpartyId = null;
         firmId = null;
       } else if (!counterpartyId && (row.is_new_firm || row.inn || row.suggested_name)) {

@@ -47,7 +47,7 @@ export function seedCashArticlesForBranch(branchId = DEFAULT_BRANCH_ID) {
   }
 }
 
-export { PURCHASE_ARTICLE_CODE, cashArticleId } from './cashArticleDefaults.js';
+export { PURCHASE_ARTICLE_CODE, cashArticleId, BANK_SERVICE_ARTICLE_CODE } from './cashArticleDefaults.js';
 
 function assertBranchArticle(article, branchId) {
   const articleBranch = article.branch_id || DEFAULT_BRANCH_ID;
@@ -88,6 +88,26 @@ export function getCashArticle(id, branchId = null) {
     return queryOne('SELECT * FROM cash_articles WHERE id = ? AND branch_id = ?', [id, branchId]);
   }
   return queryOne('SELECT * FROM cash_articles WHERE id = ?', [id]);
+}
+
+/** Гарантирует наличие статьи по коду для филиала (например «Услуга банка»). */
+export function ensureDefaultCashArticle(branchId, code) {
+  const bid = branchId || DEFAULT_BRANCH_ID;
+  const article = DEFAULT_CASH_ARTICLES.find((a) => a.code === code);
+  if (!article) throw new Error(`Неизвестный код статьи: ${code}`);
+  const id = cashArticleId(bid, code);
+  run(
+    `INSERT OR IGNORE INTO cash_articles
+      (id, name, direction, sort_order, active, branch_id, code)
+     VALUES (?, ?, ?, ?, 1, ?, ?)`,
+    [id, article.name, article.direction, article.sort_order, bid, code],
+  );
+  const row = getCashArticle(id, bid);
+  if (!row) throw new Error(`Не удалось создать статью «${article.name}»`);
+  if (!row.active) {
+    run('UPDATE cash_articles SET active = 1 WHERE id = ? AND branch_id = ?', [id, bid]);
+  }
+  return id;
 }
 
 export function createCashArticle(data, branchId = DEFAULT_BRANCH_ID) {
