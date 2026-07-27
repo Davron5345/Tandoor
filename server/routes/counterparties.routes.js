@@ -51,6 +51,14 @@ export function registerCounterpartyRoutes(app) {
     }
   });
 
+  app.put('/api/counterparties/:id/contracts/:contractId', requirePermission('counterparties.edit'), attachBranch, (req, res) => {
+    try {
+      res.json(svc.updateCounterpartyContract(req.params.id, req.params.contractId, req.body, req.branchId));
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
   app.delete('/api/counterparties/:id/contracts/:contractId', requirePermission('counterparties.edit'), attachBranch, (req, res) => {
     try {
       svc.deleteCounterpartyContract(req.params.id, req.params.contractId, req.branchId);

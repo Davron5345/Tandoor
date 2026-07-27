@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-07-27 (договоры: + в фирме, расширенные поля)
+**Последнее обновление документации:** 2026-07-27 (договоры: редактирование, сумма прописью)
 
 ---
 
@@ -347,7 +347,8 @@ Frontend зеркало: `client/src/permissions.js`.
 ### 9.10 Фирмы поставщика (юрлица)
 
 - **Контрагент-поставщик** — торговое имя (напр. «Мурод»); **фирмы** (`counterparty_firms`) — юрлица с ИНН для оплат и сверки
-- У поставщика в карточке (`/counterparties`): кнопка «Фирмы (N)» открывает вложенное окно `CounterpartyFirmsModal` — список (название + ИНН); редактирование/создание — отдельное окно с полями: название, ИНН, МФО, банковский счёт, договор (`+` создаёт договор: название, номер, дата, входящий/исходящий, сумма, срок окончания)
+- У поставщика в карточке (`/counterparties`): кнопка «Фирмы (N)» открывает вложенное окно `CounterpartyFirmsModal` — список (название + ИНН); редактирование/создание — отдельное окно с полями: название, ИНН, МФО, банковский счёт, договор (`+` создать / карандаш редактировать через `ContractEditModal`: название, номер, дата, входящий/исходящий, сумма в формате `1 000` + прописью, срок окончания)
+- API договоров: `GET/POST /api/counterparties/:id/contracts`, `PUT/DELETE /api/counterparties/:id/contracts/:contractId`
 - API: `GET/POST /api/counterparties/:id/firms`, `PUT/DELETE /api/counterparties/:id/firms/:firmId`
 - Импорт выписки и ручные оплаты: `firm_id` на платеже; поиск по ИНН через `findCounterpartyFirmByInn`
 - **Акт сверки** (`/reports/reconciliation`): фильтр «Фирма» (все / конкретная); строки без `firm_id` видны только при «Все фирмы»
@@ -397,7 +398,7 @@ GET  /api/auth/roles
 | `/api/products` | catalog.routes.js | Номенклатура, варианты, изображения |
 | `/api/calculations` | catalog.routes.js | Калькуляции |
 | `/api/documents` | documents.routes.js | Складские документы (`date_from`, `date_to`, `counterparty_id`, type, status) |
-| `/api/counterparties` | counterparties.routes.js | Контрагенты, договоры; `/:id/firms` — юрлица поставщика (CRUD) |
+| `/api/counterparties` | counterparties.routes.js | Контрагенты, договоры (`/:id/contracts` CRUD), `/:id/firms` — юрлица поставщика (CRUD) |
 | `/api/payments` | finance.routes.js | Оплаты, касса; `POST /api/payments/import/parse`, `POST /api/payments/import/confirm` — выписка AccReferenceReport |
 | `/api/cash-articles` | finance.routes.js | Статьи кассы |
 | `/api/stats`, `/api/reports/*` | org.routes.js | Отчёты, дашборд; `/api/reports/supplier-debts?date_from&date_to&supplier_id` — оборотная ведомость поставщиков |
@@ -649,6 +650,7 @@ GET  /api/auth/roles
 | 2026-07-27 | Фирмы: поля bank_account/mfo; в списке только название+ИНН; полное редактирование во вложенном окне |
 | 2026-07-27 | Импорт выписки: сверка ИНН+название+р/с; новый ИНН → новая фирма; тот же ИНН/название, другой р/с → новый счёт |
 | 2026-07-27 | Договоры: поля title/direction/amount/end_date; «+» у договора в окне фирмы |
+| 2026-07-27 | Договоры: редактирование (PUT); сумма `1 000` + прописью под полем (`amountInWords`) |
 
 ---
 

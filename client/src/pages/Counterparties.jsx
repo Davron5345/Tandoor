@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { api, formatDate } from '../api';
+import { api, formatDate, formatPriceInput } from '../api';
 import Modal, { useToast, ModalCancelButton } from '../components/Modal';
 import CounterpartyFormFields, { emptyCounterpartyForm } from '../components/CounterpartyFormFields';
 import { IconButton, IconEdit, IconTrash } from '../components/ActionIcons';
@@ -16,17 +16,9 @@ import {
   promptRestoreDraft,
 } from '../hooks/useFormDraft';
 import CounterpartyFirmsModal from '../components/CounterpartyFirmsModal';
+import ContractEditModal from '../components/ContractEditModal';
 import { useFormDirty } from '../hooks/useFormDirty';
 import { hasPermission } from '../permissions';
-
-const emptyContract = {
-  title: '',
-  number: '',
-  date: '',
-  end_date: '',
-  direction: 'outgoing',
-  amount: '',
-};
 
 export default function Counterparties() {
   const [items, setItems] = useState([]);
@@ -36,7 +28,7 @@ export default function Counterparties() {
   const [contracts, setContracts] = useState([]);
   const [firms, setFirms] = useState([]);
   const [firmsModalOpen, setFirmsModalOpen] = useState(false);
-  const [newContract, setNewContract] = useState(emptyContract);
+  const [contractEditor, setContractEditor] = useState(null); // null | { id, initial }
   const draftKey = formDraftKey('counterparties', modal);
   const draftPayload = useMemo(() => ({ form }), [form]);
   useFormDraft(draftKey, draftPayload, Boolean(modal));
@@ -82,7 +74,7 @@ export default function Counterparties() {
       setContracts([]);
       setFirms([]);
       setFirmsModalOpen(false);
-      setNewContract(emptyContract);
+      setContractEditor(null);
     }
   }, [modal, form.type, branchId]);
 
@@ -126,25 +118,6 @@ export default function Counterparties() {
       clearFormDraft(draftKey);
       setModal(null);
       load();
-    } catch (e) {
-      show(e.message, 'error');
-    }
-  };
-
-  const addContract = async () => {
-    if (!canEdit || modal === 'create') return;
-    try {
-      await api.createCounterpartyContract(modal, {
-        title: newContract.title.trim() || null,
-        number: newContract.number.trim(),
-        date: newContract.date || null,
-        end_date: newContract.end_date || null,
-        direction: newContract.direction || null,
-        amount: newContract.amount === '' ? 0 : Number(newContract.amount),
-      });
-      setNewContract(emptyContract);
-      loadContracts(modal);
-      show('Договор добавлен');
     } catch (e) {
       show(e.message, 'error');
     }
@@ -317,13 +290,23 @@ export default function Counterparties() {
                               ? 'Входящий'
                               : (c.direction === 'outgoing' ? 'Исходящий' : '—')}
                           </td>
-                          <td>{c.amount ? Number(c.amount).toLocaleString('ru-RU') : '—'}</td>
+                          <td>{c.amount ? formatPriceInput(Math.round(Number(c.amount))) : '—'}</td>
                           <td>{c.end_date ? formatDate(c.end_date) : '—'}</td>
                           <td>
-                            {canEdit && !c.is_used && (
-                              <IconButton title="Удалить" danger onClick={() => removeContract(c.id)}>
-                                <IconTrash />
-                              </IconButton>
+                            {canEdit && (
+                              <div className="btn-group btn-group-icons">
+                                <IconButton
+                                  title="Изменить"
+                                  onClick={() => setContractEditor({ id: c.id, initial: c })}
+                                >
+                                  <IconEdit />
+                                </IconButton>
+                                {!c.is_used && (
+                                  <IconButton title="Удалить" danger onClick={() => removeContract(c.id)}>
+                                    <IconTrash />
+                                  </IconButton>
+                                )}
+                              </div>
                             )}
                           </td>
                         </tr>
@@ -333,67 +316,13 @@ export default function Counterparties() {
                 </div>
               )}
               {canEdit && (
-                <div className="form-grid cp-contracts-add">
-                  <div className="form-group">
-                    <label>Название</label>
-                    <input
-                      value={newContract.title}
-                      onChange={(e) => setNewContract({ ...newContract, title: e.target.value })}
-                      placeholder="Договор поставки"
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Номер</label>
-                    <input
-                      value={newContract.number}
-                      onChange={(e) => setNewContract({ ...newContract, number: e.target.value })}
-                      placeholder="№ 123/2026"
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Дата</label>
-                    <input
-                      type="date"
-                      value={newContract.date}
-                      onChange={(e) => setNewContract({ ...newContract, date: e.target.value })}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Входящий / исходящий</label>
-                    <select
-                      value={newContract.direction}
-                      onChange={(e) => setNewContract({ ...newContract, direction: e.target.value })}
-                    >
-                      <option value="outgoing">Исходящий</option>
-                      <option value="incoming">Входящий</option>
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label>Сумма договора</label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={newContract.amount}
-                      onChange={(e) => setNewContract({ ...newContract, amount: e.target.value })}
-                      placeholder="0"
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Срок окончания</label>
-                    <input
-                      type="date"
-                      value={newContract.end_date}
-                      onChange={(e) => setNewContract({ ...newContract, end_date: e.target.value })}
-                    />
-                  </div>
-                  <div className="form-group cp-contracts-add-btn">
-                    <label>&nbsp;</label>
-                    <button type="button" className="btn btn-secondary" onClick={addContract}>
-                      + Добавить договор
-                    </button>
-                  </div>
-                </div>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setContractEditor({ id: null, initial: null })}
+                >
+                  + Добавить договор
+                </button>
               )}
             </div>
           )}
@@ -411,6 +340,17 @@ export default function Counterparties() {
             load();
           }}
           onContractsChanged={() => loadContracts(modal)}
+        />
+      )}
+
+      {modal && modal !== 'create' && (
+        <ContractEditModal
+          open={Boolean(contractEditor)}
+          counterpartyId={modal}
+          contractId={contractEditor?.id || null}
+          initial={contractEditor?.initial || null}
+          onClose={() => setContractEditor(null)}
+          onSaved={() => loadContracts(modal)}
         />
       )}
     </div>

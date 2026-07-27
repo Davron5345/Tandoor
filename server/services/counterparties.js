@@ -187,6 +187,46 @@ export function createCounterpartyContract(counterpartyId, data, branchId = DEFA
   return { ...created, is_used: false, virtual: false };
 }
 
+export function updateCounterpartyContract(counterpartyId, contractId, data, branchId = DEFAULT_BRANCH_ID) {
+  if (contractId === DEFAULT_CONTRACT_ID) throw new Error('Нельзя изменить основной договор');
+  const row = queryOne(
+    'SELECT * FROM counterparty_contracts WHERE id = ? AND counterparty_id = ? AND branch_id = ?',
+    [contractId, counterpartyId, branchId],
+  );
+  if (!row) throw new Error('Договор не найден');
+
+  const number = String(data.number ?? row.number ?? '').trim();
+  if (!number) throw new Error('Укажите номер договора');
+  const title = data.title !== undefined || data.name !== undefined
+    ? ((data.title || data.name || '').trim() || null)
+    : row.title;
+  const direction = data.direction !== undefined
+    ? normalizeContractDirection(data.direction)
+    : row.direction;
+  const date = data.date !== undefined ? (data.date || null) : row.date;
+  const endDate = data.end_date !== undefined ? (data.end_date || null) : row.end_date;
+  let amountValue = row.amount || 0;
+  if (data.amount !== undefined) {
+    const amount = Number(data.amount);
+    amountValue = Number.isFinite(amount) && amount >= 0 ? amount : 0;
+  }
+
+  run(`
+    UPDATE counterparty_contracts
+    SET number = ?, title = ?, date = ?, end_date = ?, direction = ?, amount = ?
+    WHERE id = ? AND counterparty_id = ? AND branch_id = ?
+  `, [number, title, date, endDate, direction, amountValue, contractId, counterpartyId, branchId]);
+
+  const updated = queryOne('SELECT * FROM counterparty_contracts WHERE id = ?', [contractId]);
+  const used = queryOne(
+    `SELECT id FROM documents
+     WHERE contract_id = ? AND counterparty_id = ?
+     LIMIT 1`,
+    [contractId, counterpartyId],
+  );
+  return { ...updated, is_used: Boolean(used), virtual: false };
+}
+
 function normalizeContractDirection(value) {
   const v = String(value || '').trim().toLowerCase();
   if (v === 'incoming' || v === 'входящий' || v === 'in') return 'incoming';

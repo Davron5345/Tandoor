@@ -7,6 +7,7 @@ export {
   deleteCounterparty,
   getCounterpartyContracts,
   createCounterpartyContract,
+  updateCounterpartyContract,
   deleteCounterpartyContract,
   getCounterpartyFirms,
   createCounterpartyFirm,

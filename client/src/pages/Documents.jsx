@@ -8,6 +8,7 @@ import ProductSelect from '../components/ProductSelect';
 import CounterpartyCreateModal from '../components/CounterpartyCreateModal';
 import ProductCreateModal from '../components/ProductCreateModal';
 import ContractSelect from '../components/ContractSelect';
+import { amountInWordsCapitalized } from '../utils/amountInWords';
 import { useAuth } from '../AuthContext';
 import { useBranch } from '../BranchContext';
 import { hasPermission, DOC_TYPE_LABELS } from '../permissions';
@@ -619,7 +620,7 @@ export default function Documents({ defaultType }) {
         date: quickContractForm.date || null,
         end_date: quickContractForm.end_date || null,
         direction: quickContractForm.direction || null,
-        amount: quickContractForm.amount === '' ? 0 : Number(quickContractForm.amount),
+        amount: parsePriceInput(quickContractForm.amount) || 0,
       });
       const list = await api.getCounterpartyContracts(form.counterparty_id);
       setSupplierContracts(list);
@@ -2044,13 +2045,21 @@ export default function Documents({ defaultType }) {
             <div className="form-group">
               <label>Сумма договора</label>
               <input
-                type="number"
-                min="0"
-                step="0.01"
                 value={quickContractForm.amount}
-                onChange={(e) => setQuickContractForm({ ...quickContractForm, amount: e.target.value })}
-                placeholder="0"
+                onChange={(e) => setQuickContractForm({
+                  ...quickContractForm,
+                  amount: formatPriceInput(e.target.value),
+                })}
+                placeholder="1 000"
+                inputMode="numeric"
               />
+              {(parsePriceInput(quickContractForm.amount) || 0) > 0 ? (
+                <div className="form-hint amount-in-words">
+                  {amountInWordsCapitalized(parsePriceInput(quickContractForm.amount))}
+                </div>
+              ) : (
+                <div className="form-hint">Формат: 1 000</div>
+              )}
             </div>
             <div className="form-group full">
               <label>Срок окончания</label>

@@ -275,6 +275,7 @@ export const api = {
   getCounterparties: (type) => request(`/counterparties${type ? `?type=${type}` : ''}`),
   getCounterpartyContracts: (id) => request(`/counterparties/${id}/contracts`),
   createCounterpartyContract: (id, data) => request(`/counterparties/${id}/contracts`, { method: 'POST', body: JSON.stringify(data) }),
+  updateCounterpartyContract: (id, contractId, data) => request(`/counterparties/${id}/contracts/${contractId}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteCounterpartyContract: (id, contractId) => request(`/counterparties/${id}/contracts/${contractId}`, { method: 'DELETE' }),
   getCounterpartyFirms: (id) => request(`/counterparties/${id}/firms`),
   createCounterpartyFirm: (id, data) => request(`/counterparties/${id}/firms`, { method: 'POST', body: JSON.stringify(data) }),
