@@ -3,6 +3,7 @@ import {
   api, formatDate, formatMoney, formatPriceInput, parsePriceInput, normalizeQuantityInput, parseQuantityInput, STATUS_LABELS,
 } from '../api';
 import Modal, { useToast, ModalCancelButton } from '../components/Modal';
+import { IconButton, IconEdit, IconEye, IconTrash } from '../components/ActionIcons';
 import { useAuth } from '../AuthContext';
 import { useBranch } from '../BranchContext';
 import BranchChip from '../components/BranchChip';
@@ -936,24 +937,24 @@ export default function OpeningBalance() {
                           <div className="btn-group">
                             {canEdit ? (
                               <>
-                                <button type="button" className="btn btn-sm btn-primary" onClick={() => editDoc(d)}>
-                                  Редактировать
-                                </button>
+                                <IconButton title="Редактировать" onClick={() => editDoc(d)}>
+                                  <IconEdit />
+                                </IconButton>
                                 {d.status === 'confirmed' && (
-                                  <button type="button" className="btn btn-sm btn-ghost" onClick={() => openDoc(d.id)}>
-                                    Открыть
-                                  </button>
+                                  <IconButton title="Открыть" onClick={() => openDoc(d.id)}>
+                                    <IconEye />
+                                  </IconButton>
                                 )}
                                 {(d.status === 'draft' || d.status === 'cancelled') && (
-                                  <button type="button" className="btn btn-sm btn-danger" onClick={() => removeDoc(d.id)}>
-                                    Удалить
-                                  </button>
+                                  <IconButton title="Удалить" danger onClick={() => removeDoc(d.id)}>
+                                    <IconTrash />
+                                  </IconButton>
                                 )}
                               </>
                             ) : (
-                              <button type="button" className="btn btn-sm btn-ghost" onClick={() => openDoc(d.id)}>
-                                Открыть
-                              </button>
+                              <IconButton title="Открыть" onClick={() => openDoc(d.id)}>
+                                <IconEye />
+                              </IconButton>
                             )}
                           </div>
                         </td>

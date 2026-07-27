@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-07-27 (CI lint max-warnings)
+**Последнее обновление документации:** 2026-07-27 (НС: иконки в списке)
 
 ---
 
@@ -334,7 +334,7 @@ Frontend зеркало: `client/src/permissions.js`.
 
 Типы строк: stock, debtor, creditor, cash, bank. Документ `opening_balance` + `opening_balance_lines`.
 Строки **bank** требуют `bank_account_id` (остаток вручную по каждому р/с из справочника `bank_accounts`).
-В списке: кнопка **«Редактировать»**; у проведённого — с подтверждением снимает проведение → снова **черновик** (можно править и провести заново). Старые «Отменён» тоже открываются на правку.
+В списке: иконки `ActionIcons` (карандаш / глаз / урна); у проведённого карандаш с подтверждением снимает проведение → снова **черновик** (можно править и провести заново). Старые «Отменён» тоже открываются на правку.
 
 ### 9.9 Импорт банковской выписки (Ipak Yuli)
 
@@ -449,7 +449,7 @@ GET  /api/auth/roles
 | `/payments` | Payments.jsx | payments.view; справочник счетов («Основной»); список по датам; под поставщиком — фирма, под клиентом — канал (Payme/Click/Терминал/Инкассо); выбор столбцов; импорт AccReferenceReport |
 | `/cash-articles` | CashArticles.jsx | cash_articles.view |
 | `/reports/*` | Reports.jsx | reports.view; `/reports/supplier-debts` — долги поставщикам; `/reports/cash-articles` — по статьям (изоляция филиала); акт сверки — фильтр «Фирма» |
-| `/opening-balance` | OpeningBalance.jsx | opening_balance.view |
+| `/opening-balance` | OpeningBalance.jsx | opening_balance.view; список — иконки Редактировать/Открыть/Удалить (`ActionIcons`) |
 | `/myshop` | MyShop.jsx | myshop.view |
 | `/myshop/constructor` | MyShopConstructor.jsx | myshop.edit |
 | `/shop-orders` | ShopOrders.jsx | shop_orders.view |
@@ -691,6 +691,7 @@ GET  /api/auth/roles
 | 2026-07-27 | НС: кнопка «Редактировать»; отмена проведения → снова черновик (не «отменён навсегда») |
 | 2026-07-27 | CI: `npm test` — glob `server/test/*.test.js` (без `**`, иначе Actions не находит тесты) |
 | 2026-07-27 | CI: eslint `--max-warnings 100` (старые warnings блокировали pipeline после починки test glob) |
+| 2026-07-27 | НС: в списке документов текстовые кнопки заменены на иконки (`IconEdit` / `IconEye` / `IconTrash`) |
 
 ---
 
