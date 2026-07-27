@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   filterDocumentsForUser,
   assertDocumentBranchAccess,
+  assertDocumentMutableInBranch,
   assertDocumentTypeAccess,
   assertCounterpartyBranchAccess,
 } from '../documentAccess.js';
@@ -39,18 +40,26 @@ test('assertDocumentBranchAccess blocks foreign branch for everyone including ad
   );
 });
 
-test('assertDocumentBranchAccess allows transfer endpoints for active branch', () => {
+test('assertDocumentBranchAccess allows transfer visibility on both ends', () => {
   const user = { role: 'warehouse', branch_id: 'branch-a' };
-  assert.doesNotThrow(() => assertDocumentBranchAccess(user, {
+  const doc = {
     branch_id: 'branch-a',
     from_branch_id: 'branch-a',
     to_branch_id: 'branch-b',
-  }, 'branch-a'));
-  assert.doesNotThrow(() => assertDocumentBranchAccess(user, {
+  };
+  assert.doesNotThrow(() => assertDocumentBranchAccess(user, doc, 'branch-a'));
+  assert.doesNotThrow(() => assertDocumentBranchAccess(user, doc, 'branch-b'));
+});
+
+test('assertDocumentMutableInBranch allows only transfer sender', () => {
+  const doc = {
+    type: 'peremeshchenie',
     branch_id: 'branch-a',
     from_branch_id: 'branch-a',
     to_branch_id: 'branch-b',
-  }, 'branch-b'));
+  };
+  assert.doesNotThrow(() => assertDocumentMutableInBranch(doc, 'branch-a'));
+  assert.throws(() => assertDocumentMutableInBranch(doc, 'branch-b'), /отправитель/);
 });
 
 test('assertDocumentTypeAccess validates role permissions', () => {

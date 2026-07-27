@@ -45,9 +45,6 @@ export function saveShopSettings(branchId, data) {
     notifyChatId: data.notifyChatId !== undefined ? String(data.notifyChatId || '').trim() : current.notifyChatId,
   };
   setSetting(settingsKey(branchId), JSON.stringify(next));
-  if (data.notifyChatId !== undefined && data.notifyChatId) {
-    setSetting('shop_notify_chat_id', String(data.notifyChatId).trim());
-  }
   return next;
 }
 

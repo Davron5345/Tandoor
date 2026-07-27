@@ -755,12 +755,12 @@ function expandInputOutputs(input, calcItems) {
   });
 }
 
-function buildRazdelkaOutputItemsFromInput(inputItems, calculationId) {
+function buildRazdelkaOutputItemsFromInput(inputItems, calculationId, branchId = null) {
   if (!calculationId) {
     throw new Error('Выберите калькуляцию');
   }
 
-  const calc = getCalculation(calculationId);
+  const calc = getCalculation(calculationId, branchId);
   if (!calc) throw new Error('Калькуляция не найдена');
   if (calc.kind === 'recipe') {
     throw new Error('Для разделки выберите калькуляцию разделки, не рецепт блюда');
@@ -1055,7 +1055,7 @@ export function createDocument(data, userId = null, branchId = DEFAULT_BRANCH_ID
     const docBranchId = branchId;
     const fromDept = data.from_department_id || null;
     const toDept = data.to_department_id || null;
-    const outputItems = buildRazdelkaOutputItemsFromInput(inputItems, calculationId);
+    const outputItems = buildRazdelkaOutputItemsFromInput(inputItems, calculationId, docBranchId);
     const enrichedInputs = enrichRazdelkaItemPrices(inputItems, fromDept, docBranchId);
     const enrichedOutputs = prepareRazdelkaOutputs(inputItems, outputItems, fromDept, docBranchId);
 
@@ -1240,7 +1240,7 @@ export function updateDocument(id, data, userId = null, branchId = DEFAULT_BRANC
     const docBranchId = branchId;
     const fromDept = data.from_department_id ?? existingDoc.from_department_id ?? null;
     const toDept = data.to_department_id ?? existingDoc.to_department_id ?? null;
-    const outputItems = buildRazdelkaOutputItemsFromInput(inputItems, calculationId);
+    const outputItems = buildRazdelkaOutputItemsFromInput(inputItems, calculationId, docBranchId);
     const enrichedInputs = enrichRazdelkaItemPrices(inputItems, fromDept, docBranchId);
     const enrichedOutputs = prepareRazdelkaOutputs(inputItems, outputItems, fromDept, docBranchId);
     const wasConfirmed = existingDoc.status === 'confirmed';

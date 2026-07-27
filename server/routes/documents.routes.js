@@ -7,6 +7,7 @@ import {
   filterDocumentsForUser,
   assertDocumentTypeAccess,
   assertDocumentBranchAccess,
+  assertDocumentMutableInBranch,
 } from '../documentAccess.js';
 import { parsePagination, paginateList, stripPaginationParams } from '../pagination.js';
 import { logAudit } from '../auditLog.js';
@@ -93,6 +94,7 @@ export function registerDocumentRoutes(app) {
       if (!existing) return res.status(404).json({ error: 'Не найден' });
       assertDocumentTypeAccess(req.user.role, req.body.type || existing.type);
       assertDocumentBranchAccess(req.user, existing, req.branchId);
+      assertDocumentMutableInBranch(existing, req.branchId);
       const doc = svc.updateDocument(req.params.id, req.body, req.user.id, req.branchId);
       res.json(doc);
     } catch (e) {
@@ -106,6 +108,7 @@ export function registerDocumentRoutes(app) {
       if (!existing) return res.status(404).json({ error: 'Не найден' });
       assertDocumentTypeAccess(req.user.role, existing.type);
       assertDocumentBranchAccess(req.user, existing, req.branchId);
+      assertDocumentMutableInBranch(existing, req.branchId);
       const doc = svc.confirmDocument(req.params.id, req.user.id);
       logAudit(req, 'document.confirm', {
         entity_type: 'document',
@@ -130,6 +133,7 @@ export function registerDocumentRoutes(app) {
       if (!existing) return res.status(404).json({ error: 'Не найден' });
       assertDocumentTypeAccess(req.user.role, existing.type);
       assertDocumentBranchAccess(req.user, existing, req.branchId);
+      assertDocumentMutableInBranch(existing, req.branchId);
       const doc = svc.cancelDocument(req.params.id, req.user.id);
       logAudit(req, 'document.cancel', {
         entity_type: 'document',
@@ -148,6 +152,7 @@ export function registerDocumentRoutes(app) {
       if (!existing) return res.status(404).json({ error: 'Не найден' });
       assertDocumentTypeAccess(req.user.role, existing.type);
       assertDocumentBranchAccess(req.user, existing, req.branchId);
+      assertDocumentMutableInBranch(existing, req.branchId);
       res.json(svc.deleteDocument(req.params.id));
     } catch (e) {
       res.status(400).json({ error: e.message });

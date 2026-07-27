@@ -34,7 +34,7 @@ export function getTelegramMessages(limit = 50, branchId = null) {
     LEFT JOIN documents d ON d.id = tm.document_id
     WHERE (
       (d.id IS NOT NULL AND (d.branch_id = ? OR d.from_branch_id = ? OR d.to_branch_id = ?))
-      OR (d.id IS NULL AND (c.branch_id = ? OR c.branch_id IS NULL))
+      OR (d.id IS NULL AND c.branch_id = ?)
     )
     ORDER BY tm.created_at DESC
     LIMIT ?

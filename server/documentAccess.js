@@ -26,6 +26,24 @@ export function assertDocumentBranchAccess(user, doc, activeBranchId = null) {
   if (!allowed) throw new Error('Нет доступа к документу этого филиала');
 }
 
+/**
+ * Изменять/проводить можно только «своим» филиалом.
+ * Для перемещения — только отправитель (from), иначе чужая фирма трогает чужой склад.
+ */
+export function assertDocumentMutableInBranch(doc, activeBranchId) {
+  if (!activeBranchId) throw new Error('Сотрудник не привязан к филиалу');
+  if (doc.type === 'peremeshchenie') {
+    const fromId = doc.from_branch_id || doc.branch_id;
+    if (fromId !== activeBranchId) {
+      throw new Error('Изменять перемещение может только филиал-отправитель');
+    }
+    return;
+  }
+  if (doc.branch_id !== activeBranchId) {
+    throw new Error('Нет доступа к документу этого филиала');
+  }
+}
+
 /** Контрагент без branch_id или чужого филиала недоступен. */
 export function assertCounterpartyBranchAccess(user, counterparty, branchId) {
   if (!counterparty) throw new Error('Контрагент не найден');
