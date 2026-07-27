@@ -334,10 +334,14 @@ export const api = {
     if (!res.ok) throw new Error(data.error || 'Ошибка разбора выписки');
     return data;
   },
-  confirmBankStatement: (rows) => request('/payments/import/confirm', {
+  confirmBankStatement: (rows, options = {}) => request('/payments/import/confirm', {
     method: 'POST',
-    body: JSON.stringify({ rows }),
+    body: JSON.stringify({
+      rows,
+      replace_dates: options.replace_dates || undefined,
+    }),
   }),
+  deleteBankDay: (date) => request(`/payments/by-date/${encodeURIComponent(date)}`, { method: 'DELETE' }),
   createPayment: (data) => request('/payments', { method: 'POST', body: JSON.stringify(data) }),
   updatePayment: (id, data) => request(`/payments/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deletePayment: (id) => request(`/payments/${id}`, { method: 'DELETE' }),

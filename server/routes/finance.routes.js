@@ -86,9 +86,20 @@ export function registerFinanceRoutes(app) {
   app.post('/api/payments/import/confirm', requirePermission('payments.edit'), attachBranch, (req, res) => {
     try {
       const rows = req.body?.rows;
+      const replaceDates = req.body?.replace_dates;
       res.status(201).json(
-        svc.confirmBankStatementImport(rows, req.user.id, req.branchId, req.user.role),
+        svc.confirmBankStatementImport(rows, req.user.id, req.branchId, req.user.role, {
+          replaceDates,
+        }),
       );
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
+  app.delete('/api/payments/by-date/:date', requireAnyPermission('payments.delete', 'cashier.delete'), attachBranch, (req, res) => {
+    try {
+      res.json(svc.deletePaymentsByDate(req.params.date, req.user.role, req.branchId));
     } catch (e) {
       res.status(400).json({ error: e.message });
     }

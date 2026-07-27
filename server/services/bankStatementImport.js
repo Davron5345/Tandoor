@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import * as XLSX from 'xlsx';
 import db from '../db.js';
 import { DEFAULT_BRANCH_ID } from '../branches.js';
-import { createPayment } from './payments.js';
+import { createPayment, deletePaymentsByDate } from './payments.js';
 import {
   createCounterparty,
   createCounterpartyFirm,
@@ -14,7 +14,7 @@ import {
   DEFAULT_CONTRACT_ID,
 } from './counterparties.js';
 
-const { queryOne } = db;
+const { queryOne, queryAll, transaction } = db;
 
 const HEADER_MARKERS = ['дата документа', 'оборот дебет', 'оборот кредит', 'назначение платежа'];
 
@@ -315,13 +315,20 @@ export function parseAccReferenceReportBuffer(buffer) {
 function classifyRow(raw, ctx) {
   const {
     counterparties, retailClient, retailContracts, ownInns, existingRefs,
+    replaceDateSet, identicalDateSet,
   } = ctx;
   const direction = raw.debit > 0 ? 'debit' : 'credit';
   const amount = direction === 'debit' ? raw.debit : raw.credit;
   const channel = direction === 'credit' ? detectAcquiringChannel(raw.name, raw.purpose) : null;
   const counterpartyInn = pickCounterpartyInn(raw.name, raw.purpose, raw.innCol, ownInns);
   const externalRef = makeExternalRef(raw);
-  const alreadyImported = existingRefs.has(externalRef);
+  const refHit = existingRefs instanceof Map
+    ? existingRefs.get(externalRef)
+    : (existingRefs?.has?.(externalRef) ? { id: true } : null);
+  const willReplaceDate = replaceDateSet?.has?.(raw.date);
+  const identicalDate = identicalDateSet?.has?.(raw.date);
+  // Same calendar day will be replaced — do not treat as «already imported»
+  const alreadyImported = Boolean(refHit) && !willReplaceDate;
   const suggestedName = cleanFirmName(raw.name, counterpartyInn);
 
   let type = direction === 'debit' ? 'supplier_payment' : 'customer_income';
@@ -434,7 +441,17 @@ function classifyRow(raw, ctx) {
     }
   }
 
-  if (alreadyImported) {
+  if (identicalDate) {
+    selected = false;
+    matchReason = matchReason
+      ? `дата без изменений (${matchReason})`
+      : 'дата без изменений — выписка уже загружена';
+  } else if (willReplaceDate) {
+    selected = true;
+    matchReason = matchReason
+      ? `заменит выписку за дату (${matchReason})`
+      : 'заменит выписку за дату';
+  } else if (alreadyImported) {
     selected = false;
     matchReason = `уже загружено (${matchReason})`;
   }
@@ -453,8 +470,8 @@ function classifyRow(raw, ctx) {
     inn: counterpartyInn,
     suggested_name: suggestedName || null,
     suggested_type: suggestedCounterpartyType(type),
-    is_new_firm: isNewFirm && !alreadyImported,
-    is_new_account: isNewAccount && !alreadyImported && !isNewFirm,
+    is_new_firm: isNewFirm && !alreadyImported && !identicalDate,
+    is_new_account: isNewAccount && !alreadyImported && !identicalDate && !isNewFirm,
     type,
     counterparty_id: counterparty?.id || null,
     counterparty_name: counterparty?.name || null,
@@ -466,7 +483,8 @@ function classifyRow(raw, ctx) {
     channel: channelId,
     channel_label: channelLabel,
     selected,
-    already_imported: alreadyImported,
+    already_imported: alreadyImported || identicalDate,
+    replaces_date: Boolean(willReplaceDate),
     match_reason: matchReason,
   };
 }
@@ -519,20 +537,35 @@ export function previewBankStatement(buffer, branchId = DEFAULT_BRANCH_ID) {
     ? getCounterpartyContracts(retailClient.id, branchId)
     : [];
   const ownInns = buildOwnInns(rawRows);
+  const existingDates = buildExistingDateDiffs(rawRows, branchId);
+  const replaceDateSet = new Set(
+    existingDates.filter((d) => d.has_differences).map((d) => d.date),
+  );
+  const identicalDateSet = new Set(
+    existingDates.filter((d) => d.identical).map((d) => d.date),
+  );
 
-  const existingRefs = new Set();
+  const existingRefs = new Map();
   for (const raw of rawRows) {
     const ref = makeExternalRef(raw);
+    if (existingRefs.has(ref)) continue;
     const hit = queryOne(
-      `SELECT id FROM payments
+      `SELECT id, date FROM payments
        WHERE external_ref = ? AND (branch_id = ? OR (branch_id IS NULL AND ? = ?))`,
       [ref, branchId, branchId, DEFAULT_BRANCH_ID],
     );
-    if (hit) existingRefs.add(ref);
+    if (hit) existingRefs.set(ref, hit);
   }
 
   const ctx = {
-    counterparties, retailClient, retailContracts, ownInns, existingRefs, branchId,
+    counterparties,
+    retailClient,
+    retailContracts,
+    ownInns,
+    existingRefs,
+    replaceDateSet,
+    identicalDateSet,
+    branchId,
   };
   const rows = rawRows.map((r) => classifyRow(r, ctx));
 
@@ -557,6 +590,9 @@ export function previewBankStatement(buffer, branchId = DEFAULT_BRANCH_ID) {
     retail_client: retailClient
       ? { id: retailClient.id, name: retailClient.name }
       : null,
+    existing_dates: existingDates,
+    existing_dates_count: existingDates.length,
+    replace_dates: existingDates.filter((d) => d.has_differences).map((d) => d.date),
     new_firms: newFirms,
     new_firms_count: newFirms.length,
     new_accounts: newAccounts,
@@ -565,6 +601,88 @@ export function previewBankStatement(buffer, branchId = DEFAULT_BRANCH_ID) {
     selected_count: rows.filter((r) => r.selected).length,
     rows,
   };
+}
+
+function buildExistingDateDiffs(rawRows, branchId) {
+  const byDate = new Map();
+  for (const raw of rawRows) {
+    if (!raw.date) continue;
+    if (!byDate.has(raw.date)) byDate.set(raw.date, []);
+    byDate.get(raw.date).push(raw);
+  }
+
+  const result = [];
+  for (const [date, newRaws] of byDate) {
+    const existing = queryAll(
+      `SELECT id, amount, type, external_ref, import_batch_id FROM payments
+       WHERE date = ? AND (branch_id = ? OR (branch_id IS NULL AND ? = ?))`,
+      [date, branchId, branchId, DEFAULT_BRANCH_ID],
+    );
+    if (!existing.length) continue;
+
+    const existingByRef = new Map();
+    let existingDebit = 0;
+    let existingCredit = 0;
+    let manualCount = 0;
+    for (const p of existing) {
+      const amt = Number(p.amount) || 0;
+      if (p.type === 'customer_income' || p.type === 'other_income') existingCredit += amt;
+      else existingDebit += amt;
+      if (p.external_ref) existingByRef.set(p.external_ref, p);
+      else manualCount += 1;
+    }
+
+    const newByRef = new Map();
+    let newDebit = 0;
+    let newCredit = 0;
+    for (const raw of newRaws) {
+      const ref = makeExternalRef(raw);
+      newByRef.set(ref, raw);
+      newDebit += Number(raw.debit) || 0;
+      newCredit += Number(raw.credit) || 0;
+    }
+
+    let added = 0;
+    let removed = 0;
+    let changed = 0;
+    for (const [ref, raw] of newByRef) {
+      const old = existingByRef.get(ref);
+      if (!old) {
+        added += 1;
+        continue;
+      }
+      const amt = (Number(raw.debit) || 0) > 0 ? Number(raw.debit) : Number(raw.credit);
+      if (Math.abs((Number(old.amount) || 0) - amt) > 0.009) changed += 1;
+    }
+    for (const ref of existingByRef.keys()) {
+      if (!newByRef.has(ref)) removed += 1;
+    }
+
+    const identical = added === 0
+      && removed === 0
+      && changed === 0
+      && manualCount === 0
+      && existing.length === newRaws.length;
+
+    result.push({
+      date,
+      existing_count: existing.length,
+      new_count: newRaws.length,
+      existing_debit: existingDebit,
+      existing_credit: existingCredit,
+      new_debit: newDebit,
+      new_credit: newCredit,
+      added,
+      removed,
+      changed,
+      manual_count: manualCount,
+      identical,
+      has_differences: !identical,
+      has_manual: manualCount > 0,
+    });
+  }
+
+  return result.sort((a, b) => String(b.date).localeCompare(String(a.date)));
 }
 
 function resolveOrCreateCounterparty(row, branchId, cache, createdList) {
@@ -650,90 +768,130 @@ function applyNewBankAccount(row, counterpartyId, firmId, branchId, updatedAccou
 /**
  * Create payments from confirmed preview rows.
  * Unmatched firms (is_new_firm) are created as counterparties on save.
+ * Dates in replaceDates (or auto-detected) are cleared first — one date = one statement.
  */
-export function confirmBankStatementImport(rows, userId, branchId = DEFAULT_BRANCH_ID, userRole = null) {
+export function confirmBankStatementImport(
+  rows,
+  userId,
+  branchId = DEFAULT_BRANCH_ID,
+  userRole = null,
+  options = {},
+) {
   if (!Array.isArray(rows) || rows.length === 0) {
     throw new Error('Нет строк для импорта');
   }
+  const selectedRows = rows.filter((r) => r && r.selected !== false);
+  if (!selectedRows.length) {
+    throw new Error('Нет строк для импорта');
+  }
+
+  const datesInSelection = [...new Set(selectedRows.map((r) => r.date).filter(Boolean))];
+  let replaceDates = Array.isArray(options.replaceDates)
+    ? options.replaceDates.filter(Boolean)
+    : null;
+  if (!replaceDates) {
+    replaceDates = datesInSelection.filter((date) => {
+      const hit = queryOne(
+        `SELECT id FROM payments
+         WHERE date = ? AND (branch_id = ? OR (branch_id IS NULL AND ? = ?))
+         LIMIT 1`,
+        [date, branchId, branchId, DEFAULT_BRANCH_ID],
+      );
+      return Boolean(hit);
+    });
+  }
+  const replaceSet = new Set(replaceDates);
+
   const batchId = uuidv4();
   const created = [];
   const skipped = [];
   const createdCounterparties = [];
   const updatedAccounts = [];
+  const replaced = [];
   const accountUpdateDone = new Set();
   const cpCache = new Map();
 
-  for (const row of rows) {
-    if (!row || row.selected === false) {
-      skipped.push({ reason: 'не выбрано', external_ref: row?.external_ref });
-      continue;
+  transaction(() => {
+    for (const date of replaceDates) {
+      const result = deletePaymentsByDate(date, userRole, branchId);
+      replaced.push(result);
     }
-    const amount = Number(row.amount);
-    if (!Number.isFinite(amount) || amount <= 0) {
-      skipped.push({ reason: 'некорректная сумма', external_ref: row.external_ref });
-      continue;
-    }
-    if (!row.date) {
-      skipped.push({ reason: 'нет даты', external_ref: row.external_ref });
-      continue;
-    }
-    if (row.external_ref) {
-      const exists = queryOne(
-        `SELECT id FROM payments
-         WHERE external_ref = ? AND (branch_id = ? OR (branch_id IS NULL AND ? = ?))`,
-        [row.external_ref, branchId, branchId, DEFAULT_BRANCH_ID],
-      );
-      if (exists) {
-        skipped.push({ reason: 'уже загружено', external_ref: row.external_ref, payment_id: exists.id });
+
+    for (const row of rows) {
+      if (!row || row.selected === false) {
+        skipped.push({ reason: 'не выбрано', external_ref: row?.external_ref });
         continue;
       }
-    }
-
-    let counterpartyId = row.counterparty_id || null;
-    let firmId = row.firm_id || null;
-    if (!counterpartyId && (row.is_new_firm || row.inn || row.suggested_name)) {
-      const resolved = resolveOrCreateCounterparty(row, branchId, cpCache, createdCounterparties);
-      counterpartyId = resolved.counterpartyId;
-      firmId = firmId || resolved.firmId;
-    }
-
-    if (row.is_new_account && counterpartyId && firmId) {
-      const accKey = `${firmId}:${normalizeAccount(row.account) || row.account}`;
-      if (!accountUpdateDone.has(accKey)) {
-        accountUpdateDone.add(accKey);
-        applyNewBankAccount(row, counterpartyId, firmId, branchId, updatedAccounts);
+      const amount = Number(row.amount);
+      if (!Number.isFinite(amount) || amount <= 0) {
+        skipped.push({ reason: 'некорректная сумма', external_ref: row.external_ref });
+        continue;
       }
+      if (!row.date) {
+        skipped.push({ reason: 'нет даты', external_ref: row.external_ref });
+        continue;
+      }
+      if (row.external_ref && !replaceSet.has(row.date)) {
+        const exists = queryOne(
+          `SELECT id FROM payments
+           WHERE external_ref = ? AND (branch_id = ? OR (branch_id IS NULL AND ? = ?))`,
+          [row.external_ref, branchId, branchId, DEFAULT_BRANCH_ID],
+        );
+        if (exists) {
+          skipped.push({ reason: 'уже загружено', external_ref: row.external_ref, payment_id: exists.id });
+          continue;
+        }
+      }
+
+      let counterpartyId = row.counterparty_id || null;
+      let firmId = row.firm_id || null;
+      if (!counterpartyId && (row.is_new_firm || row.inn || row.suggested_name)) {
+        const resolved = resolveOrCreateCounterparty(row, branchId, cpCache, createdCounterparties);
+        counterpartyId = resolved.counterpartyId;
+        firmId = firmId || resolved.firmId;
+      }
+
+      if (row.is_new_account && counterpartyId && firmId) {
+        const accKey = `${firmId}:${normalizeAccount(row.account) || row.account}`;
+        if (!accountUpdateDone.has(accKey)) {
+          accountUpdateDone.add(accKey);
+          applyNewBankAccount(row, counterpartyId, firmId, branchId, updatedAccounts);
+        }
+      }
+
+      const commentParts = [];
+      if (row.channel_label) commentParts.push(row.channel_label);
+      if (row.contract_number) commentParts.push(`дог. ${row.contract_number}`);
+      if (row.doc_no) commentParts.push(`№${row.doc_no}`);
+      if (row.purpose) commentParts.push(String(row.purpose).slice(0, 240));
+      const comment = (row.comment != null && String(row.comment).trim())
+        ? String(row.comment).trim()
+        : commentParts.join(' · ');
+
+      const payment = createPayment({
+        type: row.type || (row.direction === 'debit' ? 'supplier_payment' : 'customer_income'),
+        counterparty_id: counterpartyId,
+        firm_id: firmId,
+        contract_id: row.contract_id || null,
+        document_id: null,
+        amount,
+        date: row.date,
+        comment,
+        external_ref: row.external_ref || null,
+        import_batch_id: batchId,
+      }, userId, branchId, userRole);
+
+      created.push(payment);
     }
-
-    const commentParts = [];
-    if (row.channel_label) commentParts.push(row.channel_label);
-    if (row.contract_number) commentParts.push(`дог. ${row.contract_number}`);
-    if (row.doc_no) commentParts.push(`№${row.doc_no}`);
-    if (row.purpose) commentParts.push(String(row.purpose).slice(0, 240));
-    const comment = (row.comment != null && String(row.comment).trim())
-      ? String(row.comment).trim()
-      : commentParts.join(' · ');
-
-    const payment = createPayment({
-      type: row.type || (row.direction === 'debit' ? 'supplier_payment' : 'customer_income'),
-      counterparty_id: counterpartyId,
-      firm_id: firmId,
-      contract_id: row.contract_id || null,
-      document_id: null,
-      amount,
-      date: row.date,
-      comment,
-      external_ref: row.external_ref || null,
-      import_batch_id: batchId,
-    }, userId, branchId, userRole);
-
-    created.push(payment);
-  }
+  });
 
   return {
     import_batch_id: batchId,
     created_count: created.length,
     skipped_count: skipped.length,
+    replaced_dates: replaced,
+    replaced_dates_count: replaced.length,
+    deleted_count: replaced.reduce((s, r) => s + (r.deleted_count || 0), 0),
     created_counterparties_count: createdCounterparties.length,
     created_counterparties: createdCounterparties,
     updated_accounts_count: updatedAccounts.length,

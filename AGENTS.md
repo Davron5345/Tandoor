@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-07-27 (Банк: дебет/кредит и сальдо)
+**Последнее обновление документации:** 2026-07-27 (Банк: удаление/замена выписки дня)
 
 ---
 
@@ -336,6 +336,8 @@ Frontend зеркало: `client/src/permissions.js`.
 - Формат: Excel `AccReferenceReport*.xlsx` (Internet Bank Ipak Yuli, «Справка о работе счета»)
 - UI: `/payments` → «Загрузить выписку» → превью (строки **сгруппированы по датам**) → подтверждение
 - После импорта в списке Банка: **одна календарная дата = одна «Выписка»** (как документ); внутри — операции дня (`payments`); открытие/редактирование/удаление строк
+- Удаление выписки: `DELETE /api/payments/by-date/:date` (все операции дня)
+- Повторная загрузка той же даты: превью сравнивает с существующими (`existing_dates`); при различиях — уведомление; при сохранении день **заменяется** (не дублируется); без изменений — строки сняты с выбора
 - В списке и карточке дня: **сальдо нач. / дебет (расход) / кредит (приход) / сальдо кон.**; обороты за день; сальдо от `opening_balance` банка + нарастающий итог по дням (`GET /api/payments/bank-opening`)
 - Ручные операции попадают в выписку своей даты; фильтры С/По по дате
 - Операции остаются в `payments` (не складской `documents.type`); P&L/долги без изменений
@@ -404,7 +406,7 @@ GET  /api/auth/roles
 | `/api/calculations` | catalog.routes.js | Калькуляции |
 | `/api/documents` | documents.routes.js | Складские документы (`date_from`, `date_to`, `counterparty_id`, type, status) |
 | `/api/counterparties` | counterparties.routes.js | Контрагенты, договоры (`/:id/contracts` CRUD), `/:id/firms` — юрлица поставщика (CRUD) |
-| `/api/payments` | finance.routes.js | Оплаты, касса; `GET /api/payments/bank-opening` — начальное сальдо банка; `POST /api/payments/import/parse`, `POST /api/payments/import/confirm` — выписка AccReferenceReport |
+| `/api/payments` | finance.routes.js | Оплаты, касса; `GET /bank-opening`; `DELETE /by-date/:date` — удалить выписку дня; `POST /import/parse|confirm` (+ `replace_dates`) |
 | `/api/cash-articles` | finance.routes.js | Статьи кассы |
 | `/api/stats`, `/api/reports/*` | org.routes.js | Отчёты, дашборд; `/api/reports/supplier-debts?date_from&date_to&supplier_id` — оборотная ведомость поставщиков |
 | `/api/branches`, `/api/departments`, `/api/users` | org.routes.js | Оргструктура |
@@ -661,6 +663,7 @@ GET  /api/auth/roles
 | 2026-07-27 | В окне «Редактировать фирму» — список договоров + создать/редактировать |
 | 2026-07-27 | Банк: день = документ «Выписка»; внутри операции; превью импорта по датам |
 | 2026-07-27 | Банк: колонки дебет/кредит (обороты), сальдо нач./кон. от НС банка; `GET /api/payments/bank-opening` |
+| 2026-07-27 | Банк: удаление выписки за дату; повторный импорт той же даты — diff и замена без дублей |
 
 ---
 

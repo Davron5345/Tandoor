@@ -415,3 +415,25 @@ export function deletePayment(id, userRole = null, branchId = DEFAULT_BRANCH_ID)
   assertPaymentShiftAccess(userRole, existing.date);
   run('DELETE FROM payments WHERE id = ?', [id]);
 }
+
+/** Удалить все банковские операции за дату (выписка-день). */
+export function deletePaymentsByDate(date, userRole = null, branchId = DEFAULT_BRANCH_ID) {
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(String(date))) {
+    throw new Error('Укажите дату выписки (YYYY-MM-DD)');
+  }
+  assertPaymentShiftAccess(userRole, date);
+  const rows = queryAll(
+    `SELECT id FROM payments
+     WHERE date = ? AND (branch_id = ? OR (branch_id IS NULL AND ? = ?))`,
+    [date, branchId, branchId, DEFAULT_BRANCH_ID],
+  );
+  if (!rows.length) {
+    return { ok: true, date, deleted_count: 0 };
+  }
+  run(
+    `DELETE FROM payments
+     WHERE date = ? AND (branch_id = ? OR (branch_id IS NULL AND ? = ?))`,
+    [date, branchId, branchId, DEFAULT_BRANCH_ID],
+  );
+  return { ok: true, date, deleted_count: rows.length };
+}

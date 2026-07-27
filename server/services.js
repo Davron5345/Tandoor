@@ -63,6 +63,7 @@ export {
   createPayment,
   updatePayment,
   deletePayment,
+  deletePaymentsByDate,
 } from './services/payments.js';
 
 export {

@@ -212,6 +212,22 @@ export default function Payments() {
     }
   };
 
+  const removeDay = async (date) => {
+    const day = allDaysWithBalances.find((d) => d.date === date);
+    const count = day?.count || payments.filter((p) => p.date === date).length;
+    if (!window.confirm(
+      `Удалить выписку за ${formatDate(date)}?\nБудут удалены все операции этого дня (${count}).`,
+    )) return;
+    try {
+      const result = await api.deleteBankDay(date);
+      show(`Удалено операций: ${result.deleted_count || 0}`);
+      if (viewDay === date) setViewDay(null);
+      await load();
+    } catch (e) {
+      show(e.message, 'error');
+    }
+  };
+
   const onPickStatement = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = '';
@@ -223,7 +239,18 @@ export default function Payments() {
       setImportMeta(preview);
       setImportFilter('all');
       setImportOpen(true);
-      if (preview.new_firms_count > 0) {
+      const existing = preview.existing_dates || [];
+      const diffs = existing.filter((d) => d.has_differences);
+      const same = existing.filter((d) => d.identical);
+      if (diffs.length > 0) {
+        show(
+          `Даты уже есть и отличаются (${diffs.map((d) => formatDate(d.date)).join(', ')}). `
+          + 'При сохранении выписка за эти дни будет заменена.',
+          'error',
+        );
+      } else if (same.length > 0) {
+        show(`Без изменений: ${same.map((d) => formatDate(d.date)).join(', ')} — уже загружено`, 'error');
+      } else if (preview.new_firms_count > 0) {
         show(`Найдено новых фирм: ${preview.new_firms_count} — создадутся при сохранении`, 'error');
       } else if (preview.new_accounts_count > 0) {
         show(`Найдено новых р/с: ${preview.new_accounts_count} — запишутся на фирмы при сохранении`, 'error');
@@ -267,6 +294,14 @@ export default function Payments() {
   }, [visibleImportRows]);
 
   const selectedImportCount = importRows.filter((r) => r.selected && !r.already_imported).length;
+  const replaceDatesLive = useMemo(() => {
+    const fromMeta = importMeta?.existing_dates || [];
+    return fromMeta.filter((d) => d.has_differences);
+  }, [importMeta]);
+  const identicalDatesLive = useMemo(() => {
+    const fromMeta = importMeta?.existing_dates || [];
+    return fromMeta.filter((d) => d.identical);
+  }, [importMeta]);
 
   const newFirmsLive = useMemo(() => {
     const map = new Map();
@@ -335,22 +370,38 @@ export default function Payments() {
   };
 
   const confirmImport = async () => {
-    const rows = importRows.filter((r) => r.selected && !r.already_imported);
-    if (!rows.length) {
+    const saveRows = importRows.filter((r) => r.selected && !r.already_imported);
+    if (!saveRows.length) {
       show('Отметьте хотя бы одну строку', 'error');
       return;
     }
+    const replaceDates = [
+      ...new Set([
+        ...(importMeta?.replace_dates || []),
+        ...saveRows.filter((r) => r.replaces_date).map((r) => r.date),
+      ].filter(Boolean)),
+    ];
+    if (replaceDates.length) {
+      const ok = window.confirm(
+        `Заменить выписки за даты:\n${replaceDates.map((d) => formatDate(d)).join(', ')}\n\n`
+        + 'Старые операции этих дней будут удалены и записаны заново. Продолжить?',
+      );
+      if (!ok) return;
+    }
     setImportBusy(true);
     try {
-      const result = await api.confirmBankStatement(rows);
+      const result = await api.confirmBankStatement(saveRows, { replace_dates: replaceDates });
       const firmMsg = result.created_counterparties_count
         ? `, новых фирм: ${result.created_counterparties_count}`
         : '';
       const accMsg = result.updated_accounts_count
         ? `, новых р/с: ${result.updated_accounts_count}`
         : '';
-      const dates = new Set(rows.map((r) => r.date).filter(Boolean));
-      show(`Создано операций: ${result.created_count}${firmMsg}${accMsg}`
+      const replMsg = result.replaced_dates_count
+        ? `, заменено дней: ${result.replaced_dates_count}`
+        : '';
+      const dates = new Set(saveRows.map((r) => r.date).filter(Boolean));
+      show(`Создано операций: ${result.created_count}${firmMsg}${accMsg}${replMsg}`
         + (result.skipped_count ? `, пропущено: ${result.skipped_count}` : '')
         + (dates.size ? ` · дней: ${dates.size}` : ''));
       closeImport(true);
@@ -474,6 +525,11 @@ export default function Payments() {
                       <IconButton title="Открыть" onClick={() => setViewDay(day.date)}>
                         <IconEye />
                       </IconButton>
+                      {canDelete && (
+                        <IconButton title="Удалить выписку" danger onClick={() => removeDay(day.date)}>
+                          <IconTrash />
+                        </IconButton>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -508,6 +564,15 @@ export default function Payments() {
           onClose={() => setViewDay(null)}
           footer={
             <>
+              {canDelete && (
+                <button
+                  type="button"
+                  className="btn btn-danger"
+                  onClick={() => removeDay(viewDay)}
+                >
+                  Удалить выписку
+                </button>
+              )}
               <button type="button" className="btn btn-ghost" onClick={() => setViewDay(null)}>
                 Закрыть
               </button>
@@ -636,7 +701,11 @@ export default function Payments() {
                 disabled={importBusy || selectedImportCount === 0}
                 onClick={confirmImport}
               >
-                {importBusy ? 'Создание…' : `Сохранить (${selectedImportCount})`}
+                {importBusy
+                  ? 'Сохранение…'
+                  : (replaceDatesLive.length
+                    ? `Заменить и сохранить (${selectedImportCount})`
+                    : `Сохранить (${selectedImportCount})`)}
               </button>
             </>
           }
@@ -648,8 +717,35 @@ export default function Payments() {
                 ? ` Эквайринг → «${importMeta.retail_client.name}».`
                 : ' Нет клиента «КЛИЕНТ» — Click/Payme/терминал не привяжутся автоматически.'}
               {' '}
-              Новые фирмы создаются при сохранении. Строки сгруппированы по датам — после сохранения каждая дата станет отдельной выпиской.
+              Одна дата — одна выписка: повторная загрузка с различиями заменит день при сохранении.
             </p>
+
+            {replaceDatesLive.length > 0 && (
+              <div className="alert alert-error bank-import-new-firms" role="status">
+                <strong>Даты уже есть — будут заменены ({replaceDatesLive.length}):</strong>
+                {' '}
+                {replaceDatesLive.map((d) => (
+                  `${formatDate(d.date)} (было ${d.existing_count} → станет ${d.new_count}`
+                  + (d.added || d.removed || d.changed
+                    ? `; +${d.added}/−${d.removed}/≠${d.changed}`
+                    : '')
+                  + (d.has_manual ? '; есть ручные' : '')
+                  + ')'
+                )).join('; ')}.
+                {' '}
+                Старые операции этих дней удалятся при сохранении.
+              </div>
+            )}
+
+            {identicalDatesLive.length > 0 && (
+              <div className="alert alert-warning bank-import-new-accounts" role="status">
+                <strong>Без изменений ({identicalDatesLive.length}):</strong>
+                {' '}
+                {identicalDatesLive.map((d) => formatDate(d.date)).join(', ')}
+                {' — '}
+                уже загружено, строки сняты с выбора.
+              </div>
+            )}
 
             {newFirmsLive.length > 0 && (
               <div className="alert alert-error bank-import-new-firms" role="status">
