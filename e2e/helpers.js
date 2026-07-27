@@ -19,7 +19,10 @@ export async function pickCategoryOption(page, labelText, optionName, searchPlac
   const group = page.locator('.form-group').filter({ has: page.getByText(labelText, { exact: true }) });
   await group.locator('.category-select-trigger').click();
   await page.getByPlaceholder(searchPlaceholder).fill(optionName);
-  await page.getByRole('option', { name: optionName }).click();
+  // Не page.getByRole('option') — на списке документов есть нативный <select> с тем же текстом.
+  await page.locator('.category-select-dropdown [role="listbox"]')
+    .getByRole('option', { name: optionName })
+    .click();
 }
 
 export async function pickProductOption(page, productName) {
