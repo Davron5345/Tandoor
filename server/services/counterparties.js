@@ -18,7 +18,7 @@ export function getCounterparties(type, branchId = DEFAULT_BRANCH_ID) {
     params.push(type);
   }
   sql += ' ORDER BY type, name';
-  return queryAll(sql, params);
+  return enrichCounterpartiesWithFirms(queryAll(sql, params), branchId);
 }
 
 export function getCounterparty(id, branchId = null) {
@@ -105,6 +105,7 @@ export function deleteCounterparty(id, branchId = DEFAULT_BRANCH_ID) {
     );
   }
 
+  run('DELETE FROM counterparty_firms WHERE counterparty_id = ? AND branch_id = ?', [id, branchId]);
   run('DELETE FROM counterparty_contracts WHERE counterparty_id = ? AND branch_id = ?', [id, branchId]);
   run('DELETE FROM product_suppliers WHERE supplier_id = ? AND branch_id = ?', [id, branchId]);
   run('DELETE FROM counterparties WHERE id = ? AND branch_id = ?', [id, branchId]);
@@ -180,4 +181,162 @@ export function deleteCounterpartyContract(counterpartyId, contractId, branchId 
   );
   if (used) throw new Error('Договор используется в документах и не может быть удалён');
   run('DELETE FROM counterparty_contracts WHERE id = ?', [contractId]);
+}
+
+function normalizeFirmInn(value) {
+  const digits = String(value || '').replace(/\D/g, '');
+  return digits.length === 9 ? digits : null;
+}
+
+export function getCounterpartyFirms(counterpartyId, branchId = DEFAULT_BRANCH_ID) {
+  const cp = getCounterparty(counterpartyId, branchId);
+  if (!cp) throw new Error('Контрагент не найден');
+  const firms = queryAll(`
+    SELECT f.id, f.counterparty_id, f.branch_id, f.name, f.inn, f.contract_id,
+           f.is_default, f.created_at, cc.number as contract_number
+    FROM counterparty_firms f
+    LEFT JOIN counterparty_contracts cc ON cc.id = f.contract_id
+    WHERE f.counterparty_id = ? AND f.branch_id = ?
+    ORDER BY f.is_default DESC, f.name
+  `, [counterpartyId, branchId]);
+
+  const usedDoc = queryAll(`
+    SELECT DISTINCT firm_id FROM documents
+    WHERE firm_id IS NOT NULL AND counterparty_id = ?
+      AND (branch_id = ? OR branch_id IS NULL)
+  `, [counterpartyId, branchId]);
+  const usedPay = queryAll(`
+    SELECT DISTINCT firm_id FROM payments
+    WHERE firm_id IS NOT NULL AND counterparty_id = ?
+      AND (branch_id = ? OR (branch_id IS NULL AND ? = ?))
+  `, [counterpartyId, branchId, branchId, DEFAULT_BRANCH_ID]);
+  const usedIds = new Set([
+    ...usedDoc.map((r) => r.firm_id),
+    ...usedPay.map((r) => r.firm_id),
+  ]);
+
+  return firms.map((f) => ({ ...f, is_used: usedIds.has(f.id) }));
+}
+
+export function findCounterpartyFirmByInn(inn, branchId = DEFAULT_BRANCH_ID) {
+  const normalized = normalizeFirmInn(inn);
+  if (!normalized) return null;
+  return queryOne(`
+    SELECT f.*, c.name as counterparty_name, c.type as counterparty_type
+    FROM counterparty_firms f
+    JOIN counterparties c ON c.id = f.counterparty_id
+    WHERE f.branch_id = ? AND f.inn = ?
+    LIMIT 1
+  `, [branchId, normalized]);
+}
+
+export function createCounterpartyFirm(counterpartyId, data, branchId = DEFAULT_BRANCH_ID) {
+  const cp = getCounterparty(counterpartyId, branchId);
+  if (!cp) throw new Error('Контрагент не найден');
+  if (cp.type !== 'supplier') throw new Error('Фирмы для оплаты доступны только у поставщиков');
+  const name = (data.name || '').trim();
+  if (!name) throw new Error('Укажите название юрлица');
+  const inn = normalizeFirmInn(data.inn);
+  if (inn) {
+    const dup = findCounterpartyFirmByInn(inn, branchId);
+    if (dup) throw new Error(`ИНН ${inn} уже используется у «${dup.counterparty_name}» (${dup.name})`);
+  }
+  if (data.contract_id) {
+    const contract = queryOne(
+      'SELECT id FROM counterparty_contracts WHERE id = ? AND counterparty_id = ? AND branch_id = ?',
+      [data.contract_id, counterpartyId, branchId],
+    );
+    if (!contract) throw new Error('Договор не найден у этого поставщика');
+  }
+
+  const id = uuidv4();
+  const isDefault = data.is_default ? 1 : 0;
+  if (isDefault) {
+    run('UPDATE counterparty_firms SET is_default = 0 WHERE counterparty_id = ? AND branch_id = ?', [
+      counterpartyId, branchId,
+    ]);
+  }
+  run(`
+    INSERT INTO counterparty_firms (id, counterparty_id, branch_id, name, inn, contract_id, is_default)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `, [id, counterpartyId, branchId, name, inn, data.contract_id || null, isDefault]);
+
+  return getCounterpartyFirms(counterpartyId, branchId).find((f) => f.id === id);
+}
+
+export function updateCounterpartyFirm(counterpartyId, firmId, data, branchId = DEFAULT_BRANCH_ID) {
+  const row = queryOne(
+    'SELECT * FROM counterparty_firms WHERE id = ? AND counterparty_id = ? AND branch_id = ?',
+    [firmId, counterpartyId, branchId],
+  );
+  if (!row) throw new Error('Фирма не найдена');
+  const name = (data.name ?? row.name).trim();
+  if (!name) throw new Error('Укажите название юрлица');
+  const inn = data.inn !== undefined ? normalizeFirmInn(data.inn) : row.inn;
+  if (inn) {
+    const dup = findCounterpartyFirmByInn(inn, branchId);
+    if (dup && dup.id !== firmId) {
+      throw new Error(`ИНН ${inn} уже используется у «${dup.counterparty_name}» (${dup.name})`);
+    }
+  }
+  const contractId = data.contract_id !== undefined ? (data.contract_id || null) : row.contract_id;
+  if (contractId) {
+    const contract = queryOne(
+      'SELECT id FROM counterparty_contracts WHERE id = ? AND counterparty_id = ? AND branch_id = ?',
+      [contractId, counterpartyId, branchId],
+    );
+    if (!contract) throw new Error('Договор не найден у этого поставщика');
+  }
+  const isDefault = data.is_default ? 1 : (row.is_default || 0);
+  if (isDefault) {
+    run('UPDATE counterparty_firms SET is_default = 0 WHERE counterparty_id = ? AND branch_id = ?', [
+      counterpartyId, branchId,
+    ]);
+  }
+  run(`
+    UPDATE counterparty_firms
+    SET name = ?, inn = ?, contract_id = ?, is_default = ?
+    WHERE id = ? AND counterparty_id = ? AND branch_id = ?
+  `, [name, inn, contractId, isDefault, firmId, counterpartyId, branchId]);
+  return getCounterpartyFirms(counterpartyId, branchId).find((f) => f.id === firmId);
+}
+
+export function deleteCounterpartyFirm(counterpartyId, firmId, branchId = DEFAULT_BRANCH_ID) {
+  const row = queryOne(
+    'SELECT id FROM counterparty_firms WHERE id = ? AND counterparty_id = ? AND branch_id = ?',
+    [firmId, counterpartyId, branchId],
+  );
+  if (!row) throw new Error('Фирма не найдена');
+  const usedDoc = queryOne('SELECT id FROM documents WHERE firm_id = ? LIMIT 1', [firmId]);
+  const usedPay = queryOne('SELECT id FROM payments WHERE firm_id = ? LIMIT 1', [firmId]);
+  if (usedDoc || usedPay) {
+    throw new Error('Фирма используется в документах или оплатах и не может быть удалена');
+  }
+  run('DELETE FROM counterparty_firms WHERE id = ?', [firmId]);
+}
+
+export function enrichCounterpartiesWithFirms(rows, branchId = DEFAULT_BRANCH_ID) {
+  const firms = queryAll(`
+    SELECT counterparty_id, id, name, inn, is_default
+    FROM counterparty_firms
+    WHERE branch_id = ?
+    ORDER BY is_default DESC, name
+  `, [branchId]);
+  const byCp = new Map();
+  for (const f of firms) {
+    if (!byCp.has(f.counterparty_id)) byCp.set(f.counterparty_id, []);
+    byCp.get(f.counterparty_id).push(f);
+  }
+  return rows.map((cp) => {
+    const cpFirms = byCp.get(cp.id) || [];
+    const inns = cpFirms.map((f) => f.inn).filter(Boolean);
+    return {
+      ...cp,
+      firms: cpFirms,
+      firms_count: cpFirms.length,
+      firms_label: cpFirms.length
+        ? (cpFirms.length === 1 ? (inns[0] || cpFirms[0].name) : `${cpFirms.length} фирмы`)
+        : (cp.inn || ''),
+    };
+  });
 }

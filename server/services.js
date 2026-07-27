@@ -8,6 +8,11 @@ export {
   getCounterpartyContracts,
   createCounterpartyContract,
   deleteCounterpartyContract,
+  getCounterpartyFirms,
+  createCounterpartyFirm,
+  updateCounterpartyFirm,
+  deleteCounterpartyFirm,
+  findCounterpartyFirmByInn,
 } from './services/counterparties.js';
 
 export {

@@ -819,7 +819,9 @@ function ReconciliationReport() {
   const [counterparties, setCounterparties] = useState([]);
   const [counterpartyId, setCounterpartyId] = useState('');
   const [contractId, setContractId] = useState('');
+  const [firmId, setFirmId] = useState('');
   const [contracts, setContracts] = useState([]);
+  const [firms, setFirms] = useState([]);
   const [documents, setDocuments] = useState([]);
   const [payments, setPayments] = useState([]);
   const [cpOpeningBalance, setCpOpeningBalance] = useState(0);
@@ -848,14 +850,21 @@ function ReconciliationReport() {
 
   useEffect(() => {
     setContractId('');
+    setFirmId('');
     if (!counterpartyId || !isSupplier) {
       setContracts([]);
+      setFirms([]);
       return undefined;
     }
     let cancelled = false;
-    api.getCounterpartyContracts(counterpartyId)
-      .then((list) => {
-        if (!cancelled) setContracts(list);
+    Promise.all([
+      api.getCounterpartyContracts(counterpartyId),
+      api.getCounterpartyFirms(counterpartyId),
+    ])
+      .then(([contractList, firmList]) => {
+        if (cancelled) return;
+        setContracts(contractList);
+        setFirms(firmList || []);
       })
       .catch(() => {
         if (!cancelled) {
@@ -865,6 +874,7 @@ function ReconciliationReport() {
             date: null,
             virtual: true,
           }]);
+          setFirms([]);
         }
       });
     return () => {
@@ -883,6 +893,16 @@ function ReconciliationReport() {
       return !doc.contract_id || doc.contract_id === DEFAULT_CONTRACT_ID;
     }
     return doc.contract_id === selectedContractId;
+  };
+
+  const docMatchesFirm = (doc, selectedFirmId) => {
+    if (!selectedFirmId) return true;
+    return doc.firm_id === selectedFirmId;
+  };
+
+  const payMatchesFirm = (p, selectedFirmId) => {
+    if (!selectedFirmId) return true;
+    return p.firm_id === selectedFirmId;
   };
 
   const load = useCallback(() => {
@@ -933,8 +953,8 @@ function ReconciliationReport() {
       setCpOpeningBalance(0);
       return;
     }
-    // Начальное сальдо — по контрагенту целиком; при фильтре по договору не показываем
-    if (contractId) {
+    // Начальное сальдо — по контрагенту целиком; при фильтре по договору/фирме не показываем
+    if (contractId || firmId) {
       setCpOpeningBalance(0);
       return;
     }
@@ -947,12 +967,14 @@ function ReconciliationReport() {
         setCpOpeningBalance(row?.opening_balance || 0);
       })
       .catch(() => setCpOpeningBalance(0));
-  }, [counterpartyId, selectedCounterparty, contractId, branchId]);
+  }, [counterpartyId, selectedCounterparty, contractId, firmId, branchId]);
 
   const rows = useMemo(() => {
     if (!selectedCounterparty) return [];
     const supplier = selectedCounterparty.type === 'supplier';
-    const filteredDocs = documents.filter((d) => docMatchesContract(d, contractId));
+    const filteredDocs = documents.filter(
+      (d) => docMatchesContract(d, contractId) && docMatchesFirm(d, firmId),
+    );
     const matchedDocIds = new Set(filteredDocs.map((d) => d.id));
 
     const docRows = filteredDocs
@@ -996,6 +1018,7 @@ function ReconciliationReport() {
           // При фильтре по договору — только оплаты, привязанные к документам этого договора
           if (!p.document_id || !matchedDocIds.has(p.document_id)) return null;
         }
+        if (!payMatchesFirm(p, firmId)) return null;
         return {
           date: p.date,
           ref: `Оплата №${p.number}`,
@@ -1024,7 +1047,7 @@ function ReconciliationReport() {
       running += (row.debit || 0) - (row.credit || 0);
       return { ...row, balance: running };
     });
-  }, [documents, payments, selectedCounterparty, cpOpeningBalance, contractId]);
+  }, [documents, payments, selectedCounterparty, cpOpeningBalance, contractId, firmId]);
 
   const totals = useMemo(() => {
     const debit = rows.reduce((s, r) => s + (r.debit || 0), 0);
@@ -1048,6 +1071,7 @@ function ReconciliationReport() {
                 onChange={(e) => {
                   setCounterpartyId(e.target.value);
                   setContractId('');
+                  setFirmId('');
                 }}
               >
                 <option value="">— выберите —</option>
@@ -1058,6 +1082,23 @@ function ReconciliationReport() {
                 ))}
               </select>
             </label>
+            {isSupplier && (
+              <label>
+                Фирма
+                <select
+                  value={firmId}
+                  onChange={(e) => setFirmId(e.target.value)}
+                  disabled={!counterpartyId}
+                >
+                  <option value="">Все фирмы</option>
+                  {firms.map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.name}{f.inn ? ` (${f.inn})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             {isSupplier && (
               <label>
                 Договор

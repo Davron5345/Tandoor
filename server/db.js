@@ -502,6 +502,7 @@ function migrateSchema() {
   migrateUnits();
   migrateCounterpartyInn();
   migratePaymentBankImport();
+  migrateCounterpartyFirms();
   sanitizeOrphanBranchReferences();
   addPerformanceIndexes();
 }
@@ -537,6 +538,59 @@ function migratePaymentBankImport() {
   const done = queryOne("SELECT value FROM settings WHERE key = 'payment_bank_import_v1'");
   if (!done) {
     run("INSERT OR REPLACE INTO settings (key, value) VALUES ('payment_bank_import_v1', '1')");
+    saveDb();
+  }
+}
+
+function migrateCounterpartyFirms() {
+  run(`
+    CREATE TABLE IF NOT EXISTS counterparty_firms (
+      id TEXT PRIMARY KEY,
+      counterparty_id TEXT NOT NULL REFERENCES counterparties(id) ON DELETE CASCADE,
+      branch_id TEXT NOT NULL REFERENCES branches(id),
+      name TEXT NOT NULL,
+      inn TEXT,
+      contract_id TEXT REFERENCES counterparty_contracts(id),
+      is_default INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+
+  const docCols = queryAll('PRAGMA table_info(documents)').map((c) => c.name);
+  if (!docCols.includes('firm_id')) {
+    run('ALTER TABLE documents ADD COLUMN firm_id TEXT REFERENCES counterparty_firms(id)');
+  }
+  const payCols = queryAll('PRAGMA table_info(payments)').map((c) => c.name);
+  if (!payCols.includes('firm_id')) {
+    run('ALTER TABLE payments ADD COLUMN firm_id TEXT REFERENCES counterparty_firms(id)');
+  }
+  try {
+    run('CREATE INDEX IF NOT EXISTS idx_cp_firms_counterparty ON counterparty_firms(counterparty_id, branch_id)');
+    run('CREATE INDEX IF NOT EXISTS idx_cp_firms_inn ON counterparty_firms(branch_id, inn)');
+  } catch {
+    /* ignore */
+  }
+
+  const done = queryOne("SELECT value FROM settings WHERE key = 'counterparty_firms_v1'");
+  if (!done) {
+    const legacy = queryAll(`
+      SELECT id, branch_id, name, inn FROM counterparties
+      WHERE inn IS NOT NULL AND TRIM(inn) != ''
+    `);
+    for (const cp of legacy) {
+      const inn = String(cp.inn).replace(/\D/g, '');
+      if (inn.length !== 9) continue;
+      const exists = queryOne(
+        'SELECT id FROM counterparty_firms WHERE counterparty_id = ? AND inn = ?',
+        [cp.id, inn],
+      );
+      if (exists) continue;
+      run(`
+        INSERT INTO counterparty_firms (id, counterparty_id, branch_id, name, inn, is_default)
+        VALUES (?, ?, ?, ?, ?, 1)
+      `, [uuidv4(), cp.id, cp.branch_id || 'main', cp.name, inn]);
+    }
+    run("INSERT OR REPLACE INTO settings (key, value) VALUES ('counterparty_firms_v1', '1')");
     saveDb();
   }
 }

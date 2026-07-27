@@ -19,6 +19,7 @@ export const PG_MIGRATION_SETTINGS_KEYS = [
   'counterparties_branch_v1',
   'counterparty_contracts_v1',
   'counterparty_inn_v1',
+  'counterparty_firms_v1',
   'payment_bank_import_v1',
   'department_avg_cost_v1',
   'departments_v1',
@@ -208,6 +209,17 @@ CREATE TABLE IF NOT EXISTS counterparty_contracts (
   created_at TEXT DEFAULT (${NOW})
 );
 
+CREATE TABLE IF NOT EXISTS counterparty_firms (
+  id TEXT PRIMARY KEY,
+  counterparty_id TEXT NOT NULL REFERENCES counterparties(id) ON DELETE CASCADE,
+  branch_id TEXT NOT NULL REFERENCES branches(id),
+  name TEXT NOT NULL,
+  inn TEXT,
+  contract_id TEXT REFERENCES counterparty_contracts(id),
+  is_default INTEGER DEFAULT 0,
+  created_at TEXT DEFAULT (${NOW})
+);
+
 CREATE TABLE IF NOT EXISTS departments (
   id TEXT PRIMARY KEY,
   branch_id TEXT NOT NULL REFERENCES branches(id),
@@ -298,6 +310,7 @@ CREATE TABLE IF NOT EXISTS documents (
   type TEXT NOT NULL,
   counterparty_id TEXT,
   contract_id TEXT,
+  firm_id TEXT REFERENCES counterparty_firms(id),
   source_document_id TEXT,
   date TEXT NOT NULL,
   comment TEXT,
@@ -391,7 +404,8 @@ CREATE TABLE IF NOT EXISTS payments (
   article_id TEXT,
   external_ref TEXT,
   import_batch_id TEXT,
-  contract_id TEXT
+  contract_id TEXT,
+  firm_id TEXT REFERENCES counterparty_firms(id)
 );
 
 CREATE TABLE IF NOT EXISTS shop_orders (
@@ -522,6 +536,10 @@ CREATE INDEX IF NOT EXISTS idx_payments_branch_date ON payments (branch_id, date
 CREATE INDEX IF NOT EXISTS idx_payments_counterparty ON payments (counterparty_id);
 CREATE INDEX IF NOT EXISTS idx_payments_document ON payments (document_id);
 CREATE INDEX IF NOT EXISTS idx_payments_external_ref ON payments (branch_id, external_ref);
+CREATE INDEX IF NOT EXISTS idx_cp_firms_counterparty ON counterparty_firms (counterparty_id, branch_id);
+CREATE INDEX IF NOT EXISTS idx_cp_firms_inn ON counterparty_firms (branch_id, inn);
+CREATE INDEX IF NOT EXISTS idx_documents_firm ON documents (firm_id);
+CREATE INDEX IF NOT EXISTS idx_payments_firm ON payments (firm_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions (user_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_device ON sessions (device_id);
 CREATE INDEX IF NOT EXISTS idx_shop_orders_document ON shop_orders (document_id);
@@ -552,6 +570,7 @@ export const PG_TABLE_IMPORT_ORDER = [
   'counterparties',
   'product_suppliers',
   'counterparty_contracts',
+  'counterparty_firms',
   'departments',
   'product_branch_stock',
   'product_department_stock',

@@ -6,8 +6,10 @@ import { DEFAULT_BRANCH_ID } from '../branches.js';
 import { createPayment } from './payments.js';
 import {
   createCounterparty,
+  createCounterpartyFirm,
   getCounterparties,
   getCounterpartyContracts,
+  findCounterpartyFirmByInn,
   DEFAULT_CONTRACT_ID,
 } from './counterparties.js';
 
@@ -284,6 +286,7 @@ function classifyRow(raw, ctx) {
   let channelId = null;
   let channelLabel = null;
   let isNewFirm = false;
+  let firmMatch = null;
 
   if (COMMISSION_RE.test(raw.name) || /16401/.test(raw.account)) {
     type = 'other_expense';
@@ -302,37 +305,58 @@ function classifyRow(raw, ctx) {
         : `эквайринг → ${retailClient.name} (добавьте договор «${channel.label}»)`)
       : 'эквайринг: создайте клиента «КЛИЕНТ» и договоры Click / Payme / Терминал';
   } else if (direction === 'debit') {
-    counterparty = matchByInn(counterparties, counterpartyInn)
-      || matchByName(counterparties, raw.name, 'supplier');
-    if (counterparty?.type === 'client') {
-      type = 'other_expense';
-      matchReason = counterpartyInn
-        ? `возврат/расход клиенту по ИНН ${counterpartyInn}`
-        : 'расход клиенту по имени';
-    } else {
+    firmMatch = counterpartyInn ? findCounterpartyFirmByInn(counterpartyInn, ctx.branchId) : null;
+    if (firmMatch) {
+      counterparty = {
+        id: firmMatch.counterparty_id,
+        name: firmMatch.counterparty_name,
+        type: firmMatch.counterparty_type,
+      };
       type = 'supplier_payment';
-      if (counterparty) {
+      matchReason = `фирма «${firmMatch.name}» (ИНН ${counterpartyInn}) → ${firmMatch.counterparty_name}`;
+    } else {
+      counterparty = matchByInn(counterparties, counterpartyInn)
+        || matchByName(counterparties, raw.name, 'supplier');
+      if (counterparty?.type === 'client') {
+        type = 'other_expense';
         matchReason = counterpartyInn
-          ? `поставщик по ИНН ${counterpartyInn}`
-          : 'поставщик по имени';
-      } else if (counterpartyInn || suggestedName) {
-        isNewFirm = true;
-        matchReason = counterpartyInn
-          ? `новая фирма: ${suggestedName || raw.name} (ИНН ${counterpartyInn}) — создастся при сохранении`
-          : `новая фирма: ${suggestedName} — создастся при сохранении`;
+          ? `возврат/расход клиенту по ИНН ${counterpartyInn}`
+          : 'расход клиенту по имени';
       } else {
-        matchReason = 'поставщик не распознан';
+        type = 'supplier_payment';
+        if (counterparty) {
+          matchReason = counterpartyInn
+            ? `поставщик по ИНН ${counterpartyInn}`
+            : 'поставщик по имени';
+        } else if (counterpartyInn || suggestedName) {
+          isNewFirm = true;
+          matchReason = counterpartyInn
+            ? `новая фирма: ${suggestedName || raw.name} (ИНН ${counterpartyInn}) — создастся при сохранении`
+            : `новая фирма: ${suggestedName} — создастся при сохранении`;
+        } else {
+          matchReason = 'поставщик не распознан';
+        }
       }
     }
   } else {
-    counterparty = matchByInn(counterparties, counterpartyInn)
-      || matchByName(counterparties, raw.name, 'client');
-    if (counterparty?.type === 'supplier') {
+    firmMatch = counterpartyInn ? findCounterpartyFirmByInn(counterpartyInn, ctx.branchId) : null;
+    if (firmMatch) {
+      counterparty = {
+        id: firmMatch.counterparty_id,
+        name: firmMatch.counterparty_name,
+        type: firmMatch.counterparty_type,
+      };
+      matchReason = `фирма «${firmMatch.name}» (ИНН ${counterpartyInn}) → ${firmMatch.counterparty_name}`;
+    } else {
+      counterparty = matchByInn(counterparties, counterpartyInn)
+        || matchByName(counterparties, raw.name, 'client');
+    }
+    if (!firmMatch && counterparty?.type === 'supplier') {
       type = 'other_income';
       matchReason = counterpartyInn
         ? `возврат от поставщика по ИНН ${counterpartyInn}`
         : 'приход от поставщика по имени';
-    } else {
+    } else if (!firmMatch) {
       type = 'customer_income';
       if (counterparty) {
         matchReason = counterpartyInn
@@ -346,6 +370,8 @@ function classifyRow(raw, ctx) {
       } else {
         matchReason = 'контрагент не распознан';
       }
+    } else {
+      type = counterparty?.type === 'supplier' ? 'other_income' : 'customer_income';
     }
   }
 
@@ -372,6 +398,8 @@ function classifyRow(raw, ctx) {
     type,
     counterparty_id: counterparty?.id || null,
     counterparty_name: counterparty?.name || null,
+    firm_id: firmMatch?.id || null,
+    firm_name: firmMatch?.name || null,
     contract_id: contract?.id || null,
     contract_number: contract?.number || null,
     channel: channelId,
@@ -421,7 +449,7 @@ export function previewBankStatement(buffer, branchId = DEFAULT_BRANCH_ID) {
   }
 
   const ctx = {
-    counterparties, retailClient, retailContracts, ownInns, existingRefs,
+    counterparties, retailClient, retailContracts, ownInns, existingRefs, branchId,
   };
   const rows = rawRows.map((r) => classifyRow(r, ctx));
 
@@ -454,35 +482,64 @@ export function previewBankStatement(buffer, branchId = DEFAULT_BRANCH_ID) {
 }
 
 function resolveOrCreateCounterparty(row, branchId, cache, createdList) {
-  if (row.counterparty_id) return row.counterparty_id;
+  if (row.counterparty_id && row.firm_id) {
+    return { counterpartyId: row.counterparty_id, firmId: row.firm_id };
+  }
+  if (row.counterparty_id) return { counterpartyId: row.counterparty_id, firmId: null };
 
   const inn = normalizeInn(row.inn);
   const name = (row.suggested_name || cleanFirmName(row.name, inn) || '').trim();
-  if (!row.is_new_firm && !inn && !name) return null;
-  if (!name && !inn) return null;
+  if (!row.is_new_firm && !inn && !name) return { counterpartyId: null, firmId: null };
+  if (!name && !inn) return { counterpartyId: null, firmId: null };
 
   const cacheKey = inn || `name:${normalizeName(name)}`;
-  if (cache.has(cacheKey)) return cache.get(cacheKey);
+  if (cache.has(cacheKey)) {
+    const hit = cache.get(cacheKey);
+    return typeof hit === 'object' ? hit : { counterpartyId: hit, firmId: null };
+  }
+
+  const firmHit = inn ? findCounterpartyFirmByInn(inn, branchId) : null;
+  if (firmHit) {
+    const result = { counterpartyId: firmHit.counterparty_id, firmId: firmHit.id };
+    cache.set(cacheKey, result);
+    return result;
+  }
 
   const existing = getCounterparties(null, branchId);
   const found = (inn && matchByInn(existing, inn))
     || (name && matchByName(existing, name, suggestedCounterpartyType(row.type)));
   if (found) {
     cache.set(cacheKey, found.id);
-    return found.id;
+    return { counterpartyId: found.id, firmId: null };
   }
 
-  const type = row.suggested_type || suggestedCounterpartyType(row.type);
+  const cpType = row.suggested_type || suggestedCounterpartyType(row.type);
   const created = createCounterparty({
     name: name || `ИНН ${inn}`,
-    type,
-    inn: inn || '',
+    type: cpType,
+    inn: '',
     notes: 'Создано из банковской выписки',
   }, branchId);
-  cache.set(cacheKey, created.id);
-  if (inn) cache.set(inn, created.id);
   createdList.push(created);
-  return created.id;
+
+  let firmId = null;
+  if (cpType === 'supplier' && (inn || name)) {
+    try {
+      const firm = createCounterpartyFirm(created.id, {
+        name: name || created.name,
+        inn: inn || '',
+        is_default: true,
+      }, branchId);
+      firmId = firm?.id || null;
+    } catch {
+      /* firm may duplicate inn */
+    }
+  }
+
+  const result = { counterpartyId: created.id, firmId };
+  cache.set(cacheKey, result);
+  if (inn) cache.set(inn, result);
+  return result;
 }
 
 /**
@@ -526,8 +583,11 @@ export function confirmBankStatementImport(rows, userId, branchId = DEFAULT_BRAN
     }
 
     let counterpartyId = row.counterparty_id || null;
+    let firmId = row.firm_id || null;
     if (!counterpartyId && (row.is_new_firm || row.inn || row.suggested_name)) {
-      counterpartyId = resolveOrCreateCounterparty(row, branchId, cpCache, createdCounterparties);
+      const resolved = resolveOrCreateCounterparty(row, branchId, cpCache, createdCounterparties);
+      counterpartyId = resolved.counterpartyId;
+      firmId = firmId || resolved.firmId;
     }
 
     const commentParts = [];
@@ -542,6 +602,7 @@ export function confirmBankStatementImport(rows, userId, branchId = DEFAULT_BRAN
     const payment = createPayment({
       type: row.type || (row.direction === 'debit' ? 'supplier_payment' : 'customer_income'),
       counterparty_id: counterpartyId,
+      firm_id: firmId,
       contract_id: row.contract_id || null,
       document_id: null,
       amount,

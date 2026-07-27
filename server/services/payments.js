@@ -277,6 +277,16 @@ function assertPaymentContractLink(contractId, counterpartyId, payBranchId) {
   if (!row) throw new Error('Договор не найден у выбранного контрагента');
 }
 
+function assertPaymentFirmLink(firmId, counterpartyId, payBranchId) {
+  if (!firmId) return;
+  if (!counterpartyId) throw new Error('Фирма указывается вместе с контрагентом');
+  const row = queryOne(
+    'SELECT id FROM counterparty_firms WHERE id = ? AND counterparty_id = ? AND branch_id = ?',
+    [firmId, counterpartyId, payBranchId],
+  );
+  if (!row) throw new Error('Фирма не найдена у выбранного контрагента');
+}
+
 export function createPayment(data, userId = null, branchId = DEFAULT_BRANCH_ID, userRole = null) {
   const id = uuidv4();
   const payBranchId = branchId || data.branch_id || DEFAULT_BRANCH_ID;
@@ -292,6 +302,7 @@ export function createPayment(data, userId = null, branchId = DEFAULT_BRANCH_ID,
   assertDebtReturnPayment(data, payBranchId);
   assertPaymentDocumentLink(data.document_id || null, data.type, payBranchId, data.counterparty_id || null);
   assertPaymentContractLink(data.contract_id || null, data.counterparty_id || null, payBranchId);
+  assertPaymentFirmLink(data.firm_id || null, data.counterparty_id || null, payBranchId);
 
   if (data.counterparty_id) {
     let typeCheck = null;
@@ -312,13 +323,14 @@ export function createPayment(data, userId = null, branchId = DEFAULT_BRANCH_ID,
   run(`
     INSERT INTO payments (
       id, number, type, counterparty_id, document_id, amount, date, comment,
-      created_by, branch_id, article_id, external_ref, import_batch_id, contract_id
+      created_by, branch_id, article_id, external_ref, import_batch_id, contract_id, firm_id
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, [
     id, number, data.type, data.counterparty_id || null, data.document_id || null,
     data.amount, data.date, data.comment || '', userId, payBranchId, data.article_id,
     data.external_ref || null, data.import_batch_id || null, data.contract_id || null,
+    data.firm_id || null,
   ]);
 
   return queryOne(`
@@ -352,12 +364,14 @@ export function updatePayment(id, data, branchId = DEFAULT_BRANCH_ID, userRole =
   const articleId = data.article_id ?? existing.article_id;
   const documentId = data.document_id !== undefined ? data.document_id : existing.document_id;
   const contractId = data.contract_id !== undefined ? data.contract_id : existing.contract_id;
+  const firmId = data.firm_id !== undefined ? data.firm_id : existing.firm_id;
   assertCashArticleForPayment(articleId, payType, payBranchId);
   assertPurchasePayment({ ...data, article_id: articleId, type: payType, counterparty_id: counterpartyId }, payBranchId);
   assertClientDebtPayment({ ...data, article_id: articleId, type: payType, counterparty_id: counterpartyId }, payBranchId);
   assertDebtReturnPayment({ ...data, article_id: articleId, type: payType, counterparty_id: counterpartyId }, payBranchId);
   assertPaymentDocumentLink(documentId, payType, payBranchId, counterpartyId);
   assertPaymentContractLink(contractId, counterpartyId, payBranchId);
+  assertPaymentFirmLink(firmId, counterpartyId, payBranchId);
   if (counterpartyId) {
     let typeCheck = null;
     if (payType === 'supplier_payment') typeCheck = 'prihod';
@@ -367,7 +381,7 @@ export function updatePayment(id, data, branchId = DEFAULT_BRANCH_ID, userRole =
 
   run(`
     UPDATE payments
-    SET type=?, counterparty_id=?, document_id=?, amount=?, date=?, comment=?, article_id=?, contract_id=?
+    SET type=?, counterparty_id=?, document_id=?, amount=?, date=?, comment=?, article_id=?, contract_id=?, firm_id=?
     WHERE id=?
   `, [
     payType,
@@ -378,6 +392,7 @@ export function updatePayment(id, data, branchId = DEFAULT_BRANCH_ID, userRole =
     data.comment ?? existing.comment,
     articleId,
     contractId || null,
+    firmId || null,
     id,
   ]);
 

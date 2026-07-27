@@ -80,11 +80,49 @@ async function ensureBootstrap() {
   await execRaw('ALTER TABLE payments ADD COLUMN IF NOT EXISTS external_ref TEXT');
   await execRaw('ALTER TABLE payments ADD COLUMN IF NOT EXISTS import_batch_id TEXT');
   await execRaw('ALTER TABLE payments ADD COLUMN IF NOT EXISTS contract_id TEXT');
+  await execRaw('ALTER TABLE payments ADD COLUMN IF NOT EXISTS firm_id TEXT');
+  await execRaw('ALTER TABLE documents ADD COLUMN IF NOT EXISTS firm_id TEXT');
+  await execRaw(`
+    CREATE TABLE IF NOT EXISTS counterparty_firms (
+      id TEXT PRIMARY KEY,
+      counterparty_id TEXT NOT NULL REFERENCES counterparties(id) ON DELETE CASCADE,
+      branch_id TEXT NOT NULL REFERENCES branches(id),
+      name TEXT NOT NULL,
+      inn TEXT,
+      contract_id TEXT REFERENCES counterparty_contracts(id),
+      is_default INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT (NOW())
+    )
+  `);
   await runStatements(PG_CREATE_INDEXES);
   await execRaw(
     `INSERT INTO settings (key, value) VALUES ('counterparty_inn_v1', '1')
      ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
   );
+  await execRaw(
+    `INSERT INTO settings (key, value) VALUES ('counterparty_firms_v1', '1')
+     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
+  );
+  const firmsBackfill = await execRaw(
+    'SELECT value FROM settings WHERE key = $1',
+    ['counterparty_firms_backfill_v1'],
+  );
+  if (!firmsBackfill.rows.length) {
+    await execRaw(`
+      INSERT INTO counterparty_firms (id, counterparty_id, branch_id, name, inn, is_default)
+      SELECT 'cfm_' || c.id, c.id, COALESCE(c.branch_id, 'main'), c.name, c.inn, 1
+      FROM counterparties c
+      WHERE c.inn IS NOT NULL AND LENGTH(TRIM(c.inn)) = 9
+        AND NOT EXISTS (
+          SELECT 1 FROM counterparty_firms f
+          WHERE f.counterparty_id = c.id AND f.inn = c.inn
+        )
+    `);
+    await execRaw(
+      `INSERT INTO settings (key, value) VALUES ('counterparty_firms_backfill_v1', '1')
+       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
+    );
+  }
   await execRaw(
     `INSERT INTO settings (key, value) VALUES ('payment_bank_import_v1', '1')
      ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,

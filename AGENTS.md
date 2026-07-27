@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-07-27 (импорт выписки: новые фирмы + крупная модалка)
+**Последнее обновление документации:** 2026-07-27 (фирмы поставщика: ИНН, акт сверки)
 
 ---
 
@@ -165,9 +165,9 @@ npm run db:reset-operations    # Сброс операционных данны�
 |--------|---------|
 | Каталог | `products`, `product_variants`, `product_categories`, `units`, `product_images`, `product_suppliers`, `product_branches`, `product_variant_branches` |
 | Склад | `departments`, `product_department_stock`, `product_branch_stock` |
-| Документы | `documents`, `document_items` (+ `net_weight` в строках прихода), `document_history`, `opening_balance_lines` |
-| Контрагенты | `counterparties` (+ `inn`), `counterparty_contracts` |
-| Финансы | `payments` (+ `external_ref`, `import_batch_id`, `contract_id`), `cash_articles`, `branch_opening_balances` |
+| Документы | `documents` (+ `firm_id` у прихода), `document_items` (+ `net_weight` в строках прихода), `document_history`, `opening_balance_lines` |
+| Контрагенты | `counterparties`, `counterparty_firms` (юрлица с ИНН у поставщика), `counterparty_contracts` |
+| Финансы | `payments` (+ `external_ref`, `import_batch_id`, `contract_id`, `firm_id`), `cash_articles`, `branch_opening_balances` |
 | Калькуляции | `calculations`, `calculation_items`, `calculation_sources` |
 | Auth/Admin | `users`, `sessions`, `roles`, `role_permissions`, `audit_log`, `visit_log`, `blocked_devices` |
 | MyShop/Mobile | `shop_orders`, `shop_order_items`, `push_subscriptions`, `staff_locations`, `staff_location_history` |
@@ -336,12 +336,22 @@ Frontend зеркало: `client/src/permissions.js`.
 - Формат: Excel `AccReferenceReport*.xlsx` (Internet Bank Ipak Yuli, «Справка о работе счета»)
 - UI: `/payments` → «Загрузить выписку» → превью → подтверждение
 - API: `POST /api/payments/import/parse` (multipart `file`), `POST /api/payments/import/confirm` `{ rows }`
-- **Дебет:** оплата поставщику по ИНН (`counterparties.inn` или ИНН в наименовании/назначении); комиссии банка → `other_expense`; расход клиенту по ИНН → `other_expense`
+- **Дебет:** оплата поставщику по ИНН — сначала `counterparty_firms.inn` у поставщика, иначе legacy `counterparties.inn`; комиссии банка → `other_expense`; расход клиенту по ИНН → `other_expense`
 - **Кредит эквайринг** (Click / Payme / терминал UnionPay|SmartVista): `customer_income` на контрагента **«КЛИЕНТ»** + договор с номером, содержащим Click / Payme / Терминал
 - **Кредит** по ИНН клиента/поставщика: приход от клиента или возврат от поставщика
-- Новые фирмы без ИНН/названия в справочнике: уведомление в превью; при сохранении автосоздание контрагента (можно выбрать существующего вручную)
-- Дедупликация: `payments.external_ref`; пакет: `import_batch_id`; договор на оплате: `contract_id`
+- Новые юрлица без ИНН/названия в справочнике: уведомление в превью; при сохранении автосоздание поставщика + фирмы (можно выбрать существующего вручную)
+- Дедупликация: `payments.external_ref`; пакет: `import_batch_id`; договор на оплате: `contract_id`; фирма: `payments.firm_id`
 - Привязка к складским документам — следующий этап
+
+### 9.10 Фирмы поставщика (юрлица)
+
+- **Контрагент-поставщик** — торговое имя (напр. «Мурод»); **фирмы** (`counterparty_firms`) — юрлица с ИНН для оплат и сверки
+- У поставщика в карточке (`/counterparties`): блок «Фирмы для оплаты» — название, ИНН (9 цифр), опционально договор, флаг «по умолчанию»
+- API: `GET/POST /api/counterparties/:id/firms`, `PUT/DELETE /api/counterparties/:id/firms/:firmId`
+- Импорт выписки и ручные оплаты: `firm_id` на платеже; поиск по ИНН через `findCounterpartyFirmByInn`
+- **Акт сверки** (`/reports/reconciliation`): фильтр «Фирма» (все / конкретная); строки без `firm_id` видны только при «Все фирмы»
+- Миграция: существующий `counterparties.inn` → первая фирма поставщика (`cfm_<counterparty_id>`)
+- **Следующий этап:** выбор фирмы в приходе (`documents.firm_id`); объединение автосозданных контрагентов под одного поставщика
 
 ---
 
@@ -386,7 +396,7 @@ GET  /api/auth/roles
 | `/api/products` | catalog.routes.js | Номенклатура, варианты, изображения |
 | `/api/calculations` | catalog.routes.js | Калькуляции |
 | `/api/documents` | documents.routes.js | Складские документы (`date_from`, `date_to`, `counterparty_id`, type, status) |
-| `/api/counterparties` | counterparties.routes.js | Контрагенты, договоры |
+| `/api/counterparties` | counterparties.routes.js | Контрагенты, договоры; `/:id/firms` — юрлица поставщика (CRUD) |
 | `/api/payments` | finance.routes.js | Оплаты, касса; `POST /api/payments/import/parse`, `POST /api/payments/import/confirm` — выписка AccReferenceReport |
 | `/api/cash-articles` | finance.routes.js | Статьи кассы |
 | `/api/stats`, `/api/reports/*` | org.routes.js | Отчёты, дашборд; `/api/reports/supplier-debts?date_from&date_to&supplier_id` — оборотная ведомость поставщиков |
@@ -412,7 +422,7 @@ GET  /api/auth/roles
 | `/products` | Products.jsx | products.view |
 | `/product-categories` | ProductCategories.jsx | products.view |
 | `/units` | Units.jsx | products.view |
-| `/counterparties` | Counterparties.jsx | counterparties.view |
+| `/counterparties` | Counterparties.jsx | counterparties.view; у поставщиков — блок «Фирмы для оплаты», колонка «Фирмы / ИНН» |
 | `/prihod`, `/rashod`, `/return-*`, `/transfer` | Documents.jsx | documents.*; фильтры: дата С/По, контрагент/поставщик, статус |
 | `/documents` | Documents.jsx | documents.view; те же фильтры + тип документа |
 | `/razdelka` | Razdelka.jsx | documents.razdelka |
@@ -421,7 +431,7 @@ GET  /api/auth/roles
 | `/cashier` | Cashier.jsx | cashier.* |
 | `/payments` | Payments.jsx | payments.view; кнопка «Загрузить выписку» (Ipak Yuli AccReferenceReport) |
 | `/cash-articles` | CashArticles.jsx | cash_articles.view |
-| `/reports/*` | Reports.jsx | reports.view; `/reports/supplier-debts` — долги поставщикам за период (скачать JPEG/PDF) |
+| `/reports/*` | Reports.jsx | reports.view; `/reports/supplier-debts` — долги поставщикам; акт сверки — фильтр «Фирма» у поставщика |
 | `/opening-balance` | OpeningBalance.jsx | opening_balance.view |
 | `/myshop` | MyShop.jsx | myshop.view |
 | `/myshop/constructor` | MyShopConstructor.jsx | myshop.edit |
@@ -633,6 +643,7 @@ GET  /api/auth/roles
 | 2026-07-22 | Акт сверки: фильтр «Договор» для поставщика (документы договора + оплаты по ним) |
 | 2026-07-27 | Банк: импорт выписки Ipak Yuli AccReferenceReport; ИНН контрагента; договоры у клиента «КЛИЕНТ» (Click/Payme/Терминал); `payments.external_ref` / `contract_id` |
 | 2026-07-27 | Импорт выписки: новые фирмы по ИНН/названию создаются при сохранении; крупная фиксированная модалка |
+| 2026-07-27 | Фирмы поставщика: `counterparty_firms`, `firm_id` в payments/documents; CRUD в справочнике; акт сверки по фирме; миграция ИНН → фирма |
 
 ---
 

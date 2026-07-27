@@ -3,12 +3,18 @@ import { formatUzPhone } from '../phoneFormat';
 
 export default function CounterpartyFormFields({ form, setForm, lockType = null }) {
   const typeLocked = lockType === 'supplier' || lockType === 'client';
+  const isSupplier = (typeLocked ? lockType : form.type) === 'supplier';
 
   return (
     <div className="form-grid">
       <div className="form-group">
-        <label>Название *</label>
+        <label>{isSupplier ? 'Название поставщика *' : 'Название *'}</label>
         <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+        {isSupplier && (
+          <small className="text-muted" style={{ display: 'block', marginTop: 4 }}>
+            Как вы называете поставщика в работе (например «Мурод»). Юрлица и ИНН — в блоке ниже.
+          </small>
+        )}
       </div>
       <div className="form-group">
         <label>Тип *</label>
@@ -21,16 +27,18 @@ export default function CounterpartyFormFields({ form, setForm, lockType = null 
           <option value="client">Клиент</option>
         </select>
       </div>
-      <div className="form-group">
-        <label>ИНН</label>
-        <input
-          value={form.inn || ''}
-          onChange={(e) => setForm({ ...form, inn: e.target.value.replace(/\D/g, '').slice(0, 9) })}
-          placeholder="123456789"
-          inputMode="numeric"
-          maxLength={9}
-        />
-      </div>
+      {!isSupplier && (
+        <div className="form-group">
+          <label>ИНН</label>
+          <input
+            value={form.inn || ''}
+            onChange={(e) => setForm({ ...form, inn: e.target.value.replace(/\D/g, '').slice(0, 9) })}
+            placeholder="123456789"
+            inputMode="numeric"
+            maxLength={9}
+          />
+        </div>
+      )}
       <div className="form-group">
         <label>Телефон</label>
         <input

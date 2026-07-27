@@ -19,6 +19,7 @@ import { useFormDirty } from '../hooks/useFormDirty';
 import { hasPermission } from '../permissions';
 
 const emptyContract = { number: '', date: '' };
+const emptyFirm = { name: '', inn: '', contract_id: '', is_default: false };
 
 export default function Counterparties() {
   const [items, setItems] = useState([]);
@@ -26,7 +27,9 @@ export default function Counterparties() {
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState(emptyCounterpartyForm);
   const [contracts, setContracts] = useState([]);
+  const [firms, setFirms] = useState([]);
   const [newContract, setNewContract] = useState(emptyContract);
+  const [newFirm, setNewFirm] = useState(emptyFirm);
   const draftKey = formDraftKey('counterparties', modal);
   const draftPayload = useMemo(() => ({ form }), [form]);
   useFormDraft(draftKey, draftPayload, Boolean(modal));
@@ -53,12 +56,26 @@ export default function Counterparties() {
       .catch(() => setContracts([]));
   };
 
+  const loadFirms = (counterpartyId) => {
+    if (!counterpartyId) {
+      setFirms([]);
+      return;
+    }
+    api.getCounterpartyFirms(counterpartyId)
+      .then(setFirms)
+      .catch(() => setFirms([]));
+  };
+
   useEffect(() => {
     if (modal && modal !== 'create') {
       loadContracts(modal);
+      if (form.type === 'supplier') loadFirms(modal);
+      else setFirms([]);
     } else {
       setContracts([]);
+      setFirms([]);
       setNewContract(emptyContract);
+      setNewFirm(emptyFirm);
     }
   }, [modal, form.type, branchId]);
 
@@ -131,6 +148,32 @@ export default function Counterparties() {
     }
   };
 
+  const addFirm = async () => {
+    if (!canEdit || modal === 'create' || form.type !== 'supplier') return;
+    try {
+      await api.createCounterpartyFirm(modal, newFirm);
+      setNewFirm(emptyFirm);
+      loadFirms(modal);
+      load();
+      show('Фирма добавлена');
+    } catch (e) {
+      show(e.message, 'error');
+    }
+  };
+
+  const removeFirm = async (firmId) => {
+    if (!canEdit || modal === 'create') return;
+    if (!window.confirm('Удалить фирму?')) return;
+    try {
+      await api.deleteCounterpartyFirm(modal, firmId);
+      loadFirms(modal);
+      load();
+      show('Фирма удалена');
+    } catch (e) {
+      show(e.message, 'error');
+    }
+  };
+
   const remove = async (id) => {
     if (!confirm('Удалить контрагента?')) return;
     await api.deleteCounterparty(id);
@@ -164,7 +207,7 @@ export default function Counterparties() {
               <tr>
                 <th className="col-index">№</th>
                 <th>Название</th>
-                <th>ИНН</th>
+                <th>Фирмы / ИНН</th>
                 <th>Тип</th>
                 <th>Телефон</th>
                 <th>Telegram ID</th>
@@ -177,7 +220,7 @@ export default function Counterparties() {
                 <tr key={c.id}>
                   <td className="col-index muted">{index + 1}</td>
                   <td>{c.name}</td>
-                  <td>{c.inn || '—'}</td>
+                  <td>{c.firms_label || c.inn || '—'}</td>
                   <td>
                     <span className={`badge badge-${c.type}`}>
                       {c.type === 'supplier' ? 'Поставщик' : 'Клиент'}
@@ -208,6 +251,8 @@ export default function Counterparties() {
       {modal && (
         <Modal
           title={modal === 'create' ? 'Новый контрагент' : 'Редактировать контрагента'}
+          wide
+          className="modal-doc"
           dirty={isFormDirty}
           onClose={() => {
             clearFormDraft(draftKey);
@@ -221,6 +266,85 @@ export default function Counterparties() {
           }
         >
           <CounterpartyFormFields form={form} setForm={setForm} />
+
+          {modal !== 'create' && form.type === 'supplier' && (
+            <div className="cp-contracts-block">
+              <h3>Фирмы для оплаты</h3>
+              <p className="text-muted cp-contracts-hint">
+                Юрлица и ИНН, на которые уходят банковские платежи. Выписка и акт сверки сопоставляются по ИНН фирмы.
+              </p>
+              {firms.length > 0 && (
+                <div className="table-wrap cp-contracts-table">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Название юрлица</th>
+                        <th>ИНН</th>
+                        <th>Договор</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {firms.map((f) => (
+                        <tr key={f.id}>
+                          <td>{f.name}{f.is_default ? ' · основная' : ''}</td>
+                          <td>{f.inn || '—'}</td>
+                          <td>{f.contract_number || '—'}</td>
+                          <td>
+                            {canEdit && !f.is_used && (
+                              <IconButton title="Удалить" danger onClick={() => removeFirm(f.id)}>
+                                <IconTrash />
+                              </IconButton>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {canEdit && (
+                <div className="form-grid cp-contracts-add">
+                  <div className="form-group">
+                    <label>Название юрлица</label>
+                    <input
+                      value={newFirm.name}
+                      onChange={(e) => setNewFirm({ ...newFirm, name: e.target.value })}
+                      placeholder="OOO FARXOD KREDIT"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>ИНН</label>
+                    <input
+                      value={newFirm.inn}
+                      onChange={(e) => setNewFirm({ ...newFirm, inn: e.target.value.replace(/\D/g, '').slice(0, 9) })}
+                      placeholder="206753636"
+                      inputMode="numeric"
+                      maxLength={9}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Договор</label>
+                    <select
+                      value={newFirm.contract_id}
+                      onChange={(e) => setNewFirm({ ...newFirm, contract_id: e.target.value })}
+                    >
+                      <option value="">— не выбран —</option>
+                      {contracts.map((c) => (
+                        <option key={c.id} value={c.id}>{c.number}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="form-group cp-contracts-add-btn">
+                    <label>&nbsp;</label>
+                    <button type="button" className="btn btn-secondary" onClick={addFirm}>
+                      + Добавить фирму
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {modal !== 'create' && (
             <div className="cp-contracts-block">

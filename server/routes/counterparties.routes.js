@@ -59,4 +59,39 @@ export function registerCounterpartyRoutes(app) {
       res.status(400).json({ error: e.message });
     }
   });
+
+  app.get('/api/counterparties/:id/firms', requireAnyPermission(
+    'counterparties.view', 'counterparties.edit', 'documents.view', 'documents.edit', 'payments.view', 'payments.edit',
+  ), attachBranch, (req, res) => {
+    try {
+      res.json(svc.getCounterpartyFirms(req.params.id, req.branchId));
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
+  app.post('/api/counterparties/:id/firms', requirePermission('counterparties.edit'), attachBranch, (req, res) => {
+    try {
+      res.status(201).json(svc.createCounterpartyFirm(req.params.id, req.body, req.branchId));
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
+  app.put('/api/counterparties/:id/firms/:firmId', requirePermission('counterparties.edit'), attachBranch, (req, res) => {
+    try {
+      res.json(svc.updateCounterpartyFirm(req.params.id, req.params.firmId, req.body, req.branchId));
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
+  app.delete('/api/counterparties/:id/firms/:firmId', requirePermission('counterparties.edit'), attachBranch, (req, res) => {
+    try {
+      svc.deleteCounterpartyFirm(req.params.id, req.params.firmId, req.branchId);
+      res.json({ ok: true });
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
 }
