@@ -43,3 +43,16 @@ test('detectAcquiringChannelLabel: payme and terminal', () => {
     'Терминал',
   );
 });
+
+test('pickCounterpartyInnFromName ignores purpose INN', async () => {
+  const { pickCounterpartyInnFromName } = await import('../services/bankStatementImport.js');
+  assert.equal(
+    pickCounterpartyInnFromName('ООО Поставщик 309123456', new Set()),
+    '309123456',
+  );
+  // ИНН только в «деталях» не должен браться — функция смотрит только name
+  assert.equal(
+    pickCounterpartyInnFromName('ООО Без ИНН', new Set()),
+    null,
+  );
+});

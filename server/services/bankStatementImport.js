@@ -260,12 +260,15 @@ function buildOwnInns(rawRows) {
   return own;
 }
 
-function pickCounterpartyInn(name, purpose, colInn, ownInns) {
-  const fromText = extractInns(name, purpose).filter((inn) => !ownInns.has(inn));
-  if (fromText.length) return fromText[fromText.length - 1];
-  const fromCol = normalizeInn(colInn);
-  if (fromCol && !ownInns.has(fromCol)) return fromCol;
+function pickCounterpartyInn(name, _purpose, _colInn, ownInns) {
+  // Только из названия контрагента — в назначении платежа часто чужой/ошибочный ИНН
+  const fromName = extractInns(name).filter((inn) => !ownInns.has(inn));
+  if (fromName.length) return fromName[fromName.length - 1];
   return null;
+}
+
+export function pickCounterpartyInnFromName(name, ownInns = new Set()) {
+  return pickCounterpartyInn(name, null, null, ownInns instanceof Set ? ownInns : new Set(ownInns || []));
 }
 
 function matchByInn(counterparties, inn) {
