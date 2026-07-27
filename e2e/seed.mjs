@@ -13,6 +13,9 @@ export async function prepareE2eDatabase() {
   mkdirSync(E2E_DATA_DIR, { recursive: true });
   mkdirSync(join(E2E_DATA_DIR, 'backups'), { recursive: true });
 
+  // E2E всегда на локальном sql.js-файле в e2e/.data — не на проде Postgres.
+  delete process.env.DATABASE_URL;
+  process.env.DB_ENGINE = 'sqlite';
   process.env.DATA_DIR = E2E_DATA_DIR;
   process.env.NODE_ENV = 'test';
   process.env.DISABLE_DEMO_SEED = 'true';
@@ -21,6 +24,7 @@ export async function prepareE2eDatabase() {
   const db = (await import('../server/db.js')).default;
   const { initPermissions } = await import('../server/permissions.js');
   const { seedDefaultUsers } = await import('../server/auth.js');
+  const { ensureProductBranchOnCreate } = await import('../server/productBranches.js');
 
   await db.initDb();
   initPermissions(db);
@@ -42,11 +46,13 @@ export async function prepareE2eDatabase() {
   const productId = 'e2e-product';
   if (!queryOne('SELECT id FROM products WHERE id = ?', [productId])) {
     run(
-      `INSERT INTO products (id, name, sku, unit, price, stock, category_id)
-       VALUES (?, ?, 'E2E-001', 'шт', 1000, 0, 'other')`,
+      `INSERT INTO products (id, name, sku, unit, price, stock, category_id, product_kind)
+       VALUES (?, ?, 'E2E-001', 'шт', 1000, 0, 'other', 'goods')`,
       [productId, E2E_PRODUCT_NAME],
     );
   }
+  // Без product_branches visible=1 getProducts (и ProductSelect в приходе/расходе) товар не видит.
+  ensureProductBranchOnCreate(productId, 'main');
 
   run('DELETE FROM product_suppliers WHERE product_id = ? AND branch_id = ?', [productId, 'main']);
   run(
@@ -68,4 +74,10 @@ export async function prepareE2eDatabase() {
   const { syncBranchStockFromDepartments } = await import('../server/departments.js');
   receiveDepartmentStock('main_wh', productId, 10, 1000);
   syncBranchStockFromDepartments('main', productId);
+
+  const { getProducts } = await import('../server/services/products.js');
+  const visible = getProducts({ branch_id: 'main' });
+  if (!visible.some((p) => p.id === productId)) {
+    throw new Error('E2E seed: товар не виден в getProducts(main) — проверьте product_branches');
+  }
 }

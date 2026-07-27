@@ -22,6 +22,8 @@ export default defineConfig({
     timeout: 120_000,
     env: {
       ...process.env,
+      DATABASE_URL: '',
+      DB_ENGINE: 'sqlite',
       DATA_DIR: E2E_DATA_DIR,
       NODE_ENV: 'test',
       TELEGRAM_ENABLED: 'false',

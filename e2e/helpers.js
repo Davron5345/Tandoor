@@ -25,7 +25,9 @@ export async function pickCategoryOption(page, labelText, optionName, searchPlac
 export async function pickProductOption(page, productName) {
   await page.locator('.product-select-trigger').first().click();
   await page.getByPlaceholder('Поиск по названию, артикулу...').fill(productName);
-  await page.getByRole('option', { name: new RegExp(productName) }).click();
+  const option = page.getByRole('option', { name: new RegExp(productName) });
+  await expect(option).toBeVisible({ timeout: 15_000 });
+  await option.click();
 }
 
 export async function selectDepartment(page, labelText, departmentName) {
@@ -33,8 +35,10 @@ export async function selectDepartment(page, labelText, departmentName) {
 }
 
 export async function fillDocLine(page, { qty, price }) {
-  await page.locator('.doc-items-table input[type="number"]').first().fill(String(qty));
-  await page.locator('.doc-items-table input[inputmode="numeric"]').first().fill(String(price));
+  // Кол-во — text+decimal (не type=number); цена — text+numeric (см. Documents.jsx).
+  const table = page.locator('.doc-items-table');
+  await table.locator('.doc-items-qty-col input').first().fill(String(qty));
+  await table.locator('input[inputmode="numeric"]').first().fill(String(price));
 }
 
 export async function confirmDocModal(page) {
