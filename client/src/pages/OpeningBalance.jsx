@@ -96,22 +96,39 @@ function lineBadgeClass(type) {
   return `ob-line-badge ob-line-badge-${type}`;
 }
 
+function asMoneyNumber(value) {
+  const parsed = parsePriceInput(value);
+  if (parsed != null) return parsed;
+  return Number(value) || 0;
+}
+
+function asQtyNumber(value) {
+  const parsed = parseQuantityInput(value);
+  if (parsed != null) return parsed;
+  return Number(value) || 0;
+}
+
 function lineTotal(line) {
   if (line.line_type === 'stock') {
-    return (parseQuantityInput(line.quantity) ?? 0) * (parsePriceInput(line.unit_cost) ?? Number(line.unit_cost) || 0);
+    return asQtyNumber(line.quantity) * asMoneyNumber(line.unit_cost);
   }
-  return parsePriceInput(line.amount) ?? Number(line.amount) || 0;
+  return asMoneyNumber(line.amount);
 }
 
 function serializeObLines(lines) {
-  return (lines || []).map((l) => ({
-    ...l,
-    quantity: parseQuantityInput(l.quantity) ?? Number(l.quantity) || 0,
-    unit_cost: parsePriceInput(l.unit_cost) ?? Number(l.unit_cost) || 0,
-    amount: l.line_type === 'stock'
-      ? ((parseQuantityInput(l.quantity) ?? 0) * (parsePriceInput(l.unit_cost) ?? Number(l.unit_cost) || 0))
-      : (parsePriceInput(l.amount) ?? Number(l.amount) || 0),
-  }));
+  return (lines || []).map((l) => {
+    const quantity = asQtyNumber(l.quantity);
+    const unit_cost = asMoneyNumber(l.unit_cost);
+    const amount = l.line_type === 'stock'
+      ? quantity * unit_cost
+      : asMoneyNumber(l.amount);
+    return {
+      ...l,
+      quantity,
+      unit_cost,
+      amount,
+    };
+  });
 }
 
 function defaultNewDocLines(lineType) {
@@ -126,12 +143,12 @@ function isCreateFormDirty(form, lineType) {
     if (line.comment?.trim()) return true;
     if (line.line_type === 'stock') {
       return line.product_id || line.department_id || Number(line.quantity) > 0
-        || (parsePriceInput(line.unit_cost) ?? Number(line.unit_cost) || 0) > 0;
+        || asMoneyNumber(line.unit_cost) > 0;
     }
     if (line.line_type === 'debtor' || line.line_type === 'creditor') {
-      return line.counterparty_id || (parsePriceInput(line.amount) ?? Number(line.amount) || 0) > 0;
+      return line.counterparty_id || asMoneyNumber(line.amount) > 0;
     }
-    return (parsePriceInput(line.amount) ?? Number(line.amount) || 0) > 0 || Boolean(line.bank_account_id);
+    return asMoneyNumber(line.amount) > 0 || Boolean(line.bank_account_id);
   });
 }
 
@@ -262,8 +279,8 @@ export default function OpeningBalance() {
       const lines = [...f.lines];
       lines[index] = { ...lines[index], ...patch };
       if (lines[index].line_type === 'stock') {
-        lines[index].amount = (parseQuantityInput(lines[index].quantity) ?? 0)
-          * (parsePriceInput(lines[index].unit_cost) ?? Number(lines[index].unit_cost) || 0);
+        lines[index].amount = asQtyNumber(lines[index].quantity)
+          * asMoneyNumber(lines[index].unit_cost);
       }
       return { ...f, lines };
     });
@@ -380,8 +397,8 @@ export default function OpeningBalance() {
       const lines = [...f.lines];
       lines[index] = { ...lines[index], ...patch };
       if (lines[index].line_type === 'stock') {
-        lines[index].amount = (parseQuantityInput(lines[index].quantity) ?? 0)
-          * (parsePriceInput(lines[index].unit_cost) ?? Number(lines[index].unit_cost) || 0);
+        lines[index].amount = asQtyNumber(lines[index].quantity)
+          * asMoneyNumber(lines[index].unit_cost);
       }
       return { ...f, lines };
     });
