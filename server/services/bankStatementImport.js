@@ -233,7 +233,7 @@ function buildOwnInns(rawRows) {
   for (const row of rawRows) {
     const name = row.name || '';
     const purpose = row.purpose || '';
-    if (COMMISSION_RE.test(name) || OWN_NAME_RE.test(name)) {
+    if (isBankServiceFee(row) || OWN_NAME_RE.test(name)) {
       for (const inn of extractInns(name, purpose, row.innCol)) own.add(inn);
     }
   }
