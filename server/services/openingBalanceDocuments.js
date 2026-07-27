@@ -45,7 +45,7 @@ function normalizeLine(raw, branchId = DEFAULT_BRANCH_ID) {
     bank_account_id: raw.bank_account_id || null,
     quantity: Number(raw.quantity) || 0,
     unit_cost: Number(raw.unit_cost) || 0,
-    amount: Math.round(Number(raw.amount) || 0),
+    amount: Number(raw.amount) || 0,
     comment: String(raw.comment || '').trim(),
   };
 
@@ -55,8 +55,7 @@ function normalizeLine(raw, branchId = DEFAULT_BRANCH_ID) {
     assertDepartmentInBranch(base.department_id, branchId);
     if (base.quantity < 0) throw new Error('Количество не может быть отрицательным');
     if (base.unit_cost < 0) throw new Error('Себестоимость не может быть отрицательной');
-    base.unit_cost = Math.round(base.unit_cost);
-    base.amount = Math.round(base.quantity * base.unit_cost);
+    base.amount = base.quantity * base.unit_cost;
     return base;
   }
 

@@ -292,7 +292,7 @@ export default function Payments() {
       type: p.type,
       counterparty_id: p.counterparty_id || '',
       document_id: p.document_id || '',
-      amount: Math.round(Number(p.amount) || 0),
+      amount: p.amount,
       date: p.date,
       comment: p.comment || '',
       bank_account_id: p.bank_account_id || selectedAccountId || '',
@@ -304,7 +304,6 @@ export default function Payments() {
     try {
       const payload = {
         ...form,
-        amount: Math.round(Number(form.amount) || 0),
         bank_account_id: form.bank_account_id || selectedAccountId || null,
       };
       if (paymentModal === 'create') {

@@ -68,12 +68,10 @@ function extractInns(...texts) {
 
 function parseAmount(value) {
   if (value == null || value === '') return 0;
-  if (typeof value === 'number') {
-    return Number.isFinite(value) ? Math.round(value) : 0;
-  }
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
   const cleaned = String(value).replace(/\s/g, '').replace(/,/g, '');
   const n = Number(cleaned);
-  return Number.isFinite(n) ? Math.round(n) : 0;
+  return Number.isFinite(n) ? n : 0;
 }
 
 function parseStatementDate(value) {

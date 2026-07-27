@@ -492,8 +492,10 @@ export const api = {
 };
 
 export function formatMoney(n) {
-  const value = Math.round(Number(n) || 0);
-  return `${new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(value)} сум`;
+  return `${new Intl.NumberFormat('ru-RU', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number(n) || 0)} сум`;
 }
 
 export function formatPriceInput(value) {
