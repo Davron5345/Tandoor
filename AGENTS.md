@@ -107,7 +107,7 @@ npm run setup          # Установка зависимостей (root + cli
 npm run dev            # Dev: backend :3001 + Vite :5173
 npm run build          # Сборка frontend → client/dist
 npm start              # Продакшен (после build)
-npm test               # Backend тесты (SQLite / sql.js)
+npm test               # Backend тесты (SQLite / sql.js): server/test/*.test.js
 npm run test:pg        # Backend тесты на PGlite (Postgres)
 npm run test:e2e       # Playwright E2E
 npm run lint           # ESLint
