@@ -7,6 +7,7 @@ import { createPayment } from './payments.js';
 import {
   createCounterparty,
   createCounterpartyFirm,
+  updateCounterpartyFirm,
   getCounterparties,
   getCounterpartyContracts,
   findCounterpartyFirmByInn,
@@ -127,6 +128,11 @@ function normalizeName(name) {
     .trim();
 }
 
+function normalizeAccount(value) {
+  const digits = String(value || '').replace(/\D/g, '');
+  return digits || null;
+}
+
 function cleanFirmName(name, inn = null) {
   let n = String(name || '').replace(/\s+/g, ' ').trim();
   if (!n) return '';
@@ -135,6 +141,46 @@ function cleanFirmName(name, inn = null) {
   }
   n = n.replace(/\b\d{9}\b/g, ' ').replace(/\s+/g, ' ').trim();
   return n;
+}
+
+/** Сравнение названия фирмы из выписки и справочника. */
+function firmNamesMatch(statementName, firmName) {
+  const a = normalizeName(cleanFirmName(statementName)).replace(/\d{9}/g, '').trim();
+  const b = normalizeName(cleanFirmName(firmName)).replace(/\d{9}/g, '').trim();
+  if (!a || !b) return false;
+  if (a === b) return true;
+  if (a.includes(b) || b.includes(a)) return Math.min(a.length, b.length) >= 5;
+  return false;
+}
+
+/**
+ * Сверка найденной фирмы с выпиской: ИНН уже совпал.
+ * — название + р/с совпали → полное совпадение
+ * — название совпало, р/с другой/пустой → новый счёт
+ * — название отличается → предупреждение, но привязка по ИНН
+ */
+function reconcileFirmWithStatement(firm, { inn, statementName, statementAccount }) {
+  const nameOk = firmNamesMatch(statementName, firm.name);
+  const stmtAcc = normalizeAccount(statementAccount);
+  const firmAcc = normalizeAccount(firm.bank_account);
+  let isNewAccount = false;
+  let matchReason = '';
+
+  if (nameOk && stmtAcc && firmAcc && firmAcc !== stmtAcc) {
+    isNewAccount = true;
+    matchReason = `новый р/с ${stmtAcc} у «${firm.name}» (ИНН ${inn}, был ${firmAcc}) → ${firm.counterparty_name}`;
+  } else if (nameOk && stmtAcc && !firmAcc) {
+    isNewAccount = true;
+    matchReason = `новый р/с ${stmtAcc} у «${firm.name}» (ИНН ${inn}) → ${firm.counterparty_name}`;
+  } else if (nameOk && stmtAcc && firmAcc === stmtAcc) {
+    matchReason = `совпало: «${firm.name}» ИНН ${inn} р/с ${stmtAcc} → ${firm.counterparty_name}`;
+  } else if (nameOk) {
+    matchReason = `фирма «${firm.name}» (ИНН ${inn}) → ${firm.counterparty_name}`;
+  } else {
+    matchReason = `ИНН ${inn} → «${firm.name}» / ${firm.counterparty_name} (название в выписке отличается)`;
+  }
+
+  return { isNewAccount, nameOk, matchReason };
 }
 
 function suggestedCounterpartyType(paymentType) {
@@ -286,6 +332,7 @@ function classifyRow(raw, ctx) {
   let channelId = null;
   let channelLabel = null;
   let isNewFirm = false;
+  let isNewAccount = false;
   let firmMatch = null;
 
   if (COMMISSION_RE.test(raw.name) || /16401/.test(raw.account)) {
@@ -313,7 +360,13 @@ function classifyRow(raw, ctx) {
         type: firmMatch.counterparty_type,
       };
       type = 'supplier_payment';
-      matchReason = `фирма «${firmMatch.name}» (ИНН ${counterpartyInn}) → ${firmMatch.counterparty_name}`;
+      const recon = reconcileFirmWithStatement(firmMatch, {
+        inn: counterpartyInn,
+        statementName: suggestedName || raw.name,
+        statementAccount: raw.account,
+      });
+      isNewAccount = recon.isNewAccount;
+      matchReason = recon.matchReason;
     } else {
       counterparty = matchByInn(counterparties, counterpartyInn)
         || matchByName(counterparties, raw.name, 'supplier');
@@ -331,7 +384,7 @@ function classifyRow(raw, ctx) {
         } else if (counterpartyInn || suggestedName) {
           isNewFirm = true;
           matchReason = counterpartyInn
-            ? `новая фирма: ${suggestedName || raw.name} (ИНН ${counterpartyInn}) — создастся при сохранении`
+            ? `новая фирма: ${suggestedName || raw.name} (ИНН ${counterpartyInn}${raw.account ? `, р/с ${normalizeAccount(raw.account) || raw.account}` : ''}) — создастся при сохранении`
             : `новая фирма: ${suggestedName} — создастся при сохранении`;
         } else {
           matchReason = 'поставщик не распознан';
@@ -346,7 +399,13 @@ function classifyRow(raw, ctx) {
         name: firmMatch.counterparty_name,
         type: firmMatch.counterparty_type,
       };
-      matchReason = `фирма «${firmMatch.name}» (ИНН ${counterpartyInn}) → ${firmMatch.counterparty_name}`;
+      const recon = reconcileFirmWithStatement(firmMatch, {
+        inn: counterpartyInn,
+        statementName: suggestedName || raw.name,
+        statementAccount: raw.account,
+      });
+      isNewAccount = recon.isNewAccount;
+      matchReason = recon.matchReason;
     } else {
       counterparty = matchByInn(counterparties, counterpartyInn)
         || matchByName(counterparties, raw.name, 'client');
@@ -365,7 +424,7 @@ function classifyRow(raw, ctx) {
       } else if (counterpartyInn || suggestedName) {
         isNewFirm = true;
         matchReason = counterpartyInn
-          ? `новая фирма: ${suggestedName || raw.name} (ИНН ${counterpartyInn}) — создастся при сохранении`
+          ? `новая фирма: ${suggestedName || raw.name} (ИНН ${counterpartyInn}${raw.account ? `, р/с ${normalizeAccount(raw.account) || raw.account}` : ''}) — создастся при сохранении`
           : `новая фирма: ${suggestedName} — создастся при сохранении`;
       } else {
         matchReason = 'контрагент не распознан';
@@ -395,11 +454,13 @@ function classifyRow(raw, ctx) {
     suggested_name: suggestedName || null,
     suggested_type: suggestedCounterpartyType(type),
     is_new_firm: isNewFirm && !alreadyImported,
+    is_new_account: isNewAccount && !alreadyImported && !isNewFirm,
     type,
     counterparty_id: counterparty?.id || null,
     counterparty_name: counterparty?.name || null,
     firm_id: firmMatch?.id || null,
     firm_name: firmMatch?.name || null,
+    firm_bank_account: firmMatch?.bank_account || null,
     contract_id: contract?.id || null,
     contract_number: contract?.number || null,
     channel: channelId,
@@ -419,10 +480,32 @@ function collectNewFirms(rows) {
     map.set(key, {
       inn: r.inn || null,
       name: r.suggested_name || cleanFirmName(r.name, r.inn) || r.name,
+      account: normalizeAccount(r.account) || r.account || null,
       type: r.suggested_type || suggestedCounterpartyType(r.type),
     });
   }
   return [...map.values()].sort((a, b) => String(a.name).localeCompare(String(b.name), 'ru'));
+}
+
+function collectNewAccounts(rows) {
+  const map = new Map();
+  for (const r of rows) {
+    if (!r.is_new_account || r.already_imported || !r.firm_id) continue;
+    const acc = normalizeAccount(r.account) || r.account;
+    if (!acc) continue;
+    const key = `${r.firm_id}:${acc}`;
+    if (map.has(key)) continue;
+    map.set(key, {
+      firm_id: r.firm_id,
+      firm_name: r.firm_name || r.suggested_name || r.name,
+      counterparty_id: r.counterparty_id,
+      counterparty_name: r.counterparty_name,
+      inn: r.inn || null,
+      account: acc,
+      previous_account: normalizeAccount(r.firm_bank_account) || r.firm_bank_account || null,
+    });
+  }
+  return [...map.values()].sort((a, b) => String(a.firm_name).localeCompare(String(b.firm_name), 'ru'));
 }
 
 /**
@@ -454,9 +537,9 @@ export function previewBankStatement(buffer, branchId = DEFAULT_BRANCH_ID) {
   const rows = rawRows.map((r) => classifyRow(r, ctx));
 
   rows.sort((a, b) => {
-    const aNew = a.is_new_firm ? 0 : 1;
-    const bNew = b.is_new_firm ? 0 : 1;
-    if (aNew !== bNew) return aNew - bNew;
+    const aPri = a.is_new_firm ? 0 : (a.is_new_account ? 1 : 2);
+    const bPri = b.is_new_firm ? 0 : (b.is_new_account ? 1 : 2);
+    if (aPri !== bPri) return aPri - bPri;
     const an = (a.counterparty_name || a.suggested_name || a.name || '')
       .localeCompare(b.counterparty_name || b.suggested_name || b.name || '', 'ru');
     if (an !== 0) return an;
@@ -466,6 +549,7 @@ export function previewBankStatement(buffer, branchId = DEFAULT_BRANCH_ID) {
   });
 
   const newFirms = collectNewFirms(rows);
+  const newAccounts = collectNewAccounts(rows);
 
   return {
     bank: 'Ipak Yuli',
@@ -475,6 +559,8 @@ export function previewBankStatement(buffer, branchId = DEFAULT_BRANCH_ID) {
       : null,
     new_firms: newFirms,
     new_firms_count: newFirms.length,
+    new_accounts: newAccounts,
+    new_accounts_count: newAccounts.length,
     total: rows.length,
     selected_count: rows.filter((r) => r.selected).length,
     rows,
@@ -528,6 +614,7 @@ function resolveOrCreateCounterparty(row, branchId, cache, createdList) {
       const firm = createCounterpartyFirm(created.id, {
         name: name || created.name,
         inn: inn || '',
+        bank_account: normalizeAccount(row.account) || row.account || '',
         is_default: true,
       }, branchId);
       firmId = firm?.id || null;
@@ -542,6 +629,24 @@ function resolveOrCreateCounterparty(row, branchId, cache, createdList) {
   return result;
 }
 
+function applyNewBankAccount(row, counterpartyId, firmId, branchId, updatedAccounts) {
+  if (!row?.is_new_account || !counterpartyId || !firmId) return;
+  const account = normalizeAccount(row.account) || row.account;
+  if (!account) return;
+  try {
+    updateCounterpartyFirm(counterpartyId, firmId, { bank_account: account }, branchId);
+    updatedAccounts.push({
+      firm_id: firmId,
+      counterparty_id: counterpartyId,
+      account,
+      firm_name: row.firm_name || row.suggested_name || null,
+      inn: row.inn || null,
+    });
+  } catch {
+    /* ignore update errors — payment still created */
+  }
+}
+
 /**
  * Create payments from confirmed preview rows.
  * Unmatched firms (is_new_firm) are created as counterparties on save.
@@ -554,6 +659,8 @@ export function confirmBankStatementImport(rows, userId, branchId = DEFAULT_BRAN
   const created = [];
   const skipped = [];
   const createdCounterparties = [];
+  const updatedAccounts = [];
+  const accountUpdateDone = new Set();
   const cpCache = new Map();
 
   for (const row of rows) {
@@ -590,6 +697,14 @@ export function confirmBankStatementImport(rows, userId, branchId = DEFAULT_BRAN
       firmId = firmId || resolved.firmId;
     }
 
+    if (row.is_new_account && counterpartyId && firmId) {
+      const accKey = `${firmId}:${normalizeAccount(row.account) || row.account}`;
+      if (!accountUpdateDone.has(accKey)) {
+        accountUpdateDone.add(accKey);
+        applyNewBankAccount(row, counterpartyId, firmId, branchId, updatedAccounts);
+      }
+    }
+
     const commentParts = [];
     if (row.channel_label) commentParts.push(row.channel_label);
     if (row.contract_number) commentParts.push(`дог. ${row.contract_number}`);
@@ -621,6 +736,8 @@ export function confirmBankStatementImport(rows, userId, branchId = DEFAULT_BRAN
     skipped_count: skipped.length,
     created_counterparties_count: createdCounterparties.length,
     created_counterparties: createdCounterparties,
+    updated_accounts_count: updatedAccounts.length,
+    updated_accounts: updatedAccounts,
     created,
     skipped,
   };

@@ -11423,6 +11423,20 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
   background: color-mix(in srgb, var(--danger, #c62828) 8%, transparent);
 }
 
+.bank-import-row-new-account td {
+  background: color-mix(in srgb, var(--warning, #f9a825) 12%, transparent);
+}
+
+.alert-warning {
+  background: color-mix(in srgb, var(--warning, #f9a825) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warning, #f9a825) 40%, var(--border));
+  color: var(--text);
+  padding: 10px 12px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+
 .bank-import-match-reason {
   font-size: 11px;
   margin-top: 2px;

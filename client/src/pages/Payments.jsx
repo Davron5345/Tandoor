@@ -110,6 +110,8 @@ export default function Payments() {
       setModal('import');
       if (preview.new_firms_count > 0) {
         show(`Найдено новых фирм: ${preview.new_firms_count} — создадутся при сохранении`, 'error');
+      } else if (preview.new_accounts_count > 0) {
+        show(`Найдено новых р/с: ${preview.new_accounts_count} — запишутся на фирмы при сохранении`, 'error');
       } else if (!preview.retail_client) {
         show('Создайте клиента «КЛИЕНТ» и договоры Click / Payme / Терминал — для эквайринга', 'error');
       }
@@ -125,6 +127,7 @@ export default function Payments() {
     if (importFilter === 'debit') return importRows.filter((r) => r.direction === 'debit');
     if (importFilter === 'credit') return importRows.filter((r) => r.direction === 'credit');
     if (importFilter === 'new') return importRows.filter((r) => r.is_new_firm && !r.counterparty_id);
+    if (importFilter === 'new_account') return importRows.filter((r) => r.is_new_account);
     if (importFilter === 'unmatched') {
       return importRows.filter((r) => !r.counterparty_id && !r.already_imported);
     }
@@ -142,7 +145,26 @@ export default function Payments() {
       map.set(key, {
         inn: r.inn,
         name: r.suggested_name || r.name,
+        account: r.account || null,
         type: r.suggested_type,
+      });
+    }
+    return [...map.values()];
+  }, [importRows]);
+
+  const newAccountsLive = useMemo(() => {
+    const map = new Map();
+    for (const r of importRows) {
+      if (!r.is_new_account || r.already_imported || !r.firm_id) continue;
+      const acc = String(r.account || '').replace(/\D/g, '') || r.account;
+      if (!acc) continue;
+      const key = `${r.firm_id}:${acc}`;
+      if (map.has(key)) continue;
+      map.set(key, {
+        firm_name: r.firm_name || r.suggested_name || r.name,
+        inn: r.inn,
+        account: acc,
+        previous_account: r.firm_bank_account || null,
       });
     }
     return [...map.values()];
@@ -157,6 +179,7 @@ export default function Payments() {
           next.is_new_firm = false;
         } else if (r.inn || r.suggested_name) {
           next.is_new_firm = true;
+          next.is_new_account = false;
         }
       }
       return next;
@@ -184,7 +207,10 @@ export default function Payments() {
       const firmMsg = result.created_counterparties_count
         ? `, новых фирм: ${result.created_counterparties_count}`
         : '';
-      show(`Создано операций: ${result.created_count}${firmMsg}`
+      const accMsg = result.updated_accounts_count
+        ? `, новых р/с: ${result.updated_accounts_count}`
+        : '';
+      show(`Создано операций: ${result.created_count}${firmMsg}${accMsg}`
         + (result.skipped_count ? `, пропущено: ${result.skipped_count}` : ''));
       setModal(null);
       setImportRows([]);
@@ -324,7 +350,7 @@ export default function Payments() {
                 ? ` Эквайринг → «${importMeta.retail_client.name}».`
                 : ' Нет клиента «КЛИЕНТ» — Click/Payme/терминал не привяжутся автоматически.'}
               {' '}
-              Новые фирмы без ИНН/названия в справочнике создаются при сохранении; если фирма уже есть — выберите вручную.
+              Новые фирмы создаются при сохранении. Если ИНН и название совпали, а р/с другой — это новый счёт у той же фирмы.
             </p>
 
             {newFirmsLive.length > 0 && (
@@ -333,8 +359,20 @@ export default function Payments() {
                 {' '}
                 при сохранении будут добавлены в справочник —
                 {' '}
-                {newFirmsLive.map((f) => `${f.name}${f.inn ? ` (${f.inn})` : ''}`).join('; ')}.
+                {newFirmsLive.map((f) => `${f.name}${f.inn ? ` (${f.inn})` : ''}${f.account ? `, р/с ${f.account}` : ''}`).join('; ')}.
                 Можно вручную выбрать существующего контрагента в строке.
+              </div>
+            )}
+
+            {newAccountsLive.length > 0 && (
+              <div className="alert alert-warning bank-import-new-accounts" role="status">
+                <strong>Новые р/с ({newAccountsLive.length}):</strong>
+                {' '}
+                ИНН и название совпали, счёт другой — при сохранении р/с обновится у фирмы —
+                {' '}
+                {newAccountsLive.map((a) => (
+                  `${a.firm_name}${a.inn ? ` (${a.inn})` : ''}: ${a.account}${a.previous_account ? ` (был ${a.previous_account})` : ''}`
+                )).join('; ')}.
               </div>
             )}
 
@@ -345,6 +383,7 @@ export default function Payments() {
                   <option value="all">Все ({importRows.length})</option>
                   <option value="selected">Выбранные ({selectedImportCount})</option>
                   <option value="new">Новые фирмы ({newFirmsLive.length})</option>
+                  <option value="new_account">Новые р/с ({newAccountsLive.length})</option>
                   <option value="debit">Расход (дебет)</option>
                   <option value="credit">Приход (кредит)</option>
                   <option value="unmatched">Без контрагента</option>
@@ -381,7 +420,11 @@ export default function Payments() {
                   {visibleImportRows.map((r) => (
                     <tr
                       key={r.external_ref}
-                      className={r.is_new_firm && !r.counterparty_id ? 'bank-import-row-new' : undefined}
+                      className={
+                        r.is_new_firm && !r.counterparty_id
+                          ? 'bank-import-row-new'
+                          : (r.is_new_account ? 'bank-import-row-new-account' : undefined)
+                      }
                       style={r.already_imported ? { opacity: 0.55 } : undefined}
                     >
                       <td>
