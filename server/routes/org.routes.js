@@ -74,6 +74,12 @@ export function registerOrgRoutes(app) {
     res.json(svc.getPnLReport(req.branchId, dateFrom, dateTo));
   });
 
+  app.get('/api/reports/cash-articles', requirePermission('reports.view'), attachBranch, (req, res) => {
+    const dateFrom = req.query.date_from || null;
+    const dateTo = req.query.date_to || null;
+    res.json(svc.getCashArticlesReport(req.branchId, dateFrom, dateTo));
+  });
+
   app.get('/api/branches', attachBranch, (req, res) => {
     if (req.user.role === 'admin') {
       res.json(branches.getBranchesEnriched(true));

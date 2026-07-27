@@ -126,6 +126,7 @@ export function getPayments(branchId = null, userRole = null, filters = {}) {
     LEFT JOIN users u ON u.id = p.created_by
     LEFT JOIN branches b ON b.id = p.branch_id
     LEFT JOIN cash_articles ca ON ca.id = p.article_id
+      AND (ca.branch_id = p.branch_id OR (p.branch_id IS NULL AND ca.branch_id = '${DEFAULT_BRANCH_ID}'))
     LEFT JOIN counterparty_contracts cc ON cc.id = p.contract_id
     LEFT JOIN counterparty_firms cf ON cf.id = p.firm_id
   `;
@@ -353,6 +354,7 @@ export function createPayment(data, userId = null, branchId = DEFAULT_BRANCH_ID,
     LEFT JOIN counterparties c ON c.id = p.counterparty_id
     LEFT JOIN documents d ON d.id = p.document_id
     LEFT JOIN cash_articles ca ON ca.id = p.article_id
+      AND (ca.branch_id = p.branch_id OR (p.branch_id IS NULL AND ca.branch_id = '${DEFAULT_BRANCH_ID}'))
     LEFT JOIN counterparty_contracts cc ON cc.id = p.contract_id
     LEFT JOIN counterparty_firms cf ON cf.id = p.firm_id
     WHERE p.id = ?
@@ -425,6 +427,7 @@ export function updatePayment(id, data, branchId = DEFAULT_BRANCH_ID, userRole =
     LEFT JOIN counterparties c ON c.id = p.counterparty_id
     LEFT JOIN documents d ON d.id = p.document_id
     LEFT JOIN cash_articles ca ON ca.id = p.article_id
+      AND (ca.branch_id = p.branch_id OR (p.branch_id IS NULL AND ca.branch_id = '${DEFAULT_BRANCH_ID}'))
     LEFT JOIN counterparty_contracts cc ON cc.id = p.contract_id
     LEFT JOIN counterparty_firms cf ON cf.id = p.firm_id
     WHERE p.id = ?

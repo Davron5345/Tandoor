@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-07-27 (удаление контрагента только без упоминаний)
+**Последнее обновление документации:** 2026-07-27 (отчёт по статьям + изоляция филиалов)
 
 ---
 
@@ -412,7 +412,7 @@ GET  /api/auth/roles
 | `/api/counterparties` | counterparties.routes.js | Контрагенты, договоры (`/:id/contracts` CRUD), `/:id/firms` — юрлица поставщика (CRUD) |
 | `/api/payments` | finance.routes.js | Оплаты; `GET/POST/PUT/DELETE /api/bank-accounts`; `GET /bank-opening?bank_account_id=`; `DELETE /by-date/:date?bank_account_id=`; import parse/confirm |
 | `/api/cash-articles` | finance.routes.js | Статьи кассы |
-| `/api/stats`, `/api/reports/*` | org.routes.js | Отчёты, дашборд; `/api/reports/supplier-debts?date_from&date_to&supplier_id` — оборотная ведомость поставщиков |
+| `/api/stats`, `/api/reports/*` | org.routes.js | Отчёты, дашборд; `/api/reports/supplier-debts`; `/api/reports/cash-articles?date_from&date_to` — обороты по статьям **только** `req.branchId` (платежи + JOIN статей по `ca.branch_id`) |
 | `/api/branches`, `/api/departments`, `/api/users` | org.routes.js | Оргструктура |
 | `/api/roles` | org.routes.js | Роли и права |
 | `/api/shop-orders` | shopOrders.routes.js | Заявки MyShop |
@@ -444,7 +444,7 @@ GET  /api/auth/roles
 | `/cashier` | Cashier.jsx | cashier.* |
 | `/payments` | Payments.jsx | payments.view; справочник счетов («Основной»); список по датам; под поставщиком — фирма, под клиентом — канал (Payme/Click/Терминал/Инкассо); выбор столбцов; импорт AccReferenceReport |
 | `/cash-articles` | CashArticles.jsx | cash_articles.view |
-| `/reports/*` | Reports.jsx | reports.view; `/reports/supplier-debts` — долги поставщикам; акт сверки — фильтр «Фирма» у поставщика |
+| `/reports/*` | Reports.jsx | reports.view; `/reports/supplier-debts` — долги поставщикам; `/reports/cash-articles` — по статьям (изоляция филиала); акт сверки — фильтр «Фирма» |
 | `/opening-balance` | OpeningBalance.jsx | opening_balance.view |
 | `/myshop` | MyShop.jsx | myshop.view |
 | `/myshop/constructor` | MyShopConstructor.jsx | myshop.edit |
@@ -679,6 +679,7 @@ GET  /api/auth/roles
 | 2026-07-27 | Справочник контрагентов: счётчик упоминаний (документы + выписки/оплаты) |
 | 2026-07-27 | Клиент «Клиент»: каналы Click/Payme/Терминал/Инкассо/Humo/Uzcard/Uzum как фирмы + автосид |
 | 2026-07-27 | Контрагенты: удаление только если упоминаний 0 (UI + API) |
+| 2026-07-27 | Отчёт «По статьям»: `/reports/cash-articles`; платежи/P&L other_* — фильтр филиала + JOIN `ca.branch_id`; тест изоляции |
 
 ---
 

@@ -554,6 +554,94 @@ function buildDateFilter(column, dateFrom, dateTo, params) {
   return sql;
 }
 
+/** Платежи только своего филиала (legacy NULL → только main). */
+function paymentsBranchFilterSql(alias = 'p') {
+  return `(${alias}.branch_id = ? OR (${alias}.branch_id IS NULL AND ? = ?))`;
+}
+
+function paymentsBranchFilterParams(branchId) {
+  return [branchId, branchId, DEFAULT_BRANCH_ID];
+}
+
+/**
+ * Отчёт по статьям кассы за период — строго в рамках branchId.
+ * Статьи чужого филиала не подтягиваются (JOIN по ca.branch_id).
+ */
+export function getCashArticlesReport(branchId = DEFAULT_BRANCH_ID, dateFrom = null, dateTo = null) {
+  const bid = branchId || DEFAULT_BRANCH_ID;
+  // Порядок плейсхолдеров: JOIN ca.branch_id, затем фильтр payments.branch_id
+  const params = [bid, ...paymentsBranchFilterParams(bid)];
+  const dateFilter = buildDateFilter('p.date', dateFrom, dateTo, params);
+
+  const rows = queryAll(`
+    SELECT
+      ca.id AS article_id,
+      ca.code AS code,
+      ca.name AS article_name,
+      ca.direction AS article_direction,
+      p.type AS payment_type,
+      COUNT(*) AS ops_count,
+      COALESCE(SUM(p.amount), 0) AS amount
+    FROM payments p
+    LEFT JOIN cash_articles ca
+      ON ca.id = p.article_id
+     AND ca.branch_id = ?
+    WHERE ${paymentsBranchFilterSql('p')}
+    ${dateFilter}
+    GROUP BY ca.id, ca.code, ca.name, ca.direction, p.type
+    ORDER BY amount DESC
+  `, params);
+
+  const incomeMap = new Map();
+  const expenseMap = new Map();
+
+  const bump = (map, key, row, direction) => {
+    const prev = map.get(key) || {
+      article_id: row.article_id || null,
+      code: row.code || null,
+      name: row.article_name || 'Без статьи',
+      direction,
+      ops_count: 0,
+      amount: 0,
+    };
+    prev.ops_count += Number(row.ops_count) || 0;
+    prev.amount += Number(row.amount) || 0;
+    map.set(key, prev);
+  };
+
+  for (const row of rows) {
+    let direction = row.article_direction;
+    if (direction !== 'income' && direction !== 'expense') {
+      direction = (row.payment_type === 'customer_income' || row.payment_type === 'other_income')
+        ? 'income'
+        : 'expense';
+    }
+    const key = row.article_id || `__none__:${direction}:${row.payment_type || ''}`;
+    bump(direction === 'income' ? incomeMap : expenseMap, key, row, direction);
+  }
+
+  const sortItems = (items) => items.sort((a, b) => (b.amount - a.amount)
+    || String(a.name).localeCompare(String(b.name), 'ru'));
+
+  const incomeItems = sortItems([...incomeMap.values()]);
+  const expenseItems = sortItems([...expenseMap.values()]);
+
+  return {
+    period: { date_from: dateFrom, date_to: dateTo },
+    branch_id: bid,
+    income: {
+      total: incomeItems.reduce((s, r) => s + r.amount, 0),
+      ops_count: incomeItems.reduce((s, r) => s + r.ops_count, 0),
+      items: incomeItems,
+    },
+    expense: {
+      total: expenseItems.reduce((s, r) => s + r.amount, 0),
+      ops_count: expenseItems.reduce((s, r) => s + r.ops_count, 0),
+      items: expenseItems,
+    },
+  };
+}
+
 export function getPnLReport(branchId = DEFAULT_BRANCH_ID, dateFrom = null, dateTo = null) {
   const docParams = [branchId];
   const docDateFilter = buildDateFilter('d.date', dateFrom, dateTo, docParams);
@@ -690,14 +778,14 @@ export function getPnLReport(branchId = DEFAULT_BRANCH_ID, dateFrom = null, date
     ORDER BY 1 ASC
   `, monthParams);
 
-  const payParams = [branchId];
+  const payParams = [branchId, ...paymentsBranchFilterParams(branchId)];
   const payDateFilter = buildDateFilter('p.date', dateFrom, dateTo, payParams);
 
   const expenseRows = queryAll(`
     SELECT ca.code, ca.name, COALESCE(SUM(p.amount), 0) as amount
     FROM payments p
-    LEFT JOIN cash_articles ca ON ca.id = p.article_id
-    WHERE p.branch_id = ? AND p.type = 'other_expense'
+    LEFT JOIN cash_articles ca ON ca.id = p.article_id AND ca.branch_id = ?
+    WHERE ${paymentsBranchFilterSql('p')} AND p.type = 'other_expense'
     ${payDateFilter}
       AND (ca.code IS NULL OR ca.code != ?)
     GROUP BY ca.id, ca.code, ca.name
@@ -707,8 +795,8 @@ export function getPnLReport(branchId = DEFAULT_BRANCH_ID, dateFrom = null, date
   const incomeRows = queryAll(`
     SELECT ca.code, ca.name, COALESCE(SUM(p.amount), 0) as amount
     FROM payments p
-    LEFT JOIN cash_articles ca ON ca.id = p.article_id
-    WHERE p.branch_id = ? AND p.type = 'other_income'
+    LEFT JOIN cash_articles ca ON ca.id = p.article_id AND ca.branch_id = ?
+    WHERE ${paymentsBranchFilterSql('p')} AND p.type = 'other_income'
     ${payDateFilter}
     GROUP BY ca.id, ca.code, ca.name
     ORDER BY amount DESC, ca.name ASC

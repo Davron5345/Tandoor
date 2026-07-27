@@ -103,6 +103,7 @@ function buildAppNav(user) {
     { to: '/reports/supplier-debts', label: 'Долги поставщикам', perm: 'reports.view' },
     { to: '/reports/reconciliation', label: 'Акт сверки', perm: 'reports.view' },
     { to: '/reports/pnl', label: 'P&L', perm: 'reports.view' },
+    { to: '/reports/cash-articles', label: 'По статьям', perm: 'reports.view' },
     { to: '/opening-balance', label: 'Начальное сальдо', perm: 'opening_balance.view' },
   ]);
 

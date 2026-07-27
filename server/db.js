@@ -2202,6 +2202,10 @@ function migrateCashArticlesBankService() {
   const done = queryOne("SELECT value FROM settings WHERE key = 'cash_articles_bank_service_v1'");
   if (done) return;
 
+  // firm_id появляется позже в migrateCounterpartyFirms — не ломаем свежую SQLite
+  const payCols = queryAll('PRAGMA table_info(payments)').map((c) => c.name);
+  const clearFirmSql = payCols.includes('firm_id') ? ',\n             firm_id = NULL' : '';
+
   for (const branchId of branchIds) {
     for (const article of extraArticles) {
       const id = cashArticleId(branchId, article.code);
@@ -2209,8 +2213,7 @@ function migrateCashArticlesBankService() {
       run(
         `UPDATE payments
          SET article_id = ?,
-             counterparty_id = NULL,
-             firm_id = NULL
+             counterparty_id = NULL${clearFirmSql}
          WHERE type = 'other_expense'
            AND (branch_id = ? OR (branch_id IS NULL AND ? = 'main'))
            AND (

@@ -23,6 +23,7 @@ export {
   getSupplierDebtMovementReport,
   getStats,
   getPnLReport,
+  getCashArticlesReport,
   zeroStockPosition,
 } from './services/reports.js';
 
