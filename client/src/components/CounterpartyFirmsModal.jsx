@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { api } from '../api';
+import { api, formatDate, formatPriceInput } from '../api';
 import Modal, { ModalCancelButton, useToast } from './Modal';
-import { IconButton, IconContract, IconEdit, IconTrash } from './ActionIcons';
+import { IconButton, IconContract, IconEdit, IconPlus, IconTrash } from './ActionIcons';
 import { useFormDirty } from '../hooks/useFormDirty';
 import CounterpartyContractsModal from './CounterpartyContractsModal';
+import ContractEditModal from './ContractEditModal';
 
 const emptyFirm = {
   name: '',
@@ -36,9 +37,12 @@ export default function CounterpartyFirmsModal({
   const [editModal, setEditModal] = useState(null); // 'create' | firmId
   const [firmForm, setFirmForm] = useState(emptyFirm);
   const [saving, setSaving] = useState(false);
-  const [contractsFirm, setContractsFirm] = useState(null); // firm row or null
+  const [firmContracts, setFirmContracts] = useState([]);
+  const [contractsFirm, setContractsFirm] = useState(null);
+  const [contractEditor, setContractEditor] = useState(null); // { id, initial } | null
   const { show, Toast } = useToast();
   const isFirmDirty = useFormDirty(firmForm, editModal ? `firm-${editModal}` : null);
+  const editingFirmId = editModal && editModal !== 'create' ? editModal : null;
 
   const loadFirms = useCallback(() => {
     if (!counterpartyId) {
@@ -53,12 +57,28 @@ export default function CounterpartyFirmsModal({
       .finally(() => setLoading(false));
   }, [counterpartyId]);
 
+  const loadFirmContracts = useCallback((firmId) => {
+    if (!counterpartyId || !firmId) {
+      setFirmContracts([]);
+      return;
+    }
+    api.getCounterpartyContracts(counterpartyId, { firm_id: firmId })
+      .then((list) => setFirmContracts(list.filter((c) => c.id !== '__default__' && !c.virtual)))
+      .catch(() => setFirmContracts([]));
+  }, [counterpartyId]);
+
   useEffect(() => {
     loadFirms();
   }, [loadFirms]);
 
+  useEffect(() => {
+    if (editingFirmId) loadFirmContracts(editingFirmId);
+    else setFirmContracts([]);
+  }, [editingFirmId, loadFirmContracts]);
+
   const openCreate = () => {
     setFirmForm(emptyFirm);
+    setFirmContracts([]);
     setEditModal('create');
   };
 
@@ -68,8 +88,10 @@ export default function CounterpartyFirmsModal({
   };
 
   const closeEdit = () => {
+    setContractEditor(null);
     setEditModal(null);
     setFirmForm(emptyFirm);
+    setFirmContracts([]);
   };
 
   const saveFirm = async () => {
@@ -106,6 +128,27 @@ export default function CounterpartyFirmsModal({
     }
   };
 
+  const removeContract = async (contractId) => {
+    if (!canEdit || !editingFirmId) return;
+    if (!window.confirm('Удалить договор?')) return;
+    try {
+      await api.deleteCounterpartyContract(counterpartyId, contractId);
+      loadFirmContracts(editingFirmId);
+      loadFirms();
+      onContractsChanged?.();
+      show('Договор удалён');
+    } catch (e) {
+      show(e.message, 'error');
+    }
+  };
+
+  const onContractSaved = () => {
+    if (editingFirmId) loadFirmContracts(editingFirmId);
+    loadFirms();
+    onContractsChanged?.();
+    onChanged?.();
+  };
+
   return createPortal(
     <>
       {Toast}
@@ -124,7 +167,7 @@ export default function CounterpartyFirmsModal({
         )}
       >
         <p className="text-muted cp-contracts-hint">
-          Юрлица и ИНН для банковских платежей. Договоры каждой фирмы — по иконке списка.
+          Юрлица и ИНН для банковских платежей. Договоры можно вести в карточке фирмы.
         </p>
 
         {loading ? (
@@ -183,6 +226,7 @@ export default function CounterpartyFirmsModal({
       {editModal && (
         <Modal
           title={editModal === 'create' ? 'Новая фирма' : 'Редактировать фирму'}
+          className="modal-firm-edit"
           dirty={isFirmDirty}
           onClose={closeEdit}
           footer={(
@@ -199,7 +243,7 @@ export default function CounterpartyFirmsModal({
             </>
           )}
         >
-          <div className="form-grid">
+          <div className="form-grid form-grid-compact">
             <div className="form-group full">
               <label>Название</label>
               <input
@@ -248,8 +292,79 @@ export default function CounterpartyFirmsModal({
               />
             </div>
           </div>
+
+          {editingFirmId ? (
+            <div className="cp-firm-contracts">
+              <div className="cp-firm-contracts-head">
+                <strong>Договоры</strong>
+                {canEdit && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => setContractEditor({ id: null, initial: null })}
+                  >
+                    <IconPlus /> Добавить
+                  </button>
+                )}
+              </div>
+              {firmContracts.length > 0 ? (
+                <ul className="cp-firm-contracts-list">
+                  {firmContracts.map((c) => (
+                    <li key={c.id}>
+                      <div className="cp-firm-contract-main">
+                        <span className="cp-firm-contract-title">
+                          {c.title || c.number}
+                          {c.title && c.number && c.title !== c.number ? ` · ${c.number}` : ''}
+                        </span>
+                        <span className="text-muted">
+                          {[
+                            c.date ? formatDate(c.date) : null,
+                            c.direction === 'incoming' ? 'вход.' : (c.direction === 'outgoing' ? 'исх.' : null),
+                            c.amount ? formatPriceInput(Math.round(Number(c.amount))) : null,
+                          ].filter(Boolean).join(' · ')}
+                        </span>
+                      </div>
+                      {canEdit && (
+                        <div className="btn-group btn-group-icons">
+                          <IconButton
+                            title="Изменить"
+                            onClick={() => setContractEditor({ id: c.id, initial: c })}
+                          >
+                            <IconEdit />
+                          </IconButton>
+                          {!c.is_used && (
+                            <IconButton title="Удалить" danger onClick={() => removeContract(c.id)}>
+                              <IconTrash />
+                            </IconButton>
+                          )}
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-muted cp-contracts-hint" style={{ margin: 0 }}>
+                  Договоры не добавлены.
+                </p>
+              )}
+            </div>
+          ) : (
+            <p className="text-muted cp-contracts-hint" style={{ marginTop: 12 }}>
+              Сохраните фирму, затем можно добавить договоры.
+            </p>
+          )}
         </Modal>
       )}
+
+      <ContractEditModal
+        open={Boolean(contractEditor && editingFirmId)}
+        counterpartyId={counterpartyId}
+        firmId={editingFirmId}
+        contractId={contractEditor?.id || null}
+        initial={contractEditor?.initial || null}
+        onClose={() => setContractEditor(null)}
+        onSaved={onContractSaved}
+      />
 
       {contractsFirm && (
         <CounterpartyContractsModal
@@ -260,6 +375,7 @@ export default function CounterpartyFirmsModal({
           onClose={() => setContractsFirm(null)}
           onChanged={() => {
             loadFirms();
+            if (editingFirmId === contractsFirm.id) loadFirmContracts(editingFirmId);
             onContractsChanged?.();
             onChanged?.();
           }}
