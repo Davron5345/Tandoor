@@ -2885,6 +2885,30 @@ input[type='number']::-webkit-inner-spin-button {
   width: 100%;
 }
 
+.cp-firms-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.cp-firms-summary h3 {
+  margin: 0;
+}
+
+.cp-firms-compact-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.cp-firms-compact-list li + li {
+  margin-top: 4px;
+}
+
 .text-muted {
   color: var(--text-muted);
 }

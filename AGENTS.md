@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-07-27 (фирмы поставщика: ИНН, акт сверки)
+**Последнее обновление документации:** 2026-07-27 (фирмы поставщика: отдельное окно в карточке)
 
 ---
 
@@ -346,7 +346,7 @@ Frontend зеркало: `client/src/permissions.js`.
 ### 9.10 Фирмы поставщика (юрлица)
 
 - **Контрагент-поставщик** — торговое имя (напр. «Мурод»); **фирмы** (`counterparty_firms`) — юрлица с ИНН для оплат и сверки
-- У поставщика в карточке (`/counterparties`): блок «Фирмы для оплаты» — название, ИНН (9 цифр), опционально договор, флаг «по умолчанию»
+- У поставщика в карточке (`/counterparties`): кнопка «Фирмы (N)» открывает вложенное окно `CounterpartyFirmsModal` — название, ИНН (9 цифр), опционально договор
 - API: `GET/POST /api/counterparties/:id/firms`, `PUT/DELETE /api/counterparties/:id/firms/:firmId`
 - Импорт выписки и ручные оплаты: `firm_id` на платеже; поиск по ИНН через `findCounterpartyFirmByInn`
 - **Акт сверки** (`/reports/reconciliation`): фильтр «Фирма» (все / конкретная); строки без `firm_id` видны только при «Все фирмы»
@@ -422,7 +422,7 @@ GET  /api/auth/roles
 | `/products` | Products.jsx | products.view |
 | `/product-categories` | ProductCategories.jsx | products.view |
 | `/units` | Units.jsx | products.view |
-| `/counterparties` | Counterparties.jsx | counterparties.view; у поставщиков — блок «Фирмы для оплаты», колонка «Фирмы / ИНН» |
+| `/counterparties` | Counterparties.jsx | counterparties.view; у поставщиков — кнопка «Фирмы» → вложенное окно юрлиц |
 | `/prihod`, `/rashod`, `/return-*`, `/transfer` | Documents.jsx | documents.*; фильтры: дата С/По, контрагент/поставщик, статус |
 | `/documents` | Documents.jsx | documents.view; те же фильтры + тип документа |
 | `/razdelka` | Razdelka.jsx | documents.razdelka |
@@ -644,6 +644,7 @@ GET  /api/auth/roles
 | 2026-07-27 | Банк: импорт выписки Ipak Yuli AccReferenceReport; ИНН контрагента; договоры у клиента «КЛИЕНТ» (Click/Payme/Терминал); `payments.external_ref` / `contract_id` |
 | 2026-07-27 | Импорт выписки: новые фирмы по ИНН/названию создаются при сохранении; крупная фиксированная модалка |
 | 2026-07-27 | Фирмы поставщика: `counterparty_firms`, `firm_id` в payments/documents; CRUD в справочнике; акт сверки по фирме; миграция ИНН → фирма |
+| 2026-07-27 | UI фирм: компактная карточка поставщика + вложенное окно `CounterpartyFirmsModal` |
 
 ---
 
