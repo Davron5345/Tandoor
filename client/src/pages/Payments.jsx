@@ -581,21 +581,21 @@ export default function Payments() {
         </p>
       )}
 
-      <div className="card">
-        <div className="table-wrap">
+      <div className="card bank-days-card">
+        <div className="table-wrap bank-days-wrap">
           <table className="bank-days-table">
             <thead>
               <tr>
-                <th>Номер</th>
+                <th>№</th>
                 <th>Дата</th>
                 <th>Тип</th>
-                <th>Операций</th>
+                <th>Опер.</th>
                 <th className="num">Сальдо нач.</th>
                 <th className="num">Дебет<br /><span className="th-sub">расход</span></th>
                 <th className="num">Кредит<br /><span className="th-sub">приход</span></th>
                 <th className="num">Сальдо кон.</th>
                 <th>Статус</th>
-                <th>Действия</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -604,7 +604,9 @@ export default function Payments() {
                   <td>{day.number}</td>
                   <td>{formatDate(day.date)}</td>
                   <td>
-                    <span className="badge badge-supplier">Выписка</span>
+                    <span className="badge badge-supplier bank-type-badge" title={selectedAccount?.name || 'Счёт'}>
+                      {selectedAccount?.name || 'Счёт'}
+                    </span>
                   </td>
                   <td>{day.count}</td>
                   <td className="num">{formatMoney(day.opening)}</td>
@@ -652,7 +654,7 @@ export default function Payments() {
 
       {viewDay && (
         <Modal
-          title={`Выписка · ${formatDate(viewDay)}`}
+          title={`${selectedAccount?.name || 'Выписка'} · ${formatDate(viewDay)}`}
           wide
           className="modal-bank-day"
           onClose={() => setViewDay(null)}

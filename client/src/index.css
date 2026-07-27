@@ -11692,6 +11692,66 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
   color: var(--text-muted);
 }
 
+.bank-days-card .bank-days-wrap {
+  overflow-x: hidden;
+  max-width: 100%;
+}
+
+.bank-days-table {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+  font-size: 13px;
+}
+
+.bank-days-table th,
+.bank-days-table td {
+  padding: 8px 6px;
+  vertical-align: middle;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bank-days-table th:nth-child(1),
+.bank-days-table td:nth-child(1) {
+  width: 40px;
+}
+
+.bank-days-table th:nth-child(2),
+.bank-days-table td:nth-child(2) {
+  width: 88px;
+}
+
+.bank-days-table th:nth-child(3),
+.bank-days-table td:nth-child(3) {
+  width: 16%;
+}
+
+.bank-days-table th:nth-child(4),
+.bank-days-table td:nth-child(4) {
+  width: 52px;
+  text-align: center;
+}
+
+.bank-days-table th:nth-child(9),
+.bank-days-table td:nth-child(9) {
+  width: 96px;
+}
+
+.bank-days-table th:nth-child(10),
+.bank-days-table td:nth-child(10) {
+  width: 72px;
+}
+
+.bank-type-badge {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+
 .bank-days-table th.num,
 .bank-days-table td.num,
 .bank-day-table th.num,
@@ -11699,6 +11759,7 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
   text-align: right;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  font-size: 12px;
 }
 
 .bank-amt-debit {
