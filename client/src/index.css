@@ -2968,6 +2968,17 @@ input[type='number']::-webkit-inner-spin-button {
   max-width: 360px;
 }
 
+.cp-mentions-count {
+  display: inline-block;
+  min-width: 1.6em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: color-mix(in srgb, var(--primary) 14%, transparent);
+  color: var(--primary);
+}
+
 .cp-contracts-compact-table th,
 .cp-contracts-compact-table td {
   padding: 6px 8px;
