@@ -1330,12 +1330,30 @@ function migrateCounterpartyContracts() {
       counterparty_id TEXT NOT NULL,
       branch_id TEXT NOT NULL,
       number TEXT NOT NULL,
+      title TEXT,
       date TEXT,
+      end_date TEXT,
+      direction TEXT,
+      amount REAL DEFAULT 0,
       is_default INTEGER DEFAULT 0,
       created_at TEXT DEFAULT (datetime('now')),
       FOREIGN KEY (counterparty_id) REFERENCES counterparties(id) ON DELETE CASCADE
     )
   `);
+
+  const contractCols = queryAll('PRAGMA table_info(counterparty_contracts)').map((c) => c.name);
+  if (!contractCols.includes('title')) {
+    run('ALTER TABLE counterparty_contracts ADD COLUMN title TEXT');
+  }
+  if (!contractCols.includes('end_date')) {
+    run('ALTER TABLE counterparty_contracts ADD COLUMN end_date TEXT');
+  }
+  if (!contractCols.includes('direction')) {
+    run('ALTER TABLE counterparty_contracts ADD COLUMN direction TEXT');
+  }
+  if (!contractCols.includes('amount')) {
+    run('ALTER TABLE counterparty_contracts ADD COLUMN amount REAL DEFAULT 0');
+  }
 
   const docCols = queryAll('PRAGMA table_info(documents)').map((c) => c.name);
   if (!docCols.includes('contract_id')) {

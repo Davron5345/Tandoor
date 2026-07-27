@@ -116,7 +116,8 @@ export function getCounterpartyContracts(counterpartyId, branchId = DEFAULT_BRAN
   if (!cp) throw new Error('Контрагент не найден');
 
   const contracts = queryAll(`
-    SELECT id, counterparty_id, branch_id, number, date, is_default, created_at
+    SELECT id, counterparty_id, branch_id, number, title, date, end_date, direction, amount,
+           is_default, created_at
     FROM counterparty_contracts
     WHERE counterparty_id = ? AND branch_id = ?
     ORDER BY is_default DESC, date DESC, number
@@ -128,7 +129,11 @@ export function getCounterpartyContracts(counterpartyId, branchId = DEFAULT_BRAN
       counterparty_id: counterpartyId,
       branch_id: branchId,
       number: 'Основной договор',
+      title: null,
       date: null,
+      end_date: null,
+      direction: null,
+      amount: 0,
       is_default: 1,
       virtual: true,
       is_used: false,
@@ -155,15 +160,38 @@ export function createCounterpartyContract(counterpartyId, data, branchId = DEFA
   if (!cp) throw new Error('Контрагент не найден');
   const number = (data.number || '').trim();
   if (!number) throw new Error('Укажите номер договора');
+  const title = (data.title || data.name || '').trim() || null;
+  const direction = normalizeContractDirection(data.direction);
+  const amount = Number(data.amount);
+  const amountValue = Number.isFinite(amount) && amount >= 0 ? amount : 0;
 
   const id = uuidv4();
   run(`
-    INSERT INTO counterparty_contracts (id, counterparty_id, branch_id, number, date, is_default)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `, [id, counterpartyId, branchId, number, data.date || null, data.is_default ? 1 : 0]);
+    INSERT INTO counterparty_contracts
+      (id, counterparty_id, branch_id, number, title, date, end_date, direction, amount, is_default)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `, [
+    id,
+    counterpartyId,
+    branchId,
+    number,
+    title,
+    data.date || null,
+    data.end_date || null,
+    direction,
+    amountValue,
+    data.is_default ? 1 : 0,
+  ]);
 
   const created = queryOne('SELECT * FROM counterparty_contracts WHERE id = ?', [id]);
   return { ...created, is_used: false, virtual: false };
+}
+
+function normalizeContractDirection(value) {
+  const v = String(value || '').trim().toLowerCase();
+  if (v === 'incoming' || v === 'входящий' || v === 'in') return 'incoming';
+  if (v === 'outgoing' || v === 'исходящий' || v === 'out') return 'outgoing';
+  return null;
 }
 
 export function deleteCounterpartyContract(counterpartyId, contractId, branchId = DEFAULT_BRANCH_ID) {

@@ -67,8 +67,12 @@ function isOutgoingDocType(type) {
 }
 
 function formatContractLabel(contract) {
-  if (!contract?.date) return contract?.number || 'Основной договор';
-  return `${contract.number} — ${formatDate(contract.date)}`;
+  if (!contract) return 'Основной договор';
+  const title = (contract.title || '').trim();
+  const number = contract.number || 'Основной договор';
+  const head = title && title !== number ? `${title} · ${number}` : number;
+  if (!contract.date) return head;
+  return `${head} — ${formatDate(contract.date)}`;
 }
 
 const emptyItem = { product_id: '', variant_id: null, quantity: 1, price: 0, net_weight: '' };
@@ -128,7 +132,14 @@ export default function Documents({ defaultType }) {
   const [actionsMenuPos, setActionsMenuPos] = useState(null);
   const [quickSupplierOpen, setQuickSupplierOpen] = useState(false);
   const [quickContractOpen, setQuickContractOpen] = useState(false);
-  const [quickContractForm, setQuickContractForm] = useState({ number: '', date: todayLocalIso() });
+  const [quickContractForm, setQuickContractForm] = useState({
+    title: '',
+    number: '',
+    date: todayLocalIso(),
+    end_date: '',
+    direction: 'outgoing',
+    amount: '',
+  });
   const [quickContractSaving, setQuickContractSaving] = useState(false);
   /** null | { mode: 'create'|'edit', rowIndex, productId?, initialTab? } */
   const [productModal, setProductModal] = useState(null);
@@ -583,7 +594,14 @@ export default function Documents({ defaultType }) {
       show('Сначала выберите поставщика', 'error');
       return;
     }
-    setQuickContractForm({ number: '', date: form.date || todayLocalIso() });
+    setQuickContractForm({
+      title: '',
+      number: '',
+      date: form.date || todayLocalIso(),
+      end_date: '',
+      direction: 'outgoing',
+      amount: '',
+    });
     setQuickContractOpen(true);
   };
 
@@ -596,8 +614,12 @@ export default function Documents({ defaultType }) {
     setQuickContractSaving(true);
     try {
       const created = await api.createCounterpartyContract(form.counterparty_id, {
+        title: String(quickContractForm.title || '').trim() || null,
         number: quickContractForm.number.trim(),
         date: quickContractForm.date || null,
+        end_date: quickContractForm.end_date || null,
+        direction: quickContractForm.direction || null,
+        amount: quickContractForm.amount === '' ? 0 : Number(quickContractForm.amount),
       });
       const list = await api.getCounterpartyContracts(form.counterparty_id);
       setSupplierContracts(list);
@@ -1984,8 +2006,16 @@ export default function Documents({ defaultType }) {
           )}
         >
           <div className="form-grid">
+            <div className="form-group full">
+              <label>Название</label>
+              <input
+                value={quickContractForm.title}
+                onChange={(e) => setQuickContractForm({ ...quickContractForm, title: e.target.value })}
+                placeholder="Договор поставки"
+              />
+            </div>
             <div className="form-group">
-              <label>Номер договора *</label>
+              <label>Номер *</label>
               <input
                 value={quickContractForm.number}
                 onChange={(e) => setQuickContractForm({ ...quickContractForm, number: e.target.value })}
@@ -1994,11 +2024,40 @@ export default function Documents({ defaultType }) {
               />
             </div>
             <div className="form-group">
-              <label>Дата договора</label>
+              <label>Дата</label>
               <input
                 type="date"
                 value={quickContractForm.date}
                 onChange={(e) => setQuickContractForm({ ...quickContractForm, date: e.target.value })}
+              />
+            </div>
+            <div className="form-group">
+              <label>Входящий / исходящий</label>
+              <select
+                value={quickContractForm.direction}
+                onChange={(e) => setQuickContractForm({ ...quickContractForm, direction: e.target.value })}
+              >
+                <option value="outgoing">Исходящий</option>
+                <option value="incoming">Входящий</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label>Сумма договора</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={quickContractForm.amount}
+                onChange={(e) => setQuickContractForm({ ...quickContractForm, amount: e.target.value })}
+                placeholder="0"
+              />
+            </div>
+            <div className="form-group full">
+              <label>Срок окончания</label>
+              <input
+                type="date"
+                value={quickContractForm.end_date}
+                onChange={(e) => setQuickContractForm({ ...quickContractForm, end_date: e.target.value })}
               />
             </div>
           </div>

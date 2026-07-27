@@ -98,6 +98,10 @@ async function ensureBootstrap() {
   `);
   await execRaw('ALTER TABLE counterparty_firms ADD COLUMN IF NOT EXISTS bank_account TEXT');
   await execRaw('ALTER TABLE counterparty_firms ADD COLUMN IF NOT EXISTS mfo TEXT');
+  await execRaw('ALTER TABLE counterparty_contracts ADD COLUMN IF NOT EXISTS title TEXT');
+  await execRaw('ALTER TABLE counterparty_contracts ADD COLUMN IF NOT EXISTS end_date TEXT');
+  await execRaw('ALTER TABLE counterparty_contracts ADD COLUMN IF NOT EXISTS direction TEXT');
+  await execRaw('ALTER TABLE counterparty_contracts ADD COLUMN IF NOT EXISTS amount DOUBLE PRECISION DEFAULT 0');
   await runStatements(PG_CREATE_INDEXES);
   await execRaw(
     `INSERT INTO settings (key, value) VALUES ('counterparty_inn_v1', '1')

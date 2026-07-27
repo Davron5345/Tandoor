@@ -204,7 +204,11 @@ CREATE TABLE IF NOT EXISTS counterparty_contracts (
   counterparty_id TEXT NOT NULL REFERENCES counterparties(id) ON DELETE CASCADE,
   branch_id TEXT NOT NULL,
   number TEXT NOT NULL,
+  title TEXT,
   date TEXT,
+  end_date TEXT,
+  direction TEXT,
+  amount REAL DEFAULT 0,
   is_default INTEGER DEFAULT 0,
   created_at TEXT DEFAULT (${NOW})
 );

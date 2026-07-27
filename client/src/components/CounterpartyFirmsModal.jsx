@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { api } from '../api';
 import Modal, { ModalCancelButton, useToast } from './Modal';
-import { IconButton, IconEdit, IconTrash } from './ActionIcons';
+import { IconButton, IconEdit, IconPlus, IconTrash } from './ActionIcons';
 import { useFormDirty } from '../hooks/useFormDirty';
 
 const emptyFirm = {
@@ -13,6 +13,23 @@ const emptyFirm = {
   contract_id: '',
   is_default: false,
 };
+
+const emptyContract = {
+  title: '',
+  number: '',
+  date: '',
+  end_date: '',
+  direction: 'outgoing',
+  amount: '',
+};
+
+export function formatContractOptionLabel(c) {
+  if (!c) return '';
+  const title = (c.title || '').trim();
+  const number = (c.number || '').trim();
+  if (title && number && title !== number) return `${title} · ${number}`;
+  return title || number || '—';
+}
 
 function firmToForm(f) {
   return {
@@ -27,18 +44,24 @@ function firmToForm(f) {
 
 export default function CounterpartyFirmsModal({
   counterpartyId,
-  contracts = [],
+  contracts: contractsProp = [],
   canEdit,
   onClose,
   onChanged,
+  onContractsChanged,
 }) {
   const [firms, setFirms] = useState([]);
+  const [contracts, setContracts] = useState(contractsProp);
   const [loading, setLoading] = useState(true);
   const [editModal, setEditModal] = useState(null); // 'create' | firmId
   const [firmForm, setFirmForm] = useState(emptyFirm);
   const [saving, setSaving] = useState(false);
+  const [contractModalOpen, setContractModalOpen] = useState(false);
+  const [contractForm, setContractForm] = useState(emptyContract);
+  const [contractSaving, setContractSaving] = useState(false);
   const { show, Toast } = useToast();
   const isFirmDirty = useFormDirty(firmForm, editModal ? `firm-${editModal}` : null);
+  const isContractDirty = useFormDirty(contractForm, contractModalOpen ? 'firm-contract' : null);
 
   const loadFirms = useCallback(() => {
     if (!counterpartyId) {
@@ -53,9 +76,24 @@ export default function CounterpartyFirmsModal({
       .finally(() => setLoading(false));
   }, [counterpartyId]);
 
+  const loadContracts = useCallback(() => {
+    if (!counterpartyId) {
+      setContracts([]);
+      return;
+    }
+    api.getCounterpartyContracts(counterpartyId)
+      .then((list) => setContracts(list.filter((c) => c.id !== '__default__' && !c.virtual)))
+      .catch(() => setContracts([]));
+  }, [counterpartyId]);
+
   useEffect(() => {
     loadFirms();
-  }, [loadFirms]);
+    loadContracts();
+  }, [loadFirms, loadContracts]);
+
+  useEffect(() => {
+    setContracts(contractsProp.filter((c) => c.id !== '__default__' && !c.virtual));
+  }, [contractsProp]);
 
   const openCreate = () => {
     setFirmForm(emptyFirm);
@@ -68,6 +106,7 @@ export default function CounterpartyFirmsModal({
   };
 
   const closeEdit = () => {
+    setContractModalOpen(false);
     setEditModal(null);
     setFirmForm(emptyFirm);
   };
@@ -103,6 +142,40 @@ export default function CounterpartyFirmsModal({
       show('Фирма удалена');
     } catch (e) {
       show(e.message, 'error');
+    }
+  };
+
+  const openContractCreate = () => {
+    setContractForm(emptyContract);
+    setContractModalOpen(true);
+  };
+
+  const saveContract = async () => {
+    if (!canEdit) return;
+    if (!String(contractForm.number || '').trim()) {
+      show('Укажите номер договора', 'error');
+      return;
+    }
+    setContractSaving(true);
+    try {
+      const created = await api.createCounterpartyContract(counterpartyId, {
+        title: contractForm.title.trim() || null,
+        number: contractForm.number.trim(),
+        date: contractForm.date || null,
+        end_date: contractForm.end_date || null,
+        direction: contractForm.direction || null,
+        amount: contractForm.amount === '' ? 0 : Number(contractForm.amount),
+      });
+      await loadContracts();
+      onContractsChanged?.();
+      setFirmForm((prev) => ({ ...prev, contract_id: created.id }));
+      setContractModalOpen(false);
+      setContractForm(emptyContract);
+      show('Договор создан и выбран');
+    } catch (e) {
+      show(e.message, 'error');
+    } finally {
+      setContractSaving(false);
     }
   };
 
@@ -241,15 +314,108 @@ export default function CounterpartyFirmsModal({
             </div>
             <div className="form-group full">
               <label>Договор</label>
-              <select
-                value={firmForm.contract_id}
-                onChange={(e) => setFirmForm({ ...firmForm, contract_id: e.target.value })}
+              <div className="quick-add-control">
+                <select
+                  value={firmForm.contract_id}
+                  onChange={(e) => setFirmForm({ ...firmForm, contract_id: e.target.value })}
+                >
+                  <option value="">— не выбран —</option>
+                  {contracts.map((c) => (
+                    <option key={c.id} value={c.id}>{formatContractOptionLabel(c)}</option>
+                  ))}
+                </select>
+                {canEdit && (
+                  <button
+                    type="button"
+                    className="btn btn-icon btn-ghost quick-add-button"
+                    title="Создать договор"
+                    aria-label="Создать договор"
+                    onClick={openContractCreate}
+                  >
+                    <IconPlus />
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {contractModalOpen && (
+        <Modal
+          title="Новый договор"
+          dirty={isContractDirty}
+          onClose={() => {
+            setContractModalOpen(false);
+            setContractForm(emptyContract);
+          }}
+          footer={(
+            <>
+              <ModalCancelButton disabled={contractSaving} />
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={saveContract}
+                disabled={contractSaving}
               >
-                <option value="">— не выбран —</option>
-                {contracts.map((c) => (
-                  <option key={c.id} value={c.id}>{c.number}</option>
-                ))}
+                {contractSaving ? 'Сохранение…' : 'Сохранить'}
+              </button>
+            </>
+          )}
+        >
+          <div className="form-grid">
+            <div className="form-group full">
+              <label>Название</label>
+              <input
+                value={contractForm.title}
+                onChange={(e) => setContractForm({ ...contractForm, title: e.target.value })}
+                placeholder="Договор поставки"
+              />
+            </div>
+            <div className="form-group">
+              <label>Номер</label>
+              <input
+                value={contractForm.number}
+                onChange={(e) => setContractForm({ ...contractForm, number: e.target.value })}
+                placeholder="№ 123/2026"
+              />
+            </div>
+            <div className="form-group">
+              <label>Дата</label>
+              <input
+                type="date"
+                value={contractForm.date}
+                onChange={(e) => setContractForm({ ...contractForm, date: e.target.value })}
+              />
+            </div>
+            <div className="form-group">
+              <label>Входящий / исходящий</label>
+              <select
+                value={contractForm.direction}
+                onChange={(e) => setContractForm({ ...contractForm, direction: e.target.value })}
+              >
+                <option value="outgoing">Исходящий</option>
+                <option value="incoming">Входящий</option>
               </select>
+            </div>
+            <div className="form-group">
+              <label>Сумма договора</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={contractForm.amount}
+                onChange={(e) => setContractForm({ ...contractForm, amount: e.target.value })}
+                placeholder="0"
+              />
+            </div>
+            <div className="form-group full">
+              <label>Срок окончания</label>
+              <input
+                type="date"
+                value={contractForm.end_date}
+                onChange={(e) => setContractForm({ ...contractForm, end_date: e.target.value })}
+              />
             </div>
           </div>
         </Modal>

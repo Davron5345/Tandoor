@@ -19,7 +19,14 @@ import CounterpartyFirmsModal from '../components/CounterpartyFirmsModal';
 import { useFormDirty } from '../hooks/useFormDirty';
 import { hasPermission } from '../permissions';
 
-const emptyContract = { number: '', date: '' };
+const emptyContract = {
+  title: '',
+  number: '',
+  date: '',
+  end_date: '',
+  direction: 'outgoing',
+  amount: '',
+};
 
 export default function Counterparties() {
   const [items, setItems] = useState([]);
@@ -127,7 +134,14 @@ export default function Counterparties() {
   const addContract = async () => {
     if (!canEdit || modal === 'create') return;
     try {
-      await api.createCounterpartyContract(modal, newContract);
+      await api.createCounterpartyContract(modal, {
+        title: newContract.title.trim() || null,
+        number: newContract.number.trim(),
+        date: newContract.date || null,
+        end_date: newContract.end_date || null,
+        direction: newContract.direction || null,
+        amount: newContract.amount === '' ? 0 : Number(newContract.amount),
+      });
       setNewContract(emptyContract);
       loadContracts(modal);
       show('Договор добавлен');
@@ -283,16 +297,28 @@ export default function Counterparties() {
                   <table>
                     <thead>
                       <tr>
+                        <th>Название</th>
                         <th>Номер</th>
                         <th>Дата</th>
+                        <th>Тип</th>
+                        <th>Сумма</th>
+                        <th>Срок</th>
                         <th></th>
                       </tr>
                     </thead>
                     <tbody>
                       {contracts.map((c) => (
                         <tr key={c.id}>
+                          <td>{c.title || '—'}</td>
                           <td>{c.number}</td>
                           <td>{c.date ? formatDate(c.date) : '—'}</td>
+                          <td>
+                            {c.direction === 'incoming'
+                              ? 'Входящий'
+                              : (c.direction === 'outgoing' ? 'Исходящий' : '—')}
+                          </td>
+                          <td>{c.amount ? Number(c.amount).toLocaleString('ru-RU') : '—'}</td>
+                          <td>{c.end_date ? formatDate(c.end_date) : '—'}</td>
                           <td>
                             {canEdit && !c.is_used && (
                               <IconButton title="Удалить" danger onClick={() => removeContract(c.id)}>
@@ -309,7 +335,15 @@ export default function Counterparties() {
               {canEdit && (
                 <div className="form-grid cp-contracts-add">
                   <div className="form-group">
-                    <label>Номер договора</label>
+                    <label>Название</label>
+                    <input
+                      value={newContract.title}
+                      onChange={(e) => setNewContract({ ...newContract, title: e.target.value })}
+                      placeholder="Договор поставки"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Номер</label>
                     <input
                       value={newContract.number}
                       onChange={(e) => setNewContract({ ...newContract, number: e.target.value })}
@@ -317,11 +351,40 @@ export default function Counterparties() {
                     />
                   </div>
                   <div className="form-group">
-                    <label>Дата договора</label>
+                    <label>Дата</label>
                     <input
                       type="date"
                       value={newContract.date}
                       onChange={(e) => setNewContract({ ...newContract, date: e.target.value })}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Входящий / исходящий</label>
+                    <select
+                      value={newContract.direction}
+                      onChange={(e) => setNewContract({ ...newContract, direction: e.target.value })}
+                    >
+                      <option value="outgoing">Исходящий</option>
+                      <option value="incoming">Входящий</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Сумма договора</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={newContract.amount}
+                      onChange={(e) => setNewContract({ ...newContract, amount: e.target.value })}
+                      placeholder="0"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Срок окончания</label>
+                    <input
+                      type="date"
+                      value={newContract.end_date}
+                      onChange={(e) => setNewContract({ ...newContract, end_date: e.target.value })}
                     />
                   </div>
                   <div className="form-group cp-contracts-add-btn">
@@ -347,6 +410,7 @@ export default function Counterparties() {
             loadFirms(modal);
             load();
           }}
+          onContractsChanged={() => loadContracts(modal)}
         />
       )}
     </div>
