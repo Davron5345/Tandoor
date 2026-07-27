@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import { writeFileSync } from 'fs';
+import { mkdirSync, writeFileSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -25,8 +25,10 @@ function appVersionPlugin() {
         version: buildId,
         builtAt: new Date().toISOString(),
       };
+      const distDir = resolve(__dirname, 'dist');
+      mkdirSync(distDir, { recursive: true });
       writeFileSync(
-        resolve(__dirname, 'dist', 'version.json'),
+        resolve(distDir, 'version.json'),
         `${JSON.stringify(payload, null, 2)}\n`,
       );
     },
