@@ -9,7 +9,6 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? 'github' : 'list',
   timeout: 60_000,
-  globalSetup: './e2e/global-setup.mjs',
   use: {
     baseURL: E2E_BASE_URL,
     trace: 'on-first-retry',

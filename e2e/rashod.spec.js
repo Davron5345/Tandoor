@@ -15,9 +15,7 @@ test('create and confirm rashod document', async ({ page }) => {
   await loginAsAdmin(page);
   await page.goto('/rashod');
   await expect(page.getByRole('heading', { name: 'Расход' })).toBeVisible();
-  await page.waitForResponse(
-    (resp) => resp.url().includes('/api/counterparties') && resp.ok(),
-  );
+  // Не waitForResponse(/counterparties/) после goto — ответ часто уже прошёл (флейк).
 
   await page.getByRole('button', { name: 'Новый' }).click();
   await expect(page.getByRole('heading', { name: 'Новый расходный документ' })).toBeVisible();
