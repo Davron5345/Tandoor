@@ -68,8 +68,7 @@ export default function Counterparties() {
   useEffect(() => {
     if (modal && modal !== 'create') {
       loadContracts(modal);
-      if (form.type === 'supplier') loadFirms(modal);
-      else setFirms([]);
+      loadFirms(modal);
     } else {
       setContracts([]);
       setFirms([]);
@@ -232,14 +231,16 @@ export default function Counterparties() {
 
           {modal !== 'create' && (
             <div className="cp-links-block">
-              {form.type === 'supplier' && (
+              {(form.type === 'supplier' || form.type === 'client') && (
                 <div className="cp-link-row">
                   <div className="cp-link-text">
-                    <strong>Фирмы</strong>
+                    <strong>{form.type === 'client' ? 'Каналы' : 'Фирмы'}</strong>
                     <span className="text-muted">
                       {firms.length > 0
                         ? firms.map((f) => f.name).join(', ')
-                        : 'юрлица, ИНН и договоры'}
+                        : (form.type === 'client'
+                          ? 'Click / Payme / Терминал / Humo…'
+                          : 'юрлица, ИНН и договоры')}
                     </span>
                   </div>
                   <button
@@ -247,7 +248,9 @@ export default function Counterparties() {
                     className="btn btn-secondary btn-sm"
                     onClick={() => setFirmsModalOpen(true)}
                   >
-                    {firms.length > 0 ? `Фирмы (${firms.length})` : 'Добавить'}
+                    {firms.length > 0
+                      ? `${form.type === 'client' ? 'Каналы' : 'Фирмы'} (${firms.length})`
+                      : 'Добавить'}
                   </button>
                 </div>
               )}
@@ -258,7 +261,7 @@ export default function Counterparties() {
                     <span className="text-muted">
                       {contracts.length > 0
                         ? contracts.map((c) => c.title || c.number).join(', ')
-                        : 'Click / Payme / Терминал'}
+                        : 'привязка к каналам'}
                     </span>
                   </div>
                   <button
@@ -275,10 +278,11 @@ export default function Counterparties() {
         </Modal>
       )}
 
-      {firmsModalOpen && modal && modal !== 'create' && form.type === 'supplier' && (
+      {firmsModalOpen && modal && modal !== 'create' && (form.type === 'supplier' || form.type === 'client') && (
         <CounterpartyFirmsModal
           counterpartyId={modal}
           canEdit={canEdit}
+          title={form.type === 'client' ? 'Каналы оплаты' : 'Фирмы поставщика'}
           onClose={() => setFirmsModalOpen(false)}
           onChanged={() => {
             loadFirms(modal);

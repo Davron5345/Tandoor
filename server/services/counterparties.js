@@ -366,7 +366,9 @@ export function findCounterpartyFirmByInn(inn, branchId = DEFAULT_BRANCH_ID) {
 export function createCounterpartyFirm(counterpartyId, data, branchId = DEFAULT_BRANCH_ID) {
   const cp = getCounterparty(counterpartyId, branchId);
   if (!cp) throw new Error('Контрагент не найден');
-  if (cp.type !== 'supplier') throw new Error('Фирмы для оплаты доступны только у поставщиков');
+  if (cp.type !== 'supplier' && cp.type !== 'client') {
+    throw new Error('Фирмы доступны у поставщиков и клиента «Клиент»');
+  }
   const name = (data.name || '').trim();
   if (!name) throw new Error('Укажите название юрлица');
   const inn = normalizeFirmInn(data.inn);
@@ -379,7 +381,7 @@ export function createCounterpartyFirm(counterpartyId, data, branchId = DEFAULT_
       'SELECT id FROM counterparty_contracts WHERE id = ? AND counterparty_id = ? AND branch_id = ?',
       [data.contract_id, counterpartyId, branchId],
     );
-    if (!contract) throw new Error('Договор не найден у этого поставщика');
+    if (!contract) throw new Error('Договор не найден у этого контрагента');
   }
 
   const id = uuidv4();
@@ -421,7 +423,7 @@ export function updateCounterpartyFirm(counterpartyId, firmId, data, branchId = 
       'SELECT id FROM counterparty_contracts WHERE id = ? AND counterparty_id = ? AND branch_id = ?',
       [contractId, counterpartyId, branchId],
     );
-    if (!contract) throw new Error('Договор не найден у этого поставщика');
+    if (!contract) throw new Error('Договор не найден у этого контрагента');
   }
   const bankAccount = data.bank_account !== undefined
     ? normalizeBankAccount(data.bank_account)

@@ -139,11 +139,16 @@ export function paymentTypeLabel(payment) {
 export function paymentAcquiringLabel(payment) {
   if (!payment || payment.type !== 'customer_income') return null;
 
+  if (payment.firm_name) return payment.firm_name;
+
   const fromContract = String(payment.contract_number || '');
   const contractRules = [
     [/click|клик/i, 'Click'],
     [/payme|пейм/i, 'Payme'],
     [/инкасс/i, 'Инкассо'],
+    [/humo|хумо/i, 'Humo'],
+    [/uzcard|узкард/i, 'Uzcard'],
+    [/uzum|узум/i, 'Uzum Card'],
     [/терминал|terminal|union|smartvista|pos/i, 'Терминал'],
   ];
   for (const [re, label] of contractRules) {
@@ -151,17 +156,23 @@ export function paymentAcquiringLabel(payment) {
   }
 
   const comment = String(payment.comment || '');
-  const prefix = comment.match(/^(Click|Payme|Терминал|Инкассо)\b/i);
+  const prefix = comment.match(/^(Click|Payme|Терминал|Инкассо|Humo|Uzcard|Uzum Card)\b/i);
   if (prefix) {
     const raw = prefix[1];
     if (/^click$/i.test(raw)) return 'Click';
     if (/^payme$/i.test(raw)) return 'Payme';
     if (/^инкассо$/i.test(raw)) return 'Инкассо';
+    if (/^humo$/i.test(raw)) return 'Humo';
+    if (/^uzcard$/i.test(raw)) return 'Uzcard';
+    if (/^uzum/i.test(raw)) return 'Uzum Card';
     if (/^терминал$/i.test(raw)) return 'Терминал';
   }
 
   const blob = `${payment.counterparty_name || ''}\n${comment}`;
   if (/инкассир|инкассац|инкассов|денежн\w*\s+выручк/i.test(blob)) return 'Инкассо';
+  if (/\bHUMO\b|хумо/i.test(blob)) return 'Humo';
+  if (/\bUZCARD\b|UZ.?CARD|узкард/i.test(blob)) return 'Uzcard';
+  if (/\bUZUM\b|узум/i.test(blob)) return 'Uzum Card';
   if (/\bCLICK\b|CLICK\s*AJ/i.test(blob)) return 'Click';
   if (/\bPAYME\b/i.test(blob)) return 'Payme';
   if (/UNIONPAY|SMARTVISTA|ТЕР:|ТЕРМИНАЛ/i.test(blob)) return 'Терминал';

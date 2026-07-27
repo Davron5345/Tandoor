@@ -189,6 +189,15 @@ export async function initDb() {
     pgInit(process.env.DATABASE_URL, dataDir);
     bootstrapPostgresSeeds();
     migrateCashArticlesBankService();
+    try {
+      const { ensureRetailClientSetup } = await import('./services/retailAcquiring.js');
+      const branches = queryAll('SELECT id FROM branches');
+      for (const b of (branches.length ? branches : [{ id: 'main' }])) {
+        ensureRetailClientSetup(b.id);
+      }
+    } catch (e) {
+      console.warn('Retail acquiring setup:', e.message);
+    }
     seedIfEmpty();
     return null;
   }
@@ -372,6 +381,15 @@ export async function initDb() {
     throw e;
   } finally {
     saveDeferred = false;
+  }
+  try {
+    const { ensureRetailClientSetup } = await import('./services/retailAcquiring.js');
+    const branches = queryAll('SELECT id FROM branches');
+    for (const b of (branches.length ? branches : [{ id: 'main' }])) {
+      ensureRetailClientSetup(b.id);
+    }
+  } catch (e) {
+    console.warn('Retail acquiring setup:', e.message);
   }
   seedIfEmpty();
   saveDb();

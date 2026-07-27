@@ -31,6 +31,7 @@ export default function CounterpartyFirmsModal({
   onClose,
   onChanged,
   onContractsChanged,
+  title = 'Фирмы для оплаты',
 }) {
   const [firms, setFirms] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -153,7 +154,7 @@ export default function CounterpartyFirmsModal({
     <>
       {Toast}
       <Modal
-        title="Фирмы для оплаты"
+        title={title}
         onClose={onClose}
         footer={(
           <>

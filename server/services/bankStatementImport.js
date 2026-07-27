@@ -16,29 +16,16 @@ import {
 } from './counterparties.js';
 import { BANK_SERVICE_ARTICLE_CODE } from '../cashArticleDefaults.js';
 import { ensureDefaultCashArticle } from '../cashArticles.js';
+import {
+  detectRetailChannel,
+  ensureRetailClientSetup,
+  matchRetailContract,
+  matchRetailFirm,
+} from './retailAcquiring.js';
 
 const { queryOne, queryAll, transaction } = db;
 
 const HEADER_MARKERS = ['дата документа', 'оборот дебет', 'оборот кредит', 'назначение платежа'];
-
-const ACQUIRING_CHANNELS = [
-  { id: 'click', label: 'Click', patterns: [/\bCLICK\b/i, /CLICK\s*AJ/i] },
-  { id: 'payme', label: 'Payme', patterns: [/\bPAYME\b/i] },
-  // Инкассо раньше терминала: иначе «Инк» попадал в «Терминал»
-  {
-    id: 'inkasso',
-    label: 'Инкассо',
-    patterns: [
-      /инкассир/i,
-      /инкассац/i,
-      /инкассов/i,
-      /денежн\w*\s+выручк/i,
-      /00650\s*инк/i,
-      /\bинк\b/i,
-    ],
-  },
-  { id: 'terminal', label: 'Терминал', patterns: [/UNIONPAY/i, /SMARTVISTA/i, /ТЕР:/i, /ТЕРМИНАЛ/i] },
-];
 
 /** Комиссия / РКО банка в выписке (название, назначение, счёт 16401). */
 export function isBankServiceFee(raw) {
@@ -143,15 +130,11 @@ function isMetaRow(row, cols) {
 }
 
 function detectAcquiringChannel(name, purpose) {
-  const text = `${name} ${purpose}`;
-  for (const ch of ACQUIRING_CHANNELS) {
-    if (ch.patterns.some((re) => re.test(text))) return ch;
-  }
-  return null;
+  return detectRetailChannel(name, purpose);
 }
 
 export function detectAcquiringChannelLabel(name, purpose) {
-  return detectAcquiringChannel(name, purpose)?.label || null;
+  return detectRetailChannel(name, purpose)?.label || null;
 }
 
 function normalizeName(name) {
@@ -228,23 +211,6 @@ function findRetailClient(counterparties) {
   return clients.find((c) => CLIENT_NAME_RE.test(String(c.name || '').trim()))
     || clients.find((c) => normalizeName(c.name) === 'клиент')
     || null;
-}
-
-function matchContractForChannel(contracts, channel) {
-  if (!channel || !contracts?.length) return null;
-  const real = contracts.filter((c) => c.id !== DEFAULT_CONTRACT_ID && !c.virtual);
-  const keywords = {
-    click: ['click', 'клик'],
-    payme: ['payme', 'пейм'],
-    inkasso: ['инкассо', 'inkasso', 'инк'],
-    terminal: ['терминал', 'terminal', 'pos', 'union', 'smartvista'],
-  }[channel.id] || [channel.label.toLowerCase()];
-
-  for (const kw of keywords) {
-    const hit = real.find((c) => normalizeName(c.number).includes(kw));
-    if (hit) return hit;
-  }
-  return null;
 }
 
 function buildOwnInns(rawRows) {
@@ -385,7 +351,7 @@ function parseStatementMeta(rows) {
 
 function classifyRow(raw, ctx) {
   const {
-    counterparties, retailClient, retailContracts, ownInns, existingRefs,
+    counterparties, retailClient, retailContracts, retailFirms, ownInns, existingRefs,
     replaceDateSet, identicalDateSet,
   } = ctx;
   const direction = raw.debit > 0 ? 'debit' : 'credit';
@@ -431,13 +397,16 @@ function classifyRow(raw, ctx) {
     channelId = channel.id;
     channelLabel = channel.label;
     counterparty = retailClient;
-    contract = matchContractForChannel(retailContracts, channel);
+    contract = matchRetailContract(retailContracts, channel);
+    firmMatch = matchRetailFirm(retailFirms || [], channel);
     selected = Boolean(retailClient);
     matchReason = retailClient
-      ? (contract
-        ? `эквайринг → ${retailClient.name} / ${contract.number}`
-        : `эквайринг → ${retailClient.name} (добавьте договор «${channel.label}»)`)
-      : 'эквайринг: создайте клиента «КЛИЕНТ» и договоры Click / Payme / Терминал / Инкассо';
+      ? (firmMatch
+        ? `эквайринг → ${retailClient.name} / ${firmMatch.name}`
+        : (contract
+          ? `эквайринг → ${retailClient.name} / ${contract.number}`
+          : `эквайринг → ${retailClient.name} (канал «${channel.label}»)`))
+      : 'эквайринг: создайте клиента «Клиент»';
   } else if (direction === 'debit') {
     firmMatch = counterpartyInn ? findCounterpartyFirmByInn(counterpartyInn, ctx.branchId) : null;
     if (firmMatch) {
@@ -615,11 +584,11 @@ function collectNewAccounts(rows) {
  */
 export function previewBankStatement(buffer, branchId = DEFAULT_BRANCH_ID) {
   const { rows: rawRows, meta } = parseAccReferenceReportBuffer(buffer);
+  const retail = ensureRetailClientSetup(branchId);
+  const retailClient = retail.client;
+  const retailContracts = retail.contracts;
+  const retailFirms = retail.firms;
   const counterparties = getCounterparties(null, branchId);
-  const retailClient = findRetailClient(counterparties);
-  const retailContracts = retailClient
-    ? getCounterpartyContracts(retailClient.id, branchId)
-    : [];
   const ownInns = buildOwnInns(rawRows);
 
   const ownAccountNumber = meta?.own_account || null;
@@ -659,6 +628,7 @@ export function previewBankStatement(buffer, branchId = DEFAULT_BRANCH_ID) {
     counterparties,
     retailClient,
     retailContracts,
+    retailFirms,
     ownInns,
     existingRefs,
     replaceDateSet,
@@ -923,6 +893,8 @@ export function confirmBankStatementImport(
   if (!getBankAccount(bankAccountId, branchId)) {
     throw new Error('Банковский счёт не найден в справочнике');
   }
+
+  ensureRetailClientSetup(branchId);
 
   const datesInSelection = [...new Set(selectedRows.map((r) => r.date).filter(Boolean))];
   let replaceDates = Array.isArray(options.replaceDates)

@@ -44,6 +44,12 @@ test('detectAcquiringChannelLabel: payme and terminal', () => {
   );
 });
 
+test('detectAcquiringChannelLabel: humo uzcard uzum', () => {
+  assert.equal(detectAcquiringChannelLabel('OOO "MAHALLA90" HUMO', ''), 'Humo');
+  assert.equal(detectAcquiringChannelLabel('OOO "MAHALLA90" UZCARD', ''), 'Uzcard');
+  assert.equal(detectAcquiringChannelLabel('OOO "MAHALLA90" UZUM CARD', ''), 'Uzum Card');
+});
+
 test('pickCounterpartyInnFromName ignores purpose INN', async () => {
   const { pickCounterpartyInnFromName } = await import('../services/bankStatementImport.js');
   assert.equal(
