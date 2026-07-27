@@ -440,7 +440,9 @@ function AppContent() {
           )}
           {!isBranchAdmin && user.branch_id && (
             <div className="sidebar-branch-name" title={branchName}>
-              <IconNavBranch />
+              <span className="branch-select-icon" aria-hidden>
+                <IconNavBranch />
+              </span>
               <span>{branchName}</span>
             </div>
           )}
