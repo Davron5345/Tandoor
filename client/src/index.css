@@ -625,14 +625,20 @@ textarea::placeholder {
 .sidebar-logout-btn svg,
 .sidebar-telegram-btn svg,
 .sidebar-menu-btn svg {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   display: block;
 }
 
 .sidebar-menu-btn svg {
   width: 17px;
   height: 17px;
+}
+
+.sidebar-toggle svg,
+.theme-toggle svg {
+  width: 18px;
+  height: 18px;
 }
 
 .sidebar-branch-name {
