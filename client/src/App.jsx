@@ -419,6 +419,62 @@ function AppContent() {
             </button>
           </div>
         </div>
+        <div className="sidebar-account">
+          {isBranchAdmin && branches.length > 0 && (
+            <div className="branch-select-wrap">
+              <span className="branch-select-icon" aria-hidden>
+                <IconNavBranch />
+              </span>
+              <select
+                className="branch-select"
+                value={branchId || ''}
+                onChange={(e) => setActiveBranchId(e.target.value)}
+                title="Филиал"
+                aria-label="Филиал"
+              >
+                {branches.filter((b) => b.active).map((b) => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          {!isBranchAdmin && user.branch_id && (
+            <div className="sidebar-branch-name" title={branchName}>
+              <IconNavBranch />
+              <span>{branchName}</span>
+            </div>
+          )}
+          <div className="sidebar-profile">
+            <div className="sidebar-profile-avatar" aria-hidden>
+              {(user.name || '?').charAt(0).toUpperCase()}
+            </div>
+            <div className="sidebar-profile-meta">
+              <span className="sidebar-user-name">{user.name}</span>
+              {user.roleLabel !== user.name && (
+                <span className="sidebar-user-role">{user.roleLabel}</span>
+              )}
+            </div>
+            {hasPermission(user, 'telegram.view') && (
+              <NavLink
+                to="/telegram"
+                className={`sidebar-telegram-btn ${telegramOnline ? 'online' : 'offline'}`}
+                title={telegramOnline ? 'Telegram бот активен' : 'Telegram не настроен'}
+                aria-label={telegramOnline ? 'Telegram бот активен' : 'Telegram не настроен'}
+              >
+                <IconNavTelegram />
+              </NavLink>
+            )}
+            <button
+              type="button"
+              className="sidebar-logout-btn"
+              onClick={logout}
+              title="Выйти"
+              aria-label="Выйти"
+            >
+              <IconNavLogout />
+            </button>
+          </div>
+        </div>
         <div className="sidebar-body">
           <nav className="nav">
             {canViewDashboard && (
@@ -496,62 +552,6 @@ function AppContent() {
               </NavGroup>
             )}
           </nav>
-        </div>
-        <div className="sidebar-footer">
-          {isBranchAdmin && branches.length > 0 && (
-            <div className="branch-select-wrap">
-              <span className="branch-select-icon" aria-hidden>
-                <IconNavBranch />
-              </span>
-              <select
-                className="branch-select"
-                value={branchId || ''}
-                onChange={(e) => setActiveBranchId(e.target.value)}
-                title="Филиал"
-                aria-label="Филиал"
-              >
-                {branches.filter((b) => b.active).map((b) => (
-                  <option key={b.id} value={b.id}>{b.name}</option>
-                ))}
-              </select>
-            </div>
-          )}
-          {!isBranchAdmin && user.branch_id && (
-            <div className="sidebar-branch-name" title={branchName}>
-              <IconNavBranch />
-              <span>{branchName}</span>
-            </div>
-          )}
-          <div className="sidebar-profile">
-            <div className="sidebar-profile-avatar" aria-hidden>
-              {(user.name || '?').charAt(0).toUpperCase()}
-            </div>
-            <div className="sidebar-profile-meta">
-              <span className="sidebar-user-name">{user.name}</span>
-              {user.roleLabel !== user.name && (
-                <span className="sidebar-user-role">{user.roleLabel}</span>
-              )}
-            </div>
-            {hasPermission(user, 'telegram.view') && (
-              <NavLink
-                to="/telegram"
-                className={`sidebar-telegram-btn ${telegramOnline ? 'online' : 'offline'}`}
-                title={telegramOnline ? 'Telegram бот активен' : 'Telegram не настроен'}
-                aria-label={telegramOnline ? 'Telegram бот активен' : 'Telegram не настроен'}
-              >
-                <IconNavTelegram />
-              </NavLink>
-            )}
-            <button
-              type="button"
-              className="sidebar-logout-btn"
-              onClick={logout}
-              title="Выйти"
-              aria-label="Выйти"
-            >
-              <IconNavLogout />
-            </button>
-          </div>
         </div>
         </div>
       </aside>
