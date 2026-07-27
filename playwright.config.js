@@ -9,19 +9,20 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? 'github' : 'list',
   timeout: 60_000,
-  globalSetup: './e2e/global-setup.mjs',
   use: {
     baseURL: E2E_BASE_URL,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
   webServer: {
-    command: 'node server/index.js',
+    command: 'node e2e/start-server.mjs',
     url: E2E_BASE_URL,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
     env: {
       ...process.env,
+      DATABASE_URL: '',
+      DB_ENGINE: 'sqlite',
       DATA_DIR: E2E_DATA_DIR,
       NODE_ENV: 'test',
       TELEGRAM_ENABLED: 'false',

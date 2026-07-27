@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-07-27 (CI lint max-warnings)
+**Последнее обновление документации:** 2026-07-27 (E2E: сид до webServer)
 
 ---
 
@@ -562,10 +562,17 @@ GET  /api/auth/roles
 |---------|--------------|
 | `npm test` | Backend на SQLite (sql.js): auth, permissions, documents, payments, dish sales, opening balance, P&L, staff location... |
 | `npm run test:pg` | Те же тесты на PGlite (Postgres-совместимость адаптера/диалекта) |
-| `npm run test:e2e` | Playwright: UI flows |
+| `npm run test:e2e` | Playwright: UI flows (login, приход, расход, отмена); нужен `npm run build` (сервер отдаёт `client/dist`) |
 | `npm run lint` | ESLint server + client + e2e |
 
 Тесты в `server/test/` используют in-memory или temp DB. При добавлении бизнес-логики — добавляй тесты в соответствующий `*.test.js`.
+
+**E2E (`e2e/`):**
+- Запуск: `playwright.config.js` → `node e2e/start-server.mjs` (сид **до** listen). Не класть сид только в `globalSetup` — Playwright стартует `webServer` раньше, и сервер останется с пустой БД в памяти
+- Сид (`seed.mjs`): чистый sql.js в `e2e/.data` (`DISABLE_DEMO_SEED`, `DB_ENGINE=sqlite`, без `DATABASE_URL`)
+- Данные: admin без смены пароля, «E2E Поставщик» / «E2E Клиент» / «E2E Товар»; товар обязан быть в **`product_branches`** (`ensureProductBranchOnCreate`) — иначе `getProducts` и `ProductSelect` его не показывают
+- `product_suppliers` на `main` + остаток на `main_wh` для расхода
+- Хелперы: поставщик — `.category-select-dropdown` (не путать с `<select>` фильтра списка); кол-во — `.doc-items-qty-col input`; цена — `input[inputmode="numeric"]`
 
 ---
 
@@ -691,6 +698,8 @@ GET  /api/auth/roles
 | 2026-07-27 | НС: кнопка «Редактировать»; отмена проведения → снова черновик (не «отменён навсегда») |
 | 2026-07-27 | CI: `npm test` — glob `server/test/*.test.js` (без `**`, иначе Actions не находит тесты) |
 | 2026-07-27 | CI: eslint `--max-warnings 100` (старые warnings блокировали pipeline после починки test glob) |
+| 2026-07-27 | E2E: сид линкует товар в `product_branches`; `fillDocLine` под text/decimal qty; Playwright форсирует sqlite |
+| 2026-07-27 | E2E: сид в `start-server.mjs` до listen (webServer раньше globalSetup); выбор поставщика без конфликта с `<select>` |
 
 ---
 
