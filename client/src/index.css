@@ -11876,8 +11876,9 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
   top: 0;
   z-index: 100;
   background: var(--surface2);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--accent-soft-border);
   box-shadow: 0 4px 16px color-mix(in srgb, #000 10%, transparent);
+  animation: bank-days-head-pin-flash 1.25s ease-out;
 }
 
 .bank-days-head-pin .bank-days-table {
@@ -11885,12 +11886,57 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
 }
 
 .bank-days-head-pin .bank-days-table thead th {
-  background: var(--surface2);
+  background: transparent;
   box-shadow: none;
+  animation: bank-days-head-pin-th-flash 1.25s ease-out;
+}
+
+@keyframes bank-days-head-pin-flash {
+  0% {
+    background: var(--accent-soft-bg);
+    border-bottom-color: var(--accent-soft-border);
+    box-shadow: 0 4px 18px color-mix(in srgb, var(--success) 28%, transparent);
+  }
+  55% {
+    background: color-mix(in srgb, var(--accent-soft-bg) 70%, var(--surface2));
+    border-bottom-color: color-mix(in srgb, var(--accent-soft-border) 55%, var(--border));
+  }
+  100% {
+    background: var(--surface2);
+    border-bottom-color: var(--border);
+    box-shadow: 0 4px 16px color-mix(in srgb, #000 10%, transparent);
+  }
+}
+
+@keyframes bank-days-head-pin-th-flash {
+  0%,
+  55% {
+    color: var(--accent-soft-text);
+  }
+  100% {
+    color: var(--text-muted);
+  }
 }
 
 [data-theme="dark"] .bank-days-head-pin {
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  animation-name: bank-days-head-pin-flash-dark;
+}
+
+@keyframes bank-days-head-pin-flash-dark {
+  0% {
+    background: var(--accent-soft-bg);
+    border-bottom-color: var(--accent-soft-border);
+    box-shadow: 0 4px 20px color-mix(in srgb, var(--success) 35%, transparent);
+  }
+  55% {
+    background: color-mix(in srgb, var(--accent-soft-bg) 65%, var(--surface2));
+    border-bottom-color: color-mix(in srgb, var(--accent-soft-border) 50%, var(--border));
+  }
+  100% {
+    background: var(--surface2);
+    border-bottom-color: var(--border);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  }
 }
 
 .bank-days-toolbar {
