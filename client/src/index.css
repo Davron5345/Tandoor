@@ -941,6 +941,10 @@ textarea::placeholder {
   position: fixed;
   min-width: 240px;
   max-width: min(300px, 72vw);
+  max-height: min(70vh, calc(100dvh - 16px));
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   margin: 0;
   padding: 6px;
   border-radius: 14px;
@@ -959,7 +963,7 @@ textarea::placeholder {
   content: '';
   position: absolute;
   left: -5px;
-  top: 16px;
+  top: var(--nav-flyout-caret-top, 16px);
   width: 10px;
   height: 10px;
   background: var(--surface);

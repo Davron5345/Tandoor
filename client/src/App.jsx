@@ -192,7 +192,7 @@ function NavGroup({
 }) {
   const location = useLocation();
   const isActive = pathInGroup(location.pathname, paths);
-  const [flyoutPos, setFlyoutPos] = useState({ top: 0, left: 0 });
+  const [flyoutPos, setFlyoutPos] = useState({ top: 0, left: 0, maxHeight: 360, caretTop: 16 });
   const groupRef = useRef(null);
   const toggleRef = useRef(null);
   const flyoutRef = useRef(null);
@@ -202,10 +202,25 @@ function NavGroup({
     const el = toggleRef.current;
     if (!el) return;
     const rect = el.getBoundingClientRect();
-    const maxTop = Math.max(8, window.innerHeight - 360);
+    const margin = 8;
+    const viewportH = window.innerHeight;
+    const maxPanelH = Math.max(160, viewportH - margin * 2);
+    const panel = flyoutRef.current;
+    const measured = panel?.offsetHeight || 0;
+    const panelH = Math.min(measured > 40 ? measured : maxPanelH, maxPanelH);
+    const top = Math.min(
+      Math.max(margin, rect.top),
+      Math.max(margin, viewportH - panelH - margin),
+    );
+    const caretTop = Math.min(
+      Math.max(12, rect.top + rect.height / 2 - top - 5),
+      Math.max(12, panelH - 20),
+    );
     setFlyoutPos({
-      top: Math.min(Math.max(8, rect.top), maxTop),
+      top,
       left: rect.right + 8,
+      maxHeight: maxPanelH,
+      caretTop,
     });
   }, []);
 
@@ -213,6 +228,7 @@ function NavGroup({
     if (!flyoutOpen || !sidebarCollapsed) return undefined;
 
     syncFlyoutPosition();
+    const raf = window.requestAnimationFrame(() => syncFlyoutPosition());
     const onLayout = () => syncFlyoutPosition();
     window.addEventListener('resize', onLayout);
     window.addEventListener('scroll', onLayout, true);
@@ -230,6 +246,7 @@ function NavGroup({
     }, 0);
 
     return () => {
+      window.cancelAnimationFrame(raf);
       window.clearTimeout(timer);
       document.removeEventListener('click', closeFlyout);
       window.removeEventListener('resize', onLayout);
@@ -249,7 +266,12 @@ function NavGroup({
   };
 
   const flyoutStyle = sidebarCollapsed && flyoutOpen
-    ? { top: flyoutPos.top, left: flyoutPos.left }
+    ? {
+      top: flyoutPos.top,
+      left: flyoutPos.left,
+      maxHeight: flyoutPos.maxHeight,
+      '--nav-flyout-caret-top': `${flyoutPos.caretTop}px`,
+    }
     : undefined;
 
   return (
