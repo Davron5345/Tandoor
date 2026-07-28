@@ -11879,6 +11879,7 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
   border-bottom: 1px solid var(--accent-soft-border);
   box-shadow: 0 4px 16px color-mix(in srgb, #000 10%, transparent);
   animation: bank-days-head-pin-flash 1.25s ease-out;
+  will-change: left, width;
 }
 
 .bank-days-head-pin .bank-days-table {

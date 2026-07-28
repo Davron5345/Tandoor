@@ -301,9 +301,54 @@ export default function Payments() {
     updateStickyHead();
     window.addEventListener('scroll', updateStickyHead, { passive: true });
     window.addEventListener('resize', updateStickyHead);
+
+    const wrap = tableWrapRef.current;
+    let resizeObserver;
+    if (wrap && typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(() => updateStickyHead());
+      resizeObserver.observe(wrap);
+      const main = wrap.closest('.main');
+      if (main) resizeObserver.observe(main);
+    }
+
+    const app = document.querySelector('.app');
+    let mutationObserver;
+    let rafId = 0;
+    let stopTimer = 0;
+    const stopLayoutSync = () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = 0;
+    };
+    const syncDuringSidebarTransition = () => {
+      stopLayoutSync();
+      window.clearTimeout(stopTimer);
+      const tick = () => {
+        updateStickyHead();
+        rafId = requestAnimationFrame(tick);
+      };
+      rafId = requestAnimationFrame(tick);
+      // .main transition is 0.25s — sync through the animation
+      stopTimer = window.setTimeout(stopLayoutSync, 320);
+    };
+    if (app && typeof MutationObserver !== 'undefined') {
+      mutationObserver = new MutationObserver((mutations) => {
+        for (const m of mutations) {
+          if (m.type === 'attributes' && m.attributeName === 'class') {
+            syncDuringSidebarTransition();
+            break;
+          }
+        }
+      });
+      mutationObserver.observe(app, { attributes: true, attributeFilter: ['class'] });
+    }
+
     return () => {
       window.removeEventListener('scroll', updateStickyHead);
       window.removeEventListener('resize', updateStickyHead);
+      resizeObserver?.disconnect();
+      mutationObserver?.disconnect();
+      stopLayoutSync();
+      window.clearTimeout(stopTimer);
     };
   }, [updateStickyHead, paymentDays.length, visibleColumns]);
 
