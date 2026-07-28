@@ -11863,8 +11863,10 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
 }
 
 .bank-days-card .bank-days-wrap {
-  overflow-x: hidden;
+  overflow: auto;
   max-width: 100%;
+  max-height: min(70vh, calc(100dvh - 280px));
+  -webkit-overflow-scrolling: touch;
 }
 
 .bank-days-toolbar {
@@ -11923,6 +11925,16 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
   min-width: 0;
   table-layout: auto;
   font-size: 13px;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.bank-days-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--surface2);
+  box-shadow: 0 1px 0 var(--border);
 }
 
 .bank-days-table th,
