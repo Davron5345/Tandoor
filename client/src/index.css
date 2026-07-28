@@ -11862,23 +11862,35 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
   color: var(--text-muted);
 }
 
-.bank-page-header {
-  position: sticky;
-  top: 0;
-  z-index: 40;
-  background: var(--bg);
-  padding: 4px 0 12px;
-  margin: 0;
-  box-shadow: 0 1px 0 color-mix(in srgb, var(--border) 80%, transparent);
-}
-
 .bank-days-card {
   overflow: visible;
 }
 
 .bank-days-card .bank-days-wrap {
-  overflow: visible;
+  overflow-x: auto;
   max-width: 100%;
+}
+
+.bank-days-head-pin {
+  position: fixed;
+  top: 0;
+  z-index: 100;
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 4px 16px color-mix(in srgb, #000 10%, transparent);
+}
+
+.bank-days-head-pin .bank-days-table {
+  margin: 0;
+}
+
+.bank-days-head-pin .bank-days-table thead th {
+  background: var(--surface2);
+  box-shadow: none;
+}
+
+[data-theme="dark"] .bank-days-head-pin {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
 }
 
 .bank-days-toolbar {
@@ -11942,9 +11954,6 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
 }
 
 .bank-days-table thead th {
-  position: sticky;
-  top: var(--bank-sticky-offset, 72px);
-  z-index: 2;
   background: var(--surface2);
   box-shadow: 0 1px 0 var(--border);
 }

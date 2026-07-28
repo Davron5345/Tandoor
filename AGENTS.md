@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-07-28 (шапка Банка sticky, фильтры уезжают)
+**Последнее обновление документации:** 2026-07-28 (шапка выписки банка — fixed pin)
 
 ---
 
@@ -343,7 +343,7 @@ Frontend зеркало: `client/src/permissions.js`.
 - Формат: Excel `AccReferenceReport*.xlsx` (Internet Bank Ipak Yuli, «Справка о работе счета»)
 - **Справочник счетов** `bank_accounts` (название, р/с, валюта); дефолтный счёт — **«Основной»**; из шапки файла (`Счет: 2020…`) определяется р/с; **если счёта нет — предупреждение**, сохранение блокируется
 - UI: `/payments` → выбор счёта → «Загрузить выписку» → превью (строки **сгруппированы по датам**) → подтверждение
-- Список дней: кнопка **«Столбцы»** — показать/скрыть колонки (portal поверх `.card`, чтобы меню не обрезалось; `localStorage` `bank_days_visible_columns_v1`); при скролле страницы фильтры уезжают, sticky «Банк» + sticky `thead` списка (`--bank-sticky-offset`)
+- Список дней: кнопка **«Столбцы»** — показать/скрыть колонки (portal поверх `.card`, чтобы меню не обрезалось; `localStorage` `bank_days_visible_columns_v1`); шапка колонок при скролле — **fixed pin** (как остатки: `.bank-days-head-pin`), список уходит под неё
 - После импорта в списке Банка: **одна календарная дата = одна строка** по выбранному счёту (тип = название счёта); внутри — операции дня (`payments`); открытие/редактирование/удаление строк
 - Confirm импорта: JSON до **20mb** (месячная выписка ~400 строк); клиент шлёт урезанные поля строк
 - Удаление выписки: `DELETE /api/payments/by-date/:date?bank_account_id=`
@@ -448,7 +448,7 @@ GET  /api/auth/roles
 | `/calculations` | Calculations.jsx | calculations.view |
 | `/dish-sales` | DishSales.jsx | documents.dish_sale |
 | `/cashier` | Cashier.jsx | cashier.* |
-| `/payments` | Payments.jsx | payments.view; справочник счетов («Основной»); список по датам (sticky шапка «Банк» + thead, фильтры уезжают); под поставщиком — фирма, под клиентом — канал (Payme/Click/Терминал/Инкассо); выбор столбцов; импорт AccReferenceReport |
+| `/payments` | Payments.jsx | payments.view; справочник счетов («Основной»); список по датам (шапка колонок fixed pin при скролле); под поставщиком — фирма, под клиентом — канал (Payme/Click/Терминал/Инкассо); выбор столбцов; импорт AccReferenceReport |
 | `/cash-articles` | CashArticles.jsx | cash_articles.view |
 | `/reports/*` | Reports.jsx | reports.view; `/reports/supplier-debts` — долги поставщикам; `/reports/cash-articles` — по статьям (изоляция филиала); акт сверки — фильтр «Фирма» |
 | `/opening-balance` | OpeningBalance.jsx | opening_balance.view; список — иконки Редактировать/Открыть/Удалить (`ActionIcons`) |
@@ -700,6 +700,7 @@ GET  /api/auth/roles
 | 2026-07-27 | Сайдбар: филиал/профиль скрыты под шапкой, открываются стрелкой вниз |
 | 2026-07-28 | Банк: sticky шапка списка дней при скролле (`.bank-days-wrap` + `thead th`) |
 | 2026-07-28 | Банк: при скролле фильтры уезжают; sticky «Банк» + thead под ней (`bank-page-header`) |
+| 2026-07-28 | Банк: шапка колонок выписки — fixed pin (`.bank-days-head-pin`), как у остатков |
 
 ---
 

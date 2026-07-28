@@ -75,6 +75,29 @@ function isCreditPayment(p) {
   return INCOME_TYPES.has(p.type);
 }
 
+function BankDaysHeadRow({ colVisible, thWidths }) {
+  const w = (i) => (thWidths?.[i] != null ? { width: thWidths[i], minWidth: thWidths[i] } : undefined);
+  let i = 0;
+  return (
+    <tr>
+      {colVisible('number') && <th style={w(i++)}>№</th>}
+      {colVisible('date') && <th style={w(i++)}>Дата</th>}
+      {colVisible('type') && <th style={w(i++)}>Тип</th>}
+      {colVisible('count') && <th style={w(i++)}>Опер.</th>}
+      {colVisible('opening') && <th className="num" style={w(i++)}>Сальдо нач.</th>}
+      {colVisible('debit') && (
+        <th className="num" style={w(i++)}>Дебет<br /><span className="th-sub">расход</span></th>
+      )}
+      {colVisible('credit') && (
+        <th className="num" style={w(i++)}>Кредит<br /><span className="th-sub">приход</span></th>
+      )}
+      {colVisible('closing') && <th className="num" style={w(i++)}>Сальдо кон.</th>}
+      {colVisible('status') && <th style={w(i++)}>Статус</th>}
+      {colVisible('actions') && <th style={w(i++)} />}
+    </tr>
+  );
+}
+
 export default function Payments() {
   const [payments, setPayments] = useState([]);
   const [bankAccounts, setBankAccounts] = useState([]);
@@ -103,8 +126,10 @@ export default function Payments() {
   const columnsTriggerRef = useRef(null);
   const columnsDropdownRef = useRef(null);
   const fileRef = useRef(null);
-  const pageHeaderRef = useRef(null);
-  const [stickyOffset, setStickyOffset] = useState(72);
+  const tableWrapRef = useRef(null);
+  const theadRef = useRef(null);
+  const [headStuck, setHeadStuck] = useState(false);
+  const [headLayout, setHeadLayout] = useState({ left: 0, width: 0, thWidths: [] });
   const { show, Toast } = useToast();
   const { user } = useAuth();
   const { branchName, branchId } = useBranch();
@@ -156,21 +181,6 @@ export default function Payments() {
   useEffect(() => {
     localStorage.setItem(BANK_DAY_COLS_STORAGE, JSON.stringify(visibleColumns));
   }, [visibleColumns]);
-  useEffect(() => {
-    const el = pageHeaderRef.current;
-    if (!el || typeof ResizeObserver === 'undefined') return undefined;
-    const update = () => {
-      setStickyOffset(Math.ceil(el.getBoundingClientRect().height));
-    };
-    update();
-    const ro = new ResizeObserver(update);
-    ro.observe(el);
-    window.addEventListener('resize', update);
-    return () => {
-      ro.disconnect();
-      window.removeEventListener('resize', update);
-    };
-  }, []);
   useEffect(() => {
     if (!columnsOpen) {
       setColumnsDropdownStyle(null);
@@ -271,6 +281,31 @@ export default function Payments() {
     const desc = [...filtered].reverse();
     return desc.map((day, idx) => ({ ...day, number: desc.length - idx }));
   }, [allDaysWithBalances, filterDateFrom, filterDateTo]);
+
+  const updateStickyHead = useCallback(() => {
+    const wrap = tableWrapRef.current;
+    const thead = theadRef.current;
+    if (!wrap || !thead) return;
+    const wrapRect = wrap.getBoundingClientRect();
+    const headHeight = thead.getBoundingClientRect().height;
+    const shouldStick = wrapRect.top <= 0 && wrapRect.bottom > headHeight;
+    setHeadStuck(shouldStick);
+    setHeadLayout({
+      left: wrapRect.left,
+      width: wrapRect.width,
+      thWidths: [...thead.querySelectorAll('th')].map((th) => th.getBoundingClientRect().width),
+    });
+  }, []);
+
+  useEffect(() => {
+    updateStickyHead();
+    window.addEventListener('scroll', updateStickyHead, { passive: true });
+    window.addEventListener('resize', updateStickyHead);
+    return () => {
+      window.removeEventListener('scroll', updateStickyHead);
+      window.removeEventListener('resize', updateStickyHead);
+    };
+  }, [updateStickyHead, paymentDays.length, visibleColumns]);
 
   const dayDoc = useMemo(
     () => (viewDay ? allDaysWithBalances.find((d) => d.date === viewDay) : null),
@@ -593,9 +628,9 @@ export default function Payments() {
   };
 
   return (
-    <div className="bank-page" style={{ '--bank-sticky-offset': `${stickyOffset}px` }}>
+    <div>
       {Toast}
-      <div className="page-header bank-page-header" ref={pageHeaderRef}>
+      <div className="page-header">
         <h1>Банк{branchName ? ` · ${branchName}` : ''}</h1>
         {canEdit && (
           <div className="btn-group">
@@ -758,25 +793,22 @@ export default function Payments() {
             )}
           </div>
         </div>
-        <div className="table-wrap bank-days-wrap">
+        {headStuck && (
+          <div
+            className="bank-days-head-pin"
+            style={{ left: headLayout.left, width: headLayout.width }}
+          >
+            <table className="bank-days-table">
+              <thead>
+                <BankDaysHeadRow colVisible={colVisible} thWidths={headLayout.thWidths} />
+              </thead>
+            </table>
+          </div>
+        )}
+        <div className="table-wrap bank-days-wrap" ref={tableWrapRef}>
           <table className="bank-days-table">
-            <thead>
-              <tr>
-                {colVisible('number') && <th>№</th>}
-                {colVisible('date') && <th>Дата</th>}
-                {colVisible('type') && <th>Тип</th>}
-                {colVisible('count') && <th>Опер.</th>}
-                {colVisible('opening') && <th className="num">Сальдо нач.</th>}
-                {colVisible('debit') && (
-                  <th className="num">Дебет<br /><span className="th-sub">расход</span></th>
-                )}
-                {colVisible('credit') && (
-                  <th className="num">Кредит<br /><span className="th-sub">приход</span></th>
-                )}
-                {colVisible('closing') && <th className="num">Сальдо кон.</th>}
-                {colVisible('status') && <th>Статус</th>}
-                {colVisible('actions') && <th></th>}
-              </tr>
+            <thead ref={theadRef}>
+              <BankDaysHeadRow colVisible={colVisible} />
             </thead>
             <tbody>
               {paymentDays.map((day) => (
