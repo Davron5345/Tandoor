@@ -11874,12 +11874,14 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
 .bank-days-head-pin {
   position: fixed;
   top: 0;
-  z-index: 100;
+  z-index: 45; /* below .sidebar (100) so menu/flyout stay on top */
+  max-height: 72px;
+  overflow: hidden;
+  pointer-events: none;
   background: var(--surface2);
   border-bottom: 1px solid var(--accent-soft-border);
   box-shadow: 0 4px 16px color-mix(in srgb, #000 10%, transparent);
   animation: bank-days-head-pin-flash 1.25s ease-out;
-  will-change: left, width;
 }
 
 .bank-days-head-pin .bank-days-table {

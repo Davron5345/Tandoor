@@ -128,6 +128,8 @@ export default function Payments() {
   const fileRef = useRef(null);
   const tableWrapRef = useRef(null);
   const theadRef = useRef(null);
+  const headPinRef = useRef(null);
+  const headStuckRef = useRef(false);
   const [headStuck, setHeadStuck] = useState(false);
   const [headLayout, setHeadLayout] = useState({ left: 0, width: 0, thWidths: [] });
   const { show, Toast } = useToast();
@@ -287,14 +289,31 @@ export default function Payments() {
     const thead = theadRef.current;
     if (!wrap || !thead) return;
     const wrapRect = wrap.getBoundingClientRect();
-    const headHeight = thead.getBoundingClientRect().height;
+    const headHeight = Math.max(thead.getBoundingClientRect().height, 1);
     const shouldStick = wrapRect.top <= 0 && wrapRect.bottom > headHeight;
-    setHeadStuck(shouldStick);
-    setHeadLayout({
-      left: wrapRect.left,
-      width: wrapRect.width,
-      thWidths: [...thead.querySelectorAll('th')].map((th) => th.getBoundingClientRect().width),
-    });
+    const thWidths = [...thead.querySelectorAll('th')].map((th) => th.getBoundingClientRect().width);
+    const left = wrapRect.left;
+    const width = wrapRect.width;
+
+    // While pinned, sync geometry directly — avoids React re-render storms during sidebar animation
+    const pin = headPinRef.current;
+    if (pin) {
+      pin.style.left = `${left}px`;
+      pin.style.width = `${width}px`;
+      pin.querySelectorAll('thead th').forEach((th, i) => {
+        if (thWidths[i] == null) return;
+        th.style.width = `${thWidths[i]}px`;
+        th.style.minWidth = `${thWidths[i]}px`;
+      });
+    }
+
+    if (shouldStick && !headStuckRef.current) {
+      setHeadLayout({ left, width, thWidths });
+    }
+    if (headStuckRef.current !== shouldStick) {
+      headStuckRef.current = shouldStick;
+      setHeadStuck(shouldStick);
+    }
   }, []);
 
   useEffect(() => {
@@ -307,8 +326,6 @@ export default function Payments() {
     if (wrap && typeof ResizeObserver !== 'undefined') {
       resizeObserver = new ResizeObserver(() => updateStickyHead());
       resizeObserver.observe(wrap);
-      const main = wrap.closest('.main');
-      if (main) resizeObserver.observe(main);
     }
 
     const app = document.querySelector('.app');
@@ -327,7 +344,6 @@ export default function Payments() {
         rafId = requestAnimationFrame(tick);
       };
       rafId = requestAnimationFrame(tick);
-      // .main transition is 0.25s — sync through the animation
       stopTimer = window.setTimeout(stopLayoutSync, 320);
     };
     if (app && typeof MutationObserver !== 'undefined') {
@@ -840,6 +856,7 @@ export default function Payments() {
         </div>
         {headStuck && (
           <div
+            ref={headPinRef}
             className="bank-days-head-pin"
             style={{ left: headLayout.left, width: headLayout.width }}
           >
