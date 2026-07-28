@@ -11862,11 +11862,23 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
   color: var(--text-muted);
 }
 
+.bank-page-header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: var(--bg);
+  padding: 4px 0 12px;
+  margin: 0;
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--border) 80%, transparent);
+}
+
+.bank-days-card {
+  overflow: visible;
+}
+
 .bank-days-card .bank-days-wrap {
-  overflow: auto;
+  overflow: visible;
   max-width: 100%;
-  max-height: min(70vh, calc(100dvh - 280px));
-  -webkit-overflow-scrolling: touch;
 }
 
 .bank-days-toolbar {
@@ -11931,7 +11943,7 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
 
 .bank-days-table thead th {
   position: sticky;
-  top: 0;
+  top: var(--bank-sticky-offset, 72px);
   z-index: 2;
   background: var(--surface2);
   box-shadow: 0 1px 0 var(--border);

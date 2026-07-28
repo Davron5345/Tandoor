@@ -103,6 +103,8 @@ export default function Payments() {
   const columnsTriggerRef = useRef(null);
   const columnsDropdownRef = useRef(null);
   const fileRef = useRef(null);
+  const pageHeaderRef = useRef(null);
+  const [stickyOffset, setStickyOffset] = useState(72);
   const { show, Toast } = useToast();
   const { user } = useAuth();
   const { branchName, branchId } = useBranch();
@@ -154,6 +156,21 @@ export default function Payments() {
   useEffect(() => {
     localStorage.setItem(BANK_DAY_COLS_STORAGE, JSON.stringify(visibleColumns));
   }, [visibleColumns]);
+  useEffect(() => {
+    const el = pageHeaderRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return undefined;
+    const update = () => {
+      setStickyOffset(Math.ceil(el.getBoundingClientRect().height));
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    window.addEventListener('resize', update);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', update);
+    };
+  }, []);
   useEffect(() => {
     if (!columnsOpen) {
       setColumnsDropdownStyle(null);
@@ -576,9 +593,9 @@ export default function Payments() {
   };
 
   return (
-    <div>
+    <div className="bank-page" style={{ '--bank-sticky-offset': `${stickyOffset}px` }}>
       {Toast}
-      <div className="page-header">
+      <div className="page-header bank-page-header" ref={pageHeaderRef}>
         <h1>Банк{branchName ? ` · ${branchName}` : ''}</h1>
         {canEdit && (
           <div className="btn-group">
