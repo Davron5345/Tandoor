@@ -192,7 +192,9 @@ function NavGroup({
 }) {
   const location = useLocation();
   const isActive = pathInGroup(location.pathname, paths);
-  const [flyoutPos, setFlyoutPos] = useState({ top: 0, left: 0, maxHeight: 360, caretTop: 16 });
+  const [flyoutPos, setFlyoutPos] = useState({
+    top: 0, left: 0, maxHeight: 360, caretTop: 16, opensUp: false,
+  });
   const groupRef = useRef(null);
   const toggleRef = useRef(null);
   const flyoutRef = useRef(null);
@@ -204,14 +206,18 @@ function NavGroup({
     const rect = el.getBoundingClientRect();
     const margin = 8;
     const viewportH = window.innerHeight;
-    const maxPanelH = Math.max(160, viewportH - margin * 2);
     const panel = flyoutRef.current;
-    const measured = panel?.offsetHeight || 0;
-    const panelH = Math.min(measured > 40 ? measured : maxPanelH, maxPanelH);
-    const top = Math.min(
-      Math.max(margin, rect.top),
-      Math.max(margin, viewportH - panelH - margin),
-    );
+    const spaceBelow = Math.max(0, viewportH - rect.top - margin);
+    const spaceAbove = Math.max(0, rect.bottom - margin);
+    const measured = panel?.scrollHeight || panel?.offsetHeight || 0;
+    const naturalH = measured > 40 ? measured : 420;
+    // If it won't fit below the icon — open upward
+    const opensUp = naturalH > spaceBelow && spaceAbove > spaceBelow;
+    const available = Math.max(160, opensUp ? spaceAbove : spaceBelow);
+    const maxPanelH = Math.min(available, viewportH - margin * 2);
+    const panelH = Math.min(naturalH, maxPanelH);
+    let top = opensUp ? rect.bottom - panelH : rect.top;
+    top = Math.min(Math.max(margin, top), viewportH - panelH - margin);
     const caretTop = Math.min(
       Math.max(12, rect.top + rect.height / 2 - top - 5),
       Math.max(12, panelH - 20),
@@ -221,6 +227,7 @@ function NavGroup({
       left: rect.right + 8,
       maxHeight: maxPanelH,
       caretTop,
+      opensUp,
     });
   }, []);
 
@@ -302,7 +309,7 @@ function NavGroup({
       </button>
       <div
         ref={flyoutRef}
-        className={`nav-group-items${itemsVisible ? ' is-visible' : ''}${sidebarCollapsed ? ' nav-flyout-panel' : ''}`}
+        className={`nav-group-items${itemsVisible ? ' is-visible' : ''}${sidebarCollapsed ? ' nav-flyout-panel' : ''}${sidebarCollapsed && flyoutOpen && flyoutPos.opensUp ? ' nav-flyout-panel-up' : ''}`}
         style={flyoutStyle}
       >
         {sidebarCollapsed && <div className="nav-flyout-title">{label}</div>}

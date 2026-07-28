@@ -984,6 +984,22 @@ textarea::placeholder {
   }
 }
 
+@keyframes nav-flyout-in-up {
+  from {
+    opacity: 0;
+    transform: translate(-8px, 8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate(0, 0);
+  }
+}
+
+.app.sidebar-collapsed .nav-flyout-panel-up {
+  animation-name: nav-flyout-in-up;
+}
+
 .app.sidebar-collapsed .nav-group-items.is-visible,
 .app.sidebar-collapsed .nav-flyout-panel.is-visible {
   display: flex;
