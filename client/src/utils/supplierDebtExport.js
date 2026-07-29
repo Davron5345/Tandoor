@@ -74,6 +74,7 @@ export function renderSupplierDebtReportCanvas({
   const colHeaderH = 40;
   const rowH = 36;
   const totalH = 42;
+  const gap = 0;
   const filterLineH = supplierFilterLabel ? 18 : 0;
 
   const headers = ['Поставщик', 'Долг на начало', 'Приход', 'Оплата', 'Долг на конец'];
