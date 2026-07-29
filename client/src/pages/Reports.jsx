@@ -10,6 +10,7 @@ import { todayLocalIso } from '../utils/date';
 import { textMatchesSearch } from '../utils/searchNormalize';
 import SearchHighlight from '../components/SearchHighlight';
 import { downloadSupplierDebtReport } from '../utils/supplierDebtExport';
+import ReportSupplierMultiSelect from '../components/ReportSupplierMultiSelect';
 
 function formatQty(n) {
   const value = Number(n) || 0;
@@ -1289,7 +1290,7 @@ function SupplierReturnsReport() {
 function SupplierDebtMovementReport() {
   const [report, setReport] = useState(null);
   const [suppliers, setSuppliers] = useState([]);
-  const [supplierId, setSupplierId] = useState('');
+  const [supplierIds, setSupplierIds] = useState([]);
   const [dateFrom, setDateFrom] = useState(() => {
     const d = new Date();
     d.setDate(1);
@@ -1316,7 +1317,7 @@ function SupplierDebtMovementReport() {
     setLoading(true);
     setLoadError('');
     const params = { date_from: dateFrom, date_to: dateTo };
-    if (supplierId) params.supplier_id = supplierId;
+    if (supplierIds.length) params.supplier_ids = supplierIds;
     api.getSupplierDebtMovementReport(params)
       .then(setReport)
       .catch((e) => {
@@ -1324,7 +1325,7 @@ function SupplierDebtMovementReport() {
         setReport({ rows: [], totals: { opening_debt: 0, prihod: 0, payment: 0, closing_debt: 0 }, count: 0 });
       })
       .finally(() => setLoading(false));
-  }, [dateFrom, dateTo, supplierId]);
+  }, [dateFrom, dateTo, supplierIds]);
 
   useEffect(() => {
     load();
@@ -1332,6 +1333,16 @@ function SupplierDebtMovementReport() {
 
   const rows = report?.rows || [];
   const totals = report?.totals || { opening_debt: 0, prihod: 0, payment: 0, closing_debt: 0 };
+
+  const selectedSupplierLabel = useMemo(() => {
+    if (!supplierIds.length) return '';
+    const names = suppliers
+      .filter((s) => supplierIds.includes(s.id))
+      .map((s) => s.name);
+    if (!names.length) return `Выбрано поставщиков: ${supplierIds.length}`;
+    if (names.length <= 3) return names.join(', ');
+    return `${names.slice(0, 3).join(', ')} и ещё ${names.length - 3}`;
+  }, [supplierIds, suppliers]);
 
   const handleExport = async (format) => {
     if (exporting || loading) return;
@@ -1344,6 +1355,7 @@ function SupplierDebtMovementReport() {
         rows,
         totals,
         format,
+        supplierFilterLabel: selectedSupplierLabel,
       });
       show(format === 'pdf' ? 'PDF сохранён' : 'JPEG сохранён');
     } catch (e) {
@@ -1399,14 +1411,14 @@ function SupplierDebtMovementReport() {
                 onChange={(e) => setDateTo(e.target.value)}
               />
             </label>
-            <label>
-              Поставщик
-              <select value={supplierId} onChange={(e) => setSupplierId(e.target.value)}>
-                <option value="">Все поставщики</option>
-                {suppliers.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </select>
+            <label className="report-filters-supplier-multi">
+              Поставщики
+              <ReportSupplierMultiSelect
+                suppliers={suppliers}
+                value={supplierIds}
+                onChange={setSupplierIds}
+                disabled={loading}
+              />
             </label>
           </div>
           <span className="report-meta">{loading ? 'Загрузка…' : `Строк: ${rows.length}`}</span>

@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-07-28 (flyout Отчёты открывается вверх)
+**Последнее обновление документации:** 2026-07-29 (долги поставщикам — мультивыбор)
 
 ---
 
@@ -418,7 +418,7 @@ GET  /api/auth/roles
 | `/api/counterparties` | counterparties.routes.js | Контрагенты, договоры (`/:id/contracts` CRUD), `/:id/firms` — юрлица поставщика (CRUD) |
 | `/api/payments` | finance.routes.js | Оплаты; `GET/POST/PUT/DELETE /api/bank-accounts`; `GET /bank-opening?bank_account_id=`; `DELETE /by-date/:date?bank_account_id=`; import parse/confirm |
 | `/api/cash-articles` | finance.routes.js | Статьи кассы |
-| `/api/stats`, `/api/reports/*` | org.routes.js | Отчёты, дашборд; `/api/reports/supplier-debts`; `/api/reports/cash-articles?date_from&date_to` — обороты по статьям **только** `req.branchId` (платежи + JOIN статей по `ca.branch_id`) |
+| `/api/stats`, `/api/reports/*` | org.routes.js | Отчёты, дашборд; `/api/reports/supplier-debts` (`supplier_ids` через запятую или `supplier_id`); `/api/reports/cash-articles?date_from&date_to` — обороты по статьям **только** `req.branchId` (платежи + JOIN статей по `ca.branch_id`) |
 | `/api/branches`, `/api/departments`, `/api/users` | org.routes.js | Оргструктура |
 | `/api/roles` | org.routes.js | Роли и права |
 | `/api/shop-orders` | shopOrders.routes.js | Заявки MyShop |
@@ -450,7 +450,7 @@ GET  /api/auth/roles
 | `/cashier` | Cashier.jsx | cashier.* |
 | `/payments` | Payments.jsx | payments.view; справочник счетов («Основной»); список по датам (шапка колонок fixed pin при скролле); под поставщиком — фирма, под клиентом — канал (Payme/Click/Терминал/Инкассо); выбор столбцов; импорт AccReferenceReport |
 | `/cash-articles` | CashArticles.jsx | cash_articles.view |
-| `/reports/*` | Reports.jsx | reports.view; `/reports/supplier-debts` — долги поставщикам; `/reports/cash-articles` — по статьям (изоляция филиала); акт сверки — фильтр «Фирма» |
+| `/reports/*` | Reports.jsx | reports.view; `/reports/supplier-debts` — долги поставщикам (мультивыбор поставщиков); `/reports/cash-articles` — по статьям (изоляция филиала); акт сверки — фильтр «Фирма» |
 | `/opening-balance` | OpeningBalance.jsx | opening_balance.view; список — иконки Редактировать/Открыть/Удалить (`ActionIcons`) |
 | `/myshop` | MyShop.jsx | myshop.view |
 | `/myshop/constructor` | MyShopConstructor.jsx | myshop.edit |
@@ -706,6 +706,7 @@ GET  /api/auth/roles
 | 2026-07-28 | Банк: pin не перекрывает список при сворачивании сайдбара (DOM-sync, z-index 45) |
 | 2026-07-28 | Сайдбар: collapsed flyout «Отчёты» — max-height + scroll, позиция по реальной высоте |
 | 2026-07-28 | Сайдбар: flyout открывается вверх, если снизу не хватает места |
+| 2026-07-29 | Отчёт «Долги поставщикам»: мультивыбор поставщиков (`supplier_ids`, `ReportSupplierMultiSelect`) |
 
 ---
 

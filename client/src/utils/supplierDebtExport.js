@@ -66,6 +66,7 @@ export function renderSupplierDebtReportCanvas({
   dateTo,
   rows,
   totals,
+  supplierFilterLabel = '',
 }) {
   const scale = 2;
   const padding = 28;
@@ -73,7 +74,7 @@ export function renderSupplierDebtReportCanvas({
   const colHeaderH = 40;
   const rowH = 36;
   const totalH = 42;
-  const gap = 0;
+  const filterLineH = supplierFilterLabel ? 18 : 0;
 
   const headers = ['Поставщик', 'Долг на начало', 'Приход', 'Оплата', 'Долг на конец'];
   const bodyFont = '500 15px "Segoe UI", system-ui, sans-serif';
@@ -99,6 +100,7 @@ export function renderSupplierDebtReportCanvas({
   const height = padding
     + headerH
     + 28
+    + filterLineH
     + colHeaderH
     + rows.length * rowH
     + (rows.length ? totalH : rowH)
@@ -134,6 +136,10 @@ export function renderSupplierDebtReportCanvas({
   ctx.fillText(`Период: ${formatPeriod(dateFrom, dateTo)}`, padding, periodY);
 
   let y = periodY + 14;
+  if (supplierFilterLabel) {
+    ctx.fillText(`Поставщики: ${supplierFilterLabel}`, padding, periodY + filterLineH);
+    y += filterLineH;
+  }
 
   const drawRowBg = (x, rowY, h, color) => {
     ctx.fillStyle = color;

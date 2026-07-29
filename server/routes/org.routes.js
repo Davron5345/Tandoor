@@ -54,13 +54,13 @@ export function registerOrgRoutes(app) {
     try {
       const dateFrom = req.query.date_from || null;
       const dateTo = req.query.date_to || null;
-      const supplierId = req.query.supplier_id || null;
+      const supplierIds = req.query.supplier_ids || req.query.supplier_id || null;
       const includeUnlinked = req.query.include_unlinked_payments !== '0';
       res.json(svc.getSupplierDebtMovementReport(
         req.branchId,
         dateFrom,
         dateTo,
-        supplierId,
+        supplierIds,
         includeUnlinked,
       ));
     } catch (e) {

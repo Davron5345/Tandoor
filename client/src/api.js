@@ -144,8 +144,17 @@ export const api = {
     return request(`/reports/creditors${q ? `?${q}` : ''}`);
   },
   getSupplierDebtMovementReport: (params = {}) => {
-    const q = new URLSearchParams(params).toString();
-    return request(`/reports/supplier-debts${q ? `?${q}` : ''}`);
+    const q = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value == null || value === '') return;
+      if (Array.isArray(value)) {
+        if (value.length) q.set(key, value.join(','));
+        return;
+      }
+      q.set(key, value);
+    });
+    const qs = q.toString();
+    return request(`/reports/supplier-debts${qs ? `?${qs}` : ''}`);
   },
   getPnLReport: (params = {}) => {
     const q = new URLSearchParams(params).toString();

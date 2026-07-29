@@ -6,6 +6,12 @@ import { PURCHASE_ARTICLE_CODE } from '../cashArticleDefaults.js';
 
 const { queryAll, queryOne } = db;
 
+function normalizeSupplierIds(supplierIds) {
+  if (supplierIds == null || supplierIds === '') return [];
+  const list = Array.isArray(supplierIds) ? supplierIds : String(supplierIds).split(',');
+  return [...new Set(list.map((id) => String(id).trim()).filter(Boolean))];
+}
+
 export function getStockReport(branchId = DEFAULT_BRANCH_ID, departmentId = null, onlyInStock = true) {
   let sql = `
     SELECT pds.stock, COALESCE(pds.avg_cost, 0) as avg_cost, pds.variant_id,
@@ -294,7 +300,7 @@ export function getSupplierDebtMovementReport(
   branchId = DEFAULT_BRANCH_ID,
   dateFrom,
   dateTo,
-  supplierId = null,
+  supplierIds = null,
   includeUnlinkedPayments = true,
 ) {
   if (!dateFrom || !dateTo) {
@@ -304,8 +310,11 @@ export function getSupplierDebtMovementReport(
     throw new Error('date_from не может быть позже date_to');
   }
 
-  const supplierFilter = supplierId ? ' AND c.id = ?' : '';
-  const supplierParams = supplierId ? [supplierId] : [];
+  const ids = normalizeSupplierIds(supplierIds);
+  const supplierFilter = ids.length
+    ? ` AND c.id IN (${ids.map(() => '?').join(',')})`
+    : '';
+  const supplierParams = ids;
   const unlinkedFlag = includeUnlinkedPayments ? 1 : 0;
 
   const rows = queryAll(`

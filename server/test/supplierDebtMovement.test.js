@@ -76,4 +76,22 @@ test('supplier debt movement report calculates opening, period and closing balan
   assert.equal(row.payment, 200_000);
   assert.equal(row.closing_debt, 1_300_000);
   assert.equal(report.totals.closing_debt, 1_300_000);
+
+  const supplierB = createCounterparty({ name: 'Поставщик Y', type: 'supplier' }, 'main');
+  const filtered = getSupplierDebtMovementReport(
+    'main',
+    '2026-07-05',
+    '2026-07-05',
+    [supplier.id, supplierB.id],
+  );
+  assert.equal(filtered.rows.length, 1);
+  assert.equal(filtered.rows[0].id, supplier.id);
+
+  const onlyMissing = getSupplierDebtMovementReport(
+    'main',
+    '2026-07-05',
+    '2026-07-05',
+    supplierB.id,
+  );
+  assert.equal(onlyMissing.rows.length, 0);
 });
