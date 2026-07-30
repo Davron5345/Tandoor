@@ -37,6 +37,17 @@ function buildProductsOrderBy(filters = {}) {
   return 'COALESCE(ppc.sort_order, pc.sort_order, 999), ppc.name, pc.parent_id IS NOT NULL, pc.sort_order, pc.name, p.name';
 }
 
+import {
+  getSupplierPriceMap,
+} from './supplierPrices.js';
+
+/** Merge supplier price-list map over last purchase prices (supplier wins). */
+function mergePriceMaps(supplierMap, lastMap) {
+  if (!supplierMap || !Object.keys(supplierMap).length) return lastMap;
+  if (!lastMap) return { ...supplierMap };
+  return { ...lastMap, ...supplierMap };
+}
+
 function getLastPricesMap(branchId, docType, counterpartyId = null) {
   const buildMap = (cpId) => {
     let sql = `
@@ -232,13 +243,14 @@ export function getProducts(filters = {}) {
     ORDER BY ${buildProductsOrderBy(filters)}
   `, params);
 
-  const lastMap = filters.last_doc_type
-    ? getLastPricesMap(
-      branchId,
-      filters.last_doc_type,
-      filters.counterparty_id || filters.supplier_id || null,
-    )
+  const supplierId = filters.counterparty_id || filters.supplier_id || null;
+  const lastMapRaw = filters.last_doc_type
+    ? getLastPricesMap(branchId, filters.last_doc_type, supplierId)
     : null;
+  const supplierMap = (filters.last_doc_type === 'prihod' && supplierId)
+    ? getSupplierPriceMap(branchId, supplierId, filters.as_of_date || null)
+    : null;
+  const lastMap = mergePriceMaps(supplierMap, lastMapRaw);
 
   if (filters.category_id === '__no_category__') {
     products = products.filter((p) => !p.category_id || p.category_id === 'other');

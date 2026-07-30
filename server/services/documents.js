@@ -26,6 +26,7 @@ import {
   isSupplierCounterpartyDoc,
   assertCounterpartyBranch,
 } from './counterparties.js';
+import { syncSupplierPriceListFromPrihod } from './supplierPrices.js';
 
 const { queryAll, queryOne, run, transaction } = db;
 
@@ -378,6 +379,10 @@ function updateStock(documentId, reverse = false) {
       syncBranchStockFromDepartments(branchId, item.product_id);
     }
   }
+
+  if (!reverse && doc.type === 'prihod') {
+    syncSupplierPriceListFromPrihod(doc, items);
+  }
 }
 
 function getItemStockLabel(item) {
@@ -501,6 +506,8 @@ export function getDocuments(filters = {}) {
   if (filters.type) {
     sql += ' AND d.type = ?';
     params.push(filters.type);
+  } else {
+    sql += " AND d.type NOT IN ('supplier_price', 'opening_balance')";
   }
   if (filters.status) {
     sql += ' AND d.status = ?';

@@ -23,6 +23,7 @@ import DishSales from './pages/DishSales';
 import Calculations from './pages/Calculations';
 import Reports from './pages/Reports';
 import OpeningBalance from './pages/OpeningBalance';
+import SupplierPrices from './pages/SupplierPrices';
 import MyShop from './pages/MyShop';
 import MyShopConstructor from './pages/MyShopConstructor';
 import ShopOrders from './pages/ShopOrders';
@@ -85,6 +86,7 @@ function buildAppNav(user) {
   const catalogNav = [
     ...(canViewProducts ? [
       { to: '/products', label: 'Номенклатура' },
+      { to: '/supplier-prices', label: 'Прайсы поставщиков' },
       { to: '/product-categories', label: 'Категории' },
       { to: '/units', label: 'Ед. измерения' },
     ] : []),
@@ -660,6 +662,7 @@ function AppContent() {
           <Route path="/myshop" element={canViewMyShop ? <MyShop /> : <Navigate to="/" />} />
           <Route path="/shop-orders" element={canViewShopOrders ? <ShopOrders /> : <Navigate to="/" />} />
           <Route path="/products" element={canViewProducts ? <Products /> : <Navigate to="/" />} />
+          <Route path="/supplier-prices" element={canViewProducts ? <SupplierPrices /> : <Navigate to="/" />} />
           <Route path="/product-categories" element={canViewProducts ? <ProductCategories /> : <Navigate to="/" />} />
           <Route path="/units" element={canViewProducts ? <Units /> : <Navigate to="/" />} />
           <Route path="/counterparties" element={hasPermission(user, 'counterparties.view') ? <Counterparties /> : <Navigate to="/" />} />

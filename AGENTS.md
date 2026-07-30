@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-07-30 (приходы по варианту товара)
+**Последнее обновление документации:** 2026-07-30 (прайсы поставщиков как документы)
 
 ---
 
@@ -18,7 +18,7 @@
 |---------|-----------|
 | Склад | Приход, расход, перемещение, возвраты поставщику/клиенту |
 | Производство | Разделка, калькуляции (рецептуры), продажа блюд со списанием ингредиентов |
-| Справочники | Номенклатура (4 вида товаров), категории, единицы, контрагенты, договоры |
+| Справочники | Номенклатура (4 вида товаров), категории, единицы, контрагенты, договоры, **прайсы поставщиков** |
 | Финансы | Касса, банк/оплаты, статьи кассы, P&L, начальное сальдо |
 | MyShop | Онлайн-витрина для сотрудников, заявки на продукты, конструктор витрины |
 | Администрирование | Филиалы, отделы, роли/права, сотрудники, аудит, безопасность |
@@ -374,6 +374,18 @@ Frontend зеркало: `client/src/permissions.js`.
 
 ---
 
+### 9.11 Прайсы поставщиков
+
+- Документ `documents.type = supplier_price`: дата, поставщик (`counterparty_id`), строки в `document_items` (товар/вариант + цена; qty=1)
+- Статусы: `draft` → `confirmed` (без движения остатков); отмена проведения → снова `draft`
+- UI: `/supplier-prices` (права `products.view` / `products.edit`)
+- API: `GET/POST /api/supplier-prices`, `GET/PUT/DELETE /api/supplier-prices/:id`, `POST .../confirm`, `POST .../cancel`
+- Prefill цены в приходе (`getProducts?last_doc_type=prihod&counterparty_id=`): **прайс поставщика** (последний confirmed с датой ≤) → иначе last price из приходов → avg_cost → каталог
+- При **проведении прихода**: автосоздание/обновление прайса на ту же дату+поставщика (цены из строк прихода мержатся в документ)
+- История цен = сами прайс-документы + строки приходов; отдельной history-таблицы цен нет
+
+---
+
 ## 10. API (сводка)
 
 Полная спецификация: `GET /api/openapi.json` и `GET /api/docs`.
@@ -414,7 +426,8 @@ GET  /api/auth/roles
 |---------|---------------|------------|
 | `/api/products` | catalog.routes.js | Номенклатура, варианты, изображения |
 | `/api/calculations` | catalog.routes.js | Калькуляции |
-| `/api/documents` | documents.routes.js | Складские документы (`date_from`, `date_to`, `counterparty_id`, `product_id`, `variant_id`, type, status); при `product_id` — JOIN `document_items`, поля строки `quantity`/`price`/`amount`/`net_weight` (отдельная строка на позицию); `variant_id` сужает до варианта |
+| `/api/documents` | documents.routes.js | Складские документы (`date_from`, `date_to`, `counterparty_id`, `product_id`, `variant_id`, type, status); при `product_id` — JOIN `document_items`, поля строки `quantity`/`price`/`amount`/`net_weight` (отдельная строка на позицию); `variant_id` сужает до варианта; без `type` исключаются `supplier_price` и `opening_balance` |
+| `/api/supplier-prices` | supplierPrices.routes.js | Прайс-документы поставщика (CRUD + confirm/cancel); `products.view`/`products.edit` |
 | `/api/counterparties` | counterparties.routes.js | Контрагенты, договоры (`/:id/contracts` CRUD), `/:id/firms` — юрлица поставщика (CRUD) |
 | `/api/payments` | finance.routes.js | Оплаты; `GET/POST/PUT/DELETE /api/bank-accounts`; `GET /bank-opening?bank_account_id=`; `DELETE /by-date/:date?bank_account_id=`; import parse/confirm |
 | `/api/cash-articles` | finance.routes.js | Статьи кассы |
@@ -439,6 +452,7 @@ GET  /api/auth/roles
 |---------|------|-------|
 | `/` | Dashboard.jsx | dashboard.view |
 | `/products` | Products.jsx | products.view; клик по названию (при `documents.prihod` / `documents.view`) → модалка приходов; у варианта — только его строки (`variant_id`); у родителя — все по `product_id`; строка открывает `/prihod?open={id}` в **новой вкладке** |
+| `/supplier-prices` | SupplierPrices.jsx | products.view; документы прайса поставщика (дата, поставщик, цены); edit — `products.edit` |
 | `/product-categories` | ProductCategories.jsx | products.view |
 | `/units` | Units.jsx | products.view |
 | `/counterparties` | Counterparties.jsx | counterparties.view; «Упоминания»; удаление только при 0 упоминаний; у поставщиков — фирмы; у «Клиент» — каналы оплаты |
@@ -710,6 +724,7 @@ GET  /api/auth/roles
 | 2026-07-30 | Номенклатура: клик по названию → модалка приходов (`product_id` в `/api/documents`); `/prihod?open=` открывает документ |
 | 2026-07-30 | Модалка приходов: строка открывает документ в новой вкладке (модалка остаётся) |
 | 2026-07-30 | Модалка приходов: клик по варианту фильтрует по `variant_id` |
+| 2026-07-30 | Прайсы поставщиков: документы `supplier_price` (дата+поставщик+цены); prefill в приходе; автозапись при проведении прихода; `/supplier-prices` |
 
 ---
 

@@ -326,6 +326,14 @@ export const api = {
   deleteDocument: (id) => request(`/documents/${id}`, { method: 'DELETE' }),
   getDocumentHistory: (id) => request(`/documents/${id}/history`),
 
+  getSupplierPrices: () => request('/supplier-prices'),
+  getSupplierPrice: (id) => request(`/supplier-prices/${id}`),
+  createSupplierPrice: (data) => request('/supplier-prices', { method: 'POST', body: JSON.stringify(data) }),
+  updateSupplierPrice: (id, data) => request(`/supplier-prices/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  confirmSupplierPrice: (id) => request(`/supplier-prices/${id}/confirm`, { method: 'POST' }),
+  cancelSupplierPrice: (id) => request(`/supplier-prices/${id}/cancel`, { method: 'POST' }),
+  deleteSupplierPrice: (id) => request(`/supplier-prices/${id}`, { method: 'DELETE' }),
+
   getPayments: (params = {}) => {
     const q = new URLSearchParams(
       Object.fromEntries(Object.entries(params).filter(([, v]) => v != null && v !== '')),

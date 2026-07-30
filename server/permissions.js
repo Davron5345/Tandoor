@@ -892,6 +892,12 @@ export function canAccessDocumentType(role, type) {
   if (type === 'opening_balance') {
     return hasPermission(role, 'opening_balance.view') || hasPermission(role, 'documents.view');
   }
+  if (type === 'supplier_price') {
+    return hasPermission(role, 'products.view')
+      || hasPermission(role, 'products.edit')
+      || hasPermission(role, 'documents.prihod')
+      || hasPermission(role, 'documents.view');
+  }
   return hasPermission(role, 'documents.view');
 }
 
