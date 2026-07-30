@@ -473,12 +473,15 @@ function validateTransferStock(fromBranchId, items, reverse = false) {
 
 
 export function getDocuments(filters = {}) {
+  const byProduct = Boolean(filters.product_id);
   let sql = `
     SELECT d.*, c.name as counterparty_name, c.type as counterparty_type,
            b.name as branch_name,
            fb.name as from_branch_name, tb.name as to_branch_name,
            fd.name as from_department_name, td.name as to_department_name
+           ${byProduct ? ', di.quantity, di.price, di.amount, di.net_weight' : ''}
     FROM documents d
+    ${byProduct ? 'JOIN document_items di ON di.document_id = d.id' : ''}
     LEFT JOIN counterparties c ON c.id = d.counterparty_id
     LEFT JOIN branches b ON b.id = d.branch_id
     LEFT JOIN branches fb ON fb.id = d.from_branch_id
@@ -514,6 +517,10 @@ export function getDocuments(filters = {}) {
   if (filters.counterparty_id) {
     sql += ' AND d.counterparty_id = ?';
     params.push(filters.counterparty_id);
+  }
+  if (byProduct) {
+    sql += ' AND di.product_id = ?';
+    params.push(filters.product_id);
   }
 
   sql += ' ORDER BY d.date DESC, d.created_at DESC';

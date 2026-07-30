@@ -304,11 +304,18 @@ export const api = {
   deleteCounterparty: (id) => request(`/counterparties/${id}`, { method: 'DELETE' }),
 
   getDocuments: async (params = {}) => {
-    const q = new URLSearchParams(params).toString();
+    const q = new URLSearchParams(
+      Object.fromEntries(Object.entries(params).filter(([, v]) => v != null && v !== '')),
+    ).toString();
     const data = await request(`/documents${q ? `?${q}` : ''}`);
     if (params.page || params.limit) return normalizeListResponse(data);
     return Array.isArray(data) ? data : data.items;
   },
+  getProductPrihodDocuments: (productId) => api.getDocuments({
+    type: 'prihod',
+    product_id: productId,
+    status: 'confirmed',
+  }),
   getNextDocNumber: (type) => request(`/documents/next-number?type=${encodeURIComponent(type)}`),
   getDocument: (id) => request(`/documents/${id}`),
   createDocument: (data) => request('/documents', { method: 'POST', body: JSON.stringify(data) }),

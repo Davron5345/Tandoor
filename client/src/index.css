@@ -6154,6 +6154,49 @@ input[type='number']::-webkit-inner-spin-button {
   border-left: 3px solid var(--primary);
 }
 
+.product-list-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.product-list-name-link {
+  display: inline;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.product-list-name-link:hover {
+  color: var(--primary);
+  text-decoration: underline;
+}
+
+.product-list-name-link:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.product-prihod-row {
+  cursor: pointer;
+}
+
+.product-prihod-row:hover {
+  background: var(--surface2);
+}
+
+.modal-product-prihods th.num,
+.modal-product-prihods td.num {
+  text-align: right;
+  white-space: nowrap;
+}
+
 .product-list-name-toggle {
   display: inline-flex;
   align-items: center;

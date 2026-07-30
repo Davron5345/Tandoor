@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { api, formatMoney, formatDate, formatPriceInput, parsePriceInput, parseQuantityInput, normalizeQuantityInput, STATUS_LABELS, ACTION_LABELS } from '../api';
 import Modal, { useToast, ModalCancelButton } from '../components/Modal';
@@ -150,6 +150,8 @@ export default function Documents({ defaultType }) {
   const isFormDirty = useFormDirty(draftPayload, draftKey);
   const { show, Toast } = useToast();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const openQueryHandled = useRef(null);
   const { user } = useAuth();
   const { branches, branchId } = useBranch();
   const activeBranches = branches.filter((b) => b.active);
@@ -874,6 +876,31 @@ export default function Documents({ defaultType }) {
     setForm(applyDocumentDraft(id, loadedForm));
     setModal(id);
   };
+
+  useEffect(() => {
+    const openId = searchParams.get('open');
+    if (!openId || openQueryHandled.current === openId) return;
+    openQueryHandled.current = openId;
+    let cancelled = false;
+    (async () => {
+      try {
+        await openEdit(openId, defaultType || 'prihod');
+      } catch (e) {
+        if (!cancelled) show(e.message || 'Не удалось открыть документ', 'error');
+      } finally {
+        if (!cancelled) {
+          setSearchParams((prev) => {
+            const next = new URLSearchParams(prev);
+            next.delete('open');
+            return next;
+          }, { replace: true });
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [searchParams, defaultType]);
 
   const openHistory = async (id) => {
     const h = await api.getDocumentHistory(id);

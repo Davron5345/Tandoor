@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { api, formatMoney, formatPriceInput, parsePriceInput } from '../api';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { api, formatDate, formatMoney, formatPriceInput, parsePriceInput } from '../api';
 import Modal, { useToast, ModalCancelButton } from '../components/Modal';
 import CategorySelect from '../components/CategorySelect';
 import CategorySelectWithAdd from '../components/CategorySelectWithAdd';
@@ -342,7 +342,14 @@ function ProductTable({
   );
 }
 
+function prihodStockQty(row) {
+  const qty = Number(row.quantity) || 0;
+  const net = Number(row.net_weight) || 0;
+  return net > 0 ? net * qty : qty;
+}
+
 export default function Products() {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -366,11 +373,15 @@ export default function Products() {
   const [catalogCount, setCatalogCount] = useState(0);
   const [archiveCount, setArchiveCount] = useState(0);
   const [kindCounts, setKindCounts] = useState({});
+  const [prihodModal, setPrihodModal] = useState(null);
+  const [prihodDocs, setPrihodDocs] = useState([]);
+  const [prihodLoading, setPrihodLoading] = useState(false);
   const { show, Toast } = useToast();
   const { user } = useAuth();
   const { branchId, branches, isAdmin } = useBranch();
   const canEdit = hasPermission(user, 'products.edit');
   const canAddSupplier = hasPermission(user, 'counterparties.edit');
+  const canViewPrihod = hasPermission(user, 'documents.prihod') || hasPermission(user, 'documents.view');
   const [branchSettings, setBranchSettings] = useState([]);
   const [listView, setListView] = useState('catalog');
   const [archivedVariants, setArchivedVariants] = useState([]);
@@ -983,6 +994,70 @@ export default function Products() {
     }
   };
 
+  const openProductPrihods = async (product, displayName) => {
+    if (!canViewPrihod) {
+      show('Недостаточно прав для просмотра приходов', 'error');
+      return;
+    }
+    setPrihodModal({ id: product.id, name: displayName || product.name });
+    setPrihodDocs([]);
+    setPrihodLoading(true);
+    try {
+      const docs = await api.getProductPrihodDocuments(product.id);
+      setPrihodDocs(Array.isArray(docs) ? docs : []);
+    } catch (e) {
+      show(e.message, 'error');
+      setPrihodModal(null);
+    } finally {
+      setPrihodLoading(false);
+    }
+  };
+
+  const openPrihodDocument = (docId) => {
+    setPrihodModal(null);
+    navigate(`/prihod?open=${encodeURIComponent(docId)}`);
+  };
+
+  const renderProductName = (p, { hasVariants, isExpanded, isVariant, variant }) => {
+    const displayName = isVariant ? getVariantDisplayName(p, variant) : p.name;
+    const nameNode = (
+      <strong>
+        <SearchHighlight text={displayName} query={search} />
+      </strong>
+    );
+    const nameLink = canViewPrihod ? (
+      <button
+        type="button"
+        className="product-list-name-link"
+        onClick={() => openProductPrihods(p, displayName)}
+        title="Приходы по товару"
+      >
+        {nameNode}
+      </button>
+    ) : nameNode;
+
+    if (hasVariants) {
+      return (
+        <>
+          <button
+            type="button"
+            className="product-list-name-toggle"
+            onClick={() => toggleProductVariants(p.id)}
+            aria-expanded={isExpanded}
+            title={isExpanded ? 'Скрыть варианты' : 'Показать варианты'}
+          >
+            <span className="product-list-chevron" aria-hidden>{isExpanded ? '▾' : '▸'}</span>
+            {!isExpanded && (
+              <span className="product-list-variant-count">{p.variants.length}</span>
+            )}
+          </button>
+          {nameLink}
+        </>
+      );
+    }
+    return nameLink;
+  };
+
   const renderListRow = (row) => {
     const { product: p, variant, kind, rowKey } = row;
     const isVariant = kind === 'variant';
@@ -1014,28 +1089,7 @@ export default function Products() {
         )}
         <td>
           <div className="product-list-name">
-            {hasVariants ? (
-              <button
-                type="button"
-                className="product-list-name-toggle"
-                onClick={() => toggleProductVariants(p.id)}
-                aria-expanded={isExpanded}
-                title={isExpanded ? 'Скрыть варианты' : 'Показать варианты'}
-              >
-                <span className="product-list-chevron" aria-hidden>{isExpanded ? '▾' : '▸'}</span>
-                <strong><SearchHighlight text={p.name} query={search} /></strong>
-                {!isExpanded && (
-                  <span className="product-list-variant-count">{p.variants.length}</span>
-                )}
-              </button>
-            ) : (
-              <strong>
-                <SearchHighlight
-                  text={isVariant ? getVariantDisplayName(p, variant) : p.name}
-                  query={search}
-                />
-              </strong>
-            )}
+            {renderProductName(p, { hasVariants, isExpanded, isVariant, variant })}
           </div>
           {!isVariant && p.barcode && (
             <div className="product-meta">
@@ -1537,6 +1591,55 @@ export default function Products() {
               )}
             </div>
           </div>
+        </Modal>
+      )}
+
+      {prihodModal && (
+        <Modal
+          title={`Приходы: ${prihodModal.name}`}
+          onClose={() => setPrihodModal(null)}
+          wide
+          className="modal-product-prihods"
+          footer={<ModalCancelButton>Закрыть</ModalCancelButton>}
+        >
+          {prihodLoading ? (
+            <p className="text-muted">Загрузка…</p>
+          ) : prihodDocs.length === 0 ? (
+            <p className="text-muted">Нет проведённых приходов</p>
+          ) : (
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Дата</th>
+                    <th>Номер</th>
+                    <th>Поставщик</th>
+                    <th>Отдел</th>
+                    <th className="num">На склад</th>
+                    <th className="num">Цена</th>
+                    <th className="num">Сумма</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {prihodDocs.map((d, idx) => (
+                    <tr
+                      key={`${d.id}-${idx}`}
+                      className="product-prihod-row"
+                      onClick={() => openPrihodDocument(d.id)}
+                    >
+                      <td>{formatDate(d.date)}</td>
+                      <td>{d.number}</td>
+                      <td>{d.counterparty_name || '—'}</td>
+                      <td>{d.to_department_name || '—'}</td>
+                      <td className="num">{prihodStockQty(d)}</td>
+                      <td className="num">{formatMoney(d.price)}</td>
+                      <td className="num">{formatMoney(d.amount)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </Modal>
       )}
     </div>

@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-07-29 (долги поставщикам — мультивыбор)
+**Последнее обновление документации:** 2026-07-30 (приходы по товару из номенклатуры)
 
 ---
 
@@ -414,7 +414,7 @@ GET  /api/auth/roles
 |---------|---------------|------------|
 | `/api/products` | catalog.routes.js | Номенклатура, варианты, изображения |
 | `/api/calculations` | catalog.routes.js | Калькуляции |
-| `/api/documents` | documents.routes.js | Складские документы (`date_from`, `date_to`, `counterparty_id`, type, status) |
+| `/api/documents` | documents.routes.js | Складские документы (`date_from`, `date_to`, `counterparty_id`, `product_id`, type, status); при `product_id` — JOIN `document_items`, поля строки `quantity`/`price`/`amount`/`net_weight` (отдельная строка на позицию) |
 | `/api/counterparties` | counterparties.routes.js | Контрагенты, договоры (`/:id/contracts` CRUD), `/:id/firms` — юрлица поставщика (CRUD) |
 | `/api/payments` | finance.routes.js | Оплаты; `GET/POST/PUT/DELETE /api/bank-accounts`; `GET /bank-opening?bank_account_id=`; `DELETE /by-date/:date?bank_account_id=`; import parse/confirm |
 | `/api/cash-articles` | finance.routes.js | Статьи кассы |
@@ -438,11 +438,11 @@ GET  /api/auth/roles
 | Маршрут | Файл | Права |
 |---------|------|-------|
 | `/` | Dashboard.jsx | dashboard.view |
-| `/products` | Products.jsx | products.view |
+| `/products` | Products.jsx | products.view; клик по названию (при `documents.prihod` / `documents.view`) → модалка проведённых приходов по товару → `/prihod?open={id}` |
 | `/product-categories` | ProductCategories.jsx | products.view |
 | `/units` | Units.jsx | products.view |
 | `/counterparties` | Counterparties.jsx | counterparties.view; «Упоминания»; удаление только при 0 упоминаний; у поставщиков — фирмы; у «Клиент» — каналы оплаты |
-| `/prihod`, `/rashod`, `/return-*`, `/transfer` | Documents.jsx | documents.*; фильтры: дата С/По, контрагент/поставщик, статус |
+| `/prihod`, `/rashod`, `/return-*`, `/transfer` | Documents.jsx | documents.*; фильтры: дата С/По, контрагент/поставщик, статус; `?open={id}` открывает документ |
 | `/documents` | Documents.jsx | documents.view; те же фильтры + тип документа |
 | `/razdelka` | Razdelka.jsx | documents.razdelka |
 | `/calculations` | Calculations.jsx | calculations.view |
@@ -707,6 +707,7 @@ GET  /api/auth/roles
 | 2026-07-28 | Сайдбар: collapsed flyout «Отчёты» — max-height + scroll, позиция по реальной высоте |
 | 2026-07-28 | Сайдбар: flyout открывается вверх, если снизу не хватает места |
 | 2026-07-29 | Отчёт «Долги поставщикам»: мультивыбор поставщиков (`supplier_ids`, `ReportSupplierMultiSelect`) |
+| 2026-07-30 | Номенклатура: клик по названию → модалка приходов (`product_id` в `/api/documents`); `/prihod?open=` открывает документ |
 
 ---
 
