@@ -187,7 +187,7 @@ export default function SupplierPrices() {
   };
 
   const total = useMemo(
-    () => form.items.reduce((s, i) => s + (parsePriceInput(i.price) ?? Number(i.price) || 0), 0),
+    () => form.items.reduce((s, i) => s + ((parsePriceInput(i.price) ?? Number(i.price)) || 0), 0),
     [form.items],
   );
 
