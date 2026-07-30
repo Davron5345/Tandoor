@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-07-30 (прайсы поставщиков как документы)
+**Последнее обновление документации:** 2026-07-30 (поиск в контрагентах)
 
 ---
 
@@ -455,7 +455,7 @@ GET  /api/auth/roles
 | `/supplier-prices` | SupplierPrices.jsx | products.view; документы прайса поставщика (дата, поставщик, цены); edit — `products.edit` |
 | `/product-categories` | ProductCategories.jsx | products.view |
 | `/units` | Units.jsx | products.view |
-| `/counterparties` | Counterparties.jsx | counterparties.view; «Упоминания»; удаление только при 0 упоминаний; у поставщиков — фирмы; у «Клиент» — каналы оплаты |
+| `/counterparties` | Counterparties.jsx | counterparties.view; поиск по названию/ИНН/телефону; «Упоминания»; удаление только при 0 упоминаний; у поставщиков — фирмы; у «Клиент» — каналы оплаты |
 | `/prihod`, `/rashod`, `/return-*`, `/transfer` | Documents.jsx | documents.*; фильтры: дата С/По, контрагент/поставщик, статус; `?open={id}` открывает документ |
 | `/documents` | Documents.jsx | documents.view; те же фильтры + тип документа |
 | `/razdelka` | Razdelka.jsx | documents.razdelka |
@@ -725,6 +725,7 @@ GET  /api/auth/roles
 | 2026-07-30 | Модалка приходов: строка открывает документ в новой вкладке (модалка остаётся) |
 | 2026-07-30 | Модалка приходов: клик по варианту фильтрует по `variant_id` |
 | 2026-07-30 | Прайсы поставщиков: документы `supplier_price` (дата+поставщик+цены); prefill в приходе; автозапись при проведении прихода; `/supplier-prices` |
+| 2026-07-30 | Контрагенты: поиск по названию/ИНН/телефону; в прайсе — `CounterpartySearchSelect` |
 
 ---
 

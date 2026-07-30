@@ -7,6 +7,7 @@ import { IconButton, IconEdit, IconEye, IconTrash } from '../components/ActionIc
 import { useAuth } from '../AuthContext';
 import { useBranch } from '../BranchContext';
 import ProductSelect from '../components/ProductSelect';
+import CounterpartySearchSelect from '../components/CounterpartySearchSelect';
 import { encodeProductPick, resolvePickFromProducts } from '../utils/productVariants';
 import { hasPermission } from '../permissions';
 import { todayLocalIso } from '../utils/date';
@@ -296,16 +297,19 @@ export default function SupplierPrices() {
             </label>
             <label>
               Поставщик
-              <select
-                value={form.counterparty_id}
-                disabled={readOnly}
-                onChange={(e) => setForm({ ...form, counterparty_id: e.target.value })}
-              >
-                <option value="">— выберите —</option>
-                {suppliers.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </select>
+              {readOnly ? (
+                <input
+                  value={suppliers.find((s) => s.id === form.counterparty_id)?.name || '—'}
+                  disabled
+                />
+              ) : (
+                <CounterpartySearchSelect
+                  items={suppliers}
+                  value={form.counterparty_id}
+                  onChange={(id) => setForm({ ...form, counterparty_id: id || '' })}
+                  placeholder="Найти поставщика…"
+                />
+              )}
             </label>
             <label style={{ gridColumn: '1 / -1' }}>
               Комментарий

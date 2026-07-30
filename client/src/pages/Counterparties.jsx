@@ -19,10 +19,13 @@ import CounterpartyFirmsModal from '../components/CounterpartyFirmsModal';
 import CounterpartyContractsModal from '../components/CounterpartyContractsModal';
 import { useFormDirty } from '../hooks/useFormDirty';
 import { hasPermission } from '../permissions';
+import { textMatchesSearch } from '../utils/searchNormalize';
+import SearchHighlight from '../components/SearchHighlight';
 
 export default function Counterparties() {
   const [items, setItems] = useState([]);
   const [filter, setFilter] = useState('');
+  const [search, setSearch] = useState('');
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState(emptyCounterpartyForm);
   const [contracts, setContracts] = useState([]);
@@ -136,6 +139,17 @@ export default function Counterparties() {
     setModal(null);
   };
 
+  const filteredItems = useMemo(() => {
+    const q = search.trim();
+    if (!q) return items;
+    return items.filter((c) => (
+      textMatchesSearch(c.name, q)
+      || textMatchesSearch(c.inn, q)
+      || textMatchesSearch(c.firms_label, q)
+      || textMatchesSearch(c.phone, q)
+    ));
+  }, [items, search]);
+
   return (
     <div>
       {Toast}
@@ -148,6 +162,13 @@ export default function Counterparties() {
       </div>
 
       <div className="filters">
+        <input
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Поиск по названию, ИНН, телефону…"
+          aria-label="Поиск контрагентов"
+        />
         <select value={filter} onChange={(e) => setFilter(e.target.value)}>
           <option value="">Все</option>
           <option value="supplier">Поставщики</option>
@@ -170,11 +191,17 @@ export default function Counterparties() {
               </tr>
             </thead>
             <tbody>
-              {items.map((c, index) => (
+              {filteredItems.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="muted">
+                    {items.length === 0 ? 'Нет контрагентов' : 'Ничего не найдено'}
+                  </td>
+                </tr>
+              ) : filteredItems.map((c, index) => (
                 <tr key={c.id}>
                   <td className="col-index muted">{index + 1}</td>
-                  <td>{c.name}</td>
-                  <td>{c.firms_label || c.inn || '—'}</td>
+                  <td><SearchHighlight text={c.name} query={search} /></td>
+                  <td><SearchHighlight text={c.firms_label || c.inn || '—'} query={search} /></td>
                   <td>
                     <span className={`badge badge-${c.type}`}>
                       {c.type === 'supplier' ? 'Поставщик' : 'Клиент'}
