@@ -993,16 +993,20 @@ export default function Products() {
     }
   };
 
-  const openProductPrihods = async (product, displayName) => {
+  const openProductPrihods = async (product, displayName, variantId = null) => {
     if (!canViewPrihod) {
       show('Недостаточно прав для просмотра приходов', 'error');
       return;
     }
-    setPrihodModal({ id: product.id, name: displayName || product.name });
+    setPrihodModal({
+      id: product.id,
+      variantId: variantId || null,
+      name: displayName || product.name,
+    });
     setPrihodDocs([]);
     setPrihodLoading(true);
     try {
-      const docs = await api.getProductPrihodDocuments(product.id);
+      const docs = await api.getProductPrihodDocuments(product.id, variantId || null);
       setPrihodDocs(Array.isArray(docs) ? docs : []);
     } catch (e) {
       show(e.message, 'error');
@@ -1027,7 +1031,7 @@ export default function Products() {
       <button
         type="button"
         className="product-list-name-link"
-        onClick={() => openProductPrihods(p, displayName)}
+        onClick={() => openProductPrihods(p, displayName, isVariant ? variant?.id : null)}
         title="Приходы по товару"
       >
         {nameNode}

@@ -521,6 +521,10 @@ export function getDocuments(filters = {}) {
   if (byProduct) {
     sql += ' AND di.product_id = ?';
     params.push(filters.product_id);
+    if (filters.variant_id != null && filters.variant_id !== '') {
+      sql += ' AND (di.variant_id IS ? OR di.variant_id = ?)';
+      params.push(filters.variant_id, filters.variant_id);
+    }
   }
 
   sql += ' ORDER BY d.date DESC, d.created_at DESC';

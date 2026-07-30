@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-07-30 (приходы по товару — новая вкладка)
+**Последнее обновление документации:** 2026-07-30 (приходы по варианту товара)
 
 ---
 
@@ -414,7 +414,7 @@ GET  /api/auth/roles
 |---------|---------------|------------|
 | `/api/products` | catalog.routes.js | Номенклатура, варианты, изображения |
 | `/api/calculations` | catalog.routes.js | Калькуляции |
-| `/api/documents` | documents.routes.js | Складские документы (`date_from`, `date_to`, `counterparty_id`, `product_id`, type, status); при `product_id` — JOIN `document_items`, поля строки `quantity`/`price`/`amount`/`net_weight` (отдельная строка на позицию) |
+| `/api/documents` | documents.routes.js | Складские документы (`date_from`, `date_to`, `counterparty_id`, `product_id`, `variant_id`, type, status); при `product_id` — JOIN `document_items`, поля строки `quantity`/`price`/`amount`/`net_weight` (отдельная строка на позицию); `variant_id` сужает до варианта |
 | `/api/counterparties` | counterparties.routes.js | Контрагенты, договоры (`/:id/contracts` CRUD), `/:id/firms` — юрлица поставщика (CRUD) |
 | `/api/payments` | finance.routes.js | Оплаты; `GET/POST/PUT/DELETE /api/bank-accounts`; `GET /bank-opening?bank_account_id=`; `DELETE /by-date/:date?bank_account_id=`; import parse/confirm |
 | `/api/cash-articles` | finance.routes.js | Статьи кассы |
@@ -438,7 +438,7 @@ GET  /api/auth/roles
 | Маршрут | Файл | Права |
 |---------|------|-------|
 | `/` | Dashboard.jsx | dashboard.view |
-| `/products` | Products.jsx | products.view; клик по названию (при `documents.prihod` / `documents.view`) → модалка проведённых приходов по товару; строка открывает `/prihod?open={id}` в **новой вкладке** |
+| `/products` | Products.jsx | products.view; клик по названию (при `documents.prihod` / `documents.view`) → модалка приходов; у варианта — только его строки (`variant_id`); у родителя — все по `product_id`; строка открывает `/prihod?open={id}` в **новой вкладке** |
 | `/product-categories` | ProductCategories.jsx | products.view |
 | `/units` | Units.jsx | products.view |
 | `/counterparties` | Counterparties.jsx | counterparties.view; «Упоминания»; удаление только при 0 упоминаний; у поставщиков — фирмы; у «Клиент» — каналы оплаты |
@@ -709,6 +709,7 @@ GET  /api/auth/roles
 | 2026-07-29 | Отчёт «Долги поставщикам»: мультивыбор поставщиков (`supplier_ids`, `ReportSupplierMultiSelect`) |
 | 2026-07-30 | Номенклатура: клик по названию → модалка приходов (`product_id` в `/api/documents`); `/prihod?open=` открывает документ |
 | 2026-07-30 | Модалка приходов: строка открывает документ в новой вкладке (модалка остаётся) |
+| 2026-07-30 | Модалка приходов: клик по варианту фильтрует по `variant_id` |
 
 ---
 

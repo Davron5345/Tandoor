@@ -83,3 +83,77 @@ test('getDocuments product_id filter returns matching prihod line qty/price', as
   });
   assert.equal(none.length, 0);
 });
+
+test('getDocuments variant_id filter returns only that variant line', async () => {
+  const { default: db, initDb } = await import('../db.js');
+  const { initPermissions } = await import('../permissions.js');
+  const { seedDefaultUsers } = await import('../auth.js');
+  const svc = await import('../services.js');
+  const { getDefaultDepartmentId } = await import('../departments.js');
+
+  await initDb();
+  initPermissions(db);
+  seedDefaultUsers();
+
+  const deptId = getDefaultDepartmentId('main');
+  assert.ok(deptId);
+
+  const product = svc.createProduct({
+    name: 'Мол',
+    sku: 'MOL-VAR',
+    unit: 'кг',
+    category_id: 'other',
+    branch_id: 'main',
+    has_variants: true,
+    variants: [
+      { name: 'Суяк', price: 1000 },
+      { name: 'Гушт', price: 2000 },
+    ],
+  });
+  assert.equal(product.variants?.length, 2);
+  const variantA = product.variants[0];
+  const variantB = product.variants[1];
+
+  const doc = svc.createDocument({
+    type: 'prihod',
+    date: '2026-07-30',
+    to_department_id: deptId,
+    items: [
+      { product_id: product.id, variant_id: variantA.id, quantity: 2, price: 1000 },
+      { product_id: product.id, variant_id: variantB.id, quantity: 5, price: 2000 },
+    ],
+    status: 'draft',
+  }, 'test-user', 'main');
+  svc.confirmDocument(doc.id, 'test-user');
+
+  const allForProduct = svc.getDocuments({
+    branch_id: 'main',
+    type: 'prihod',
+    status: 'confirmed',
+    product_id: product.id,
+  });
+  assert.equal(allForProduct.length, 2);
+
+  const onlyA = svc.getDocuments({
+    branch_id: 'main',
+    type: 'prihod',
+    status: 'confirmed',
+    product_id: product.id,
+    variant_id: variantA.id,
+  });
+  assert.equal(onlyA.length, 1);
+  assert.equal(onlyA[0].id, doc.id);
+  assert.equal(Number(onlyA[0].quantity), 2);
+  assert.equal(Number(onlyA[0].price), 1000);
+
+  const onlyB = svc.getDocuments({
+    branch_id: 'main',
+    type: 'prihod',
+    status: 'confirmed',
+    product_id: product.id,
+    variant_id: variantB.id,
+  });
+  assert.equal(onlyB.length, 1);
+  assert.equal(Number(onlyB[0].quantity), 5);
+  assert.equal(Number(onlyB[0].price), 2000);
+});
