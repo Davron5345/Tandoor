@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-07-30 (приходы по товару из номенклатуры)
+**Последнее обновление документации:** 2026-07-30 (приходы по товару — новая вкладка)
 
 ---
 
@@ -438,7 +438,7 @@ GET  /api/auth/roles
 | Маршрут | Файл | Права |
 |---------|------|-------|
 | `/` | Dashboard.jsx | dashboard.view |
-| `/products` | Products.jsx | products.view; клик по названию (при `documents.prihod` / `documents.view`) → модалка проведённых приходов по товару → `/prihod?open={id}` |
+| `/products` | Products.jsx | products.view; клик по названию (при `documents.prihod` / `documents.view`) → модалка проведённых приходов по товару; строка открывает `/prihod?open={id}` в **новой вкладке** |
 | `/product-categories` | ProductCategories.jsx | products.view |
 | `/units` | Units.jsx | products.view |
 | `/counterparties` | Counterparties.jsx | counterparties.view; «Упоминания»; удаление только при 0 упоминаний; у поставщиков — фирмы; у «Клиент» — каналы оплаты |
@@ -708,6 +708,7 @@ GET  /api/auth/roles
 | 2026-07-28 | Сайдбар: flyout открывается вверх, если снизу не хватает места |
 | 2026-07-29 | Отчёт «Долги поставщикам»: мультивыбор поставщиков (`supplier_ids`, `ReportSupplierMultiSelect`) |
 | 2026-07-30 | Номенклатура: клик по названию → модалка приходов (`product_id` в `/api/documents`); `/prihod?open=` открывает документ |
+| 2026-07-30 | Модалка приходов: строка открывает документ в новой вкладке (модалка остаётся) |
 
 ---
 

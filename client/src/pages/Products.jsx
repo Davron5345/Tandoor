@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { api, formatDate, formatMoney, formatPriceInput, parsePriceInput } from '../api';
 import Modal, { useToast, ModalCancelButton } from '../components/Modal';
 import CategorySelect from '../components/CategorySelect';
@@ -349,7 +349,6 @@ function prihodStockQty(row) {
 }
 
 export default function Products() {
-  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -1014,8 +1013,7 @@ export default function Products() {
   };
 
   const openPrihodDocument = (docId) => {
-    setPrihodModal(null);
-    navigate(`/prihod?open=${encodeURIComponent(docId)}`);
+    window.open(`/prihod?open=${encodeURIComponent(docId)}`, '_blank', 'noopener,noreferrer');
   };
 
   const renderProductName = (p, { hasVariants, isExpanded, isVariant, variant }) => {
