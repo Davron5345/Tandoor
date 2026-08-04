@@ -1644,6 +1644,29 @@ textarea::placeholder {
   min-width: 220px;
 }
 
+.report-filters-template {
+  min-width: 280px;
+}
+
+.report-template-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.report-template-row select {
+  min-width: 160px;
+  flex: 1 1 140px;
+}
+
+.report-template-row .btn {
+  flex-shrink: 0;
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: 500;
+}
+
 .report-supplier-multi {
   position: relative;
 }

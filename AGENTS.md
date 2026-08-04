@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-07-30 (поиск в контрагентах)
+**Последнее обновление документации:** 2026-08-04 (шаблоны поставщиков в долгах)
 
 ---
 
@@ -464,7 +464,7 @@ GET  /api/auth/roles
 | `/cashier` | Cashier.jsx | cashier.* |
 | `/payments` | Payments.jsx | payments.view; справочник счетов («Основной»); список по датам (шапка колонок fixed pin при скролле); под поставщиком — фирма, под клиентом — канал (Payme/Click/Терминал/Инкассо); выбор столбцов; импорт AccReferenceReport |
 | `/cash-articles` | CashArticles.jsx | cash_articles.view |
-| `/reports/*` | Reports.jsx | reports.view; `/reports/supplier-debts` — долги поставщикам (мультивыбор поставщиков); `/reports/cash-articles` — по статьям (изоляция филиала); акт сверки — фильтр «Фирма» |
+| `/reports/*` | Reports.jsx | reports.view; `/reports/supplier-debts` — долги поставщикам (мультивыбор + **шаблоны** набора в `localStorage` `supplier_debt_templates_v1` по филиалу); `/reports/cash-articles` — по статьям (изоляция филиала); акт сверки — фильтр «Фирма» |
 | `/opening-balance` | OpeningBalance.jsx | opening_balance.view; список — иконки Редактировать/Открыть/Удалить (`ActionIcons`) |
 | `/myshop` | MyShop.jsx | myshop.view |
 | `/myshop/constructor` | MyShopConstructor.jsx | myshop.edit |
@@ -726,6 +726,7 @@ GET  /api/auth/roles
 | 2026-07-30 | Модалка приходов: клик по варианту фильтрует по `variant_id` |
 | 2026-07-30 | Прайсы поставщиков: документы `supplier_price` (дата+поставщик+цены); prefill в приходе; автозапись при проведении прихода; `/supplier-prices` |
 | 2026-07-30 | Контрагенты: поиск по названию/ИНН/телефону; в прайсе — `CounterpartySearchSelect` |
+| 2026-08-04 | Долги поставщикам: шаблоны набора поставщиков (сохранить/обновить/удалить/применить; последний шаблон восстанавливается) |
 
 ---
 
