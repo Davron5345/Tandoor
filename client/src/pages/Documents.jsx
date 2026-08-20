@@ -77,6 +77,32 @@ function formatContractLabel(contract) {
 }
 
 const emptyItem = { product_id: '', variant_id: null, quantity: 1, price: 0, net_weight: '' };
+
+function hasNetColumn(type) {
+  return type === 'prihod' || type === 'peremeshchenie';
+}
+
+function lineStockQty(item) {
+  const qty = parseQuantityInput(item.quantity) ?? 0;
+  const net = Number(item.net_weight) || 0;
+  if (!(qty > 0)) return 0;
+  return net > 0 ? net * qty : qty;
+}
+
+function formatRemainQty(n) {
+  const v = Number(n);
+  if (!Number.isFinite(v)) return '0';
+  return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 3 }).format(Math.round(v * 1000) / 1000);
+}
+
+function TransferStockHint({ value, unit, over }) {
+  return (
+    <span className={`doc-items-stock-hint${over ? ' is-over' : ''}`}>
+      ост: {formatRemainQty(value)}{unit ? ` ${unit}` : ''}
+    </span>
+  );
+}
+
 const emptyPayment = {
   type: 'supplier_payment',
   counterparty_id: '',
@@ -944,11 +970,11 @@ export default function Documents({ defaultType }) {
       items[idx].price = resolved.variant
         ? resolveProductPrice(resolved.product, resolved.variant)
         : resolveProductPrice(resolved.product);
-      if (form.type === 'prihod') {
+      if (hasNetColumn(form.type)) {
         const nw = resolved.product.net_weight;
         items[idx].net_weight = nw != null && nw !== '' ? nw : '';
       }
-    } else if (form.type === 'prihod') {
+    } else if (hasNetColumn(form.type)) {
       items[idx].net_weight = '';
     }
     setForm({ ...form, items });
@@ -979,12 +1005,14 @@ export default function Documents({ defaultType }) {
       if (!product || product.stock == null) return [];
       const stock = getPickStock(product, variant);
       const qty = parseQuantityInput(item.quantity);
-      if (qty <= stock) return [];
+      const stockQty = lineStockQty(item);
+      if (stockQty <= stock) return [];
       return [{
         idx,
         name: variant ? `${product.name} — ${variant.name}` : product.name,
         stock,
         quantity: qty,
+        stockQty,
         unit: product.unit || 'шт',
         fromDepartment,
       }];
@@ -1057,7 +1085,7 @@ export default function Documents({ defaultType }) {
       if (form.type === 'peremeshchenie' && hasTransferStockOverflow) {
         const w = transferStockWarnings[0];
         const where = w.fromDepartment ? 'в отделе' : 'на филиале';
-        show(`Недостаточно «${w.name}»: указано ${w.quantity} ${w.unit}, ${where} ${w.stock} ${w.unit}`, 'error');
+        show(`Недостаточно «${w.name}»: указано ${w.stockQty} ${w.unit}, ${where} ${w.stock} ${w.unit}`, 'error');
         return;
       }
       if (form.type === 'peremeshchenie') {
@@ -1094,7 +1122,7 @@ export default function Documents({ defaultType }) {
           variant_id: i.variant_id || null,
           quantity: parseQuantityInput(i.quantity) ?? 0,
           price: Number(i.price) || 0,
-          net_weight: form.type === 'prihod' && i.net_weight !== '' && i.net_weight != null
+          net_weight: hasNetColumn(form.type) && i.net_weight !== '' && i.net_weight != null
             ? Number(i.net_weight)
             : null,
         })),
@@ -1819,7 +1847,7 @@ export default function Documents({ defaultType }) {
                 <div className="alert alert-error razdelka-stock-alert">
                   {transferStockWarnings.map((w) => (
                     <div key={w.idx}>
-                      Недостаточно «{w.name}»: указано {w.quantity} {w.unit},{' '}
+                      Недостаточно «{w.name}»: указано {w.stockQty} {w.unit},{' '}
                       {w.fromDepartment ? 'в отделе' : 'на филиале'} только {w.stock} {w.unit}
                     </div>
                   ))}
@@ -1833,7 +1861,7 @@ export default function Documents({ defaultType }) {
                       <th>Товар</th>
                       <th className="doc-items-unit-col">Ед.</th>
                       <th className="doc-items-qty-col">Кол-во</th>
-                      {form.type === 'prihod' && <th className="doc-items-net-col">Нетто</th>}
+                      {hasNetColumn(form.type) && <th className="doc-items-net-col">Нетто</th>}
                       <th>Цена</th>
                       <th>Сумма</th>
                       <th className="doc-items-actions-col" aria-label="Действия" />
@@ -1852,8 +1880,17 @@ export default function Documents({ defaultType }) {
                       }
                       const itemUnit = resolvedItem.product?.unit || '';
                       const lineAmount = (parseQuantityInput(item.quantity) ?? 0) * (Number(item.price) || 0);
+                      const sourceStock = form.type === 'peremeshchenie' && resolvedItem.product
+                        ? getPickStock(resolvedItem.product, resolvedItem.variant)
+                        : null;
+                      const netVal = Number(item.net_weight) || 0;
+                      const showTransferRemain = form.type === 'peremeshchenie' && !!item.product_id && sourceStock != null;
+                      const pieceRemain = showTransferRemain && netVal > 0 ? sourceStock / netVal : sourceStock;
+                      const overStock = !!(rowTransferWarning || (
+                        showTransferRemain && lineStockQty(item) > sourceStock + 1e-9
+                      ));
                       return (
-                      <tr key={idx} className={rowTransferWarning ? 'razdelka-row-overstock' : undefined}>
+                      <tr key={idx} className={overStock ? 'razdelka-row-overstock' : undefined}>
                         <td className="doc-items-num-col">{idx + 1}</td>
                         <td>
                           <div className="quick-add-control">
@@ -1913,26 +1950,39 @@ export default function Documents({ defaultType }) {
                           <span className="doc-item-unit">{item.product_id ? (itemUnit || '—') : '—'}</span>
                         </td>
                         <td className="doc-items-qty-col">
-                          <input
-                            type="text"
-                            inputMode="decimal"
-                            value={item.quantity}
-                            disabled={isReadOnly}
-                            onChange={(e) => updateItem(idx, 'quantity', normalizeQuantityInput(e.target.value))}
-                          />
-                          {rowTransferWarning && (
-                            <span className="razdelka-stock-row-warning">
-                              ост: {rowTransferWarning.stock} {rowTransferWarning.unit}
-                            </span>
+                          {showTransferRemain ? (
+                            <div className="doc-items-net-wrap has-hint">
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                value={item.quantity}
+                                disabled={isReadOnly}
+                                onChange={(e) => updateItem(idx, 'quantity', normalizeQuantityInput(e.target.value))}
+                              />
+                              <TransferStockHint
+                                value={pieceRemain}
+                                unit={netVal > 0 ? 'шт' : (itemUnit || 'шт')}
+                                over={overStock}
+                              />
+                            </div>
+                          ) : (
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={item.quantity}
+                              disabled={isReadOnly}
+                              onChange={(e) => updateItem(idx, 'quantity', normalizeQuantityInput(e.target.value))}
+                            />
                           )}
                         </td>
-                        {form.type === 'prihod' && (() => {
+                        {hasNetColumn(form.type) && (() => {
                           const net = Number(item.net_weight) || 0;
                           const qty = parseQuantityInput(item.quantity) ?? 0;
                           const stockTotal = net > 0 && qty > 0 ? net * qty : null;
+                          const showPrihodHint = form.type === 'prihod' && stockTotal != null;
                           return (
                             <td className="doc-items-net-col">
-                              <div className="doc-items-net-wrap">
+                              <div className={`doc-items-net-wrap${(showPrihodHint || showTransferRemain) ? ' has-hint' : ''}`}>
                                 <input
                                   type="text"
                                   inputMode="decimal"
@@ -1941,10 +1991,17 @@ export default function Documents({ defaultType }) {
                                   placeholder="на 1 шт"
                                   onChange={(e) => updateItem(idx, 'net_weight', normalizeQuantityInput(e.target.value))}
                                 />
-                                {stockTotal != null && (
+                                {showPrihodHint && (
                                   <span className="doc-items-net-hint">
                                     на склад: {stockTotal}{itemUnit ? ` ${itemUnit}` : ''}
                                   </span>
+                                )}
+                                {showTransferRemain && (
+                                  <TransferStockHint
+                                    value={sourceStock}
+                                    unit={itemUnit || 'шт'}
+                                    over={overStock}
+                                  />
                                 )}
                               </div>
                             </td>

@@ -4423,21 +4423,35 @@ input[type='number']::-webkit-inner-spin-button {
   position: relative;
 }
 
-.doc-items-net-hint {
+.doc-items-net-wrap.has-hint {
+  padding-bottom: 14px;
+}
+
+.doc-items-net-hint,
+.doc-items-stock-hint {
   position: absolute;
   left: 0;
   right: 0;
-  top: calc(100% + 1px);
+  top: calc(100% - 13px);
   margin: 0;
   padding: 0;
   font-size: 10px;
   line-height: 1.15;
-  color: var(--danger, #dc2626);
+  color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   pointer-events: none;
   z-index: 2;
+}
+
+.doc-items-net-hint {
+  color: var(--danger, #dc2626);
+}
+
+.doc-items-stock-hint.is-over {
+  color: var(--danger, #dc2626);
+  font-weight: 600;
 }
 
 .doc-items-table input,

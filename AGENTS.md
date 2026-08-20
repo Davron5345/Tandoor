@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-08-04 (шаблоны поставщиков в долгах)
+**Последнее обновление документации:** 2026-08-20 (нетто и остаток в перемещении)
 
 ---
 
@@ -310,9 +310,9 @@ Frontend зеркало: `client/src/permissions.js`.
 
 - **Средневзвешенная** (`avg_cost`) в `product_department_stock`
 - Приход: `receiveDepartmentStock()` — пересчёт avg
-- **Нетто в приходе** (`document_items.net_weight`): сумма строки = `qty × price` (цена за упаковку/шт); на склад идёт `stockQty = net × qty` при `net > 0`, иначе `qty`; `unitCost = amount / stockQty` (avg за ед. остатка, л/кг). Каталожное `products.net_weight` — только префилл строки в UI
+- **Нетто в приходе и перемещении** (`document_items.net_weight`): сумма строки = `qty × price` (цена за упаковку/шт); на склад идёт `stockQty = net × qty` при `net > 0`, иначе `qty`. В приходе `unitCost = amount / stockQty` (avg за ед. остатка, л/кг). Каталожное `products.net_weight` — только префилл строки в UI
 - Расход: `issueDepartmentStock()` — списание по avg_cost
-- Перемещение: `transferDepartmentStock()` — cost следует за товаром
+- Перемещение: `transferDepartmentStock()` — cost следует за товаром; списывается тот же `stockQty` (нетто×шт). В UI под «Кол-во» — остаток в шт (склад/нетто), под «Нетто» — остаток склада-источника в ед. товара
 
 ### 9.5 Калькуляции
 
@@ -456,7 +456,7 @@ GET  /api/auth/roles
 | `/product-categories` | ProductCategories.jsx | products.view |
 | `/units` | Units.jsx | products.view |
 | `/counterparties` | Counterparties.jsx | counterparties.view; поиск по названию/ИНН/телефону; «Упоминания»; удаление только при 0 упоминаний; у поставщиков — фирмы; у «Клиент» — каналы оплаты |
-| `/prihod`, `/rashod`, `/return-*`, `/transfer` | Documents.jsx | documents.*; фильтры: дата С/По, контрагент/поставщик, статус; `?open={id}` открывает документ |
+| `/prihod`, `/rashod`, `/return-*`, `/transfer` | Documents.jsx | documents.*; фильтры: дата С/По, контрагент/поставщик, статус; `?open={id}` открывает документ; перемещение — колонка «Нетто» + остаток склада «Откуда» под кол-вом и нетто |
 | `/documents` | Documents.jsx | documents.view; те же фильтры + тип документа |
 | `/razdelka` | Razdelka.jsx | documents.razdelka |
 | `/calculations` | Calculations.jsx | calculations.view |
@@ -727,6 +727,7 @@ GET  /api/auth/roles
 | 2026-07-30 | Прайсы поставщиков: документы `supplier_price` (дата+поставщик+цены); prefill в приходе; автозапись при проведении прихода; `/supplier-prices` |
 | 2026-07-30 | Контрагенты: поиск по названию/ИНН/телефону; в прайсе — `CounterpartySearchSelect` |
 | 2026-08-04 | Долги поставщикам: шаблоны набора поставщиков (сохранить/обновить/удалить/применить; последний шаблон восстанавливается) |
+| 2026-08-20 | Перемещение: колонка «Нетто»; под кол-вом (шт) и нетто — остаток склада-источника; проведение списывает `net × qty` |
 
 ---
 

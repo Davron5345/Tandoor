@@ -281,7 +281,7 @@ function updateStock(documentId, reverse = false) {
     if (fromDept || toDept) {
       const branchId = fromId || DEFAULT_BRANCH_ID;
       for (const item of items) {
-        const qty = Math.abs(item.quantity);
+        const qty = itemStockQty(item);
         if (qty <= 0) continue;
 
         let sourceDept = fromDept;
@@ -321,8 +321,10 @@ function updateStock(documentId, reverse = false) {
     if (!fromId || !toId) return;
     if (fromId === toId) throw new Error('Филиалы отправления и получения должны отличаться');
     for (const item of items) {
-      adjustBranchStock(fromId, item.product_id, -item.quantity * multiplier);
-      adjustBranchStock(toId, item.product_id, item.quantity * multiplier);
+      const qty = itemStockQty(item);
+      if (qty <= 0) continue;
+      adjustBranchStock(fromId, item.product_id, -qty * multiplier);
+      adjustBranchStock(toId, item.product_id, qty * multiplier);
     }
     return;
   }
@@ -334,8 +336,7 @@ function updateStock(documentId, reverse = false) {
     const vid = variantId(item);
 
     if (doc.type === 'prihod' && doc.to_department_id) {
-      const net = Number(item.net_weight) || 0;
-      const stockQty = Math.abs(net > 0 ? net * item.quantity : item.quantity);
+      const stockQty = itemStockQty(item);
       const lineAmount = Number(item.amount) || (item.quantity * (item.price || 0));
       const unitCost = stockQty > 0 ? lineAmount / stockQty : 0;
       if (multiplier > 0) {
@@ -385,6 +386,13 @@ function updateStock(documentId, reverse = false) {
   }
 }
 
+/** Складское кол-во строки: нетто × шт, если нетто > 0, иначе quantity. */
+function itemStockQty(item) {
+  const qty = Math.abs(Number(item.quantity) || 0);
+  const net = Number(item.net_weight) || 0;
+  return net > 0 ? net * qty : qty;
+}
+
 function getItemStockLabel(item) {
   if (item.variant_id) {
     const row = queryOne(`
@@ -416,21 +424,22 @@ function validateDepartmentTransfer(branchId, fromDept, toDept, items, reverse =
   if (reverse) return;
   for (const item of items) {
     const label = getItemStockLabel(item);
+    const qty = itemStockQty(item);
     if (fromDept && toDept) {
       const stock = getDepartmentStock(item.product_id, fromDept, item.variant_id || null);
-      if (stock < item.quantity) {
+      if (stock < qty) {
         throw new Error(`Недостаточно остатка «${label}» в отделе-отправителе (есть ${stock})`);
       }
     } else if (!fromDept && toDept) {
       const sourceDept = getDefaultDepartmentId(branchId);
       if (!sourceDept) throw new Error('Не найден отдел-источник');
       const stock = getDepartmentStock(item.product_id, sourceDept, item.variant_id || null);
-      if (stock < item.quantity) {
+      if (stock < qty) {
         throw new Error(`Недостаточно остатка «${label}» в отделе-источнике (есть ${stock})`);
       }
     } else if (fromDept && !toDept) {
       const stock = getDepartmentStock(item.product_id, fromDept, item.variant_id || null);
-      if (stock < item.quantity) {
+      if (stock < qty) {
         throw new Error(`Недостаточно остатка «${label}» в отделе (есть ${stock})`);
       }
     }
@@ -459,7 +468,7 @@ function validateTransferStock(fromBranchId, items, reverse = false) {
       const stock = item.variant_id
         ? getVariantBranchStock(item.variant_id, fromBranchId)
         : getBranchStock(item.product_id, fromBranchId);
-      if (stock < item.quantity) {
+      if (stock < itemStockQty(item)) {
         throw new Error(`Недостаточно остатка «${getItemStockLabel(item)}» для отмены перемещения`);
       }
     }
@@ -469,7 +478,8 @@ function validateTransferStock(fromBranchId, items, reverse = false) {
     const stock = item.variant_id
       ? getVariantBranchStock(item.variant_id, fromBranchId)
       : getBranchStock(item.product_id, fromBranchId);
-    if (stock < item.quantity) {
+    const qty = itemStockQty(item);
+    if (stock < qty) {
       const label = getItemStockLabel(item);
       throw new Error(`Недостаточно остатка «${label}» на филиале-отправителе (есть ${stock})`);
     }
