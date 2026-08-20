@@ -267,6 +267,20 @@ export function IconNavRefresh() {
   );
 }
 
+export function IconNavStar({ filled = false }) {
+  return (
+    <NavSvg>
+      <path
+        d="M12 3.4 14.6 8.7l5.8.8-4.2 4.1 1 5.8L12 16.7 6.8 19.4l1-5.8-4.2-4.1 5.8-.8L12 3.4z"
+        fill={filled ? 'currentColor' : 'none'}
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinejoin="round"
+      />
+    </NavSvg>
+  );
+}
+
 export function IconNavBranch() {
   return (
     <NavSvg>

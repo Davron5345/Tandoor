@@ -503,8 +503,9 @@ textarea::placeholder {
 }
 
 .nav-link-sub {
-  padding: 10px 14px;
+  padding: 10px 8px 10px 14px;
   font-size: var(--font-sm);
+  gap: 4px;
 }
 
 .nav-link-sub:hover {
@@ -516,6 +517,54 @@ textarea::placeholder {
   background: var(--nav-active-bg);
   color: var(--nav-active-text);
   font-weight: 600;
+}
+
+.nav-link-sub-label {
+  flex: 1;
+  min-width: 0;
+}
+
+.nav-star {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin: -4px -2px -4px 0;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  opacity: 0.45;
+  cursor: pointer;
+}
+
+.nav-star svg {
+  width: 16px;
+  height: 16px;
+}
+
+.nav-star:hover {
+  opacity: 1;
+  color: #eab308;
+  background: color-mix(in srgb, #eab308 12%, transparent);
+}
+
+.nav-star.is-on,
+.nav-star.is-on:hover {
+  opacity: 1;
+  color: #eab308;
+}
+
+.nav-link-sub.active .nav-star {
+  color: var(--text-muted);
+}
+
+.nav-link-sub.active .nav-star.is-on,
+.nav-link-sub.active .nav-star:hover {
+  color: #ca8a04;
 }
 
 .nav-group {
@@ -1019,7 +1068,7 @@ textarea::placeholder {
 }
 
 .app.sidebar-collapsed .nav-link-sub {
-  padding: 10px 12px;
+  padding: 10px 8px 10px 12px;
   border-radius: 9px;
   font-size: var(--font-base);
   text-align: left;

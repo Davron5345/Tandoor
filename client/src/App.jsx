@@ -53,10 +53,12 @@ import {
   IconNavMenu,
   IconNavLogout,
   IconNavBranch,
+  IconNavStar,
 } from './components/NavIcons';
 
 const SIDEBAR_COLLAPSED_KEY = 'warehouse-sidebar-collapsed';
 const SIDEBAR_ACCOUNT_OPEN_KEY = 'warehouse-sidebar-account-open';
+const NAV_FAVORITES_KEY = 'warehouse-nav-favorites_v1';
 
 function filterNavItems(user, items) {
   return items.filter((item) => !item.perm || hasPermission(user, item.perm));
@@ -166,6 +168,21 @@ function readSidebarAccountOpen() {
   }
 }
 
+function readNavFavorites() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(NAV_FAVORITES_KEY) || '[]');
+    return Array.isArray(raw) ? raw.filter((path) => typeof path === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeNavFavorites(paths) {
+  try {
+    localStorage.setItem(NAV_FAVORITES_KEY, JSON.stringify(paths));
+  } catch { /* ignore */ }
+}
+
 function pathInGroup(pathname, paths) {
   return paths.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
@@ -176,6 +193,32 @@ function NavItemContent({ icon: Icon, label }) {
       <span className="nav-icon">{Icon ? <Icon /> : null}</span>
       <span className="nav-label">{label}</span>
     </>
+  );
+}
+
+function SubNavLink({ item, favorite, onToggleFavorite }) {
+  return (
+    <NavLink
+      to={item.to}
+      end={item.end}
+      className={({ isActive }) => `nav-link nav-link-sub${isActive ? ' active' : ''}`}
+    >
+      <span className="nav-link-sub-label">{item.label}</span>
+      <button
+        type="button"
+        className={`nav-star${favorite ? ' is-on' : ''}`}
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          onToggleFavorite(item.to);
+        }}
+        title={favorite ? 'Убрать из избранного' : 'В избранное'}
+        aria-label={favorite ? `Убрать «${item.label}» из избранного` : `Добавить «${item.label}» в избранное`}
+        aria-pressed={favorite}
+      >
+        <IconNavStar filled={favorite} />
+      </button>
+    </NavLink>
   );
 }
 
@@ -327,6 +370,7 @@ function AppContent() {
   const [openFlyoutGroup, setOpenFlyoutGroup] = useState(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(readSidebarCollapsed);
   const [accountOpen, setAccountOpen] = useState(readSidebarAccountOpen);
+  const [navFavorites, setNavFavorites] = useState(readNavFavorites);
   const { theme, toggleTheme } = useTheme();
   const { user, loading, logout } = useAuth();
   const { branches, branchId, branchName, setActiveBranchId, isAdmin: isBranchAdmin } = useBranch();
@@ -391,6 +435,11 @@ function AppContent() {
   const appNav = buildAppNav(user);
   const mainNavSections = appNav.sections.filter((section) => section.id !== 'admin');
   const adminSection = appNav.byId.admin;
+  const allSubNavItems = appNav.sections.flatMap((section) => section.items);
+  const favoriteNavItems = navFavorites
+    .map((path) => allSubNavItems.find((item) => item.to === path))
+    .filter(Boolean);
+  const favoriteNavPaths = favoriteNavItems.map((item) => item.to);
 
   const firstNavPath = ((isCashierLayout && canViewCashier) ? '/cashier'
     : canViewDashboard ? '/'
@@ -410,6 +459,18 @@ function AppContent() {
   const closeFlyoutGroup = () => {
     setOpenFlyoutGroup(null);
   };
+
+  const toggleNavFavorite = (path) => {
+    setNavFavorites((current) => {
+      const next = current.includes(path)
+        ? current.filter((item) => item !== path)
+        : [...current, path];
+      writeNavFavorites(next);
+      return next;
+    });
+  };
+
+  const isNavFavorite = (path) => navFavorites.includes(path);
 
   const navGroupFlyoutProps = (groupId) => ({
     flyoutOpen: openFlyoutGroup === groupId,
@@ -553,6 +614,28 @@ function AppContent() {
               </NavLink>
             )}
 
+            {favoriteNavItems.length > 0 && (
+              <NavGroup
+                groupId="favorites"
+                icon={IconNavStar}
+                label="Избранное"
+                paths={favoriteNavPaths}
+                isOpen={openNavGroup === 'favorites'}
+                onToggle={toggleNavGroup}
+                sidebarCollapsed={sidebarCollapsed}
+                {...navGroupFlyoutProps('favorites')}
+              >
+                {favoriteNavItems.map((item) => (
+                  <SubNavLink
+                    key={item.to}
+                    item={item}
+                    favorite={isNavFavorite(item.to)}
+                    onToggleFavorite={toggleNavFavorite}
+                  />
+                ))}
+              </NavGroup>
+            )}
+
             {mainNavSections.map((section) => (
               section.items.length > 0 && (
                 <NavGroup
@@ -567,14 +650,12 @@ function AppContent() {
                   {...navGroupFlyoutProps(section.id)}
                 >
                   {section.items.map((item) => (
-                    <NavLink
+                    <SubNavLink
                       key={item.to}
-                      to={item.to}
-                      end={item.end}
-                      className={({ isActive }) => `nav-link nav-link-sub${isActive ? ' active' : ''}`}
-                    >
-                      {item.label}
-                    </NavLink>
+                      item={item}
+                      favorite={isNavFavorite(item.to)}
+                      onToggleFavorite={toggleNavFavorite}
+                    />
                   ))}
                 </NavGroup>
               )
@@ -606,13 +687,12 @@ function AppContent() {
                 {...navGroupFlyoutProps('admin')}
               >
                 {adminSection.items.map((item) => (
-                  <NavLink
+                  <SubNavLink
                     key={item.to}
-                    to={item.to}
-                    className={({ isActive }) => `nav-link nav-link-sub${isActive ? ' active' : ''}`}
-                  >
-                    {item.label}
-                  </NavLink>
+                    item={item}
+                    favorite={isNavFavorite(item.to)}
+                    onToggleFavorite={toggleNavFavorite}
+                  />
                 ))}
               </NavGroup>
             )}
