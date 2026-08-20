@@ -567,6 +567,13 @@ textarea::placeholder {
   color: #ca8a04;
 }
 
+[data-theme="dark"] .nav-star:hover,
+[data-theme="dark"] .nav-star.is-on,
+[data-theme="dark"] .nav-link-sub.active .nav-star.is-on,
+[data-theme="dark"] .nav-link-sub.active .nav-star:hover {
+  color: #facc15;
+}
+
 .nav-group {
   position: relative;
   display: flex;
