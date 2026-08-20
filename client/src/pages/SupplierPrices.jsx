@@ -120,7 +120,7 @@ export default function SupplierPrices() {
       .map((i) => ({
         product_id: i.product_id,
         variant_id: i.variant_id || null,
-        price: parsePriceInput(i.price) ?? Number(i.price) ?? 0,
+        price: parsePriceInput(i.price) ?? 0,
       }));
     if (!items.length) {
       show('Добавьте товары с ценами', 'error');

@@ -95,10 +95,6 @@ function formatRemainQty(n) {
   return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 3 }).format(Math.round(v * 1000) / 1000);
 }
 
-function itemPriceNum(item) {
-  return parsePriceInput(item.price) ?? 0;
-}
-
 function lineAmountOf(item) {
   return lineMoneyFromItem(item).amount;
 }
@@ -2073,7 +2069,7 @@ export default function Documents({ defaultType }) {
                           <input
                             type="text"
                             inputMode="decimal"
-                            value={item.amount_input ?? formatPriceInput(item.amount ?? lineAmount || 0)}
+                            value={item.amount_input ?? formatPriceInput(item.amount ?? lineAmount)}
                             disabled={isReadOnly}
                             onChange={(e) => updateItemAmount(idx, e.target.value)}
                           />
