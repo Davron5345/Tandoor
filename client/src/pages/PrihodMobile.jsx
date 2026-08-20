@@ -192,7 +192,7 @@ export default function PrihodMobile() {
   const productOptions = useMemo(() => buildProductPickOptions(products), [products]);
 
   const formTotal = form.items.reduce(
-    (sum, item) => sum + (parseQuantityInput(item.quantity) ?? 0) * (Number(item.price) || 0),
+    (sum, item) => sum + (parseQuantityInput(item.quantity) ?? 0) * (parsePriceInput(item.price) ?? 0),
     0,
   );
 
@@ -228,19 +228,26 @@ export default function PrihodMobile() {
   const updateItem = (idx, patch) => {
     setForm((prev) => {
       const items = [...prev.items];
-      items[idx] = { ...items[idx], ...patch };
+      const next = { ...items[idx], ...patch };
+      if (Object.prototype.hasOwnProperty.call(patch, 'quantity')
+        || Object.prototype.hasOwnProperty.call(patch, 'price')) {
+        next.amount_input = undefined;
+      }
+      items[idx] = next;
       return { ...prev, items };
     });
   };
 
   const updateItemAmount = (idx, raw) => {
-    const amount = parsePriceInput(raw) ?? 0;
+    const formatted = formatPriceInput(raw);
+    const amount = parsePriceInput(formatted) ?? 0;
     setForm((prev) => {
       const items = [...prev.items];
       const qty = parseQuantityInput(items[idx].quantity) ?? 0;
       items[idx] = {
         ...items[idx],
-        price: qty > 0 ? amount / qty : items[idx].price,
+        amount_input: formatted,
+        price: qty > 0 ? formatPriceInput(String(amount / qty)) : items[idx].price,
       };
       return { ...prev, items };
     });
@@ -301,7 +308,7 @@ export default function PrihodMobile() {
         product_id: i.product_id,
         variant_id: i.variant_id || null,
         quantity: parseQuantityInput(i.quantity) ?? 0,
-        price: Number(i.price) || 0,
+        price: parsePriceInput(i.price) ?? 0,
         net_weight: i.net_weight !== '' && i.net_weight != null ? Number(i.net_weight) : null,
       })),
     };
@@ -609,7 +616,7 @@ export default function PrihodMobile() {
                       type="text"
                       inputMode="decimal"
                       value={formatPriceInput(item.price)}
-                      onChange={(e) => updateItem(idx, { price: parsePriceInput(e.target.value) ?? 0 })}
+                      onChange={(e) => updateItem(idx, { price: formatPriceInput(e.target.value) })}
                     />
                   </label>
                   <label className="warehouse-prihod-field">
@@ -617,8 +624,8 @@ export default function PrihodMobile() {
                     <input
                       type="text"
                       inputMode="decimal"
-                      value={formatPriceInput(
-                        (parseQuantityInput(item.quantity) ?? 0) * (Number(item.price) || 0),
+                      value={item.amount_input ?? formatPriceInput(
+                        (parseQuantityInput(item.quantity) ?? 0) * (parsePriceInput(item.price) ?? 0),
                       )}
                       onChange={(e) => updateItemAmount(idx, e.target.value)}
                     />

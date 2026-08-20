@@ -95,8 +95,12 @@ function formatRemainQty(n) {
   return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 3 }).format(Math.round(v * 1000) / 1000);
 }
 
+function itemPriceNum(item) {
+  return parsePriceInput(item.price) ?? 0;
+}
+
 function lineAmountOf(item) {
-  return (parseQuantityInput(item.quantity) ?? 0) * (Number(item.price) || 0);
+  return (parseQuantityInput(item.quantity) ?? 0) * itemPriceNum(item);
 }
 
 function priceFromAmount(qty, amount) {
@@ -991,17 +995,21 @@ export default function Documents({ defaultType }) {
 
   const updateItem = (idx, field, value) => {
     const items = [...form.items];
-    items[idx] = { ...items[idx], [field]: value };
+    const next = { ...items[idx], [field]: value };
+    if (field === 'quantity' || field === 'price') next.amount_input = undefined;
+    items[idx] = next;
     setForm({ ...form, items });
   };
 
   const updateItemAmount = (idx, raw) => {
-    const amount = parsePriceInput(raw) ?? 0;
+    const formatted = formatPriceInput(raw);
+    const amount = parsePriceInput(formatted) ?? 0;
     const items = [...form.items];
     const qty = parseQuantityInput(items[idx].quantity) ?? 0;
     items[idx] = {
       ...items[idx],
-      price: qty > 0 ? priceFromAmount(qty, amount) : items[idx].price,
+      amount_input: formatted,
+      price: qty > 0 ? formatPriceInput(String(priceFromAmount(qty, amount))) : items[idx].price,
     };
     setForm({ ...form, items });
   };
@@ -1141,7 +1149,7 @@ export default function Documents({ defaultType }) {
           product_id: i.product_id,
           variant_id: i.variant_id || null,
           quantity: parseQuantityInput(i.quantity) ?? 0,
-          price: Number(i.price) || 0,
+          price: parsePriceInput(i.price) ?? 0,
           net_weight: hasNetColumn(form.type) && i.net_weight !== '' && i.net_weight != null
             ? Number(i.net_weight)
             : null,
@@ -2039,14 +2047,14 @@ export default function Documents({ defaultType }) {
                             inputMode="decimal"
                             value={formatPriceInput(item.price)}
                             disabled={isReadOnly}
-                            onChange={(e) => updateItem(idx, 'price', parsePriceInput(e.target.value) ?? 0)}
+                            onChange={(e) => updateItem(idx, 'price', formatPriceInput(e.target.value))}
                           />
                         </td>
                         <td className="doc-items-amount-col">
                           <input
                             type="text"
                             inputMode="decimal"
-                            value={formatPriceInput(lineAmount || 0)}
+                            value={item.amount_input ?? formatPriceInput(lineAmount || 0)}
                             disabled={isReadOnly}
                             onChange={(e) => updateItemAmount(idx, e.target.value)}
                           />
