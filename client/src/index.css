@@ -3129,9 +3129,29 @@ input[type='number']::-webkit-inner-spin-button {
 }
 
 .doc-modal-fields .form-grid-prihod-header .form-group-date input,
-.doc-modal-fields .form-grid-prihod-header .form-group-number input {
+.doc-modal-fields .form-grid-prihod-header .form-group-number input,
+.doc-modal-fields .form-grid-transfer-header .form-group-date input,
+.doc-modal-fields .form-grid-transfer-header .form-group-transfer-mode select {
   padding-left: 8px;
   padding-right: 8px;
+}
+
+.doc-modal-fields .form-grid-transfer-header {
+  grid-template-columns:
+    minmax(9.5rem, 10.5rem)
+    minmax(10.25rem, 11.5rem)
+    minmax(8.5rem, 1fr)
+    minmax(8.5rem, 1fr);
+  align-items: end;
+}
+
+.doc-modal-fields .form-grid-transfer-header.is-department {
+  grid-template-columns:
+    minmax(9.5rem, 10.5rem)
+    minmax(10.25rem, 11.5rem)
+    minmax(7rem, 0.85fr)
+    minmax(8rem, 1fr)
+    minmax(8rem, 1fr);
 }
 
 .cp-contracts-block {
@@ -6457,7 +6477,9 @@ input[type='number']::-webkit-inner-spin-button {
   }
 
   .doc-modal-fields .form-grid,
-  .doc-modal-fields .form-grid-prihod-header {
+  .doc-modal-fields .form-grid-prihod-header,
+  .doc-modal-fields .form-grid-transfer-header,
+  .doc-modal-fields .form-grid-transfer-header.is-department {
     grid-template-columns: 1fr;
   }
 

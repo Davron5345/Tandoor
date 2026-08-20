@@ -1519,7 +1519,13 @@ export default function Documents({ defaultType }) {
                   Выберите отдел — расход/возврат будет списан из остатка этого отдела.
                 </div>
               )}
-              <div className={`form-grid${form.type === 'prihod' ? ' form-grid-prihod-header' : ''}`}>
+              <div className={`form-grid${
+                form.type === 'prihod' ? ' form-grid-prihod-header' : ''
+              }${
+                form.type === 'peremeshchenie'
+                  ? ` form-grid-transfer-header${isDepartmentTransfer ? ' is-department' : ''}`
+                  : ''
+              }`}>
                 {!defaultType && (
                   <div className="form-group">
                     <label>Тип</label>
@@ -1677,7 +1683,7 @@ export default function Documents({ defaultType }) {
                   </>
                 ) : form.type === 'peremeshchenie' ? (
                   <>
-                    <div className="form-group">
+                    <div className="form-group form-group-date">
                       <label>Дата</label>
                       <input
                         type="date"
@@ -1687,7 +1693,7 @@ export default function Documents({ defaultType }) {
                         disabled={isReadOnly}
                       />
                     </div>
-                    <div className="form-group full">
+                    <div className="form-group form-group-transfer-mode">
                       <label>Тип перемещения</label>
                       <select
                         value={form.transfer_mode || 'branch'}
@@ -1700,7 +1706,7 @@ export default function Documents({ defaultType }) {
                     </div>
                     {isDepartmentTransfer ? (
                       <>
-                        <div className="form-group">
+                        <div className="form-group form-group-transfer-branch">
                           <label>Филиал *</label>
                           <select
                             value={form.from_branch_id || ''}
