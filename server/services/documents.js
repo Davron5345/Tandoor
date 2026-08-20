@@ -337,7 +337,7 @@ function updateStock(documentId, reverse = false) {
 
     if (doc.type === 'prihod' && doc.to_department_id) {
       const stockQty = itemStockQty(item);
-      const lineAmount = Number(item.amount) || (item.quantity * (item.price || 0));
+      const lineAmount = itemLineAmount(item);
       const unitCost = stockQty > 0 ? lineAmount / stockQty : 0;
       if (multiplier > 0) {
         receiveDepartmentStock(doc.to_department_id, item.product_id, stockQty, unitCost, vid);
@@ -687,6 +687,22 @@ function validatePrihodItems(counterpartyId, items, branchId = DEFAULT_BRANCH_ID
   }
 }
 
+function roundMoney(n) {
+  const v = Number(n);
+  if (!Number.isFinite(v)) return 0;
+  return Math.round((v + Number.EPSILON) * 100) / 100;
+}
+
+function itemLineAmount(item) {
+  const stored = Number(item.amount);
+  if (Number.isFinite(stored)) return stored;
+  return roundMoney((Number(item.quantity) || 0) * (Number(item.price) || 0));
+}
+
+function itemsTotal(items) {
+  return items.reduce((s, i) => s + itemLineAmount(i), 0);
+}
+
 function normalizeItems(items) {
   const valid = (items || []).filter((i) => i.product_id);
   if (valid.length === 0) {
@@ -694,9 +710,25 @@ function normalizeItems(items) {
   }
   return valid.map((item) => {
     const qty = Number(item.quantity);
-    const price = Number(item.price ?? 0);
     if (!Number.isFinite(qty) || qty <= 0) {
       throw new Error('Количество должно быть положительным числом');
+    }
+    let price = Number(item.price ?? 0);
+    let amount;
+    const rawAmount = item.amount;
+    const hasAmount = rawAmount !== undefined && rawAmount !== null && rawAmount !== '';
+    if (hasAmount) {
+      amount = Number(rawAmount);
+      if (!Number.isFinite(amount) || amount < 0) {
+        throw new Error('Сумма не может быть отрицательной');
+      }
+      amount = roundMoney(amount);
+      if (qty > 0) price = amount / qty;
+    } else {
+      if (!Number.isFinite(price) || price < 0) {
+        throw new Error('Цена не может быть отрицательной');
+      }
+      amount = roundMoney(qty * price);
     }
     if (!Number.isFinite(price) || price < 0) {
       throw new Error('Цена не может быть отрицательной');
@@ -709,7 +741,7 @@ function normalizeItems(items) {
       }
       netWeight = net;
     }
-    return { ...item, quantity: qty, price, net_weight: netWeight };
+    return { ...item, quantity: qty, price, amount, net_weight: netWeight };
   });
 }
 
@@ -1189,7 +1221,7 @@ export function createDocument(data, userId = null, branchId = DEFAULT_BRANCH_ID
   if (willConfirmReturn && sourceDocumentId) {
     assertReturnQtyNotExceeded(sourceDocumentId, null, items);
   }
-  const total = items.reduce((s, i) => s + i.quantity * i.price, 0);
+  const total = itemsTotal(items);
   const willConfirm = data.status === 'confirmed';
   const contractId = isSupplierCounterpartyDoc(data.type)
     ? resolveDocumentContractId(data.contract_id, data.counterparty_id, docBranchId)
@@ -1221,7 +1253,7 @@ export function createDocument(data, userId = null, branchId = DEFAULT_BRANCH_ID
       run(`
         INSERT INTO document_items (id, document_id, product_id, variant_id, quantity, price, amount, item_role, net_weight, sort_order)
         VALUES (?, ?, ?, ?, ?, ?, ?, 'input', ?, ?)
-      `, [uuidv4(), id, item.product_id, item.variant_id || null, item.quantity, item.price, item.quantity * item.price, item.net_weight ?? null, idx]);
+      `, [uuidv4(), id, item.product_id, item.variant_id || null, item.quantity, item.price, item.amount, item.net_weight ?? null, idx]);
     });
 
     addHistory(id, 'created', userId);
@@ -1398,7 +1430,7 @@ export function updateDocument(id, data, userId = null, branchId = DEFAULT_BRANC
       }
     }
 
-    const total = items.reduce((s, i) => s + i.quantity * i.price, 0);
+    const total = itemsTotal(items);
     const savedFromDepartmentId = isOutgoingDocType(docType) ? rashodFromDepartmentId : fromDepartmentId;
     const contractId = isSupplierCounterpartyDoc(docType)
       ? resolveDocumentContractId(
@@ -1427,7 +1459,7 @@ export function updateDocument(id, data, userId = null, branchId = DEFAULT_BRANC
       run(`
         INSERT INTO document_items (id, document_id, product_id, variant_id, quantity, price, amount, item_role, net_weight, sort_order)
         VALUES (?, ?, ?, ?, ?, ?, ?, 'input', ?, ?)
-      `, [uuidv4(), id, item.product_id, item.variant_id || null, item.quantity, item.price, item.quantity * item.price, item.net_weight ?? null, idx]);
+      `, [uuidv4(), id, item.product_id, item.variant_id || null, item.quantity, item.price, item.amount, item.net_weight ?? null, idx]);
     });
 
     addHistory(id, 'updated', userId);

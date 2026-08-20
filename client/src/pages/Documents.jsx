@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { createPortal } from 'react-dom';
-import { api, formatMoney, formatDate, formatPriceInput, parsePriceInput, parseQuantityInput, normalizeQuantityInput, STATUS_LABELS, ACTION_LABELS } from '../api';
+import { api, formatMoney, formatDate, formatPriceInput, parsePriceInput, parseQuantityInput, normalizeQuantityInput, lineMoneyFromItem, STATUS_LABELS, ACTION_LABELS } from '../api';
 import Modal, { useToast, ModalCancelButton } from '../components/Modal';
 import CategorySelect from '../components/CategorySelect';
 import ProductSelect from '../components/ProductSelect';
@@ -100,7 +100,7 @@ function itemPriceNum(item) {
 }
 
 function lineAmountOf(item) {
-  return (parseQuantityInput(item.quantity) ?? 0) * itemPriceNum(item);
+  return lineMoneyFromItem(item).amount;
 }
 
 function priceFromAmount(qty, amount) {
@@ -909,6 +909,7 @@ export default function Documents({ defaultType }) {
         variant_id: i.variant_id || null,
         quantity: i.quantity,
         price: i.price,
+        amount: i.amount,
         net_weight: i.net_weight ?? '',
       })),
     };
@@ -978,6 +979,8 @@ export default function Documents({ defaultType }) {
       ...items[idx],
       product_id: resolved.productId,
       variant_id: resolved.variantId,
+      amount: undefined,
+      amount_input: undefined,
     };
     if (resolved.product) {
       items[idx].price = resolved.variant
@@ -996,21 +999,33 @@ export default function Documents({ defaultType }) {
   const updateItem = (idx, field, value) => {
     const items = [...form.items];
     const next = { ...items[idx], [field]: value };
-    if (field === 'quantity' || field === 'price') next.amount_input = undefined;
+    if (field === 'quantity' || field === 'price') {
+      next.amount_input = undefined;
+      next.amount = undefined;
+    }
     items[idx] = next;
     setForm({ ...form, items });
   };
 
   const updateItemAmount = (idx, raw) => {
     const formatted = formatPriceInput(raw);
-    const amount = parsePriceInput(formatted) ?? 0;
+    const amount = parsePriceInput(formatted);
     const items = [...form.items];
     const qty = parseQuantityInput(items[idx].quantity) ?? 0;
-    items[idx] = {
-      ...items[idx],
-      amount_input: formatted,
-      price: qty > 0 ? formatPriceInput(String(priceFromAmount(qty, amount))) : items[idx].price,
-    };
+    if (amount == null) {
+      items[idx] = {
+        ...items[idx],
+        amount_input: formatted,
+        amount: undefined,
+      };
+    } else {
+      items[idx] = {
+        ...items[idx],
+        amount_input: formatted,
+        amount,
+        price: qty > 0 ? priceFromAmount(qty, amount) : items[idx].price,
+      };
+    }
     setForm({ ...form, items });
   };
 
@@ -1145,15 +1160,19 @@ export default function Documents({ defaultType }) {
         date: form.date,
         comment: form.comment || '',
         status: confirm ? 'confirmed' : form.status,
-        items: items.map((i) => ({
-          product_id: i.product_id,
-          variant_id: i.variant_id || null,
-          quantity: parseQuantityInput(i.quantity) ?? 0,
-          price: parsePriceInput(i.price) ?? 0,
-          net_weight: hasNetColumn(form.type) && i.net_weight !== '' && i.net_weight != null
-            ? Number(i.net_weight)
-            : null,
-        })),
+        items: items.map((i) => {
+          const money = lineMoneyFromItem(i);
+          return {
+            product_id: i.product_id,
+            variant_id: i.variant_id || null,
+            quantity: money.quantity,
+            price: money.price,
+            amount: money.amount,
+            net_weight: hasNetColumn(form.type) && i.net_weight !== '' && i.net_weight != null
+              ? Number(i.net_weight)
+              : null,
+          };
+        }),
       };
       if (form.type === 'peremeshchenie') {
         if (form.transfer_mode === 'department') {
@@ -2054,7 +2073,7 @@ export default function Documents({ defaultType }) {
                           <input
                             type="text"
                             inputMode="decimal"
-                            value={item.amount_input ?? formatPriceInput(lineAmount || 0)}
+                            value={item.amount_input ?? formatPriceInput(item.amount ?? lineAmount || 0)}
                             disabled={isReadOnly}
                             onChange={(e) => updateItemAmount(idx, e.target.value)}
                           />

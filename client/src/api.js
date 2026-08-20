@@ -572,6 +572,36 @@ export function parsePriceInput(value) {
   return Number.isFinite(num) ? num : null;
 }
 
+export function roundMoney(n) {
+  const v = Number(n);
+  if (!Number.isFinite(v)) return 0;
+  return Math.round((v + Number.EPSILON) * 100) / 100;
+}
+
+/** Цена и сумма строки: если пользователь ввёл сумму, она главная. */
+export function lineMoneyFromItem(item) {
+  const quantity = parseQuantityInput(item.quantity) ?? 0;
+  const typedAmount = item.amount_input != null && String(item.amount_input).trim() !== ''
+    ? parsePriceInput(item.amount_input)
+    : null;
+  if (typedAmount != null) {
+    const amount = roundMoney(typedAmount);
+    return {
+      quantity,
+      amount,
+      price: quantity > 0 ? amount / quantity : (parsePriceInput(item.price) ?? 0),
+    };
+  }
+  const price = parsePriceInput(item.price) ?? 0;
+  if (item.amount != null && item.amount !== '') {
+    const stored = Number(item.amount);
+    if (Number.isFinite(stored)) {
+      return { quantity, price, amount: roundMoney(stored) };
+    }
+  }
+  return { quantity, price, amount: roundMoney(quantity * price) };
+}
+
 /** Sanitize quantity while typing: digits and one decimal separator (. or ,). */
 export function normalizeQuantityInput(value) {
   if (value === '' || value == null) return '';

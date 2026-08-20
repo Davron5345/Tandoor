@@ -8,6 +8,7 @@ import {
   parsePriceInput,
   parseQuantityInput,
   normalizeQuantityInput,
+  lineMoneyFromItem,
   STATUS_LABELS,
 } from '../api';
 import { useAuth } from '../AuthContext';
@@ -232,6 +233,7 @@ export default function PrihodMobile() {
       if (Object.prototype.hasOwnProperty.call(patch, 'quantity')
         || Object.prototype.hasOwnProperty.call(patch, 'price')) {
         next.amount_input = undefined;
+        next.amount = undefined;
       }
       items[idx] = next;
       return { ...prev, items };
@@ -240,15 +242,24 @@ export default function PrihodMobile() {
 
   const updateItemAmount = (idx, raw) => {
     const formatted = formatPriceInput(raw);
-    const amount = parsePriceInput(formatted) ?? 0;
+    const amount = parsePriceInput(formatted);
     setForm((prev) => {
       const items = [...prev.items];
       const qty = parseQuantityInput(items[idx].quantity) ?? 0;
-      items[idx] = {
-        ...items[idx],
-        amount_input: formatted,
-        price: qty > 0 ? formatPriceInput(String(amount / qty)) : items[idx].price,
-      };
+      if (amount == null) {
+        items[idx] = {
+          ...items[idx],
+          amount_input: formatted,
+          amount: undefined,
+        };
+      } else {
+        items[idx] = {
+          ...items[idx],
+          amount_input: formatted,
+          amount,
+          price: qty > 0 ? amount / qty : items[idx].price,
+        };
+      }
       return { ...prev, items };
     });
   };
@@ -304,13 +315,17 @@ export default function PrihodMobile() {
       date: form.date || todayLocalIso(),
       comment: '',
       status,
-      items: items.map((i) => ({
-        product_id: i.product_id,
-        variant_id: i.variant_id || null,
-        quantity: parseQuantityInput(i.quantity) ?? 0,
-        price: parsePriceInput(i.price) ?? 0,
-        net_weight: i.net_weight !== '' && i.net_weight != null ? Number(i.net_weight) : null,
-      })),
+      items: items.map((i) => {
+        const money = lineMoneyFromItem(i);
+        return {
+          product_id: i.product_id,
+          variant_id: i.variant_id || null,
+          quantity: money.quantity,
+          price: money.price,
+          amount: money.amount,
+          net_weight: i.net_weight !== '' && i.net_weight != null ? Number(i.net_weight) : null,
+        };
+      }),
     };
   };
 
@@ -624,9 +639,7 @@ export default function PrihodMobile() {
                     <input
                       type="text"
                       inputMode="decimal"
-                      value={item.amount_input ?? formatPriceInput(
-                        (parseQuantityInput(item.quantity) ?? 0) * (parsePriceInput(item.price) ?? 0),
-                      )}
+                      value={item.amount_input ?? formatPriceInput(lineMoneyFromItem(item).amount)}
                       onChange={(e) => updateItemAmount(idx, e.target.value)}
                     />
                   </label>
