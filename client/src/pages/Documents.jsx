@@ -95,6 +95,15 @@ function formatRemainQty(n) {
   return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 3 }).format(Math.round(v * 1000) / 1000);
 }
 
+function lineAmountOf(item) {
+  return (parseQuantityInput(item.quantity) ?? 0) * (Number(item.price) || 0);
+}
+
+function priceFromAmount(qty, amount) {
+  if (!(qty > 0)) return 0;
+  return amount / qty;
+}
+
 function TransferStockHint({ value, unit, over }) {
   return (
     <span className={`doc-items-stock-hint${over ? ' is-over' : ''}`}>
@@ -986,8 +995,19 @@ export default function Documents({ defaultType }) {
     setForm({ ...form, items });
   };
 
+  const updateItemAmount = (idx, raw) => {
+    const amount = parsePriceInput(raw) ?? 0;
+    const items = [...form.items];
+    const qty = parseQuantityInput(items[idx].quantity) ?? 0;
+    items[idx] = {
+      ...items[idx],
+      price: qty > 0 ? priceFromAmount(qty, amount) : items[idx].price,
+    };
+    setForm({ ...form, items });
+  };
+
   const total = form.items.reduce(
-    (s, i) => s + (parseQuantityInput(i.quantity) ?? 0) * (Number(i.price) || 0),
+    (s, i) => s + lineAmountOf(i),
     0,
   );
 
@@ -1885,7 +1905,7 @@ export default function Documents({ defaultType }) {
                         resolvedItem = resolvePickFromProducts(products, pickValue);
                       }
                       const itemUnit = resolvedItem.product?.unit || '';
-                      const lineAmount = (parseQuantityInput(item.quantity) ?? 0) * (Number(item.price) || 0);
+                      const lineAmount = lineAmountOf(item);
                       const sourceStock = form.type === 'peremeshchenie' && resolvedItem.product
                         ? getPickStock(resolvedItem.product, resolvedItem.variant)
                         : null;
@@ -2016,14 +2036,20 @@ export default function Documents({ defaultType }) {
                         <td>
                           <input
                             type="text"
-                            inputMode="numeric"
+                            inputMode="decimal"
                             value={formatPriceInput(item.price)}
                             disabled={isReadOnly}
                             onChange={(e) => updateItem(idx, 'price', parsePriceInput(e.target.value) ?? 0)}
                           />
                         </td>
                         <td className="doc-items-amount-col">
-                          {new Intl.NumberFormat('ru-RU').format(lineAmount || 0)}
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            value={formatPriceInput(lineAmount || 0)}
+                            disabled={isReadOnly}
+                            onChange={(e) => updateItemAmount(idx, e.target.value)}
+                          />
                         </td>
                         <td className="doc-items-actions-col">
                           {canEdit && (

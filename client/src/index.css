@@ -4476,6 +4476,15 @@ input[type='number']::-webkit-inner-spin-button {
   white-space: nowrap;
   text-align: right;
   font-variant-numeric: tabular-nums;
+  min-width: 110px;
+}
+
+.doc-items-amount-col input {
+  padding-left: 8px;
+  padding-right: 8px;
+  text-align: right;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .doc-items-qty-col,

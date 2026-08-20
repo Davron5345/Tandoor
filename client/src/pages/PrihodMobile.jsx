@@ -233,6 +233,19 @@ export default function PrihodMobile() {
     });
   };
 
+  const updateItemAmount = (idx, raw) => {
+    const amount = parsePriceInput(raw) ?? 0;
+    setForm((prev) => {
+      const items = [...prev.items];
+      const qty = parseQuantityInput(items[idx].quantity) ?? 0;
+      items[idx] = {
+        ...items[idx],
+        price: qty > 0 ? amount / qty : items[idx].price,
+      };
+      return { ...prev, items };
+    });
+  };
+
   const onProductPick = (idx, pickValue) => {
     const resolved = resolvePickFromProducts(products, pickValue);
     const price = resolved.product
@@ -594,18 +607,21 @@ export default function PrihodMobile() {
                     <span>Цена</span>
                     <input
                       type="text"
-                      inputMode="numeric"
+                      inputMode="decimal"
                       value={formatPriceInput(item.price)}
                       onChange={(e) => updateItem(idx, { price: parsePriceInput(e.target.value) ?? 0 })}
                     />
                   </label>
                   <label className="warehouse-prihod-field">
                     <span>Сумма</span>
-                    <strong className="warehouse-prihod-item-amount">
-                      {new Intl.NumberFormat('ru-RU').format(
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={formatPriceInput(
                         (parseQuantityInput(item.quantity) ?? 0) * (Number(item.price) || 0),
                       )}
-                    </strong>
+                      onChange={(e) => updateItemAmount(idx, e.target.value)}
+                    />
                   </label>
                 </div>
                 {(() => {
