@@ -4616,25 +4616,38 @@ input[type='number']::-webkit-inner-spin-button {
   margin-top: 2px;
 }
 
-.doc-extra-costs {
+.doc-prihod-tabs {
   flex-shrink: 0;
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid var(--border);
+  margin-bottom: 10px;
+}
+
+.doc-prihod-tabs .tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+}
+
+.doc-extra-costs {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  margin-top: 0;
+  padding-top: 4px;
+  border-top: none;
 }
 
 .doc-extra-costs-head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 8px;
   margin-bottom: 8px;
 }
 
-.doc-extra-costs-head h3 {
+.doc-extra-costs-head .doc-extra-costs-empty {
   margin: 0;
-  font-size: 14px;
-  font-weight: 600;
+  flex: 1;
 }
 
 .doc-extra-costs-empty,

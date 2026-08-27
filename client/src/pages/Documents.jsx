@@ -156,6 +156,7 @@ export default function Documents({ defaultType }) {
   const [docsAmountSum, setDocsAmountSum] = useState(0);
   const DOC_PAGE_SIZE = 50;
   const [modal, setModal] = useState(null);
+  const [prihodBodyTab, setPrihodBodyTab] = useState('items');
   const [paymentModal, setPaymentModal] = useState(null);
   const [paymentForm, setPaymentForm] = useState(emptyPayment);
   const [historyModal, setHistoryModal] = useState(null);
@@ -785,6 +786,7 @@ export default function Documents({ defaultType }) {
       items: [{ ...emptyItem }],
       extra_costs: type === 'prihod' ? [] : [],
     });
+    setPrihodBodyTab('items');
   };
 
   const applyDocumentDraft = useCallback((modalKey, defaultForm) => {
@@ -808,6 +810,7 @@ export default function Documents({ defaultType }) {
       transfer_mode: docType === 'peremeshchenie' ? 'branch' : 'branch',
       items: [{ ...emptyItem }],
     }));
+    setPrihodBodyTab('items');
     setModal('create');
   };
 
@@ -921,6 +924,7 @@ export default function Documents({ defaultType }) {
         : [],
     };
     setForm(applyDocumentDraft(id, loadedForm));
+    setPrihodBodyTab('items');
     setModal(id);
   };
 
@@ -1045,18 +1049,15 @@ export default function Documents({ defaultType }) {
     return allocateExtraCosts(form.items, extras);
   }, [form.type, form.items, form.extra_costs]);
 
-  const extrasTotal = extraCostsTotal(
-    (form.extra_costs || []).map((e) => ({
-      ...e,
-      amount: parsePriceInput(e.amount) ?? 0,
-    })),
-  );
-  const extrasCapitalized = capitalizedExtraTotal(
-    (form.extra_costs || []).map((e) => ({
-      ...e,
-      amount: parsePriceInput(e.amount) ?? 0,
-    })),
-  );
+  const extrasParsed = (form.extra_costs || []).map((e) => ({
+    ...e,
+    amount: parsePriceInput(e.amount) ?? 0,
+  }));
+  const extrasTotal = extraCostsTotal(extrasParsed);
+  const extraCostsFilledCount = extrasParsed.filter((e) => (
+    Boolean(String(e.title || '').trim()) || e.amount > 0
+  )).length;
+  const extrasCapitalized = capitalizedExtraTotal(extrasParsed);
 
   const updateExtraCost = (idx, field, value) => {
     const extra_costs = [...(form.extra_costs || [])];
@@ -1548,6 +1549,7 @@ export default function Documents({ defaultType }) {
           dirty={isFormDirty}
           onClose={() => {
             clearFormDraft(draftKey);
+            setPrihodBodyTab('items');
             setModal(null);
           }}
           footer={
@@ -1952,6 +1954,34 @@ export default function Documents({ defaultType }) {
             </div>
 
             <div className="doc-modal-items">
+              {form.type === 'prihod' && (
+                <div className="tabs doc-prihod-tabs" role="tablist" aria-label="Разделы прихода">
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={prihodBodyTab === 'items'}
+                    className={`tab${prihodBodyTab === 'items' ? ' active' : ''}`}
+                    onClick={() => setPrihodBodyTab('items')}
+                  >
+                    Товары
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={prihodBodyTab === 'extras'}
+                    className={`tab${prihodBodyTab === 'extras' ? ' active' : ''}`}
+                    onClick={() => {
+                      setPrihodBodyTab('extras');
+                      if (canEdit && !(form.extra_costs || []).length) addExtraCost();
+                    }}
+                  >
+                    Доп. расходы
+                    {extraCostsFilledCount > 0 && (
+                      <span className="tab-count">{extraCostsFilledCount}</span>
+                    )}
+                  </button>
+                </div>
+              )}
               {hasTransferStockOverflow && (
                 <div className="alert alert-error razdelka-stock-alert">
                   {transferStockWarnings.map((w) => (
@@ -1962,7 +1992,8 @@ export default function Documents({ defaultType }) {
                   ))}
                 </div>
               )}
-              <div className="table-wrap items-table doc-items-table doc-items-table-numbered doc-modal-items-scroll">
+              {(form.type !== 'prihod' || prihodBodyTab === 'items') && (
+                <div className="table-wrap items-table doc-items-table doc-items-table-numbered doc-modal-items-scroll">
                 <table>
                   <thead>
                     <tr>
@@ -2166,61 +2197,59 @@ export default function Documents({ defaultType }) {
                     })}
                   </tbody>
                 </table>
-              </div>
-            </div>
-
-            {form.type === 'prihod' && (
-              <div className="doc-extra-costs">
-                <div className="doc-extra-costs-head">
-                  <h3>Доп. расходы</h3>
-                  {canEdit && (
-                    <IconButton title="Добавить расход" onClick={addExtraCost}>
-                      <IconPlus />
-                    </IconButton>
-                  )}
                 </div>
-                {(form.extra_costs || []).length === 0 && (
-                  <p className="doc-extra-costs-empty">Дорога, разгрузка и другие суммы сверх счёта поставщика</p>
-                )}
-                {(form.extra_costs || []).map((row, idx) => (
-                  <div key={idx} className="doc-extra-costs-row">
-                    <input
-                      type="text"
-                      placeholder="Название (дорога…)"
-                      value={row.title}
-                      disabled={isReadOnly}
-                      onChange={(e) => updateExtraCost(idx, 'title', e.target.value)}
-                    />
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      placeholder="Сумма"
-                      value={formatPriceInput(row.amount)}
-                      disabled={isReadOnly}
-                      onChange={(e) => updateExtraCost(idx, 'amount', formatPriceInput(e.target.value))}
-                    />
-                    <select
-                      value={row.capitalize === false ? 'period' : 'cost'}
-                      disabled={isReadOnly}
-                      onChange={(e) => updateExtraCost(idx, 'capitalize', e.target.value !== 'period')}
-                    >
-                      <option value="cost">В себестоимость</option>
-                      <option value="period">В расходы</option>
-                    </select>
+              )}
+
+              {form.type === 'prihod' && prihodBodyTab === 'extras' && (
+                <div className="doc-extra-costs">
+                  <div className="doc-extra-costs-head">
+                    <p className="doc-extra-costs-empty">Дорога, разгрузка и другие суммы сверх счёта поставщика</p>
                     {canEdit && (
-                      <IconButton title="Удалить" danger onClick={() => removeExtraCost(idx)}>
-                        <IconTrash />
+                      <IconButton title="Добавить расход" onClick={addExtraCost}>
+                        <IconPlus />
                       </IconButton>
                     )}
                   </div>
-                ))}
-                {(form.extra_costs || []).some((e) => e.capitalize !== false) && (
-                  <p className="doc-extra-costs-hint">
-                    В себестоимость: попадёт в цену товара. Кассу платите отдельно статьёй «Закуп», иначе расход в P&L задвоится.
-                  </p>
-                )}
-              </div>
-            )}
+                  {(form.extra_costs || []).map((row, idx) => (
+                    <div key={idx} className="doc-extra-costs-row">
+                      <input
+                        type="text"
+                        placeholder="Название (дорога…)"
+                        value={row.title}
+                        disabled={isReadOnly}
+                        onChange={(e) => updateExtraCost(idx, 'title', e.target.value)}
+                      />
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        placeholder="Сумма"
+                        value={formatPriceInput(row.amount)}
+                        disabled={isReadOnly}
+                        onChange={(e) => updateExtraCost(idx, 'amount', formatPriceInput(e.target.value))}
+                      />
+                      <select
+                        value={row.capitalize === false ? 'period' : 'cost'}
+                        disabled={isReadOnly}
+                        onChange={(e) => updateExtraCost(idx, 'capitalize', e.target.value !== 'period')}
+                      >
+                        <option value="cost">В себестоимость</option>
+                        <option value="period">В расходы</option>
+                      </select>
+                      {canEdit && (
+                        <IconButton title="Удалить" danger onClick={() => removeExtraCost(idx)}>
+                          <IconTrash />
+                        </IconButton>
+                      )}
+                    </div>
+                  ))}
+                  {extrasParsed.some((e) => e.capitalize !== false && e.amount > 0) && (
+                    <p className="doc-extra-costs-hint">
+                      В себестоимость: попадёт в цену товара. Кассу платите отдельно статьёй «Закуп», иначе расход в P&L задвоится.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
 
             <div className="doc-modal-footer">
               <div className="doc-modal-footer-comment">
