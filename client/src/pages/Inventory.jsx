@@ -312,7 +312,18 @@ export default function Inventory() {
   const [commentOpen, setCommentOpen] = useState(false);
   const [addPick, setAddPick] = useState('');
   const [sheetTab, setSheetTab] = useState('setup'); // setup | items
+  const [topbarEl, setTopbarEl] = useState(null);
   const { listRef, isPhone } = useInventoryPhoneShell(Boolean(modal));
+
+  useEffect(() => {
+    if (!isPhone) {
+      setTopbarEl(null);
+      return undefined;
+    }
+    const el = document.querySelector('.main-topbar');
+    setTopbarEl(el || null);
+    return undefined;
+  }, [isPhone]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -609,6 +620,13 @@ export default function Inventory() {
   return (
     <div className={`inventory-page${canEdit ? ' inventory-page--fab' : ''}`}>
       {Toast}
+      {isPhone && topbarEl && createPortal(
+        <div className="inventory-topbar-heading">
+          <h1>Инвентаризация</h1>
+          <BranchChip>{branchName}</BranchChip>
+        </div>,
+        topbarEl,
+      )}
 
       <div className="page-header inventory-page-header">
         <div className="inventory-page-heading">

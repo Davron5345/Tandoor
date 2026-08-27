@@ -7283,8 +7283,41 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
     position: static;
     z-index: 90;
     margin: 0;
-    padding: max(6px, env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) 8px max(12px, env(safe-area-inset-left, 0px));
+    align-items: center;
+    gap: 10px;
+    padding: max(6px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) 8px max(16px, env(safe-area-inset-left, 0px));
     background: var(--bg);
+  }
+
+  .inventory-topbar-heading {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .inventory-topbar-heading h1 {
+    margin: 0;
+    font-size: 1.15rem;
+    line-height: 1.2;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .inventory-topbar-heading .ui-chip {
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 46%;
+    margin: 0;
+  }
+
+  .inventory-topbar-heading .ui-chip > span:last-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .sidebar-menu-btn {
@@ -7484,32 +7517,7 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
 
   /* Inventory phone: Prihod-like full-bleed shell inside App */
   .inventory-page-header {
-    flex-direction: row !important;
-    align-items: center;
-    gap: 8px;
-    flex-shrink: 0;
-    width: 100%;
-    max-width: 100%;
-    min-width: 0;
-    padding: 4px 16px 0;
-    margin: 0;
-    box-sizing: border-box;
-  }
-
-  .inventory-page-heading {
-    width: auto;
-    flex: 1 1 auto;
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 8px;
-    min-width: 0;
-  }
-
-  .inventory-page-heading h1 {
-    font-size: 1.25rem;
-    margin: 0;
-    line-height: 1.2;
+    display: none !important;
   }
 
   .inventory-page-lead {
