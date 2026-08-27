@@ -1661,8 +1661,10 @@ function PnlReport() {
     loadReport();
   }, [branchId, loadReport]);
 
-  const expenseItems = report?.operating_expenses?.items || [];
-  const incomeItems = report?.other_income?.items || [];
+  const expenseItems = (report?.operating_expenses?.items || []).filter((item) => item.source !== 'inventory');
+  const incomeItems = (report?.other_income?.items || []).filter((item) => item.source !== 'inventory');
+  const inventoryExpense = (report?.operating_expenses?.items || []).find((item) => item.source === 'inventory');
+  const inventoryIncome = (report?.other_income?.items || []).find((item) => item.source === 'inventory');
 
   return (
     <div className="pnl-report-page">
@@ -1777,7 +1779,7 @@ function PnlReport() {
                   <tr className="pnl-section-row">
                     <td colSpan={2}><strong>Операционные расходы</strong></td>
                   </tr>
-                  {expenseItems.length === 0 ? (
+                  {expenseItems.length === 0 && !inventoryExpense ? (
                     <tr>
                       <td className="text-muted">Нет расходов за период</td>
                       <td className="col-num">—</td>
@@ -1788,6 +1790,12 @@ function PnlReport() {
                       <td className="col-num">− {formatMoney(item.amount)}</td>
                     </tr>
                   ))}
+                  {inventoryExpense && (
+                    <tr>
+                      <td>Инвентаризация (недостача)</td>
+                      <td className="col-num">− {formatMoney(inventoryExpense.amount)}</td>
+                    </tr>
+                  )}
                   <tr className="pnl-subtotal-row">
                     <td><strong>Итого операционные расходы</strong></td>
                     <td className="col-num"><strong>− {formatMoney(report.operating_expenses.total)}</strong></td>
@@ -1796,7 +1804,7 @@ function PnlReport() {
                   <tr className="pnl-section-row">
                     <td colSpan={2}><strong>Прочие доходы</strong></td>
                   </tr>
-                  {incomeItems.length === 0 ? (
+                  {incomeItems.length === 0 && !inventoryIncome ? (
                     <tr>
                       <td className="text-muted">Нет прочих доходов</td>
                       <td className="col-num">—</td>
@@ -1807,6 +1815,12 @@ function PnlReport() {
                       <td className="col-num">{formatMoney(item.amount)}</td>
                     </tr>
                   ))}
+                  {inventoryIncome && (
+                    <tr>
+                      <td>Инвентаризация (излишек)</td>
+                      <td className="col-num">{formatMoney(inventoryIncome.amount)}</td>
+                    </tr>
+                  )}
                   <tr className="pnl-subtotal-row">
                     <td><strong>Итого прочие доходы</strong></td>
                     <td className="col-num"><strong>{formatMoney(report.other_income.total)}</strong></td>
@@ -1822,6 +1836,7 @@ function PnlReport() {
             <p className="pnl-report-footnote">
               Закуп товара и оплаты поставщикам в P&L не входят — это движение запасов.
               Операционные расходы берутся из кассы (статьи кроме «Закуп»).
+              Недостача инвентаризации — прочий расход без кассы; излишек — прочий доход.
             </p>
           </div>
 

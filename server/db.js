@@ -534,6 +534,7 @@ function migrateSchema() {
   migrateDocumentItemCost();
   migrateDocumentItemNetWeight();
   migrateDocumentItemSortOrder();
+  migrateDocumentItemBookQty();
   migrateDocumentExtraCosts();
   migrateShopOrderDocument();
   migrateCalculationKind();
@@ -970,6 +971,18 @@ function migrateDocumentItemNetWeight() {
   const done = queryOne("SELECT value FROM settings WHERE key = 'document_item_net_weight_v1'");
   if (!done) {
     run("INSERT OR REPLACE INTO settings (key, value) VALUES ('document_item_net_weight_v1', '1')");
+    saveDb();
+  }
+}
+
+function migrateDocumentItemBookQty() {
+  const itemCols = queryAll('PRAGMA table_info(document_items)').map((c) => c.name);
+  if (!itemCols.includes('book_qty')) {
+    run('ALTER TABLE document_items ADD COLUMN book_qty REAL DEFAULT 0');
+  }
+  const done = queryOne("SELECT value FROM settings WHERE key = 'document_item_book_qty_v1'");
+  if (!done) {
+    run("INSERT OR REPLACE INTO settings (key, value) VALUES ('document_item_book_qty_v1', '1')");
     saveDb();
   }
 }

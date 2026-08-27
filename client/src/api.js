@@ -325,6 +325,7 @@ export const api = {
   cancelDocument: (id) => request(`/documents/${id}/cancel`, { method: 'POST' }),
   deleteDocument: (id) => request(`/documents/${id}`, { method: 'DELETE' }),
   getDocumentHistory: (id) => request(`/documents/${id}/history`),
+  getInventoryStock: (departmentId) => request(`/documents/inventory/stock?department_id=${encodeURIComponent(departmentId)}`),
 
   getSupplierPrices: () => request('/supplier-prices'),
   getSupplierPrice: (id) => request(`/supplier-prices/${id}`),

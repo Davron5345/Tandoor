@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-08-27 (избранное убрано из меню)
+**Последнее обновление документации:** 2026-08-27 (инвентаризация)
 
 ---
 
@@ -16,8 +16,8 @@
 
 | Область | Что делает |
 |---------|-----------|
-| Склад | Приход, расход, перемещение, возвраты поставщику/клиенту |
-| Производство | Разделка, калькуляции (рецептуры), продажа блюд со списанием ингредиентов |
+| Склад | Приход, расход, перемещение, возвраты поставщику/клиенту, инвентаризация |
+| Производство | Разделка, калькуляции (рецептуры), продажа блюд со списанием ингредиентов, инвентаризация |
 | Справочники | Номенклатура (4 вида товаров), категории, единицы, контрагенты, договоры, **прайсы поставщиков** |
 | Финансы | Касса, банк/оплаты, статьи кассы, P&L, начальное сальдо |
 | MyShop | Онлайн-витрина для сотрудников, заявки на продукты, конструктор витрины |
@@ -166,7 +166,7 @@ npm run db:reset-operations    # Сброс операционных данны�
 |--------|---------|
 | Каталог | `products`, `product_variants`, `product_categories`, `units`, `product_images`, `product_suppliers`, `product_branches`, `product_variant_branches` |
 | Склад | `departments`, `product_department_stock`, `product_branch_stock` |
-| Документы | `documents` (+ `firm_id` у прихода), `document_items` (+ `net_weight` в строках прихода), `document_extra_costs` (доп. расходы прихода), `document_history`, `opening_balance_lines` |
+| Документы | `documents` (+ `firm_id` у прихода), `document_items` (+ `net_weight` в строках прихода, `book_qty` в инвентаризации), `document_extra_costs` (доп. расходы прихода), `document_history`, `opening_balance_lines` |
 | Контрагенты | `counterparties`, `counterparty_firms` (юрлица: ИНН, bank_account, mfo), `counterparty_contracts` (title, number, date, end_date, direction, amount, `firm_id`) |
 | Финансы | `payments` (+ `external_ref`, `import_batch_id`, `contract_id`, `firm_id`, `bank_account_id`), `bank_accounts`, `cash_articles`, `branch_opening_balances` |
 | Калькуляции | `calculations`, `calculation_items`, `calculation_sources` |
@@ -241,7 +241,7 @@ dashboard.view
 products.view / products.edit
 counterparties.view / counterparties.edit
 calculations.view / calculations.edit
-documents.prihod / documents.rashod / documents.transfer / documents.razdelka / documents.dish_sale
+documents.prihod / documents.rashod / documents.transfer / documents.razdelka / documents.dish_sale / documents.inventory
 documents.view / documents.edit / documents.confirm / documents.delete
 cashier.view / cashier.edit / cashier.delete / cashier.edit_past
 payments.view / payments.edit / payments.delete / payments.edit_past
@@ -301,6 +301,7 @@ Frontend зеркало: `client/src/permissions.js`.
 | `peremeshchenie` | Перемещение | между отделами или филиалами |
 | `razdelka` | Разделка | −вход, +выход по калькуляции |
 | `dish_sale` | Продажа блюд | −ингредиенты, +выручка в P&L |
+| `inventory` | Инвентаризация | факт − учёт по отделу; ±остаток по avg_cost; P&L без кассы |
 | `opening_balance` | Начальное сальдо | стартовые остатки/долги/касса |
 
 ### 9.3 Статусы документов
@@ -316,6 +317,7 @@ Frontend зеркало: `client/src/permissions.js`.
 - **Нетто в приходе и перемещении** (`document_items.net_weight`): сумма строки сохраняется в `document_items.amount`. Если клиент прислал `amount`, она главная (`price = amount / qty`); иначе `amount = qty × price`. В UI цена и сумма двусторонние (ввод суммы → цена = сумма/кол-во, ввод цены → сумма = цена×кол-во); **Сохранить** шлёт `amount`, чтобы правка суммы не терялась из‑за округления цены до копеек. На склад идёт `stockQty = net × qty` при `net > 0`, иначе `qty`. В приходе `unitCost = (amount + доля доп. расходов) / stockQty` (avg за ед. остатка, л/кг). Каталожное `products.net_weight` — только префилл строки в UI
 - **Доп. расходы прихода** (`document_extra_costs`): название, сумма, флаг `capitalize`. Не входят в `documents.total_amount` (долг поставщику без дороги). «В себестоимость» раскидывается пропорционально `stockQty` (`net × qty`) и увеличивает `avg_cost`. «В расходы» только в документе — касса и P&L не меняются (оплата отдельно; для капитализированных — статья «Закуп», иначе задвоится с COGS). Прайс поставщика без доп. расходов. Касса при проведении не создаётся
 - Расход: `issueDepartmentStock()` — списание по avg_cost
+- **Инвентаризация** (`documents.type = inventory`): один отдел (`to_department_id`). «Заполнить по учёту» пишет снимок в `document_items.book_qty`; `quantity` = факт. Проведение: `diff = факт − учёт`; излишек → `receiveDepartmentStock(diff, текущий avg)` (avg не размывается); недостача → `issueDepartmentStock(|diff|)`. Касса не создаётся. Учёт заморожен в документе — проведение не ставит факт абсолютом
 - Перемещение: `transferDepartmentStock()` — cost следует за товаром; списывается тот же `stockQty` (нетто×шт). В UI под «Кол-во» — остаток в шт (склад/нетто), под «Нетто» — остаток склада-источника в ед. товара
 
 ### 9.5 Калькуляции
@@ -328,7 +330,7 @@ Frontend зеркало: `client/src/permissions.js`.
 
 - Выручка: confirmed `rashod` + `dish_sale` − возвраты
 - COGS: сумма `cost_amount` по строкам документов
-- Прочие доходы/расходы: кассовые операции
+- Прочие доходы/расходы: кассовые операции + confirmed `inventory` (недостача → расход «Инвентаризация», излишек → доход; без статей кассы)
 
 ### 9.7 MyShop
 
@@ -430,7 +432,7 @@ GET  /api/auth/roles
 |---------|---------------|------------|
 | `/api/products` | catalog.routes.js | Номенклатура, варианты, изображения |
 | `/api/calculations` | catalog.routes.js | Калькуляции |
-| `/api/documents` | documents.routes.js | Складские документы (`date_from`, `date_to`, `counterparty_id`, `product_id`, `variant_id`, type, status); при `product_id` — JOIN `document_items`, поля строки `quantity`/`price`/`amount`/`net_weight` (отдельная строка на позицию); `variant_id` сужает до варианта; без `type` исключаются `supplier_price` и `opening_balance`; в приходе `extra_costs` (название, сумма, `capitalize`) |
+| `/api/documents` | documents.routes.js | Складские документы (`date_from`, `date_to`, `counterparty_id`, `product_id`, `variant_id`, type, status); при `product_id` — JOIN `document_items`, поля строки `quantity`/`price`/`amount`/`net_weight` (отдельная строка на позицию); `variant_id` сужает до варианта; без `type` исключаются `supplier_price`, `opening_balance` и `inventory`; в приходе `extra_costs` (название, сумма, `capitalize`); `GET /api/documents/inventory/stock?department_id=` — снимок остатка отдела (`documents.inventory`) |
 | `/api/supplier-prices` | supplierPrices.routes.js | Прайс-документы поставщика (CRUD + confirm/cancel); `products.view`/`products.edit` |
 | `/api/counterparties` | counterparties.routes.js | Контрагенты, договоры (`/:id/contracts` CRUD), `/:id/firms` — юрлица поставщика (CRUD) |
 | `/api/payments` | finance.routes.js | Оплаты; `GET/POST/PUT/DELETE /api/bank-accounts`; `GET /bank-opening?bank_account_id=`; `DELETE /by-date/:date?bank_account_id=`; import parse/confirm |
@@ -463,6 +465,7 @@ GET  /api/auth/roles
 | `/prihod`, `/rashod`, `/return-*`, `/transfer` | Documents.jsx | documents.*; фильтры: дата С/По, контрагент/поставщик, статус; `?open={id}` открывает документ; приход — вкладки **Товары** / **Доп. расходы** в том же окне (в себестоимость / в расходы; шапка и итоги всегда видны); перемещение — компактная шапка в один ряд (Дата / Тип / Откуда / Куда), колонка «Нетто» + остаток склада «Откуда» под кол-вом и нетто |
 | `/documents` | Documents.jsx | documents.view; те же фильтры + тип документа |
 | `/razdelka` | Razdelka.jsx | documents.razdelka |
+| `/inventory` | Inventory.jsx | documents.inventory; документ по отделу: учёт / факт / разница; заполнение по учёту; проведение из карточки |
 | `/calculations` | Calculations.jsx | calculations.view |
 | `/dish-sales` | DishSales.jsx | documents.dish_sale |
 | `/cashier` | Cashier.jsx | cashier.* |
@@ -741,6 +744,7 @@ GET  /api/auth/roles
 | 2026-08-27 | Приход: доп. расходы во вкладке того же окна документа (Товары / Доп. расходы); шапка и итоги остаются снизу |
 | 2026-08-27 | Сайдбар: избранное в шапке — сетка 2×2 (звезда / профиль / свернуть / тема), выпадающий список страниц |
 | 2026-08-27 | Сайдбар: пункт «Избранное» убран из списка меню; список только из звезды в шапке |
+| 2026-08-27 | Инвентаризация: документ `inventory` по отделу; `book_qty`; проведение двигает склад по avg_cost; P&L недостача/излишек без кассы; `/inventory` |
 
 ---
 

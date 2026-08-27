@@ -1,0 +1,612 @@
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  api,
+  formatDate,
+  formatMoney,
+  normalizeQuantityInput,
+  parseQuantityInput,
+  STATUS_LABELS,
+} from '../api';
+import Modal, { useToast, ModalCancelButton } from '../components/Modal';
+import { IconButton, IconEye, IconPlus, IconTrash } from '../components/ActionIcons';
+import { useAuth } from '../AuthContext';
+import { useBranch } from '../BranchContext';
+import BranchChip from '../components/BranchChip';
+import ProductSelect from '../components/ProductSelect';
+import { encodeProductPick, resolvePickFromProducts } from '../utils/productVariants';
+import { hasPermission } from '../permissions';
+import { todayLocalIso } from '../utils/date';
+
+function formatQty(n) {
+  const value = Number(n) || 0;
+  if (Number.isInteger(value)) return String(value);
+  return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 3 }).format(value);
+}
+
+function emptyForm() {
+  return {
+    date: todayLocalIso(),
+    number: '',
+    comment: '',
+    to_department_id: '',
+    status: 'draft',
+    items: [],
+  };
+}
+
+function lineFact(item) {
+  const parsed = parseQuantityInput(item.quantity);
+  return parsed != null ? parsed : Number(item.quantity) || 0;
+}
+
+function lineBook(item) {
+  return Number(item.book_qty) || 0;
+}
+
+function lineCost(item) {
+  return Number(item.unit_cost) || 0;
+}
+
+function lineDiff(item) {
+  return lineFact(item) - lineBook(item);
+}
+
+function lineAmount(item) {
+  return Math.abs(lineDiff(item)) * lineCost(item);
+}
+
+function productUnit(products, item) {
+  const pick = resolvePickFromProducts(products, encodeProductPick(item.product_id, item.variant_id));
+  return pick.variant?.unit || pick.product?.unit || item.unit || 'шт';
+}
+
+function productName(products, item) {
+  if (item.product_name) return item.product_name;
+  const pick = resolvePickFromProducts(products, encodeProductPick(item.product_id, item.variant_id));
+  if (!pick.product) return '—';
+  return pick.variant ? `${pick.product.name} — ${pick.variant.name}` : pick.product.name;
+}
+
+export default function Inventory() {
+  const { user } = useAuth();
+  const { branchId, branchName } = useBranch();
+  const { show, Toast } = useToast();
+  const canEdit = hasPermission(user, 'documents.edit') && hasPermission(user, 'documents.inventory');
+  const canConfirm = hasPermission(user, 'documents.confirm') && canEdit;
+  const canDelete = hasPermission(user, 'documents.delete');
+
+  const [docs, setDocs] = useState([]);
+  const [departments, setDepartments] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filterDateFrom, setFilterDateFrom] = useState('');
+  const [filterDateTo, setFilterDateTo] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+  const [modal, setModal] = useState(null);
+  const [form, setForm] = useState(emptyForm);
+  const [readOnly, setReadOnly] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [filling, setFilling] = useState(false);
+  const [lineFilter, setLineFilter] = useState('all');
+  const [addPick, setAddPick] = useState('');
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = { type: 'inventory' };
+      if (filterDateFrom) params.date_from = filterDateFrom;
+      if (filterDateTo) params.date_to = filterDateTo;
+      if (filterStatus) params.status = filterStatus;
+      const [list, depts, prods] = await Promise.all([
+        api.getDocuments(params),
+        api.getDepartments({ active: '1' }),
+        api.getProducts({ limit: 5000 }),
+      ]);
+      setDocs(Array.isArray(list) ? list : (list?.items || []));
+      setDepartments(Array.isArray(depts) ? depts : []);
+      setProducts(Array.isArray(prods) ? prods : (prods?.items || []));
+    } catch (e) {
+      show(e.message || 'Ошибка загрузки', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [show, branchId, filterDateFrom, filterDateTo, filterStatus]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const branchDepartments = useMemo(
+    () => departments.filter((d) => d.active && d.branch_id === (branchId || 'main')),
+    [departments, branchId],
+  );
+
+  const totals = useMemo(() => {
+    let shortage = 0;
+    let surplus = 0;
+    for (const item of form.items) {
+      const diff = lineDiff(item);
+      const amount = Math.abs(diff) * lineCost(item);
+      if (diff < -1e-9) shortage += amount;
+      else if (diff > 1e-9) surplus += amount;
+    }
+    return { shortage, surplus, net: shortage - surplus };
+  }, [form.items]);
+
+  const visibleItems = useMemo(() => {
+    if (lineFilter !== 'discrepancies') return form.items.map((item, idx) => ({ item, idx }));
+    return form.items
+      .map((item, idx) => ({ item, idx }))
+      .filter(({ item }) => Math.abs(lineDiff(item)) > 1e-9);
+  }, [form.items, lineFilter]);
+
+  const openCreate = async () => {
+    const next = emptyForm();
+    if (branchDepartments.length === 1) next.to_department_id = branchDepartments[0].id;
+    try {
+      const { number } = await api.getNextDocNumber('inventory');
+      next.number = number;
+    } catch { /* ignore */ }
+    setForm(next);
+    setLineFilter('all');
+    setAddPick('');
+    setReadOnly(false);
+    setModal('create');
+  };
+
+  const openDoc = async (id, viewOnly = false) => {
+    try {
+      const doc = await api.getDocument(id);
+      setForm({
+        id: doc.id,
+        date: String(doc.date || '').slice(0, 10),
+        number: doc.number || '',
+        comment: doc.comment || '',
+        to_department_id: doc.to_department_id || '',
+        status: doc.status,
+        items: (doc.items || []).map((i) => ({
+          product_id: i.product_id,
+          variant_id: i.variant_id || null,
+          product_name: i.product_name,
+          unit: i.unit,
+          book_qty: Number(i.book_qty) || 0,
+          quantity: i.quantity,
+          unit_cost: Number(i.unit_cost) || Number(i.price) || 0,
+        })),
+      });
+      setLineFilter('all');
+      setAddPick('');
+      setReadOnly(viewOnly || doc.status !== 'draft');
+      setModal(doc.id);
+    } catch (e) {
+      show(e.message, 'error');
+    }
+  };
+
+  const fillFromStock = async () => {
+    if (!form.to_department_id) {
+      show('Сначала выберите отдел', 'error');
+      return;
+    }
+    setFilling(true);
+    try {
+      const rows = await api.getInventoryStock(form.to_department_id);
+      if (!rows.length) {
+        show('В отделе нет позиций с остатком', 'error');
+        setForm({ ...form, items: [] });
+        return;
+      }
+      setForm({
+        ...form,
+        items: rows.map((row) => ({
+          product_id: row.product_id,
+          variant_id: row.variant_id || null,
+          product_name: row.name,
+          unit: row.unit,
+          book_qty: Number(row.book_qty) || 0,
+          quantity: String(row.book_qty ?? 0),
+          unit_cost: Number(row.avg_cost) || 0,
+        })),
+      });
+      setLineFilter('all');
+    } catch (e) {
+      show(e.message || 'Не удалось заполнить', 'error');
+    } finally {
+      setFilling(false);
+    }
+  };
+
+  const addLine = (pickValue) => {
+    const resolved = resolvePickFromProducts(products, pickValue);
+    if (!resolved.productId) return;
+    const exists = form.items.some(
+      (i) => i.product_id === resolved.productId
+        && (i.variant_id || null) === (resolved.variantId || null),
+    );
+    if (exists) {
+      show('Эта позиция уже в документе', 'error');
+      setAddPick('');
+      return;
+    }
+    const unit = resolved.variant?.unit || resolved.product?.unit || 'шт';
+    const name = resolved.variant
+      ? `${resolved.product.name} — ${resolved.variant.name}`
+      : resolved.product.name;
+    setForm({
+      ...form,
+      items: [
+        ...form.items,
+        {
+          product_id: resolved.productId,
+          variant_id: resolved.variantId || null,
+          product_name: name,
+          unit,
+          book_qty: 0,
+          quantity: '0',
+          unit_cost: Number(resolved.variant?.avg_cost ?? resolved.product?.avg_cost) || 0,
+        },
+      ],
+    });
+    setAddPick('');
+  };
+
+  const updateFact = (idx, value) => {
+    const items = [...form.items];
+    items[idx] = { ...items[idx], quantity: normalizeQuantityInput(value) };
+    setForm({ ...form, items });
+  };
+
+  const removeItem = (idx) => {
+    setForm({ ...form, items: form.items.filter((_, i) => i !== idx) });
+  };
+
+  const payloadItems = () => form.items
+    .filter((i) => i.product_id)
+    .map((i) => ({
+      product_id: i.product_id,
+      variant_id: i.variant_id || null,
+      quantity: lineFact(i),
+      book_qty: lineBook(i),
+      unit_cost: lineCost(i),
+      price: lineCost(i),
+    }));
+
+  const save = async (andConfirm = false) => {
+    if (!form.to_department_id) {
+      show('Выберите отдел', 'error');
+      return;
+    }
+    const items = payloadItems();
+    if (!items.length) {
+      show('Заполните документ по учёту или добавьте товар', 'error');
+      return;
+    }
+    setSaving(true);
+    try {
+      const payload = {
+        type: 'inventory',
+        date: form.date,
+        number: form.number,
+        comment: form.comment,
+        to_department_id: form.to_department_id,
+        items,
+        status: andConfirm ? 'confirmed' : 'draft',
+      };
+      let doc;
+      if (form.id) {
+        doc = await api.updateDocument(form.id, payload);
+        if (andConfirm && doc.status !== 'confirmed') {
+          doc = await api.confirmDocument(doc.id);
+        }
+      } else {
+        doc = await api.createDocument(payload);
+      }
+      show(andConfirm ? 'Документ проведён' : 'Сохранено');
+      setModal(null);
+      await load();
+      return doc;
+    } catch (e) {
+      show(e.message || 'Ошибка сохранения', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const cancelDoc = async () => {
+    if (!form.id) return;
+    if (!window.confirm('Отменить проведение? Остатки и P&L откатятся.')) return;
+    setSaving(true);
+    try {
+      await api.cancelDocument(form.id);
+      show('Проведение отменено');
+      setModal(null);
+      await load();
+    } catch (e) {
+      show(e.message || 'Не удалось отменить', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deleteDoc = async (id) => {
+    if (!window.confirm('Удалить документ инвентаризации?')) return;
+    try {
+      await api.deleteDocument(id);
+      show('Удалено');
+      if (modal === id) setModal(null);
+      await load();
+    } catch (e) {
+      show(e.message || 'Не удалось удалить', 'error');
+    }
+  };
+
+  const modalTitle = form.id
+    ? `Инвентаризация №${form.number || ''}`
+    : 'Новая инвентаризация';
+
+  return (
+    <div className="inventory-page">
+      {Toast}
+
+      <div className="page-header">
+        <div>
+          <h1>Инвентаризация</h1>
+          <p className="page-subtitle">Сверка факта с учётом по отделу</p>
+        </div>
+        <div className="btn-group">
+          <BranchChip>{branchName}</BranchChip>
+          {canEdit && (
+            <button type="button" className="btn btn-primary" onClick={openCreate}>
+              <IconPlus /> Новый
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="card">
+        <div className="card-header report-toolbar">
+          <div className="report-filters">
+            <label>
+              С
+              <input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} />
+            </label>
+            <label>
+              По
+              <input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} />
+            </label>
+            <label>
+              Статус
+              <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+                <option value="">Все</option>
+                <option value="draft">Черновик</option>
+                <option value="confirmed">Проведён</option>
+                <option value="cancelled">Отменён</option>
+              </select>
+            </label>
+          </div>
+        </div>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Дата</th>
+                <th>Номер</th>
+                <th>Отдел</th>
+                <th className="col-num">Недостача − излишек</th>
+                <th>Статус</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr><td colSpan={6} className="empty">Загрузка…</td></tr>
+              ) : docs.length === 0 ? (
+                <tr><td colSpan={6} className="empty">Нет документов</td></tr>
+              ) : docs.map((d) => (
+                <tr key={d.id}>
+                  <td>{formatDate(d.date)}</td>
+                  <td>{d.number}</td>
+                  <td>{d.to_department_name || '—'}</td>
+                  <td className="col-num">{formatMoney(d.total_amount)}</td>
+                  <td><span className={`badge badge-${d.status}`}>{STATUS_LABELS[d.status]}</span></td>
+                  <td>
+                    <div className="btn-group btn-group-icons doc-actions">
+                      <IconButton
+                        title={d.status === 'confirmed' && !canEdit ? 'Просмотр' : 'Открыть'}
+                        onClick={() => openDoc(d.id, d.status !== 'draft' && !canEdit)}
+                      >
+                        <IconEye />
+                      </IconButton>
+                      {canDelete && d.status !== 'confirmed' && (
+                        <IconButton title="Удалить" onClick={() => deleteDoc(d.id)}>
+                          <IconTrash />
+                        </IconButton>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {modal && (
+        <Modal
+          className="modal-doc"
+          title={modalTitle}
+          onClose={() => setModal(null)}
+          footer={(
+            <>
+              <ModalCancelButton>Закрыть</ModalCancelButton>
+              {canEdit && form.status === 'confirmed' && (
+                <button type="button" className="btn btn-ghost" onClick={cancelDoc} disabled={saving}>
+                  Отменить проведение
+                </button>
+              )}
+              {canEdit && form.status === 'draft' && (
+                <>
+                  <button type="button" className="btn btn-ghost" onClick={() => save(false)} disabled={saving}>
+                    Сохранить
+                  </button>
+                  {canConfirm && (
+                    <button type="button" className="btn btn-success" onClick={() => save(true)} disabled={saving}>
+                      Провести
+                    </button>
+                  )}
+                </>
+              )}
+            </>
+          )}
+        >
+          <div className="doc-modal">
+            <div className="doc-modal-fields">
+              <div className="form-grid form-grid-inventory-header">
+                <div className="form-group form-group-date">
+                  <label>Дата</label>
+                  <input
+                    type="date"
+                    value={form.date}
+                    disabled={readOnly}
+                    onChange={(e) => setForm({ ...form, date: e.target.value })}
+                  />
+                </div>
+                <div className="form-group form-group-number">
+                  <label>Номер</label>
+                  <input value={form.number} disabled readOnly />
+                </div>
+                <div className="form-group">
+                  <label>Отдел *</label>
+                  <select
+                    value={form.to_department_id}
+                    disabled={readOnly}
+                    onChange={(e) => setForm({ ...form, to_department_id: e.target.value, items: [] })}
+                  >
+                    <option value="">— выберите —</option>
+                    {branchDepartments.map((d) => (
+                      <option key={d.id} value={d.id}>{d.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Комментарий</label>
+                  <input
+                    value={form.comment}
+                    disabled={readOnly}
+                    onChange={(e) => setForm({ ...form, comment: e.target.value })}
+                    placeholder="Необязательно"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="inv-toolbar">
+              {canEdit && !readOnly && (
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={fillFromStock}
+                  disabled={filling || !form.to_department_id}
+                >
+                  {filling ? 'Заполнение…' : 'Заполнить по учёту'}
+                </button>
+              )}
+              <div className="inv-line-filter">
+                <button
+                  type="button"
+                  className={`btn btn-ghost${lineFilter === 'all' ? ' is-active' : ''}`}
+                  onClick={() => setLineFilter('all')}
+                >
+                  Все
+                </button>
+                <button
+                  type="button"
+                  className={`btn btn-ghost${lineFilter === 'discrepancies' ? ' is-active' : ''}`}
+                  onClick={() => setLineFilter('discrepancies')}
+                >
+                  Только расхождения
+                </button>
+              </div>
+              {canEdit && !readOnly && (
+                <div className="inv-add-line">
+                  <ProductSelect
+                    products={products}
+                    value={addPick}
+                    onChange={addLine}
+                    placeholder="Добавить товар…"
+                    disabled={!form.to_department_id}
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="table-wrap items-table doc-items-table doc-modal-items-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Товар</th>
+                    <th>Ед.</th>
+                    <th className="col-num">Учёт</th>
+                    <th className="col-num">Факт</th>
+                    <th className="col-num">Разница</th>
+                    <th className="col-num">Сумма</th>
+                    {!readOnly && <th />}
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleItems.length === 0 ? (
+                    <tr>
+                      <td colSpan={readOnly ? 6 : 7} className="empty">
+                        {form.items.length === 0
+                          ? 'Нажмите «Заполнить по учёту» или добавьте товар'
+                          : 'Нет расхождений'}
+                      </td>
+                    </tr>
+                  ) : visibleItems.map(({ item, idx }) => {
+                    const diff = lineDiff(item);
+                    const amount = lineAmount(item);
+                    const diffClass = diff > 1e-9 ? 'inv-diff-pos' : diff < -1e-9 ? 'inv-diff-neg' : '';
+                    return (
+                      <tr key={`${item.product_id}:${item.variant_id || ''}:${idx}`} className={diffClass ? 'inv-row-discrepancy' : undefined}>
+                        <td>{productName(products, item)}</td>
+                        <td>{productUnit(products, item)}</td>
+                        <td className="col-num inv-book-muted">{formatQty(lineBook(item))}</td>
+                        <td>
+                          {readOnly ? (
+                            formatQty(lineFact(item))
+                          ) : (
+                            <input
+                              className="input-qty"
+                              inputMode="decimal"
+                              value={item.quantity ?? ''}
+                              onChange={(e) => updateFact(idx, e.target.value)}
+                            />
+                          )}
+                        </td>
+                        <td className={`col-num ${diffClass}`}>{formatQty(diff)}</td>
+                        <td className="col-num">{formatMoney(amount)}</td>
+                        {!readOnly && (
+                          <td>
+                            <IconButton title="Убрать" onClick={() => removeItem(idx)}>
+                              <IconTrash />
+                            </IconButton>
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="doc-modal-totals">
+              <div>Недостача: {formatMoney(totals.shortage)}</div>
+              <div>Излишек: {formatMoney(totals.surplus)}</div>
+              <div className="doc-modal-total">
+                <strong>Нетто: {formatMoney(totals.net)}</strong>
+              </div>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}

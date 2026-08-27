@@ -71,6 +71,7 @@ const FULL_APP_PERMISSIONS = [
   'documents.transfer',
   'documents.razdelka',
   'documents.dish_sale',
+  'documents.inventory',
   'documents.edit',
   'documents.confirm',
   'documents.delete',
@@ -187,5 +188,6 @@ export const DOC_TYPE_LABELS = {
   peremeshchenie: 'Перемещение',
   razdelka: 'Разделка',
   dish_sale: 'Продажа блюд',
+  inventory: 'Инвентаризация',
   opening_balance: 'Начальное сальдо',
 };

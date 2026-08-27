@@ -815,14 +815,32 @@ export function getPnLReport(branchId = DEFAULT_BRANCH_ID, dateFrom = null, date
     ORDER BY amount DESC, ca.name ASC
   `, payParams);
 
+  const invParams = [branchId];
+  const invDateFilter = buildDateFilter('d.date', dateFrom, dateTo, invParams);
+  const inventoryRow = queryOne(`
+    SELECT
+      COALESCE(SUM(CASE
+        WHEN di.quantity < COALESCE(di.book_qty, 0) THEN COALESCE(di.cost_amount, 0)
+        ELSE 0 END), 0) as shortage,
+      COALESCE(SUM(CASE
+        WHEN di.quantity > COALESCE(di.book_qty, 0) THEN COALESCE(di.cost_amount, 0)
+        ELSE 0 END), 0) as surplus
+    FROM documents d
+    JOIN document_items di ON di.document_id = d.id
+    WHERE d.type = 'inventory' AND d.status = 'confirmed' AND d.branch_id = ?
+    ${invDateFilter}
+  `, invParams);
+  const inventoryShortage = Number(inventoryRow?.shortage) || 0;
+  const inventorySurplus = Number(inventoryRow?.surplus) || 0;
+
   const sales = (salesRow?.total || 0) + (dishSalesRow?.total || 0);
   const returns = returnsRow?.total || 0;
   const revenue = sales - returns;
   const cogs = (cogsSalesRow?.total || 0) + (cogsDishRow?.total || 0) - (cogsReturnsRow?.total || 0);
   const grossProfit = revenue - cogs;
   const grossMarginPct = revenue > 0 ? Math.round((grossProfit / revenue) * 10000) / 100 : 0;
-  const operatingExpenses = expenseRows.reduce((s, r) => s + (r.amount || 0), 0);
-  const otherIncome = incomeRows.reduce((s, r) => s + (r.amount || 0), 0);
+  const operatingExpenses = expenseRows.reduce((s, r) => s + (r.amount || 0), 0) + inventoryShortage;
+  const otherIncome = incomeRows.reduce((s, r) => s + (r.amount || 0), 0) + inventorySurplus;
   const netProfit = grossProfit - operatingExpenses + otherIncome;
   const missingCostLines = cogsSalesRow?.missing_cost_lines || 0;
 
@@ -847,19 +865,29 @@ export function getPnLReport(branchId = DEFAULT_BRANCH_ID, dateFrom = null, date
     gross_margin_pct: grossMarginPct,
     operating_expenses: {
       total: operatingExpenses,
-      items: expenseRows.map((r) => ({
-        code: r.code || null,
-        name: r.name || 'Без статьи',
-        amount: r.amount || 0,
-      })),
+      items: [
+        ...expenseRows.map((r) => ({
+          code: r.code || null,
+          name: r.name || 'Без статьи',
+          amount: r.amount || 0,
+        })),
+        ...(inventoryShortage > 0
+          ? [{ code: 'inventory', name: 'Инвентаризация', amount: inventoryShortage, source: 'inventory' }]
+          : []),
+      ],
     },
     other_income: {
       total: otherIncome,
-      items: incomeRows.map((r) => ({
-        code: r.code || null,
-        name: r.name || 'Без статьи',
-        amount: r.amount || 0,
-      })),
+      items: [
+        ...incomeRows.map((r) => ({
+          code: r.code || null,
+          name: r.name || 'Без статьи',
+          amount: r.amount || 0,
+        })),
+        ...(inventorySurplus > 0
+          ? [{ code: 'inventory', name: 'Инвентаризация', amount: inventorySurplus, source: 'inventory' }]
+          : []),
+      ],
     },
     by_category: categoryRows.map((row) => ({
       category_id: row.category_id || null,

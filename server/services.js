@@ -110,4 +110,5 @@ export {
   getDocumentHistory,
   snapshotDocument,
   addHistory,
+  getInventoryStockSnapshot,
 } from './services/documents.js';

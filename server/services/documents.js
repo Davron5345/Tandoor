@@ -9,6 +9,7 @@ import {
 } from '../departments.js';
 import {
   getDepartmentAvgCost,
+  getDepartmentStockWithCost,
   getVariantBranchStock,
   issueDepartmentStock,
   receiveDepartmentStock,
@@ -33,6 +34,7 @@ import {
   capitalizedExtraTotal,
   normalizeExtraCosts,
 } from '../documentExtraCosts.js';
+import { getStockReport } from './reports.js';
 
 const { queryAll, queryOne, run, transaction } = db;
 
@@ -235,6 +237,11 @@ function updateStock(documentId, reverse = false) {
   const allocatedExtras = doc.type === 'prihod' ? allocateExtraCosts(items, extraCosts) : items.map(() => 0);
   const multiplier = reverse ? -1 : 1;
   const variantId = (item) => item.variant_id || null;
+
+  if (doc.type === 'inventory') {
+    applyInventoryStock(doc, items, reverse);
+    return;
+  }
 
   if (doc.type === 'razdelka') {
     const branchId = doc.branch_id || DEFAULT_BRANCH_ID;
@@ -535,7 +542,7 @@ export function getDocuments(filters = {}) {
     sql += ' AND d.type = ?';
     params.push(filters.type);
   } else {
-    sql += " AND d.type NOT IN ('supplier_price', 'opening_balance')";
+    sql += " AND d.type NOT IN ('supplier_price', 'opening_balance', 'inventory')";
   }
   if (filters.status) {
     sql += ' AND d.status = ?';
@@ -628,7 +635,7 @@ export function getDocument(id, branchId = null) {
     ? doc.from_department_id
     : doc.type === 'dish_sale'
       ? doc.from_department_id
-      : doc.type === 'prihod'
+      : doc.type === 'prihod' || doc.type === 'inventory'
       ? doc.to_department_id
       : doc.type === 'razdelka'
         ? doc.from_department_id
@@ -681,9 +688,12 @@ export function getDocument(id, branchId = null) {
   const extra_costs_total = extraCostsTotal(extra_costs);
   const capitalized_extra_total = capitalizedExtraTotal(extra_costs);
   const goods_total = Number(doc.total_amount) || 0;
+  const inventoryTotalsOut = doc.type === 'inventory' ? inventoryTotals(items) : null;
 
   return {
     ...doc,
+    shortage_total: inventoryTotalsOut?.shortage ?? 0,
+    surplus_total: inventoryTotalsOut?.surplus ?? 0,
     items: doc.type === 'dish_sale' ? sale_items : items,
     input_items,
     output_items,
@@ -718,6 +728,152 @@ function roundMoney(n) {
   const v = Number(n);
   if (!Number.isFinite(v)) return 0;
   return Math.round((v + Number.EPSILON) * 100) / 100;
+}
+
+function inventoryLineDiff(item) {
+  return (Number(item.quantity) || 0) - (Number(item.book_qty) || 0);
+}
+
+function inventoryLineCost(item) {
+  const stored = Number(item.unit_cost);
+  if (Number.isFinite(stored) && stored > 0) return stored;
+  return Math.max(0, Number(item.price) || 0);
+}
+
+function inventoryTotals(items) {
+  let shortage = 0;
+  let surplus = 0;
+  for (const item of items || []) {
+    const diff = inventoryLineDiff(item);
+    const amount = roundMoney(Math.abs(diff) * inventoryLineCost(item));
+    if (diff < -1e-9) shortage += amount;
+    else if (diff > 1e-9) surplus += amount;
+  }
+  return { shortage: roundMoney(shortage), surplus: roundMoney(surplus), net: roundMoney(shortage - surplus) };
+}
+
+function normalizeInventoryItems(items) {
+  const valid = (items || []).filter((i) => i.product_id);
+  if (valid.length === 0) {
+    throw new Error('Добавьте хотя бы один товар в документ');
+  }
+  return valid.map((item) => {
+    const fact = Number(item.quantity);
+    const book = Number(item.book_qty);
+    if (!Number.isFinite(fact) || fact < 0) {
+      throw new Error('Фактическое количество не может быть отрицательным');
+    }
+    if (!Number.isFinite(book) || book < 0) {
+      throw new Error('Учётное количество не может быть отрицательным');
+    }
+    const cost = Math.max(0, Number(item.unit_cost ?? item.price) || 0);
+    const amount = roundMoney(Math.abs(fact - book) * cost);
+    return {
+      product_id: item.product_id,
+      variant_id: item.variant_id || null,
+      quantity: fact,
+      book_qty: book,
+      price: cost,
+      unit_cost: cost,
+      amount,
+      cost_amount: amount,
+    };
+  });
+}
+
+function persistInventoryItems(documentId, items) {
+  items.forEach((item, idx) => {
+    run(`
+      INSERT INTO document_items (
+        id, document_id, product_id, variant_id, quantity, price, amount,
+        item_role, unit_cost, cost_amount, book_qty, sort_order
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, 'input', ?, ?, ?, ?)
+    `, [
+      uuidv4(),
+      documentId,
+      item.product_id,
+      item.variant_id || null,
+      item.quantity,
+      item.price,
+      item.amount,
+      item.unit_cost,
+      item.cost_amount,
+      item.book_qty,
+      idx,
+    ]);
+  });
+}
+
+function validateInventoryShortage(departmentId, items) {
+  if (!departmentId) throw new Error('Выберите отдел для инвентаризации');
+  for (const item of items) {
+    const shortage = -inventoryLineDiff(item);
+    if (shortage <= 1e-9) continue;
+    const { stock } = getDepartmentStockWithCost(departmentId, item.product_id, item.variant_id || null);
+    if (stock + 1e-9 < shortage) {
+      throw new Error(`Недостаточно остатка «${getItemStockLabel(item)}» для списания недостачи (есть ${stock})`);
+    }
+  }
+}
+
+function applyInventoryStock(doc, items, reverse) {
+  const departmentId = doc.to_department_id;
+  if (!departmentId) throw new Error('Выберите отдел для инвентаризации');
+  const branchId = doc.branch_id || DEFAULT_BRANCH_ID;
+
+  for (const item of items) {
+    const diff = inventoryLineDiff(item);
+    const qty = Math.abs(diff);
+    if (qty <= 1e-9) continue;
+    const vid = item.variant_id || null;
+    const storedCost = inventoryLineCost(item);
+
+    if (!reverse) {
+      if (diff > 0) {
+        const liveAvg = getDepartmentAvgCost(departmentId, item.product_id, vid);
+        const unitCost = liveAvg > 0 ? liveAvg : storedCost;
+        receiveDepartmentStock(departmentId, item.product_id, qty, unitCost, vid);
+        const amount = roundMoney(qty * unitCost);
+        run(
+          'UPDATE document_items SET unit_cost = ?, price = ?, amount = ?, cost_amount = ? WHERE id = ?',
+          [unitCost, unitCost, amount, amount, item.id],
+        );
+      } else {
+        const issued = issueDepartmentStock(departmentId, item.product_id, qty, vid);
+        const unitCost = issued.unitCost || storedCost;
+        const amount = roundMoney(qty * unitCost);
+        run(
+          'UPDATE document_items SET unit_cost = ?, price = ?, amount = ?, cost_amount = ? WHERE id = ?',
+          [unitCost, unitCost, amount, amount, item.id],
+        );
+      }
+    } else if (diff > 0) {
+      reverseReceiveDepartmentStock(departmentId, item.product_id, qty, storedCost, vid);
+    } else {
+      reverseIssueDepartmentStock(departmentId, item.product_id, qty, storedCost, vid);
+    }
+
+    afterVariantStockChange(vid, item.product_id, branchId);
+    syncBranchStockFromDepartments(branchId, item.product_id);
+  }
+
+  const refreshed = queryAll('SELECT * FROM document_items WHERE document_id = ?', [doc.id]);
+  const totals = inventoryTotals(refreshed);
+  run('UPDATE documents SET total_amount = ? WHERE id = ?', [totals.net, doc.id]);
+}
+
+export function getInventoryStockSnapshot(departmentId, branchId = DEFAULT_BRANCH_ID) {
+  if (!departmentId) throw new Error('Выберите отдел');
+  assertDepartmentInBranch(departmentId, branchId);
+  return getStockReport(branchId, departmentId, true).map((row) => ({
+    product_id: row.product_id,
+    variant_id: row.variant_id || null,
+    name: row.name,
+    unit: row.unit,
+    book_qty: Number(row.stock) || 0,
+    avg_cost: Number(row.unitCost) || 0,
+  }));
 }
 
 function itemLineAmount(item) {
@@ -1165,6 +1321,65 @@ function updateDishSaleDocument(id, existing, data, userId, branchId, items) {
   return getDocument(id, docBranchId);
 }
 
+function persistInventoryDocument(existingId, data, userId, branchId, existing = null) {
+  assertActiveBranchOwnership(data.branch_id, branchId);
+  const docBranchId = branchId;
+  const toDepartmentId = data.to_department_id ?? existing?.to_department_id ?? null;
+  if (!toDepartmentId) throw new Error('Выберите отдел для инвентаризации');
+  assertDepartmentInBranch(toDepartmentId, docBranchId);
+
+  const items = normalizeInventoryItems(data.items);
+  const totals = inventoryTotals(items);
+  const id = existingId || uuidv4();
+  const number = data.number || existing?.number || generateDocNumber(docBranchId, 'inventory');
+  const wasConfirmed = existing?.status === 'confirmed';
+  const willConfirm = data.status === 'confirmed' || (wasConfirmed && data.status !== 'draft');
+  const status = willConfirm ? 'confirmed' : (data.status || existing?.status || 'draft');
+
+  if (willConfirm) validateInventoryShortage(toDepartmentId, items);
+
+  transaction(() => {
+    if (existing && wasConfirmed) updateStock(id, true);
+
+    if (existing) {
+      run(`
+        UPDATE documents
+        SET date=?, comment=?, branch_id=?, to_department_id=?,
+            total_amount=?, status=?, updated_at=datetime('now')
+        WHERE id=?
+      `, [
+        data.date ?? existing.date,
+        data.comment ?? existing.comment ?? '',
+        docBranchId,
+        toDepartmentId,
+        totals.net,
+        status,
+        id,
+      ]);
+      run('DELETE FROM document_items WHERE document_id = ?', [id]);
+    } else {
+      run(`
+        INSERT INTO documents (id, number, type, counterparty_id, date, comment, from_location, to_location,
+          branch_id, from_branch_id, to_branch_id, from_department_id, to_department_id, total_amount, status)
+        VALUES (?, ?, 'inventory', NULL, ?, ?, '', '', ?, NULL, NULL, NULL, ?, ?, ?)
+      `, [
+        id, number, data.date, data.comment || '',
+        docBranchId, toDepartmentId, totals.net, status,
+      ]);
+    }
+
+    persistInventoryItems(id, items);
+    addHistory(id, existing ? 'updated' : 'created', userId);
+
+    if (willConfirm) {
+      updateStock(id);
+      if (!wasConfirmed) addHistory(id, 'confirmed', userId);
+    }
+  });
+
+  return getDocument(id, docBranchId);
+}
+
 export function createDocument(data, userId = null, branchId = DEFAULT_BRANCH_ID) {
   assertValidDate(data.date);
   if (data.type === 'dish_sale') {
@@ -1226,6 +1441,10 @@ export function createDocument(data, userId = null, branchId = DEFAULT_BRANCH_ID
     });
 
     return getDocument(id, docBranchId);
+  }
+
+  if (data.type === 'inventory') {
+    return persistInventoryDocument(null, data, userId, branchId);
   }
 
   const items = normalizeItems(data.items);
@@ -1429,6 +1648,10 @@ export function updateDocument(id, data, userId = null, branchId = DEFAULT_BRANC
     return getDocument(id, docBranchId);
   }
 
+  if (docType === 'inventory') {
+    return persistInventoryDocument(id, data, userId, branchId, existingDoc);
+  }
+
   const counterpartyId = data.counterparty_id ?? existingDoc.counterparty_id;
   const items = normalizeItems(data.items);
 
@@ -1601,6 +1824,9 @@ export function confirmDocument(id, userId = null) {
       doc.date,
     );
     assertReturnQtyNotExceeded(doc.source_document_id, id, items);
+  }
+  if (doc.type === 'inventory') {
+    validateInventoryShortage(doc.to_department_id, items);
   }
   transaction(() => {
     if (doc.type === 'return_customer') {

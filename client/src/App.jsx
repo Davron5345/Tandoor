@@ -20,6 +20,7 @@ import StaffTracking from './pages/StaffTracking';
 import ErrorBoundary from './components/ErrorBoundary';
 import Razdelka from './pages/Razdelka';
 import DishSales from './pages/DishSales';
+import Inventory from './pages/Inventory';
 import Calculations from './pages/Calculations';
 import Reports from './pages/Reports';
 import OpeningBalance from './pages/OpeningBalance';
@@ -114,6 +115,7 @@ function buildAppNav(user) {
 
   const productionNav = filterNavItems(user, [
     { to: '/razdelka', label: 'Разделка', perm: 'documents.razdelka' },
+    { to: '/inventory', label: 'Инвентаризация', perm: 'documents.inventory' },
     { to: '/calculations', label: 'Калькуляции', perm: 'calculations.view' },
     { to: '/transfer', label: 'Перемещение', perm: 'documents.transfer' },
   ]);
@@ -864,6 +866,7 @@ function AppContent() {
           <Route path="/transfer" element={hasPermission(user, 'documents.transfer') ? <Documents key="transfer" defaultType="peremeshchenie" /> : <Navigate to="/" />} />
           <Route path="/dish-sales" element={hasPermission(user, 'documents.dish_sale') ? <DishSales /> : <Navigate to="/" />} />
           <Route path="/razdelka" element={hasPermission(user, 'documents.razdelka') ? <Razdelka /> : <Navigate to="/" />} />
+          <Route path="/inventory" element={hasPermission(user, 'documents.inventory') ? <Inventory /> : <Navigate to="/" />} />
           <Route path="/calculations" element={hasPermission(user, 'calculations.view') ? <Calculations /> : <Navigate to="/" />} />
           <Route path="/reports/*" element={hasPermission(user, 'reports.view') ? <Reports /> : <Navigate to="/" />} />
           <Route path="/opening-balance" element={canViewOpeningBalance ? <OpeningBalance /> : <Navigate to="/" />} />

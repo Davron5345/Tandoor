@@ -76,6 +76,7 @@ async function ensureBootstrap() {
   // Idempotent column adds for existing deployments BEFORE indexes that reference them
   await execRaw('ALTER TABLE document_items ADD COLUMN IF NOT EXISTS net_weight DOUBLE PRECISION');
   await execRaw('ALTER TABLE document_items ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0');
+  await execRaw('ALTER TABLE document_items ADD COLUMN IF NOT EXISTS book_qty DOUBLE PRECISION DEFAULT 0');
   await execRaw('ALTER TABLE counterparties ADD COLUMN IF NOT EXISTS inn TEXT');
   await execRaw('ALTER TABLE payments ADD COLUMN IF NOT EXISTS external_ref TEXT');
   await execRaw('ALTER TABLE payments ADD COLUMN IF NOT EXISTS import_batch_id TEXT');

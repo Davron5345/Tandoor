@@ -68,6 +68,8 @@ test('assertDocumentTypeAccess validates role permissions', () => {
     /прав/,
   );
   assert.doesNotThrow(() => assertDocumentTypeAccess('warehouse', 'prihod'));
+  assert.doesNotThrow(() => assertDocumentTypeAccess('warehouse', 'inventory'));
+  assert.throws(() => assertDocumentTypeAccess('cashier', 'inventory'), /прав/);
 });
 
 test('assertCounterpartyBranchAccess rejects missing or foreign branch', () => {

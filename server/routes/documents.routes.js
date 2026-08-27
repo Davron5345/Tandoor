@@ -13,8 +13,13 @@ import { parsePagination, paginateList, stripPaginationParams } from '../paginat
 import { logAudit } from '../auditLog.js';
 import { getDishRecipes, previewDishSaleLine } from '../dishSales.js';
 
+const DOC_READ_PERMS = [
+  'documents.view', 'documents.prihod', 'documents.rashod', 'documents.dish_sale',
+  'documents.transfer', 'documents.razdelka', 'documents.inventory',
+];
+
 export function registerDocumentRoutes(app) {
-  app.get('/api/documents/next-number', requireAnyPermission('documents.view', 'documents.prihod', 'documents.rashod', 'documents.dish_sale', 'documents.transfer', 'documents.edit'), attachBranch, (req, res) => {
+  app.get('/api/documents/next-number', requireAnyPermission('documents.view', 'documents.prihod', 'documents.rashod', 'documents.dish_sale', 'documents.transfer', 'documents.inventory', 'documents.edit'), attachBranch, (req, res) => {
     try {
       const type = req.query.type;
       if (!type) return res.status(400).json({ error: 'Укажите type' });
@@ -24,7 +29,15 @@ export function registerDocumentRoutes(app) {
     }
   });
 
-  app.get('/api/documents', requireAnyPermission('documents.view', 'documents.prihod', 'documents.rashod', 'documents.dish_sale', 'documents.transfer', 'documents.razdelka'), attachBranch, (req, res) => {
+  app.get('/api/documents/inventory/stock', requirePermission('documents.inventory'), attachBranch, (req, res) => {
+    try {
+      res.json(svc.getInventoryStockSnapshot(req.query.department_id, req.branchId));
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
+  app.get('/api/documents', requireAnyPermission(...DOC_READ_PERMS), attachBranch, (req, res) => {
     const docs = svc.getDocuments({
       ...stripPaginationParams(req.query),
       branch_id: req.branchId,
@@ -51,7 +64,7 @@ export function registerDocumentRoutes(app) {
     }
   });
 
-  app.get('/api/documents/:id', requireAnyPermission('documents.view', 'documents.prihod', 'documents.rashod', 'documents.dish_sale', 'documents.transfer', 'documents.razdelka'), attachBranch, (req, res) => {
+  app.get('/api/documents/:id', requireAnyPermission(...DOC_READ_PERMS), attachBranch, (req, res) => {
     const doc = svc.getDocument(req.params.id, req.branchId);
     if (!doc) return res.status(404).json({ error: 'Не найден' });
     if (!canAccessDocumentType(req.user.role, doc.type)) {
@@ -159,7 +172,7 @@ export function registerDocumentRoutes(app) {
     }
   });
 
-  app.get('/api/documents/:id/history', requireAnyPermission('documents.view', 'documents.prihod', 'documents.rashod', 'documents.transfer', 'documents.razdelka'), attachBranch, (req, res) => {
+  app.get('/api/documents/:id/history', requireAnyPermission(...DOC_READ_PERMS), attachBranch, (req, res) => {
     const doc = svc.getDocument(req.params.id, req.branchId);
     if (!doc) return res.status(404).json({ error: 'Не найден' });
     if (!canAccessDocumentType(req.user.role, doc.type)) {

@@ -67,6 +67,7 @@ export const PERMISSION_GROUPS = [
   { id: 'transfer', label: 'Перемещение', category: 'documents', icon: '🔄', hint: 'Перемещение между филиалами', actions: { view: 'documents.transfer', write: 'documents.edit', confirm: 'documents.confirm', delete: 'documents.delete' } },
   { id: 'razdelka', label: 'Разделка', category: 'documents', icon: '🔪', hint: 'Документы разделки', actions: { view: 'documents.razdelka', write: 'documents.edit', confirm: 'documents.confirm', delete: 'documents.delete' } },
   { id: 'dish_sale', label: 'Продажа блюд', category: 'documents', icon: '🍽️', hint: 'Продажа готовых блюд по рецепту: выручка в P&L, списание ингредиентов', actions: { view: 'documents.dish_sale', write: 'documents.edit', confirm: 'documents.confirm', delete: 'documents.delete' } },
+  { id: 'inventory', label: 'Инвентаризация', category: 'documents', icon: '📋', hint: 'Сверка факта с учётом по отделу: недостача и излишек на складе и в P&L', actions: { view: 'documents.inventory', write: 'documents.edit', confirm: 'documents.confirm', delete: 'documents.delete' } },
   { id: 'documents', label: 'Все документы', category: 'documents', icon: '📋', hint: 'Общий список документов (просмотр)', actions: { view: 'documents.view' } },
   {
     id: 'cashier',
@@ -149,6 +150,7 @@ const DEFAULT_ROLE_PERMISSIONS = {
     'shop_orders.view', 'shop_orders.edit',
     'calculations.view', 'calculations.edit', 'counterparties.view',
     'documents.prihod', 'documents.rashod', 'documents.transfer', 'documents.razdelka', 'documents.dish_sale',
+    'documents.inventory',
     'documents.view', 'documents.edit', 'documents.confirm', 'documents.delete',
     'reports.view',
   ],
@@ -445,6 +447,7 @@ export function initPermissions(db) {
   seedRolePermissions(db);
   migrateRazdelkaPermissions(db);
   migrateDishSalePermissions(db);
+  migrateInventoryPermissions(db);
   migrateCalculationsPermissions(db);
   migrateReportsPermissions(db);
   migratePaymentsAccess(db);
@@ -773,6 +776,20 @@ function migrateDishSalePermissions(db) {
   db.run("INSERT OR REPLACE INTO settings (key, value) VALUES ('dish_sale_perm_v1', '1')");
 }
 
+function migrateInventoryPermissions(db) {
+  const done = db.queryOne("SELECT value FROM settings WHERE key = 'inventory_perm_v1'");
+  if (done) return;
+
+  const exists = db.queryOne(
+    "SELECT 1 as ok FROM role_permissions WHERE role = 'warehouse' AND permission = 'documents.inventory' LIMIT 1",
+  );
+  if (!exists) {
+    db.run("INSERT INTO role_permissions (role, permission) VALUES ('warehouse', 'documents.inventory')");
+  }
+
+  db.run("INSERT OR REPLACE INTO settings (key, value) VALUES ('inventory_perm_v1', '1')");
+}
+
 function migrateRazdelkaPermissions(db) {
   const done = db.queryOne("SELECT value FROM settings WHERE key = 'razdelka_perm_v1'");
   if (done) return;
@@ -889,6 +906,7 @@ export function canAccessDocumentType(role, type) {
   if (type === 'peremeshchenie') return hasPermission(role, 'documents.transfer');
   if (type === 'razdelka') return hasPermission(role, 'documents.razdelka');
   if (type === 'dish_sale') return hasPermission(role, 'documents.dish_sale');
+  if (type === 'inventory') return hasPermission(role, 'documents.inventory');
   if (type === 'opening_balance') {
     return hasPermission(role, 'opening_balance.view') || hasPermission(role, 'documents.view');
   }

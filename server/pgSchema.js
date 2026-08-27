@@ -30,6 +30,7 @@ export const PG_MIGRATION_SETTINGS_KEYS = [
   'document_item_cost_v1',
   'document_item_net_weight_v1',
   'document_item_sort_order_v1',
+  'document_item_book_qty_v1',
   'document_extra_costs_v1',
   'must_change_pwd_v1',
   'opening_balance_docs_v1',
@@ -354,7 +355,8 @@ CREATE TABLE IF NOT EXISTS document_items (
   unit_cost DOUBLE PRECISION DEFAULT 0,
   cost_amount DOUBLE PRECISION DEFAULT 0,
   net_weight DOUBLE PRECISION,
-  sort_order INTEGER DEFAULT 0
+  sort_order INTEGER DEFAULT 0,
+  book_qty DOUBLE PRECISION DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS document_extra_costs (
