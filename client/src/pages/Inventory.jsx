@@ -191,10 +191,11 @@ function InventoryDocCard({ doc, canEdit, canDelete, onOpen, onDelete }) {
 }
 
 function InventoryLineCard({
-  item, idx, products, readOnly, onFact, onRemove, compact,
+  item, idx, products, readOnly, onFact, onRemove, compact, showAmount = true,
 }) {
   const diff = lineDiff(item);
   const amount = lineAmount(item);
+  const unit = productUnit(products, item);
   const diffClass = diff > 1e-9 ? 'inv-diff-pos' : diff < -1e-9 ? 'inv-diff-neg' : '';
   if (compact) {
     return (
@@ -202,7 +203,6 @@ function InventoryLineCard({
         <div className="inventory-line-card-head">
           <div>
             <strong>{productName(products, item)}</strong>
-            <span className="inventory-line-card-unit">{productUnit(products, item)}</span>
           </div>
           {!readOnly && (
             <IconButton title="Убрать" onClick={() => onRemove(idx)}>
@@ -210,7 +210,7 @@ function InventoryLineCard({
             </IconButton>
           )}
         </div>
-        <div className="inventory-line-card-compact-row">
+        <div className={`inventory-line-card-compact-row${showAmount ? '' : ' is-qty-only'}`}>
           <div className="inventory-line-card-compact-meta">
             <span>Учёт</span>
             <b className="inv-book-muted">{formatQty(lineBook(item))}</b>
@@ -232,11 +232,21 @@ function InventoryLineCard({
             <span>Δ</span>
             <b className={diffClass}>{formatQty(diff)}</b>
           </div>
-          <div className="inventory-line-card-compact-meta">
-            <span>Сумма</span>
-            <b>{formatMoney(amount)}</b>
-          </div>
+          {showAmount ? (
+            <div className="inventory-line-card-compact-meta">
+              <span>Сумма</span>
+              <b>{formatMoney(amount)}</b>
+            </div>
+          ) : (
+            <div className="inventory-line-card-compact-meta">
+              <span>Ед.</span>
+              <b>{unit}</b>
+            </div>
+          )}
         </div>
+        {showAmount && (
+          <div className="inventory-line-card-unit-row">Ед. изм.: <b>{unit}</b></div>
+        )}
       </article>
     );
   }
@@ -245,7 +255,7 @@ function InventoryLineCard({
       <div className="inventory-line-card-head">
         <div>
           <strong>{productName(products, item)}</strong>
-          <span className="inventory-line-card-unit">{productUnit(products, item)}</span>
+          <span className="inventory-line-card-unit">{unit}</span>
         </div>
         {!readOnly && (
           <IconButton title="Убрать" onClick={() => onRemove(idx)}>
@@ -275,10 +285,17 @@ function InventoryLineCard({
           <span>Разница</span>
           <b className={diffClass}>{formatQty(diff)}</b>
         </div>
-        <div>
-          <span>Сумма</span>
-          <b>{formatMoney(amount)}</b>
-        </div>
+        {showAmount ? (
+          <div>
+            <span>Сумма</span>
+            <b>{formatMoney(amount)}</b>
+          </div>
+        ) : (
+          <div>
+            <span>Ед. изм.</span>
+            <b>{unit}</b>
+          </div>
+        )}
       </div>
     </article>
   );
@@ -311,9 +328,26 @@ export default function Inventory() {
   const [commentOpen, setCommentOpen] = useState(false);
   const [addPick, setAddPick] = useState('');
   const [sheetTab, setSheetTab] = useState('setup'); // setup | items
+  const [showAmount, setShowAmount] = useState(() => {
+    try {
+      return localStorage.getItem('inventory_show_amount_v1') !== '0';
+    } catch {
+      return true;
+    }
+  });
   const [topbarEl, setTopbarEl] = useState(null);
   const { listRef, isPhone } = useInventoryPhoneShell(Boolean(modal));
   const productsBranchRef = useRef(null);
+
+  const toggleShowAmount = () => {
+    setShowAmount((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('inventory_show_amount_v1', next ? '1' : '0');
+      } catch { /* ignore */ }
+      return next;
+    });
+  };
 
   useEffect(() => {
     if (!isPhone) {
@@ -970,6 +1004,14 @@ export default function Inventory() {
                         Расхожд.
                       </button>
                     </div>
+                    <button
+                      type="button"
+                      className={`btn btn-ghost inv-show-amount-toggle${showAmount ? ' is-active' : ''}`}
+                      onClick={toggleShowAmount}
+                      title={showAmount ? 'Скрыть сумму' : 'Показать сумму'}
+                    >
+                      {showAmount ? 'Сумма ✓' : 'Только кол-во'}
+                    </button>
                   </div>
 
                   <div className="inv-work-bar">
@@ -1007,14 +1049,14 @@ export default function Inventory() {
                             <th className="col-num">Учёт</th>
                             <th className="col-num">Факт</th>
                             <th className="col-num">Разница</th>
-                            <th className="col-num">Сумма</th>
+                            {showAmount && <th className="col-num">Сумма</th>}
                             {!readOnly && <th />}
                           </tr>
                         </thead>
                         <tbody>
                           {visibleItems.length === 0 ? (
                             <tr>
-                              <td colSpan={readOnly ? 6 : 7} className="empty">
+                              <td colSpan={(showAmount ? 6 : 5) + (readOnly ? 0 : 1)} className="empty">
                                 {form.items.length === 0
                                   ? 'Заполните по учёту или добавьте товар'
                                   : itemSearch.trim()
@@ -1044,7 +1086,7 @@ export default function Inventory() {
                                   )}
                                 </td>
                                 <td className={`col-num ${diffClass}`}>{formatQty(diff)}</td>
-                                <td className="col-num">{formatMoney(amount)}</td>
+                                {showAmount && <td className="col-num">{formatMoney(amount)}</td>}
                                 {!readOnly && (
                                   <td>
                                     <IconButton title="Убрать" onClick={() => removeItem(idx)}>
@@ -1078,17 +1120,27 @@ export default function Inventory() {
                         onFact={updateFact}
                         onRemove={removeItem}
                         compact={isPhone}
+                        showAmount={showAmount}
                       />
                     ))}
                   </div>
                 </div>
 
-                <div className="doc-modal-totals">
-                  <div>− {formatMoney(totals.shortage)}</div>
-                  <div>+ {formatMoney(totals.surplus)}</div>
-                  <div className="doc-modal-total">
-                    <strong>Нетто {formatMoney(totals.net)}</strong>
-                  </div>
+                <div className={`doc-modal-totals${showAmount ? '' : ' is-qty-only'}`}>
+                  {showAmount ? (
+                    <>
+                      <div>− {formatMoney(totals.shortage)}</div>
+                      <div>+ {formatMoney(totals.surplus)}</div>
+                      <div className="doc-modal-total">
+                        <strong>Нетто {formatMoney(totals.net)}</strong>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="doc-modal-total">
+                      <strong>Позиций: {form.items.length}</strong>
+                      {lineFilter === 'discrepancies' ? ` · расхождений: ${visibleItems.length}` : ''}
+                    </div>
+                  )}
                 </div>
               </>
             )}

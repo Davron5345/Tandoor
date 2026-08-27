@@ -3401,7 +3401,7 @@ input[type='number']::-webkit-inner-spin-button {
   grid-template-columns: 1fr 1fr;
   gap: 8px;
   flex: 0 0 auto;
-  padding: 0 16px 12px;
+  padding: 12px 16px 12px;
   max-width: 100%;
   box-sizing: border-box;
 }
@@ -3592,6 +3592,10 @@ input[type='number']::-webkit-inner-spin-button {
   align-items: end;
 }
 
+.inventory-line-card-compact-row.is-qty-only {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, 0.8fr) minmax(0, 0.7fr);
+}
+
 .inventory-line-card-compact-meta,
 .inventory-line-card-compact-fact {
   display: flex;
@@ -3622,6 +3626,16 @@ input[type='number']::-webkit-inner-spin-button {
   padding: 6px 8px;
   font-size: 16px;
   text-align: right;
+}
+
+.inv-show-amount-toggle.is-active {
+  background: color-mix(in srgb, var(--primary) 14%, transparent);
+  color: var(--primary);
+}
+
+.modal-inventory .doc-modal-totals.is-qty-only {
+  grid-template-columns: 1fr;
+  font-size: 13px;
 }
 
 .inv-book-muted {
@@ -3811,6 +3825,23 @@ input[type='number']::-webkit-inner-spin-button {
   margin-top: 2px;
   font-size: 12px;
   color: var(--text-muted);
+}
+
+.inventory-line-card-unit-row {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.inventory-line-card-unit-row b {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.inv-toolbar .inv-show-amount-toggle {
+  flex: 0 0 auto;
+  min-height: 34px;
+  white-space: nowrap;
 }
 
 .inventory-line-card-grid {
@@ -7819,7 +7850,7 @@ html.inventory-phone-lock.inventory-modal-open .inventory-topbar-new {
     display: flex;
     flex: 0 0 auto;
     align-items: center;
-    padding: max(10px, env(safe-area-inset-top, 0px)) 16px 8px;
+    padding: max(10px, env(safe-area-inset-top, 0px)) 16px 10px;
     max-width: 100%;
     box-sizing: border-box;
   }
@@ -7888,7 +7919,7 @@ html.inventory-phone-lock.inventory-modal-open .inventory-topbar-new {
   }
 
   .modal-inventory .inv-sheet-tabs {
-    padding: 0 16px 10px;
+    padding: 12px 16px 10px;
     gap: 8px;
   }
 
@@ -8087,7 +8118,7 @@ html.inventory-phone-lock.inventory-modal-open .inventory-topbar-new {
 
   .modal-inventory .inv-toolbar {
     flex-direction: row;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     align-items: stretch;
     gap: 6px;
     max-width: 100%;
@@ -8095,7 +8126,7 @@ html.inventory-phone-lock.inventory-modal-open .inventory-topbar-new {
   }
 
   .modal-inventory .inv-fill-btn {
-    flex: 0 0 auto;
+    flex: 1 1 auto;
     min-width: 0;
     min-height: 34px;
     padding: 4px 10px;
@@ -8106,10 +8137,17 @@ html.inventory-phone-lock.inventory-modal-open .inventory-topbar-new {
   .modal-inventory .inv-line-filter {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    flex: 1 1 auto;
+    flex: 1 1 140px;
     gap: 4px;
     max-width: 100%;
     min-width: 0;
+  }
+
+  .modal-inventory .inv-show-amount-toggle {
+    flex: 0 0 auto;
+    min-height: 34px;
+    padding: 4px 8px;
+    font-size: 12px;
   }
 
   .modal-inventory .inv-toolbar .btn,
