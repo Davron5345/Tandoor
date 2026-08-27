@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-08-28 (инвентаризация: app-like shell + portal Modal)
+**Последнее обновление документации:** 2026-08-28 (инвентаризация: дата/номер + видимый список товаров)
 
 ---
 
@@ -471,7 +471,7 @@ GET  /api/auth/roles
 | `/prihod`, `/rashod`, `/return-*`, `/transfer` | Documents.jsx | documents.*; фильтры: дата С/По, контрагент/поставщик, статус; `?open={id}` открывает документ; приход — вкладки **Товары** / **Доп. расходы** в том же окне (в себестоимость / в расходы; шапка и итоги всегда видны); перемещение — компактная шапка в один ряд (Дата / Тип / Откуда / Куда), колонка «Нетто» + остаток склада «Откуда» под кол-вом и нетто |
 | `/documents` | Documents.jsx | documents.view; те же фильтры + тип документа |
 | `/razdelka` | Razdelka.jsx | documents.razdelka |
-| `/inventory` | Inventory.jsx | documents.inventory; документ по отделу: учёт / факт / разница; заполнение по учёту; проведение из карточки; **планшет** — компактная таблица; **телефон** — full-bleed shell (без «карточки» тулбара), чипы/даты 16px, FAB portaled выше Safari toolbar; карточка — `Modal` через `createPortal(document.body)`, шапка полей + scroll строк + футер 48px |
+| `/inventory` | Inventory.jsx | documents.inventory; документ по отделу: учёт / факт / разница; заполнение по учёту; проведение из карточки; **планшет** — компактная таблица; **телефон** — full-bleed shell, FAB portaled; карточка — portal Modal, дата\|номер (96px) без overflow iOS date, на телефоне только карточки строк (таблица не в DOM), scroll `flex:1` + футер в 1 ряд |
 | `/calculations` | Calculations.jsx | calculations.view |
 | `/dish-sales` | DishSales.jsx | documents.dish_sale |
 | `/cashier` | Cashier.jsx | cashier.* |
@@ -763,6 +763,7 @@ GET  /api/auth/roles
 | 2026-08-28 | Инвентаризация телефон: `inventory-phone-lock`, `--app-vvh` от visualViewport, absolute shell, один скролл + prevent rubber-band на краях списка/модалки |
 | 2026-08-28 | Инвентаризация: убран vv-offset/absolute (обрезало «Дата»), симметричные отступы, дата+номер в ряд, крупные кнопки/FAB выше Safari |
 | 2026-08-28 | Инвентаризация app-like: `Modal`/`FAB` через `createPortal(body)`, full-bleed список без «карточки» тулбара, sheet = поля + scroll строк + футер; FAB выше Safari toolbar |
+| 2026-08-28 | Инвентаризация sheet: дата\|номер без клипа iOS; таблица не в DOM на телефоне (не съедала высоту); компактный футер в 1 ряд, список `flex:1` |
 
 ---
 

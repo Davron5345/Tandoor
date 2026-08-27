@@ -7218,7 +7218,6 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
 
   .doc-modal-fields .form-grid,
   .doc-modal-fields .form-grid-prihod-header,
-  .doc-modal-fields .form-grid-inventory-header,
   .doc-modal-fields .form-grid-transfer-header,
   .doc-modal-fields .form-grid-transfer-header.is-department {
     grid-template-columns: 1fr;
@@ -7509,7 +7508,7 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
     height: 18px;
   }
 
-  /* Inventory modal: portaled fullscreen sheet */
+  /* Inventory modal: portaled fullscreen sheet — list must get remaining height */
   .modal-overlay:has(.modal-inventory) {
     padding: 0;
     align-items: stretch;
@@ -7528,8 +7527,8 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
     box-sizing: border-box;
     width: 100%;
     max-width: 100%;
-    height: 100%;
-    max-height: 100%;
+    height: 100% !important;
+    max-height: 100% !important;
     border-radius: 0;
     margin: 0;
     overflow: hidden;
@@ -7543,7 +7542,7 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
     display: flex;
     flex: 0 0 auto;
     align-items: center;
-    padding: max(12px, env(safe-area-inset-top, 0px)) 16px 12px;
+    padding: max(10px, env(safe-area-inset-top, 0px)) 16px 8px;
     max-width: 100%;
     box-sizing: border-box;
   }
@@ -7552,12 +7551,12 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
     flex: 0 1 auto;
     padding: 0;
     margin: 0;
-    font-size: 1.15rem;
+    font-size: 1.1rem;
   }
 
   .modal-doc.modal-inventory .modal-body {
     box-sizing: border-box;
-    flex: 1 1 auto;
+    flex: 1 1 0;
     min-height: 0;
     max-width: 100%;
     overflow: hidden;
@@ -7574,33 +7573,33 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
     max-width: 100%;
     box-sizing: border-box;
     justify-content: stretch;
-    padding: 12px 16px max(16px, calc(env(safe-area-inset-bottom, 0px) + 8px));
+    padding: 8px 12px max(10px, calc(env(safe-area-inset-bottom, 0px) + 4px));
     background: var(--surface);
     border-top: 1px solid var(--border);
   }
 
   .modal-inventory .modal-footer-actions {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr 1fr 1fr;
     width: 100%;
     gap: 8px;
   }
 
   .modal-inventory .modal-footer-actions > :first-child {
-    grid-column: 1 / -1;
+    grid-column: auto;
   }
 
   .modal-inventory .modal-footer-actions .btn {
     width: 100%;
     min-width: 0;
-    min-height: 48px;
-    padding: 12px 10px;
-    font-size: 16px;
+    min-height: 44px;
+    padding: 10px 6px;
+    font-size: 15px;
   }
 
   .modal-inventory .doc-modal {
     gap: 0;
-    flex: 1 1 auto;
+    flex: 1 1 0;
     min-height: 0;
     max-width: 100%;
     width: 100%;
@@ -7614,8 +7613,8 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
     flex: 0 0 auto;
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    padding: 12px 16px;
+    gap: 8px;
+    padding: 8px 16px 10px;
     border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
     background: var(--surface);
     max-width: 100%;
@@ -7624,15 +7623,15 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
   }
 
   .modal-inventory .inv-sheet-scroll {
-    flex: 1 1 auto;
-    min-height: 0;
+    flex: 1 1 0;
+    min-height: 140px;
     max-width: 100%;
     overflow-x: hidden;
     overflow-y: auto;
     overscroll-behavior: none;
     -webkit-overflow-scrolling: touch;
     touch-action: pan-y;
-    padding: 12px 16px;
+    padding: 10px 16px;
     box-sizing: border-box;
   }
 
@@ -7643,9 +7642,20 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
     min-width: 0;
   }
 
+  /* Date | Number: lock columns so iOS date input cannot crush Number */
   .modal-inventory .form-grid-inventory-header {
-    grid-template-columns: minmax(0, 1.4fr) minmax(0, 0.8fr);
-    gap: 10px 12px;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 96px !important;
+    gap: 8px 10px;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .modal-inventory .form-grid-inventory-header .form-group-date,
+  .modal-inventory .form-grid-inventory-header .form-group-number {
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
   }
 
   .modal-inventory .form-grid-inventory-header .form-group:nth-child(3),
@@ -7653,20 +7663,43 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
     grid-column: 1 / -1;
   }
 
+  .modal-inventory .form-group label {
+    font-size: 12px;
+    margin-bottom: 4px;
+  }
+
   .modal-inventory .form-group input,
   .modal-inventory .form-group select {
     width: 100%;
-    min-width: 0;
+    min-width: 0 !important;
     max-width: 100%;
-    min-height: 44px;
+    min-height: 40px;
     font-size: 16px;
     box-sizing: border-box;
+  }
+
+  .modal-inventory .form-group-date input[type="date"] {
+    display: block;
+    width: 100%;
+    min-width: 0 !important;
+    max-width: 100%;
+    appearance: none;
+    -webkit-appearance: none;
+  }
+
+  .modal-inventory .form-group-date input[type="date"]::-webkit-date-and-time-value {
+    text-align: left;
+    min-height: 1.1em;
+  }
+
+  .modal-inventory .form-group-number input {
+    text-align: center;
   }
 
   .inv-toolbar {
     flex-direction: column;
     align-items: stretch;
-    gap: 10px;
+    gap: 8px;
     max-width: 100%;
     min-width: 0;
   }
@@ -7681,53 +7714,78 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
 
   .inv-toolbar .btn,
   .inv-line-filter .btn {
-    min-height: 44px;
-    font-size: 15px;
+    min-height: 40px;
+    font-size: 14px;
     min-width: 0;
   }
 
   .inv-add-line {
-    min-width: 0;
+    min-width: 0 !important;
     max-width: 100%;
+    flex: none;
   }
 
   .inv-add-line .product-select-trigger {
-    min-height: 44px;
+    min-height: 40px;
   }
 
-  .modal-inventory .inventory-items-table {
-    display: none;
-    flex: none;
-    min-height: 0;
+  .modal-inventory .inventory-items-table,
+  .modal-inventory .doc-modal-items-scroll {
+    display: none !important;
+    flex: none !important;
+    min-height: 0 !important;
+    height: 0 !important;
+    overflow: hidden !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
   }
 
-  .inventory-items-cards {
-    display: flex;
+  .modal-inventory .inventory-items-cards,
+  .inventory-items-cards.is-phone {
+    display: flex !important;
     flex-direction: column;
-    gap: 10px;
+    gap: 8px;
     overflow: visible;
     flex: none;
-    padding-bottom: 4px;
+    padding: 0;
     max-width: 100%;
     min-width: 0;
+  }
+
+  .modal-inventory .inventory-list-empty {
+    margin: 0;
+    padding: 24px 8px;
+  }
+
+  .modal-inventory .inventory-line-card {
+    padding: 10px 12px;
   }
 
   .modal-inventory .doc-modal-totals {
     flex: 0 0 auto;
-    align-items: stretch;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: center;
     text-align: left;
-    gap: 6px;
-    padding: 10px 16px 12px;
+    gap: 4px 12px;
+    padding: 8px 16px;
     max-width: 100%;
     box-sizing: border-box;
     border-top: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
     background: var(--surface);
+    font-size: 13px;
   }
 
   .modal-inventory .doc-modal-totals > div {
     display: flex;
     justify-content: space-between;
-    gap: 12px;
+    gap: 8px;
+  }
+
+  .modal-inventory .doc-modal-totals .doc-modal-total {
+    grid-column: 1 / -1;
+    text-align: left;
   }
 
   /* ——— Ops phone minimum (documents / bank / products / CP / cashier) ——— */

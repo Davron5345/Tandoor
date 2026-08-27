@@ -740,65 +740,67 @@ export default function Inventory() {
             </div>
 
             <div className="inv-sheet-scroll">
-              <div className="table-wrap items-table inventory-items-table doc-modal-items-scroll">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Товар</th>
-                      <th>Ед.</th>
-                      <th className="col-num">Учёт</th>
-                      <th className="col-num">Факт</th>
-                      <th className="col-num">Разница</th>
-                      <th className="col-num">Сумма</th>
-                      {!readOnly && <th />}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {visibleItems.length === 0 ? (
+              {!isPhone && (
+                <div className="table-wrap items-table inventory-items-table doc-modal-items-scroll">
+                  <table>
+                    <thead>
                       <tr>
-                        <td colSpan={readOnly ? 6 : 7} className="empty">
-                          {form.items.length === 0
-                            ? 'Нажмите «Заполнить по учёту» или добавьте товар'
-                            : 'Нет расхождений'}
-                        </td>
+                        <th>Товар</th>
+                        <th>Ед.</th>
+                        <th className="col-num">Учёт</th>
+                        <th className="col-num">Факт</th>
+                        <th className="col-num">Разница</th>
+                        <th className="col-num">Сумма</th>
+                        {!readOnly && <th />}
                       </tr>
-                    ) : visibleItems.map(({ item, idx }) => {
-                      const diff = lineDiff(item);
-                      const amount = lineAmount(item);
-                      const diffClass = diff > 1e-9 ? 'inv-diff-pos' : diff < -1e-9 ? 'inv-diff-neg' : '';
-                      return (
-                        <tr key={`${item.product_id}:${item.variant_id || ''}:${idx}`} className={diffClass ? 'inv-row-discrepancy' : undefined}>
-                          <td>{productName(products, item)}</td>
-                          <td>{productUnit(products, item)}</td>
-                          <td className="col-num inv-book-muted">{formatQty(lineBook(item))}</td>
-                          <td>
-                            {readOnly ? (
-                              formatQty(lineFact(item))
-                            ) : (
-                              <input
-                                className="input-qty"
-                                inputMode="decimal"
-                                value={item.quantity ?? ''}
-                                onChange={(e) => updateFact(idx, e.target.value)}
-                              />
-                            )}
+                    </thead>
+                    <tbody>
+                      {visibleItems.length === 0 ? (
+                        <tr>
+                          <td colSpan={readOnly ? 6 : 7} className="empty">
+                            {form.items.length === 0
+                              ? 'Нажмите «Заполнить по учёту» или добавьте товар'
+                              : 'Нет расхождений'}
                           </td>
-                          <td className={`col-num ${diffClass}`}>{formatQty(diff)}</td>
-                          <td className="col-num">{formatMoney(amount)}</td>
-                          {!readOnly && (
-                            <td>
-                              <IconButton title="Убрать" onClick={() => removeItem(idx)}>
-                                <IconTrash />
-                              </IconButton>
-                            </td>
-                          )}
                         </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-              <div className="inventory-items-cards">
+                      ) : visibleItems.map(({ item, idx }) => {
+                        const diff = lineDiff(item);
+                        const amount = lineAmount(item);
+                        const diffClass = diff > 1e-9 ? 'inv-diff-pos' : diff < -1e-9 ? 'inv-diff-neg' : '';
+                        return (
+                          <tr key={`${item.product_id}:${item.variant_id || ''}:${idx}`} className={diffClass ? 'inv-row-discrepancy' : undefined}>
+                            <td>{productName(products, item)}</td>
+                            <td>{productUnit(products, item)}</td>
+                            <td className="col-num inv-book-muted">{formatQty(lineBook(item))}</td>
+                            <td>
+                              {readOnly ? (
+                                formatQty(lineFact(item))
+                              ) : (
+                                <input
+                                  className="input-qty"
+                                  inputMode="decimal"
+                                  value={item.quantity ?? ''}
+                                  onChange={(e) => updateFact(idx, e.target.value)}
+                                />
+                              )}
+                            </td>
+                            <td className={`col-num ${diffClass}`}>{formatQty(diff)}</td>
+                            <td className="col-num">{formatMoney(amount)}</td>
+                            {!readOnly && (
+                              <td>
+                                <IconButton title="Убрать" onClick={() => removeItem(idx)}>
+                                  <IconTrash />
+                                </IconButton>
+                              </td>
+                            )}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              <div className={`inventory-items-cards${isPhone ? ' is-phone' : ''}`}>
                 {visibleItems.length === 0 ? (
                   <div className="inventory-list-empty">
                     {form.items.length === 0
