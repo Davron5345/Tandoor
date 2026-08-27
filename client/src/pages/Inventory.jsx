@@ -182,11 +182,55 @@ function InventoryDocCard({ doc, canEdit, canDelete, onOpen, onDelete }) {
 }
 
 function InventoryLineCard({
-  item, idx, products, readOnly, onFact, onRemove,
+  item, idx, products, readOnly, onFact, onRemove, compact,
 }) {
   const diff = lineDiff(item);
   const amount = lineAmount(item);
   const diffClass = diff > 1e-9 ? 'inv-diff-pos' : diff < -1e-9 ? 'inv-diff-neg' : '';
+  if (compact) {
+    return (
+      <article className={`inventory-line-card inventory-line-card--compact${diffClass ? ' inv-row-discrepancy' : ''}`}>
+        <div className="inventory-line-card-head">
+          <div>
+            <strong>{productName(products, item)}</strong>
+            <span className="inventory-line-card-unit">{productUnit(products, item)}</span>
+          </div>
+          {!readOnly && (
+            <IconButton title="Убрать" onClick={() => onRemove(idx)}>
+              <IconTrash />
+            </IconButton>
+          )}
+        </div>
+        <div className="inventory-line-card-compact-row">
+          <div className="inventory-line-card-compact-meta">
+            <span>Учёт</span>
+            <b className="inv-book-muted">{formatQty(lineBook(item))}</b>
+          </div>
+          <div className="inventory-line-card-compact-fact">
+            <span>Факт</span>
+            {readOnly ? (
+              <b>{formatQty(lineFact(item))}</b>
+            ) : (
+              <input
+                className="input-qty"
+                inputMode="decimal"
+                value={item.quantity ?? ''}
+                onChange={(e) => onFact(idx, e.target.value)}
+              />
+            )}
+          </div>
+          <div className="inventory-line-card-compact-meta">
+            <span>Δ</span>
+            <b className={diffClass}>{formatQty(diff)}</b>
+          </div>
+          <div className="inventory-line-card-compact-meta">
+            <span>Сумма</span>
+            <b>{formatMoney(amount)}</b>
+          </div>
+        </div>
+      </article>
+    );
+  }
   return (
     <article className={`inventory-line-card${diffClass ? ' inv-row-discrepancy' : ''}`}>
       <div className="inventory-line-card-head">
@@ -252,6 +296,8 @@ export default function Inventory() {
   const [saving, setSaving] = useState(false);
   const [filling, setFilling] = useState(false);
   const [lineFilter, setLineFilter] = useState('all');
+  const [itemSearch, setItemSearch] = useState('');
+  const [commentOpen, setCommentOpen] = useState(false);
   const [addPick, setAddPick] = useState('');
   const { listRef, isPhone } = useInventoryPhoneShell(Boolean(modal));
 
@@ -297,11 +343,16 @@ export default function Inventory() {
   }, [form.items]);
 
   const visibleItems = useMemo(() => {
-    if (lineFilter !== 'discrepancies') return form.items.map((item, idx) => ({ item, idx }));
-    return form.items
-      .map((item, idx) => ({ item, idx }))
-      .filter(({ item }) => Math.abs(lineDiff(item)) > 1e-9);
-  }, [form.items, lineFilter]);
+    let rows = form.items.map((item, idx) => ({ item, idx }));
+    if (lineFilter === 'discrepancies') {
+      rows = rows.filter(({ item }) => Math.abs(lineDiff(item)) > 1e-9);
+    }
+    const q = itemSearch.trim().toLowerCase();
+    if (q) {
+      rows = rows.filter(({ item }) => productName(products, item).toLowerCase().includes(q));
+    }
+    return rows;
+  }, [form.items, lineFilter, itemSearch, products]);
 
   const openCreate = async () => {
     const next = emptyForm();
@@ -312,6 +363,8 @@ export default function Inventory() {
     } catch { /* ignore */ }
     setForm(next);
     setLineFilter('all');
+    setItemSearch('');
+    setCommentOpen(false);
     setAddPick('');
     setReadOnly(false);
     setModal('create');
@@ -338,6 +391,8 @@ export default function Inventory() {
         })),
       });
       setLineFilter('all');
+      setItemSearch('');
+      setCommentOpen(Boolean(doc.comment));
       setAddPick('');
       setReadOnly(viewOnly || doc.status !== 'draft');
       setModal(doc.id);
@@ -670,10 +725,10 @@ export default function Inventory() {
                     />
                   </div>
                   <div className="form-group form-group-number">
-                    <label>Номер</label>
+                    <label>№</label>
                     <input value={form.number} disabled readOnly />
                   </div>
-                  <div className="form-group">
+                  <div className="form-group form-group-dept">
                     <label>Отдел *</label>
                     <select
                       value={form.to_department_id}
@@ -686,30 +741,41 @@ export default function Inventory() {
                       ))}
                     </select>
                   </div>
-                  <div className="form-group">
-                    <label>Комментарий</label>
-                    <input
-                      value={form.comment}
-                      disabled={readOnly}
-                      onChange={(e) => setForm({ ...form, comment: e.target.value })}
-                      placeholder="Необязательно"
-                    />
-                  </div>
+                  {(!isPhone || commentOpen || form.comment) && (
+                    <div className="form-group form-group-comment">
+                      <label>Комментарий</label>
+                      <input
+                        value={form.comment}
+                        disabled={readOnly}
+                        onChange={(e) => setForm({ ...form, comment: e.target.value })}
+                        placeholder="Необязательно"
+                      />
+                    </div>
+                  )}
                 </div>
+                {isPhone && !commentOpen && !form.comment && !readOnly && (
+                  <button
+                    type="button"
+                    className="inv-comment-toggle"
+                    onClick={() => setCommentOpen(true)}
+                  >
+                    + Комментарий
+                  </button>
+                )}
               </div>
 
               <div className="inv-toolbar">
                 {canEdit && !readOnly && (
                   <button
                     type="button"
-                    className="btn btn-ghost"
+                    className="btn btn-ghost inv-fill-btn"
                     onClick={fillFromStock}
                     disabled={filling || !form.to_department_id}
                   >
-                    {filling ? 'Заполнение…' : 'Заполнить по учёту'}
+                    {filling ? '…' : 'Заполнить'}
                   </button>
                 )}
-                <div className="inv-line-filter">
+                <div className="inv-line-filter" role="tablist" aria-label="Фильтр строк">
                   <button
                     type="button"
                     className={`btn btn-ghost${lineFilter === 'all' ? ' is-active' : ''}`}
@@ -722,16 +788,28 @@ export default function Inventory() {
                     className={`btn btn-ghost${lineFilter === 'discrepancies' ? ' is-active' : ''}`}
                     onClick={() => setLineFilter('discrepancies')}
                   >
-                    Только расхождения
+                    Расхожд.
                   </button>
                 </div>
+              </div>
+
+              <div className="inv-work-bar">
+                <input
+                  type="search"
+                  className="inv-item-search"
+                  value={itemSearch}
+                  onChange={(e) => setItemSearch(e.target.value)}
+                  placeholder="Поиск товара…"
+                  enterKeyHint="search"
+                  autoComplete="off"
+                />
                 {canEdit && !readOnly && (
                   <div className="inv-add-line">
                     <ProductSelect
                       products={products}
                       value={addPick}
                       onChange={addLine}
-                      placeholder="Добавить товар…"
+                      placeholder="Добавить…"
                       disabled={!form.to_department_id}
                     />
                   </div>
@@ -759,8 +837,10 @@ export default function Inventory() {
                         <tr>
                           <td colSpan={readOnly ? 6 : 7} className="empty">
                             {form.items.length === 0
-                              ? 'Нажмите «Заполнить по учёту» или добавьте товар'
-                              : 'Нет расхождений'}
+                              ? 'Нажмите «Заполнить» или добавьте товар'
+                              : itemSearch.trim()
+                                ? 'Ничего не найдено'
+                                : 'Нет расхождений'}
                           </td>
                         </tr>
                       ) : visibleItems.map(({ item, idx }) => {
@@ -804,8 +884,10 @@ export default function Inventory() {
                 {visibleItems.length === 0 ? (
                   <div className="inventory-list-empty">
                     {form.items.length === 0
-                      ? 'Нажмите «Заполнить по учёту» или добавьте товар'
-                      : 'Нет расхождений'}
+                      ? 'Нажмите «Заполнить» или добавьте товар'
+                      : itemSearch.trim()
+                        ? 'Ничего не найдено'
+                        : 'Нет расхождений'}
                   </div>
                 ) : visibleItems.map(({ item, idx }) => (
                   <InventoryLineCard
@@ -816,16 +898,17 @@ export default function Inventory() {
                     readOnly={readOnly}
                     onFact={updateFact}
                     onRemove={removeItem}
+                    compact={isPhone}
                   />
                 ))}
               </div>
             </div>
 
             <div className="doc-modal-totals">
-              <div>Недостача: {formatMoney(totals.shortage)}</div>
-              <div>Излишек: {formatMoney(totals.surplus)}</div>
+              <div>− {formatMoney(totals.shortage)}</div>
+              <div>+ {formatMoney(totals.surplus)}</div>
               <div className="doc-modal-total">
-                <strong>Нетто: {formatMoney(totals.net)}</strong>
+                <strong>Нетто {formatMoney(totals.net)}</strong>
               </div>
             </div>
           </div>

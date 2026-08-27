@@ -3387,6 +3387,87 @@ input[type='number']::-webkit-inner-spin-button {
   max-width: 420px;
 }
 
+.inv-work-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  width: 100%;
+  min-width: 0;
+}
+
+.inv-item-search {
+  flex: 1 1 160px;
+  min-width: 0;
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 1px solid var(--control-border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 15px;
+  box-sizing: border-box;
+}
+
+.inv-comment-toggle {
+  display: none;
+  border: none;
+  background: transparent;
+  color: var(--primary);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 0;
+  align-self: flex-start;
+  cursor: pointer;
+}
+
+.inventory-line-card--compact .inventory-line-card-head {
+  margin-bottom: 6px;
+}
+
+.inventory-line-card--compact .inventory-line-card-head strong {
+  font-size: 14px;
+}
+
+.inventory-line-card-compact-row {
+  display: grid;
+  grid-template-columns: minmax(0, 0.7fr) minmax(0, 1.1fr) minmax(0, 0.7fr) minmax(0, 0.9fr);
+  gap: 6px 8px;
+  align-items: end;
+}
+
+.inventory-line-card-compact-meta,
+.inventory-line-card-compact-fact {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.inventory-line-card-compact-meta span,
+.inventory-line-card-compact-fact span {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-muted);
+}
+
+.inventory-line-card-compact-meta b,
+.inventory-line-card-compact-fact b {
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.inventory-line-card-compact-fact .input-qty {
+  width: 100%;
+  max-width: none;
+  min-height: 36px;
+  padding: 6px 8px;
+  font-size: 16px;
+  text-align: right;
+}
+
 .inv-book-muted {
   color: var(--text-muted);
 }
@@ -7542,7 +7623,7 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
     display: flex;
     flex: 0 0 auto;
     align-items: center;
-    padding: max(10px, env(safe-area-inset-top, 0px)) 16px 8px;
+    padding: max(8px, env(safe-area-inset-top, 0px)) 14px 6px;
     max-width: 100%;
     box-sizing: border-box;
   }
@@ -7551,7 +7632,7 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
     flex: 0 1 auto;
     padding: 0;
     margin: 0;
-    font-size: 1.1rem;
+    font-size: 1.05rem;
   }
 
   .modal-doc.modal-inventory .modal-body {
@@ -7573,7 +7654,7 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
     max-width: 100%;
     box-sizing: border-box;
     justify-content: stretch;
-    padding: 8px 12px max(10px, calc(env(safe-area-inset-bottom, 0px) + 4px));
+    padding: 6px 10px max(8px, calc(env(safe-area-inset-bottom, 0px) + 2px));
     background: var(--surface);
     border-top: 1px solid var(--border);
   }
@@ -7582,7 +7663,7 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
     width: 100%;
-    gap: 8px;
+    gap: 6px;
   }
 
   .modal-inventory .modal-footer-actions > :first-child {
@@ -7592,9 +7673,9 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
   .modal-inventory .modal-footer-actions .btn {
     width: 100%;
     min-width: 0;
-    min-height: 44px;
-    padding: 10px 6px;
-    font-size: 15px;
+    min-height: 42px;
+    padding: 8px 4px;
+    font-size: 14px;
   }
 
   .modal-inventory .doc-modal {
@@ -7613,8 +7694,8 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
     flex: 0 0 auto;
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    padding: 8px 16px 10px;
+    gap: 6px;
+    padding: 6px 12px 8px;
     border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
     background: var(--surface);
     max-width: 100%;
@@ -7624,48 +7705,60 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
 
   .modal-inventory .inv-sheet-scroll {
     flex: 1 1 0;
-    min-height: 140px;
+    min-height: 180px;
     max-width: 100%;
     overflow-x: hidden;
     overflow-y: auto;
     overscroll-behavior: none;
     -webkit-overflow-scrolling: touch;
     touch-action: pan-y;
-    padding: 10px 16px;
+    padding: 8px 12px;
     box-sizing: border-box;
   }
 
-  .modal-inventory .doc-modal-fields,
+  .modal-inventory .doc-modal-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-width: 100%;
+    min-width: 0;
+  }
+
   .modal-inventory .form-grid-inventory-header,
   .modal-inventory .form-group {
     max-width: 100%;
     min-width: 0;
   }
 
-  /* Date | Number: lock columns so iOS date input cannot crush Number */
+  /* Дата | № | Отдел — плотная шапка; комментарий скрыт по умолчанию */
   .modal-inventory .form-grid-inventory-header {
     display: grid !important;
-    grid-template-columns: minmax(0, 1fr) 96px !important;
-    gap: 8px 10px;
+    grid-template-columns: minmax(0, 1.35fr) 64px !important;
+    gap: 4px 8px;
     width: 100%;
     max-width: 100%;
+    align-items: end;
   }
 
   .modal-inventory .form-grid-inventory-header .form-group-date,
-  .modal-inventory .form-grid-inventory-header .form-group-number {
+  .modal-inventory .form-grid-inventory-header .form-group-number,
+  .modal-inventory .form-grid-inventory-header .form-group-dept,
+  .modal-inventory .form-grid-inventory-header .form-group-comment {
     min-width: 0;
     max-width: 100%;
     overflow: hidden;
+    margin: 0;
   }
 
-  .modal-inventory .form-grid-inventory-header .form-group:nth-child(3),
-  .modal-inventory .form-grid-inventory-header .form-group:nth-child(4) {
+  .modal-inventory .form-grid-inventory-header .form-group-dept,
+  .modal-inventory .form-grid-inventory-header .form-group-comment {
     grid-column: 1 / -1;
   }
 
   .modal-inventory .form-group label {
-    font-size: 12px;
-    margin-bottom: 4px;
+    font-size: 11px;
+    margin-bottom: 2px;
+    line-height: 1.2;
   }
 
   .modal-inventory .form-group input,
@@ -7673,8 +7766,10 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
     width: 100%;
     min-width: 0 !important;
     max-width: 100%;
-    min-height: 40px;
-    font-size: 16px;
+    min-height: 34px;
+    height: 34px;
+    padding: 4px 8px;
+    font-size: 15px;
     box-sizing: border-box;
   }
 
@@ -7689,44 +7784,86 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
 
   .modal-inventory .form-group-date input[type="date"]::-webkit-date-and-time-value {
     text-align: left;
-    min-height: 1.1em;
+    min-height: 1em;
   }
 
   .modal-inventory .form-group-number input {
     text-align: center;
+    padding-left: 4px;
+    padding-right: 4px;
   }
 
-  .inv-toolbar {
-    flex-direction: column;
+  .modal-inventory .inv-comment-toggle {
+    display: inline-flex;
+    margin-top: 2px;
+  }
+
+  .modal-inventory .inv-toolbar {
+    flex-direction: row;
+    flex-wrap: nowrap;
     align-items: stretch;
-    gap: 8px;
+    gap: 6px;
     max-width: 100%;
     min-width: 0;
   }
 
-  .inv-line-filter {
+  .modal-inventory .inv-fill-btn {
+    flex: 0 0 auto;
+    min-width: 0;
+    min-height: 34px;
+    padding: 4px 10px;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+
+  .modal-inventory .inv-line-filter {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 8px;
+    flex: 1 1 auto;
+    gap: 4px;
     max-width: 100%;
     min-width: 0;
   }
 
-  .inv-toolbar .btn,
-  .inv-line-filter .btn {
-    min-height: 40px;
-    font-size: 14px;
+  .modal-inventory .inv-toolbar .btn,
+  .modal-inventory .inv-line-filter .btn {
+    min-height: 34px;
+    padding: 4px 6px;
+    font-size: 13px;
     min-width: 0;
   }
 
-  .inv-add-line {
+  .modal-inventory .inv-work-bar {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    gap: 6px;
+    width: 100%;
+  }
+
+  .modal-inventory .inv-item-search {
+    flex: 1 1 0;
+    width: auto;
+    min-width: 0;
+    min-height: 34px;
+    height: 34px;
+    padding: 4px 10px;
+    font-size: 15px;
+    border-radius: 8px;
+  }
+
+  .modal-inventory .inv-add-line {
+    flex: 1 1 0;
     min-width: 0 !important;
-    max-width: 100%;
-    flex: none;
+    max-width: none;
+    width: auto;
   }
 
-  .inv-add-line .product-select-trigger {
-    min-height: 40px;
+  .modal-inventory .inv-add-line .product-select-trigger {
+    min-height: 34px;
+    height: 34px;
+    padding: 4px 8px;
+    font-size: 14px;
   }
 
   .modal-inventory .inventory-items-table,
@@ -7745,7 +7882,7 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
   .inventory-items-cards.is-phone {
     display: flex !important;
     flex-direction: column;
-    gap: 8px;
+    gap: 6px;
     overflow: visible;
     flex: none;
     padding: 0;
@@ -7755,37 +7892,43 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
 
   .modal-inventory .inventory-list-empty {
     margin: 0;
-    padding: 24px 8px;
+    padding: 20px 8px;
+    font-size: 14px;
   }
 
   .modal-inventory .inventory-line-card {
-    padding: 10px 12px;
+    padding: 8px 10px;
+    border-radius: 12px;
+  }
+
+  .modal-inventory .inventory-line-card--compact .inventory-line-card-head {
+    margin-bottom: 4px;
   }
 
   .modal-inventory .doc-modal-totals {
     flex: 0 0 auto;
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr 1fr 1fr;
     align-items: center;
     text-align: left;
-    gap: 4px 12px;
-    padding: 8px 16px;
+    gap: 4px 8px;
+    padding: 6px 12px;
     max-width: 100%;
     box-sizing: border-box;
     border-top: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
     background: var(--surface);
-    font-size: 13px;
+    font-size: 12px;
   }
 
   .modal-inventory .doc-modal-totals > div {
-    display: flex;
-    justify-content: space-between;
-    gap: 8px;
+    display: block;
+    justify-content: unset;
+    gap: 0;
   }
 
   .modal-inventory .doc-modal-totals .doc-modal-total {
-    grid-column: 1 / -1;
-    text-align: left;
+    grid-column: auto;
+    text-align: right;
   }
 
   /* ——— Ops phone minimum (documents / bank / products / CP / cashier) ——— */
