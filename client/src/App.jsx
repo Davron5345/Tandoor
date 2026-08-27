@@ -187,6 +187,156 @@ function pathInGroup(pathname, paths) {
   return paths.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 
+function findNavItemForPath(items, pathname) {
+  const matches = items.filter((item) => pathname === item.to || pathname.startsWith(`${item.to}/`));
+  if (!matches.length) return null;
+  return matches.sort((a, b) => b.to.length - a.to.length)[0];
+}
+
+function SidebarFavorites({
+  currentItem,
+  favoriteItems,
+  isFavorite,
+  onToggleFavorite,
+}) {
+  const location = useLocation();
+  const [open, setOpen] = useState(false);
+  const btnRef = useRef(null);
+  const panelRef = useRef(null);
+  const [pos, setPos] = useState({
+    top: 0, left: 0, maxHeight: 360, caretTop: 16, opensUp: false,
+  });
+  const currentIsFav = currentItem ? isFavorite(currentItem.to) : false;
+
+  const syncPos = useCallback(() => {
+    const el = btnRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const margin = 8;
+    const viewportH = window.innerHeight;
+    const panel = panelRef.current;
+    const spaceBelow = Math.max(0, viewportH - rect.top - margin);
+    const spaceAbove = Math.max(0, rect.bottom - margin);
+    const measured = panel?.scrollHeight || panel?.offsetHeight || 0;
+    const naturalH = measured > 40 ? measured : 280;
+    const opensUp = naturalH > spaceBelow && spaceAbove > spaceBelow;
+    const available = Math.max(160, opensUp ? spaceAbove : spaceBelow);
+    const maxPanelH = Math.min(available, viewportH - margin * 2);
+    const panelH = Math.min(naturalH, maxPanelH);
+    let top = opensUp ? rect.bottom - panelH : rect.top;
+    top = Math.min(Math.max(margin, top), viewportH - panelH - margin);
+    const caretTop = Math.min(
+      Math.max(12, rect.top + rect.height / 2 - top - 5),
+      Math.max(12, panelH - 20),
+    );
+    setPos({
+      top,
+      left: rect.right + 8,
+      maxHeight: maxPanelH,
+      caretTop,
+      opensUp,
+    });
+  }, []);
+
+  useEffect(() => {
+    setOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    syncPos();
+    const raf = window.requestAnimationFrame(() => syncPos());
+    const onLayout = () => syncPos();
+    window.addEventListener('resize', onLayout);
+    window.addEventListener('scroll', onLayout, true);
+
+    const closeMenu = (event) => {
+      const target = event.target;
+      if (btnRef.current?.contains(target)) return;
+      if (panelRef.current?.contains(target)) return;
+      setOpen(false);
+    };
+    const onKey = (event) => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+    const timer = window.setTimeout(() => {
+      document.addEventListener('click', closeMenu);
+    }, 0);
+    document.addEventListener('keydown', onKey);
+
+    return () => {
+      window.cancelAnimationFrame(raf);
+      window.clearTimeout(timer);
+      document.removeEventListener('click', closeMenu);
+      document.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', onLayout);
+      window.removeEventListener('scroll', onLayout, true);
+    };
+  }, [open, syncPos, favoriteItems.length]);
+
+  return (
+    <div className="sidebar-favorites">
+      <button
+        ref={btnRef}
+        type="button"
+        className={`sidebar-favorites-btn${open ? ' is-open' : ''}${currentIsFav ? ' is-on' : ''}`}
+        onClick={() => setOpen((value) => !value)}
+        title="Избранное"
+        aria-label="Избранное"
+        aria-expanded={open}
+        aria-haspopup="true"
+      >
+        <IconNavStar filled={currentIsFav || favoriteItems.length > 0} />
+        {favoriteItems.length > 0 && (
+          <span className="sidebar-favorites-count">{favoriteItems.length}</span>
+        )}
+      </button>
+      {open && (
+        <div
+          ref={panelRef}
+          className={`sidebar-favorites-panel${pos.opensUp ? ' is-up' : ''}`}
+          style={{
+            top: pos.top,
+            left: pos.left,
+            maxHeight: pos.maxHeight,
+            '--nav-flyout-caret-top': `${pos.caretTop}px`,
+          }}
+          role="menu"
+          aria-label="Избранное"
+          onClick={(event) => {
+            if (event.target.closest('a')) setOpen(false);
+          }}
+        >
+          <div className="nav-flyout-title">Избранное</div>
+          {currentItem && !currentIsFav && (
+            <button
+              type="button"
+              className="sidebar-favorites-add"
+              onClick={() => onToggleFavorite(currentItem.to)}
+            >
+              <IconNavStar />
+              <span>Добавить «{currentItem.label}»</span>
+            </button>
+          )}
+          {favoriteItems.length === 0 && !currentItem && (
+            <p className="sidebar-favorites-empty">
+              Звезда у пункта меню — страница появится здесь
+            </p>
+          )}
+          {favoriteItems.map((item) => (
+            <SubNavLink
+              key={item.to}
+              item={item}
+              favorite={isFavorite(item.to)}
+              onToggleFavorite={onToggleFavorite}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function NavItemContent({ icon: Icon, label }) {
   return (
     <>
@@ -507,7 +657,15 @@ function AppContent() {
           <div className="logo">
             <div className="logo-mark" aria-hidden><IconNavWarehouse /></div>
             <div className="logo-text">
-              <strong>Склад</strong>
+              <div className="logo-title-row">
+                <strong>Склад</strong>
+                <SidebarFavorites
+                  currentItem={findNavItemForPath(allSubNavItems, location.pathname)}
+                  favoriteItems={favoriteNavItems}
+                  isFavorite={isNavFavorite}
+                  onToggleFavorite={toggleNavFavorite}
+                />
+              </div>
               <span>Учёт прихода и расхода</span>
             </div>
           </div>
