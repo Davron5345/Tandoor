@@ -589,7 +589,6 @@ function AppContent() {
   const favoriteNavItems = navFavorites
     .map((path) => allSubNavItems.find((item) => item.to === path))
     .filter(Boolean);
-  const favoriteNavPaths = favoriteNavItems.map((item) => item.to);
 
   const firstNavPath = ((isCashierLayout && canViewCashier) ? '/cashier'
     : canViewDashboard ? '/'
@@ -768,28 +767,6 @@ function AppContent() {
               >
                 <NavItemContent icon={IconNavHome} label="Главная" />
               </NavLink>
-            )}
-
-            {favoriteNavItems.length > 0 && (
-              <NavGroup
-                groupId="favorites"
-                icon={IconNavStar}
-                label="Избранное"
-                paths={favoriteNavPaths}
-                isOpen={openNavGroup === 'favorites'}
-                onToggle={toggleNavGroup}
-                sidebarCollapsed={sidebarCollapsed}
-                {...navGroupFlyoutProps('favorites')}
-              >
-                {favoriteNavItems.map((item) => (
-                  <SubNavLink
-                    key={item.to}
-                    item={item}
-                    favorite={isNavFavorite(item.to)}
-                    onToggleFavorite={toggleNavFavorite}
-                  />
-                ))}
-              </NavGroup>
             )}
 
             {mainNavSections.map((section) => (
