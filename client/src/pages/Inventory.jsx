@@ -67,6 +67,91 @@ function productName(products, item) {
   return pick.variant ? `${pick.product.name} — ${pick.variant.name}` : pick.product.name;
 }
 
+function InventoryDocCard({ doc, canEdit, canDelete, onOpen, onDelete }) {
+  return (
+    <article className="inventory-doc-card">
+      <button
+        type="button"
+        className="inventory-doc-card-main"
+        onClick={() => onOpen(doc.id, doc.status !== 'draft' && !canEdit)}
+      >
+        <div className="inventory-doc-card-top">
+          <strong>№{doc.number}</strong>
+          <span className={`badge badge-${doc.status}`}>{STATUS_LABELS[doc.status]}</span>
+        </div>
+        <div className="inventory-doc-card-meta">
+          {formatDate(doc.date)}
+          {doc.to_department_name ? ` · ${doc.to_department_name}` : ''}
+        </div>
+        <div className="inventory-doc-card-sum">{formatMoney(doc.total_amount)}</div>
+      </button>
+      <div className="inventory-doc-card-actions">
+        <IconButton
+          title={doc.status === 'confirmed' && !canEdit ? 'Просмотр' : 'Открыть'}
+          onClick={() => onOpen(doc.id, doc.status !== 'draft' && !canEdit)}
+        >
+          <IconEye />
+        </IconButton>
+        {canDelete && doc.status !== 'confirmed' && (
+          <IconButton title="Удалить" onClick={() => onDelete(doc.id)}>
+            <IconTrash />
+          </IconButton>
+        )}
+      </div>
+    </article>
+  );
+}
+
+function InventoryLineCard({
+  item, idx, products, readOnly, onFact, onRemove,
+}) {
+  const diff = lineDiff(item);
+  const amount = lineAmount(item);
+  const diffClass = diff > 1e-9 ? 'inv-diff-pos' : diff < -1e-9 ? 'inv-diff-neg' : '';
+  return (
+    <article className={`inventory-line-card${diffClass ? ' inv-row-discrepancy' : ''}`}>
+      <div className="inventory-line-card-head">
+        <div>
+          <strong>{productName(products, item)}</strong>
+          <span className="inventory-line-card-unit">{productUnit(products, item)}</span>
+        </div>
+        {!readOnly && (
+          <IconButton title="Убрать" onClick={() => onRemove(idx)}>
+            <IconTrash />
+          </IconButton>
+        )}
+      </div>
+      <div className="inventory-line-card-grid">
+        <div>
+          <span>Учёт</span>
+          <b className="inv-book-muted">{formatQty(lineBook(item))}</b>
+        </div>
+        <div>
+          <span>Факт</span>
+          {readOnly ? (
+            <b>{formatQty(lineFact(item))}</b>
+          ) : (
+            <input
+              className="input-qty"
+              inputMode="decimal"
+              value={item.quantity ?? ''}
+              onChange={(e) => onFact(idx, e.target.value)}
+            />
+          )}
+        </div>
+        <div>
+          <span>Разница</span>
+          <b className={diffClass}>{formatQty(diff)}</b>
+        </div>
+        <div>
+          <span>Сумма</span>
+          <b>{formatMoney(amount)}</b>
+        </div>
+      </div>
+    </article>
+  );
+}
+
 export default function Inventory() {
   const { user } = useAuth();
   const { branchId, branchName } = useBranch();
@@ -354,7 +439,7 @@ export default function Inventory() {
         <div className="btn-group">
           <BranchChip>{branchName}</BranchChip>
           {canEdit && (
-            <button type="button" className="btn btn-primary" onClick={openCreate}>
+            <button type="button" className="btn btn-primary inventory-new-btn" onClick={openCreate}>
               <IconPlus /> Новый
             </button>
           )}
@@ -383,7 +468,7 @@ export default function Inventory() {
             </label>
           </div>
         </div>
-        <div className="table-wrap">
+        <div className="table-wrap inventory-list-table">
           <table>
             <thead>
               <tr>
@@ -427,11 +512,27 @@ export default function Inventory() {
             </tbody>
           </table>
         </div>
+        <div className="inventory-list-cards">
+          {loading ? (
+            <div className="inventory-list-empty">Загрузка…</div>
+          ) : docs.length === 0 ? (
+            <div className="inventory-list-empty">Нет документов</div>
+          ) : docs.map((d) => (
+            <InventoryDocCard
+              key={d.id}
+              doc={d}
+              canEdit={canEdit}
+              canDelete={canDelete}
+              onOpen={openDoc}
+              onDelete={deleteDoc}
+            />
+          ))}
+        </div>
       </div>
 
       {modal && (
         <Modal
-          className="modal-doc"
+          className="modal-doc modal-inventory"
           title={modalTitle}
           onClose={() => setModal(null)}
           footer={(
@@ -538,7 +639,7 @@ export default function Inventory() {
               )}
             </div>
 
-            <div className="table-wrap items-table doc-items-table doc-modal-items-scroll">
+            <div className="table-wrap items-table inventory-items-table doc-modal-items-scroll">
               <table>
                 <thead>
                   <tr>
@@ -595,6 +696,25 @@ export default function Inventory() {
                   })}
                 </tbody>
               </table>
+            </div>
+            <div className="inventory-items-cards">
+              {visibleItems.length === 0 ? (
+                <div className="inventory-list-empty">
+                  {form.items.length === 0
+                    ? 'Нажмите «Заполнить по учёту» или добавьте товар'
+                    : 'Нет расхождений'}
+                </div>
+              ) : visibleItems.map(({ item, idx }) => (
+                <InventoryLineCard
+                  key={`${item.product_id}:${item.variant_id || ''}:${idx}`}
+                  item={item}
+                  idx={idx}
+                  products={products}
+                  readOnly={readOnly}
+                  onFact={updateFact}
+                  onRemove={removeItem}
+                />
+              ))}
             </div>
 
             <div className="doc-modal-totals">

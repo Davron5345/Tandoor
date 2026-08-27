@@ -60,6 +60,11 @@ import {
 const SIDEBAR_COLLAPSED_KEY = 'warehouse-sidebar-collapsed';
 const SIDEBAR_ACCOUNT_OPEN_KEY = 'warehouse-sidebar-account-open';
 const NAV_FAVORITES_KEY = 'warehouse-nav-favorites_v1';
+const MOBILE_NAV_MQ = '(max-width: 768px)';
+
+function isMobileNavViewport() {
+  return typeof window !== 'undefined' && window.matchMedia(MOBILE_NAV_MQ).matches;
+}
 
 function filterNavItems(user, items) {
   return items.filter((item) => !item.perm || hasPermission(user, item.perm));
@@ -520,7 +525,9 @@ function AppContent() {
   const [telegramOnline, setTelegramOnline] = useState(false);
   const [openNavGroup, setOpenNavGroup] = useState(null);
   const [openFlyoutGroup, setOpenFlyoutGroup] = useState(null);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(readSidebarCollapsed);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => (
+    isMobileNavViewport() ? true : readSidebarCollapsed()
+  ));
   const [accountOpen, setAccountOpen] = useState(readSidebarAccountOpen);
   const [navFavorites, setNavFavorites] = useState(readNavFavorites);
   const { theme, toggleTheme } = useTheme();
@@ -540,7 +547,19 @@ function AppContent() {
   }, [sidebarCollapsed]);
 
   useEffect(() => {
+    const mq = window.matchMedia(MOBILE_NAV_MQ);
+    const apply = () => {
+      if (mq.matches) setSidebarCollapsed(true);
+      else setSidebarCollapsed(readSidebarCollapsed());
+    };
+    apply();
+    mq.addEventListener('change', apply);
+    return () => mq.removeEventListener('change', apply);
+  }, []);
+
+  useEffect(() => {
     setOpenFlyoutGroup(null);
+    if (isMobileNavViewport()) setSidebarCollapsed(true);
   }, [location.pathname]);
 
   useEffect(() => {
@@ -632,9 +651,11 @@ function AppContent() {
   const toggleSidebar = () => {
     setSidebarCollapsed((collapsed) => {
       const next = !collapsed;
-      try {
-        localStorage.setItem(SIDEBAR_COLLAPSED_KEY, next ? '1' : '0');
-      } catch { /* ignore */ }
+      if (!isMobileNavViewport()) {
+        try {
+          localStorage.setItem(SIDEBAR_COLLAPSED_KEY, next ? '1' : '0');
+        } catch { /* ignore */ }
+      }
       return next;
     });
   };
@@ -651,6 +672,14 @@ function AppContent() {
 
   return (
     <div className={`app${sidebarCollapsed ? ' sidebar-collapsed' : ''}${accountOpen ? ' sidebar-account-open' : ''}${isCashierLayout ? ' app-cashier-mode' : ''}${isMyShopStore ? ' app-myshop-mode' : ''}${isMyShopConstructor ? ' app-myshop-constructor-mode' : ''}`}>
+      {!isCashierLayout && !sidebarCollapsed && (
+        <button
+          type="button"
+          className="mobile-nav-backdrop"
+          aria-label="Закрыть меню"
+          onClick={() => setSidebarCollapsed(true)}
+        />
+      )}
       {!isCashierLayout && (
       <aside className="sidebar">
         <div className="sidebar-panel">

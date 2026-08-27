@@ -99,12 +99,14 @@ export default function ProductSelect({
       dropdownHeight,
       openUp ? spaceAbove : spaceBelow,
     );
+    const width = Math.min(Math.max(rect.width, 440), Math.max(window.innerWidth - 16, rect.width));
+    const left = Math.min(Math.max(8, rect.left), Math.max(8, window.innerWidth - width - 8));
 
     setDropdownStyle({
       position: 'fixed',
       top: openUp ? rect.top - maxHeight - 4 : rect.bottom + 4,
-      left: rect.left,
-      width: Math.max(rect.width, 440),
+      left,
+      width,
       maxHeight,
       zIndex: 1100,
     });
