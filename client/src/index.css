@@ -7932,14 +7932,6 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
     box-sizing: border-box;
   }
 
-  .modal-inventory .inv-sheet-scroll {
-    padding: 10px 16px;
-  }
-
-  .modal-inventory .doc-modal-totals {
-    padding: 8px 16px;
-  }
-
   .modal-inventory .inv-items-context {
     font-size: 12px;
   }
@@ -7967,7 +7959,7 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
     overscroll-behavior: none;
     -webkit-overflow-scrolling: touch;
     touch-action: pan-y;
-    padding: 8px 12px;
+    padding: 10px 16px;
     box-sizing: border-box;
   }
 
