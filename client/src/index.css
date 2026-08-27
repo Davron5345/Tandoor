@@ -6966,6 +6966,29 @@ input[type='number']::-webkit-inner-spin-button {
   }
 }
 
+/* Phone app shell: lock document scroll (Safari rubber-band / URL-bar float) */
+html.app-phone-lock,
+html.app-phone-lock body {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: manipulation;
+  background-attachment: scroll;
+}
+
+html.app-phone-lock #root,
+html.app-phone-lock .app {
+  height: 100%;
+  min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
+}
+
 @media (max-width: 768px) {
   html:has(.app:not(.app-cashier-mode):not(.app-myshop-mode):not(.app-myshop-constructor-mode)),
   html:has(.app:not(.app-cashier-mode):not(.app-myshop-mode):not(.app-myshop-constructor-mode)) body {
@@ -6973,14 +6996,18 @@ input[type='number']::-webkit-inner-spin-button {
     inset: 0;
     width: 100%;
     height: 100%;
+    min-height: 0;
+    max-height: 100%;
     overflow: hidden;
     overscroll-behavior: none;
     touch-action: manipulation;
+    background-attachment: scroll;
   }
 
   html:has(.app:not(.app-cashier-mode):not(.app-myshop-mode):not(.app-myshop-constructor-mode)) #root,
   html:has(.app:not(.app-cashier-mode):not(.app-myshop-mode):not(.app-myshop-constructor-mode)) .app {
     height: 100%;
+    min-height: 0;
     max-height: 100%;
     overflow: hidden;
   }
@@ -7119,8 +7146,8 @@ input[type='number']::-webkit-inner-spin-button {
     flex: 1;
     min-height: 0;
     overflow: auto;
-    overscroll-behavior: contain;
-    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: none;
+    -webkit-overflow-scrolling: auto;
     padding: 8px 12px max(12px, env(safe-area-inset-bottom, 0px));
   }
 
@@ -7179,6 +7206,8 @@ input[type='number']::-webkit-inner-spin-button {
     align-items: stretch;
     justify-content: flex-start;
     overflow: hidden;
+    overscroll-behavior: none;
+    touch-action: manipulation;
   }
 
   .modal-doc.modal-inventory {
@@ -7187,6 +7216,7 @@ input[type='number']::-webkit-inner-spin-button {
     max-height: none;
     border-radius: 0;
     margin: 0;
+    overscroll-behavior: none;
   }
 
   .modal-doc.modal-inventory .modal-header {
@@ -7208,8 +7238,8 @@ input[type='number']::-webkit-inner-spin-button {
     display: flex;
     flex-direction: column;
     justify-content: flex-start;
-    -webkit-overflow-scrolling: touch;
-    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: auto;
+    overscroll-behavior: none;
   }
 
   .modal-doc.modal-inventory .modal-footer {
@@ -7362,8 +7392,8 @@ input[type='number']::-webkit-inner-spin-button {
     flex: 1;
     min-height: 0;
     overflow: auto;
-    overscroll-behavior: contain;
-    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: none;
+    -webkit-overflow-scrolling: auto;
     padding: 4px 0 max(16px, env(safe-area-inset-bottom, 0px));
   }
 

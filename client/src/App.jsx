@@ -571,6 +571,51 @@ function AppContent() {
     setOpenNavGroup(match?.id ?? null);
   }, [user, location.pathname]);
 
+  const isCashierLayoutPreview = Boolean(user && isCashierOnlyLayout(user));
+  const isMyShopStorePreview = location.pathname === '/myshop';
+  const isMyShopConstructorPreview = location.pathname === '/myshop/constructor';
+  const phoneViewportLock = Boolean(
+    user
+    && !user.must_change_password
+    && !isCashierLayoutPreview
+    && !isMyShopStorePreview
+    && !isMyShopConstructorPreview,
+  );
+
+  useEffect(() => {
+    const html = document.documentElement;
+    const body = document.body;
+    const root = document.getElementById('root');
+    const viewport = document.querySelector('meta[name="viewport"]');
+    const prevViewport = viewport?.getAttribute('content') || '';
+    const mq = window.matchMedia(MOBILE_NAV_MQ);
+
+    const sync = () => {
+      const on = phoneViewportLock && mq.matches;
+      html.classList.toggle('app-phone-lock', on);
+      body.classList.toggle('app-phone-lock', on);
+      root?.classList.toggle('app-phone-lock', on);
+      if (on) {
+        viewport?.setAttribute(
+          'content',
+          'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover',
+        );
+      } else if (viewport && prevViewport) {
+        viewport.setAttribute('content', prevViewport);
+      }
+    };
+
+    sync();
+    mq.addEventListener('change', sync);
+    return () => {
+      mq.removeEventListener('change', sync);
+      html.classList.remove('app-phone-lock');
+      body.classList.remove('app-phone-lock');
+      root?.classList.remove('app-phone-lock');
+      if (viewport && prevViewport) viewport.setAttribute('content', prevViewport);
+    };
+  }, [phoneViewportLock]);
+
   if (loading) {
     return <div className="login-page"><div className="empty">Загрузка...</div></div>;
   }
@@ -584,7 +629,7 @@ function AppContent() {
   }
 
   const isAdmin = user.role === 'admin';
-  const isCashierLayout = isCashierOnlyLayout(user);
+  const isCashierLayout = isCashierLayoutPreview;
   const canViewUsers = hasPermission(user, 'users.view');
   const showStaffGroup = canViewUsers || isAdmin;
   const canViewProducts = hasPermission(user, 'products.view');
@@ -600,8 +645,8 @@ function AppContent() {
   const canEditMyShop = hasPermission(user, 'myshop.edit');
   const canViewShopOrders = hasPermission(user, 'shop_orders.view');
   const canEditShopOrders = hasPermission(user, 'shop_orders.edit');
-  const isMyShopStore = location.pathname === '/myshop';
-  const isMyShopConstructor = location.pathname === '/myshop/constructor';
+  const isMyShopStore = isMyShopStorePreview;
+  const isMyShopConstructor = isMyShopConstructorPreview;
 
   const appNav = buildAppNav(user);
   const mainNavSections = appNav.sections.filter((section) => section.id !== 'admin');
