@@ -295,6 +295,8 @@ export default function Inventory() {
   const [docs, setDocs] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [products, setProducts] = useState([]);
+  const [productsReady, setProductsReady] = useState(false);
+  const [productsLoading, setProductsLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
@@ -311,6 +313,7 @@ export default function Inventory() {
   const [sheetTab, setSheetTab] = useState('setup'); // setup | items
   const [topbarEl, setTopbarEl] = useState(null);
   const { listRef, isPhone } = useInventoryPhoneShell(Boolean(modal));
+  const productsBranchRef = useRef(null);
 
   useEffect(() => {
     if (!isPhone) {
@@ -333,21 +336,15 @@ export default function Inventory() {
     };
   }, [isPhone]);
 
-  const load = useCallback(async () => {
+  const loadDocs = useCallback(async () => {
     setLoading(true);
     try {
       const params = { type: 'inventory' };
       if (filterDateFrom) params.date_from = filterDateFrom;
       if (filterDateTo) params.date_to = filterDateTo;
       if (filterStatus) params.status = filterStatus;
-      const [list, depts, prods] = await Promise.all([
-        api.getDocuments(params),
-        api.getDepartments({ active: '1' }),
-        api.getProducts({ limit: 5000 }),
-      ]);
+      const list = await api.getDocuments(params);
       setDocs(Array.isArray(list) ? list : (list?.items || []));
-      setDepartments(Array.isArray(depts) ? depts : []);
-      setProducts(Array.isArray(prods) ? prods : (prods?.items || []));
     } catch (e) {
       show(e.message || 'Ошибка загрузки', 'error');
     } finally {
@@ -355,7 +352,45 @@ export default function Inventory() {
     }
   }, [show, branchId, filterDateFrom, filterDateTo, filterStatus]);
 
-  useEffect(() => { load(); }, [load]);
+  const loadDepartments = useCallback(async () => {
+    try {
+      const depts = await api.getDepartments({ active: '1' });
+      setDepartments(Array.isArray(depts) ? depts : []);
+    } catch (e) {
+      show(e.message || 'Не удалось загрузить отделы', 'error');
+    }
+  }, [show, branchId]);
+
+  const ensureProducts = useCallback(async () => {
+    const branchKey = branchId || 'main';
+    if (productsReady && productsBranchRef.current === branchKey) return;
+    setProductsLoading(true);
+    try {
+      const prods = await api.getProducts({ limit: 5000 });
+      const list = Array.isArray(prods) ? prods : (prods?.items || []);
+      setProducts(list);
+      productsBranchRef.current = branchKey;
+      setProductsReady(true);
+    } catch (e) {
+      show(e.message || 'Не удалось загрузить товары', 'error');
+    } finally {
+      setProductsLoading(false);
+    }
+  }, [branchId, productsReady, show]);
+
+  useEffect(() => {
+    loadDepartments();
+  }, [loadDepartments]);
+
+  useEffect(() => {
+    loadDocs();
+  }, [loadDocs]);
+
+  useEffect(() => {
+    productsBranchRef.current = null;
+    setProductsReady(false);
+    setProducts([]);
+  }, [branchId]);
 
   const branchDepartments = useMemo(
     () => departments.filter((d) => d.active && d.branch_id === (branchId || 'main')),
@@ -408,6 +443,7 @@ export default function Inventory() {
     setSheetTab('setup');
     setReadOnly(false);
     setModal('create');
+    ensureProducts();
   };
 
   const selectDepartment = (departmentId) => {
@@ -430,11 +466,15 @@ export default function Inventory() {
       return;
     }
     setSheetTab('items');
+    ensureProducts();
   };
 
   const openDoc = async (id, viewOnly = false) => {
     try {
-      const doc = await api.getDocument(id);
+      const [doc] = await Promise.all([
+        api.getDocument(id),
+        ensureProducts(),
+      ]);
       setForm({
         id: doc.id,
         date: String(doc.date || '').slice(0, 10),
@@ -584,7 +624,7 @@ export default function Inventory() {
       }
       show(andConfirm ? 'Документ проведён' : 'Сохранено');
       setModal(null);
-      await load();
+      await loadDocs();
       return doc;
     } catch (e) {
       show(e.message || 'Ошибка сохранения', 'error');
@@ -601,7 +641,7 @@ export default function Inventory() {
       await api.cancelDocument(form.id);
       show('Проведение отменено');
       setModal(null);
-      await load();
+      await loadDocs();
     } catch (e) {
       show(e.message || 'Не удалось отменить', 'error');
     } finally {
@@ -615,7 +655,7 @@ export default function Inventory() {
       await api.deleteDocument(id);
       show('Удалено');
       if (modal === id) setModal(null);
-      await load();
+      await loadDocs();
     } catch (e) {
       show(e.message || 'Не удалось удалить', 'error');
     }
@@ -948,8 +988,8 @@ export default function Inventory() {
                           products={products}
                           value={addPick}
                           onChange={addLine}
-                          placeholder="Добавить…"
-                          disabled={!form.to_department_id}
+                          placeholder={productsLoading ? 'Загрузка…' : 'Добавить…'}
+                          disabled={!form.to_department_id || productsLoading}
                         />
                       </div>
                     )}
