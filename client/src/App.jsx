@@ -878,7 +878,7 @@ function AppContent() {
             aria-expanded={!sidebarCollapsed}
           >
             <IconNavMenu />
-            <span>{sidebarCollapsed ? 'Меню' : 'Свернуть'}</span>
+            <span className="sidebar-menu-btn-label">{sidebarCollapsed ? 'Меню' : 'Свернуть'}</span>
           </button>
         </div>
         )}

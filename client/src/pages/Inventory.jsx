@@ -428,7 +428,7 @@ export default function Inventory() {
     : 'Новая инвентаризация';
 
   return (
-    <div className="inventory-page">
+    <div className={`inventory-page${canEdit ? ' inventory-page--fab' : ''}`}>
       {Toast}
 
       <div className="page-header inventory-page-header">
@@ -444,9 +444,28 @@ export default function Inventory() {
         )}
       </div>
 
-      <div className="card">
-        <div className="card-header report-toolbar">
-          <div className="report-filters">
+      <div className="card inventory-list-panel">
+        <div className="card-header report-toolbar inventory-toolbar">
+          <div className="inventory-status-chips" role="tablist" aria-label="Статус">
+            {[
+              { value: '', label: 'Все' },
+              { value: 'draft', label: 'Черновик' },
+              { value: 'confirmed', label: 'Проведён' },
+              { value: 'cancelled', label: 'Отменён' },
+            ].map((opt) => (
+              <button
+                key={opt.value || 'all'}
+                type="button"
+                role="tab"
+                aria-selected={filterStatus === opt.value}
+                className={`inventory-chip${filterStatus === opt.value ? ' is-active' : ''}`}
+                onClick={() => setFilterStatus(opt.value)}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          <div className="report-filters inventory-date-filters">
             <label>
               С
               <input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} />
@@ -455,7 +474,7 @@ export default function Inventory() {
               По
               <input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} />
             </label>
-            <label>
+            <label className="inventory-status-select">
               Статус
               <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
                 <option value="">Все</option>
@@ -724,6 +743,11 @@ export default function Inventory() {
             </div>
           </div>
         </Modal>
+      )}
+      {canEdit && (
+        <button type="button" className="inventory-fab" onClick={openCreate}>
+          <IconPlus /> Новый
+        </button>
       )}
     </div>
   );
