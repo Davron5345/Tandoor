@@ -577,7 +577,6 @@ function AppContent() {
   const phoneViewportLock = Boolean(
     user
     && !user.must_change_password
-    && !isCashierLayoutPreview
     && !isMyShopStorePreview
     && !isMyShopConstructorPreview,
   );
@@ -613,6 +612,49 @@ function AppContent() {
       body.classList.remove('app-phone-lock');
       root?.classList.remove('app-phone-lock');
       if (viewport && prevViewport) viewport.setAttribute('content', prevViewport);
+    };
+  }, [phoneViewportLock]);
+
+  /* Block sideways page pan on phone; allow only inside table scrollers */
+  useEffect(() => {
+    if (!phoneViewportLock) return undefined;
+    const mq = window.matchMedia(MOBILE_NAV_MQ);
+    if (!mq.matches) return undefined;
+
+    let startX = 0;
+    let startY = 0;
+    const allowSel = [
+      '.table-wrap',
+      '.doc-modal-items-scroll',
+      '.bank-days-wrap',
+      '.cashier-table-wrap',
+      '.products-table-scroll',
+      '.inventory-list-cards',
+      '[data-allow-h-scroll]',
+    ].join(',');
+
+    const onStart = (event) => {
+      if (!event.touches?.[0]) return;
+      startX = event.touches[0].clientX;
+      startY = event.touches[0].clientY;
+    };
+
+    const onMove = (event) => {
+      if (!mq.matches || event.touches.length !== 1) return;
+      const touch = event.touches[0];
+      const dx = Math.abs(touch.clientX - startX);
+      const dy = Math.abs(touch.clientY - startY);
+      if (dx < 8 || dx <= dy) return;
+      const target = event.target;
+      if (target instanceof Element && target.closest(allowSel)) return;
+      event.preventDefault();
+    };
+
+    document.addEventListener('touchstart', onStart, { passive: true, capture: true });
+    document.addEventListener('touchmove', onMove, { passive: false, capture: true });
+    return () => {
+      document.removeEventListener('touchstart', onStart, { capture: true });
+      document.removeEventListener('touchmove', onMove, { capture: true });
     };
   }, [phoneViewportLock]);
 
