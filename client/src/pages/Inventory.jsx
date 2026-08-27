@@ -311,6 +311,7 @@ export default function Inventory() {
   const [itemSearch, setItemSearch] = useState('');
   const [commentOpen, setCommentOpen] = useState(false);
   const [addPick, setAddPick] = useState('');
+  const [sheetTab, setSheetTab] = useState('setup'); // setup | items
   const { listRef, isPhone } = useInventoryPhoneShell(Boolean(modal));
 
   const load = useCallback(async () => {
@@ -341,6 +342,13 @@ export default function Inventory() {
     () => departments.filter((d) => d.active && d.branch_id === (branchId || 'main')),
     [departments, branchId],
   );
+
+  const selectedDepartment = useMemo(
+    () => branchDepartments.find((d) => d.id === form.to_department_id) || null,
+    [branchDepartments, form.to_department_id],
+  );
+
+  const canGoToItems = Boolean(form.to_department_id && form.date);
 
   const totals = useMemo(() => {
     let shortage = 0;
@@ -378,8 +386,31 @@ export default function Inventory() {
     setItemSearch('');
     setCommentOpen(false);
     setAddPick('');
+    setSheetTab('setup');
     setReadOnly(false);
     setModal('create');
+  };
+
+  const selectDepartment = (departmentId) => {
+    if (readOnly) return;
+    if (departmentId === form.to_department_id) return;
+    setForm((prev) => ({
+      ...prev,
+      to_department_id: departmentId,
+      items: prev.to_department_id && prev.to_department_id !== departmentId ? [] : prev.items,
+    }));
+  };
+
+  const goToItemsTab = () => {
+    if (!form.date) {
+      show('Укажите дату', 'error');
+      return;
+    }
+    if (!form.to_department_id) {
+      show('Выберите отдел', 'error');
+      return;
+    }
+    setSheetTab('items');
   };
 
   const openDoc = async (id, viewOnly = false) => {
@@ -406,6 +437,7 @@ export default function Inventory() {
       setItemSearch('');
       setCommentOpen(Boolean(doc.comment));
       setAddPick('');
+      setSheetTab('items');
       setReadOnly(viewOnly || doc.status !== 'draft');
       setModal(doc.id);
     } catch (e) {
@@ -696,37 +728,79 @@ export default function Inventory() {
 
       {modal && (
         <Modal
-          className="modal-doc modal-inventory"
+          className={`modal-doc modal-inventory${sheetTab === 'setup' ? ' modal-inventory--setup' : ' modal-inventory--items'}`}
           title={modalTitle}
           footerPlacement="end"
           onClose={() => setModal(null)}
           footer={(
-            <>
-              <ModalCancelButton>Закрыть</ModalCancelButton>
-              {canEdit && form.status === 'confirmed' && (
-                <button type="button" className="btn btn-ghost" onClick={cancelDoc} disabled={saving}>
-                  Отменить проведение
+            sheetTab === 'setup' ? (
+              <>
+                <ModalCancelButton>Закрыть</ModalCancelButton>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={goToItemsTab}
+                  disabled={!canGoToItems}
+                >
+                  Далее →
                 </button>
-              )}
-              {canEdit && form.status === 'draft' && (
-                <>
-                  <button type="button" className="btn btn-ghost" onClick={() => save(false)} disabled={saving}>
-                    Сохранить
+              </>
+            ) : (
+              <>
+                <button type="button" className="btn btn-ghost" onClick={() => setSheetTab('setup')}>
+                  ← Назад
+                </button>
+                {canEdit && form.status === 'confirmed' && (
+                  <button type="button" className="btn btn-ghost" onClick={cancelDoc} disabled={saving}>
+                    Отменить
                   </button>
-                  {canConfirm && (
-                    <button type="button" className="btn btn-success" onClick={() => save(true)} disabled={saving}>
-                      Провести
+                )}
+                {canEdit && form.status === 'draft' && (
+                  <>
+                    <button type="button" className="btn btn-ghost" onClick={() => save(false)} disabled={saving}>
+                      Сохранить
                     </button>
-                  )}
-                </>
-              )}
-            </>
+                    {canConfirm && (
+                      <button type="button" className="btn btn-success" onClick={() => save(true)} disabled={saving}>
+                        Провести
+                      </button>
+                    )}
+                  </>
+                )}
+                {(!canEdit || form.status === 'cancelled') && (
+                  <ModalCancelButton>Закрыть</ModalCancelButton>
+                )}
+              </>
+            )
           )}
         >
           <div className="doc-modal">
-            <div className="inv-sheet-top">
-              <div className="doc-modal-fields">
-                <div className="form-grid form-grid-inventory-header">
+            <div className="inv-sheet-tabs" role="tablist" aria-label="Шаги инвентаризации">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={sheetTab === 'setup'}
+                className={`inv-sheet-tab${sheetTab === 'setup' ? ' is-active' : ''}`}
+                onClick={() => setSheetTab('setup')}
+              >
+                1. Документ
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={sheetTab === 'items'}
+                className={`inv-sheet-tab${sheetTab === 'items' ? ' is-active' : ''}`}
+                onClick={goToItemsTab}
+                disabled={!canGoToItems && sheetTab !== 'items'}
+              >
+                2. Товары
+                {form.items.length > 0 ? ` (${form.items.length})` : ''}
+              </button>
+            </div>
+
+            {sheetTab === 'setup' ? (
+              <div className="inv-sheet-setup">
+                <div className="inv-setup-meta">
                   <div className="form-group form-group-date">
                     <label>Дата</label>
                     <input
@@ -740,189 +814,210 @@ export default function Inventory() {
                     <label>№</label>
                     <input value={form.number} disabled readOnly />
                   </div>
-                  <div className="form-group form-group-dept">
-                    <label>Отдел *</label>
-                    <select
-                      value={form.to_department_id}
-                      disabled={readOnly}
-                      onChange={(e) => setForm({ ...form, to_department_id: e.target.value, items: [] })}
-                    >
-                      <option value="">— выберите —</option>
+                </div>
+
+                <div className="inv-dept-block">
+                  <div className="inv-dept-label">Отдел *</div>
+                  {branchDepartments.length === 0 ? (
+                    <div className="inventory-list-empty">Нет отделов филиала</div>
+                  ) : (
+                    <div className="inv-dept-cubes">
                       {branchDepartments.map((d) => (
-                        <option key={d.id} value={d.id}>{d.name}</option>
+                        <button
+                          key={d.id}
+                          type="button"
+                          className={`inv-dept-cube${form.to_department_id === d.id ? ' is-selected' : ''}`}
+                          disabled={readOnly}
+                          onClick={() => selectDepartment(d.id)}
+                        >
+                          <span className="inv-dept-cube-name">{d.name}</span>
+                        </button>
                       ))}
-                    </select>
-                  </div>
-                  {(!isPhone || commentOpen || form.comment) && (
-                    <div className="form-group form-group-comment">
-                      <label>Комментарий</label>
-                      <input
-                        value={form.comment}
-                        disabled={readOnly}
-                        onChange={(e) => setForm({ ...form, comment: e.target.value })}
-                        placeholder="Необязательно"
-                      />
                     </div>
                   )}
                 </div>
-                {isPhone && !commentOpen && !form.comment && !readOnly && (
-                  <button
-                    type="button"
-                    className="inv-comment-toggle"
-                    onClick={() => setCommentOpen(true)}
-                  >
-                    + Комментарий
-                  </button>
-                )}
-              </div>
 
-              <div className="inv-toolbar">
-                {canEdit && !readOnly && (
-                  <button
-                    type="button"
-                    className="btn btn-ghost inv-fill-btn"
-                    onClick={fillFromStock}
-                    disabled={filling || !form.to_department_id}
-                  >
-                    {filling ? '…' : 'Заполнить'}
-                  </button>
-                )}
-                <div className="inv-line-filter" role="tablist" aria-label="Фильтр строк">
-                  <button
-                    type="button"
-                    className={`btn btn-ghost${lineFilter === 'all' ? ' is-active' : ''}`}
-                    onClick={() => setLineFilter('all')}
-                  >
-                    Все
-                  </button>
-                  <button
-                    type="button"
-                    className={`btn btn-ghost${lineFilter === 'discrepancies' ? ' is-active' : ''}`}
-                    onClick={() => setLineFilter('discrepancies')}
-                  >
-                    Расхожд.
-                  </button>
-                </div>
-              </div>
-
-              <div className="inv-work-bar">
-                <input
-                  type="search"
-                  className="inv-item-search"
-                  value={itemSearch}
-                  onChange={(e) => setItemSearch(e.target.value)}
-                  placeholder="Поиск товара…"
-                  enterKeyHint="search"
-                  autoComplete="off"
-                />
-                {canEdit && !readOnly && (
-                  <div className="inv-add-line">
-                    <ProductSelect
-                      products={products}
-                      value={addPick}
-                      onChange={addLine}
-                      placeholder="Добавить…"
-                      disabled={!form.to_department_id}
+                {(!isPhone || commentOpen || form.comment) ? (
+                  <div className="form-group form-group-comment">
+                    <label>Комментарий</label>
+                    <input
+                      value={form.comment}
+                      disabled={readOnly}
+                      onChange={(e) => setForm({ ...form, comment: e.target.value })}
+                      placeholder="Необязательно"
                     />
                   </div>
+                ) : (
+                  !readOnly && (
+                    <button
+                      type="button"
+                      className="inv-comment-toggle"
+                      onClick={() => setCommentOpen(true)}
+                    >
+                      + Комментарий
+                    </button>
+                  )
                 )}
               </div>
-            </div>
-
-            <div className="inv-sheet-scroll">
-              {!isPhone && (
-                <div className="table-wrap items-table inventory-items-table doc-modal-items-scroll">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Товар</th>
-                        <th>Ед.</th>
-                        <th className="col-num">Учёт</th>
-                        <th className="col-num">Факт</th>
-                        <th className="col-num">Разница</th>
-                        <th className="col-num">Сумма</th>
-                        {!readOnly && <th />}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {visibleItems.length === 0 ? (
-                        <tr>
-                          <td colSpan={readOnly ? 6 : 7} className="empty">
-                            {form.items.length === 0
-                              ? 'Нажмите «Заполнить» или добавьте товар'
-                              : itemSearch.trim()
-                                ? 'Ничего не найдено'
-                                : 'Нет расхождений'}
-                          </td>
-                        </tr>
-                      ) : visibleItems.map(({ item, idx }) => {
-                        const diff = lineDiff(item);
-                        const amount = lineAmount(item);
-                        const diffClass = diff > 1e-9 ? 'inv-diff-pos' : diff < -1e-9 ? 'inv-diff-neg' : '';
-                        return (
-                          <tr key={`${item.product_id}:${item.variant_id || ''}:${idx}`} className={diffClass ? 'inv-row-discrepancy' : undefined}>
-                            <td>{productName(products, item)}</td>
-                            <td>{productUnit(products, item)}</td>
-                            <td className="col-num inv-book-muted">{formatQty(lineBook(item))}</td>
-                            <td>
-                              {readOnly ? (
-                                formatQty(lineFact(item))
-                              ) : (
-                                <input
-                                  className="input-qty"
-                                  inputMode="decimal"
-                                  value={item.quantity ?? ''}
-                                  onChange={(e) => updateFact(idx, e.target.value)}
-                                />
-                              )}
-                            </td>
-                            <td className={`col-num ${diffClass}`}>{formatQty(diff)}</td>
-                            <td className="col-num">{formatMoney(amount)}</td>
-                            {!readOnly && (
-                              <td>
-                                <IconButton title="Убрать" onClick={() => removeItem(idx)}>
-                                  <IconTrash />
-                                </IconButton>
-                              </td>
-                            )}
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-              <div className={`inventory-items-cards${isPhone ? ' is-phone' : ''}`}>
-                {visibleItems.length === 0 ? (
-                  <div className="inventory-list-empty">
-                    {form.items.length === 0
-                      ? 'Нажмите «Заполнить» или добавьте товар'
-                      : itemSearch.trim()
-                        ? 'Ничего не найдено'
-                        : 'Нет расхождений'}
+            ) : (
+              <>
+                <div className="inv-sheet-top">
+                  <div className="inv-items-context">
+                    <span>{form.date}</span>
+                    <span>·</span>
+                    <strong>{selectedDepartment?.name || 'Отдел'}</strong>
+                    {form.number ? <span className="inv-items-context-num">№{form.number}</span> : null}
                   </div>
-                ) : visibleItems.map(({ item, idx }) => (
-                  <InventoryLineCard
-                    key={`${item.product_id}:${item.variant_id || ''}:${idx}`}
-                    item={item}
-                    idx={idx}
-                    products={products}
-                    readOnly={readOnly}
-                    onFact={updateFact}
-                    onRemove={removeItem}
-                    compact={isPhone}
-                  />
-                ))}
-              </div>
-            </div>
 
-            <div className="doc-modal-totals">
-              <div>− {formatMoney(totals.shortage)}</div>
-              <div>+ {formatMoney(totals.surplus)}</div>
-              <div className="doc-modal-total">
-                <strong>Нетто {formatMoney(totals.net)}</strong>
-              </div>
-            </div>
+                  <div className="inv-toolbar">
+                    {canEdit && !readOnly && (
+                      <button
+                        type="button"
+                        className="btn btn-ghost inv-fill-btn"
+                        onClick={fillFromStock}
+                        disabled={filling || !form.to_department_id}
+                      >
+                        {filling ? '…' : 'Заполнить по учёту'}
+                      </button>
+                    )}
+                    <div className="inv-line-filter" role="tablist" aria-label="Фильтр строк">
+                      <button
+                        type="button"
+                        className={`btn btn-ghost${lineFilter === 'all' ? ' is-active' : ''}`}
+                        onClick={() => setLineFilter('all')}
+                      >
+                        Все
+                      </button>
+                      <button
+                        type="button"
+                        className={`btn btn-ghost${lineFilter === 'discrepancies' ? ' is-active' : ''}`}
+                        onClick={() => setLineFilter('discrepancies')}
+                      >
+                        Расхожд.
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="inv-work-bar">
+                    <input
+                      type="search"
+                      className="inv-item-search"
+                      value={itemSearch}
+                      onChange={(e) => setItemSearch(e.target.value)}
+                      placeholder="Поиск товара…"
+                      enterKeyHint="search"
+                      autoComplete="off"
+                    />
+                    {canEdit && !readOnly && (
+                      <div className="inv-add-line">
+                        <ProductSelect
+                          products={products}
+                          value={addPick}
+                          onChange={addLine}
+                          placeholder="Добавить…"
+                          disabled={!form.to_department_id}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="inv-sheet-scroll">
+                  {!isPhone && (
+                    <div className="table-wrap items-table inventory-items-table doc-modal-items-scroll">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Товар</th>
+                            <th>Ед.</th>
+                            <th className="col-num">Учёт</th>
+                            <th className="col-num">Факт</th>
+                            <th className="col-num">Разница</th>
+                            <th className="col-num">Сумма</th>
+                            {!readOnly && <th />}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {visibleItems.length === 0 ? (
+                            <tr>
+                              <td colSpan={readOnly ? 6 : 7} className="empty">
+                                {form.items.length === 0
+                                  ? 'Заполните по учёту или добавьте товар'
+                                  : itemSearch.trim()
+                                    ? 'Ничего не найдено'
+                                    : 'Нет расхождений'}
+                              </td>
+                            </tr>
+                          ) : visibleItems.map(({ item, idx }) => {
+                            const diff = lineDiff(item);
+                            const amount = lineAmount(item);
+                            const diffClass = diff > 1e-9 ? 'inv-diff-pos' : diff < -1e-9 ? 'inv-diff-neg' : '';
+                            return (
+                              <tr key={`${item.product_id}:${item.variant_id || ''}:${idx}`} className={diffClass ? 'inv-row-discrepancy' : undefined}>
+                                <td>{productName(products, item)}</td>
+                                <td>{productUnit(products, item)}</td>
+                                <td className="col-num inv-book-muted">{formatQty(lineBook(item))}</td>
+                                <td>
+                                  {readOnly ? (
+                                    formatQty(lineFact(item))
+                                  ) : (
+                                    <input
+                                      className="input-qty"
+                                      inputMode="decimal"
+                                      value={item.quantity ?? ''}
+                                      onChange={(e) => updateFact(idx, e.target.value)}
+                                    />
+                                  )}
+                                </td>
+                                <td className={`col-num ${diffClass}`}>{formatQty(diff)}</td>
+                                <td className="col-num">{formatMoney(amount)}</td>
+                                {!readOnly && (
+                                  <td>
+                                    <IconButton title="Убрать" onClick={() => removeItem(idx)}>
+                                      <IconTrash />
+                                    </IconButton>
+                                  </td>
+                                )}
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                  <div className={`inventory-items-cards${isPhone ? ' is-phone' : ''}`}>
+                    {visibleItems.length === 0 ? (
+                      <div className="inventory-list-empty">
+                        {form.items.length === 0
+                          ? 'Заполните по учёту или добавьте товар из списка'
+                          : itemSearch.trim()
+                            ? 'Ничего не найдено'
+                            : 'Нет расхождений'}
+                      </div>
+                    ) : visibleItems.map(({ item, idx }) => (
+                      <InventoryLineCard
+                        key={`${item.product_id}:${item.variant_id || ''}:${idx}`}
+                        item={item}
+                        idx={idx}
+                        products={products}
+                        readOnly={readOnly}
+                        onFact={updateFact}
+                        onRemove={removeItem}
+                        compact={isPhone}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                <div className="doc-modal-totals">
+                  <div>− {formatMoney(totals.shortage)}</div>
+                  <div>+ {formatMoney(totals.surplus)}</div>
+                  <div className="doc-modal-total">
+                    <strong>Нетто {formatMoney(totals.net)}</strong>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </Modal>
       )}

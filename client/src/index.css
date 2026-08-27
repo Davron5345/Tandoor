@@ -3396,6 +3396,160 @@ input[type='number']::-webkit-inner-spin-button {
   min-width: 0;
 }
 
+.inv-sheet-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  flex: 0 0 auto;
+  padding: 0 0 10px;
+  max-width: 100%;
+}
+
+.inv-sheet-tab {
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid var(--control-border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.inv-sheet-tab.is-active {
+  background: color-mix(in srgb, var(--primary) 14%, var(--surface));
+  border-color: color-mix(in srgb, var(--primary) 45%, transparent);
+  color: var(--primary);
+}
+
+.inv-sheet-tab:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.inv-sheet-setup {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 4px 2px 8px;
+  max-width: 100%;
+}
+
+.inv-setup-meta {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) 88px;
+  gap: 10px 12px;
+  align-items: end;
+  max-width: 100%;
+}
+
+.inv-setup-meta .form-group {
+  margin: 0;
+  min-width: 0;
+}
+
+.inv-dept-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.inv-dept-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.inv-dept-cubes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+@media (min-width: 769px) {
+  .inv-dept-cubes {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.inv-dept-cube {
+  min-height: 72px;
+  padding: 14px 12px;
+  border: 1px solid var(--control-border);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--text) 6%, transparent);
+}
+
+.inv-dept-cube:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--primary) 40%, var(--control-border));
+}
+
+.inv-dept-cube.is-selected {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 12%, var(--surface));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 35%, transparent);
+}
+
+.inv-dept-cube:disabled {
+  cursor: default;
+  opacity: 0.85;
+}
+
+.inv-dept-cube-name {
+  display: block;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.25;
+  word-break: break-word;
+}
+
+.inv-items-context {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  font-size: 13px;
+  color: var(--text-muted);
+  min-width: 0;
+}
+
+.inv-items-context strong {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.inv-items-context-num {
+  margin-left: auto;
+}
+
+.modal-inventory--setup .modal-footer-actions {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 8px;
+  width: 100%;
+}
+
+.modal-inventory--setup .modal-footer-actions > :first-child {
+  grid-column: auto;
+}
+
+.modal-inventory--items .modal-footer-actions {
+  display: grid;
+  grid-template-columns: auto 1fr 1fr;
+  gap: 8px;
+  width: 100%;
+}
+
 .inv-item-search {
   flex: 1 1 160px;
   min-width: 0;
@@ -7688,6 +7842,70 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
     display: flex;
     flex-direction: column;
     justify-content: flex-start;
+    padding: 0;
+  }
+
+  .modal-inventory .inv-sheet-tabs {
+    padding: 0 12px 8px;
+    gap: 6px;
+  }
+
+  .modal-inventory .inv-sheet-tab {
+    min-height: 36px;
+    padding: 6px 8px;
+    font-size: 13px;
+  }
+
+  .modal-inventory .inv-sheet-setup {
+    padding: 4px 12px 12px;
+    gap: 12px;
+  }
+
+  .modal-inventory .inv-setup-meta {
+    grid-template-columns: minmax(0, 1.35fr) 64px;
+    gap: 6px 8px;
+  }
+
+  .modal-inventory .inv-setup-meta .form-group label {
+    font-size: 11px;
+    margin-bottom: 2px;
+  }
+
+  .modal-inventory .inv-setup-meta .form-group input,
+  .modal-inventory .inv-sheet-setup .form-group-comment input {
+    min-height: 34px;
+    height: 34px;
+    padding: 4px 8px;
+    font-size: 15px;
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  .modal-inventory .inv-setup-meta .form-group-date input[type="date"] {
+    appearance: none;
+    -webkit-appearance: none;
+    min-width: 0 !important;
+    max-width: 100%;
+  }
+
+  .modal-inventory .inv-dept-cubes {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .modal-inventory .inv-dept-cube {
+    min-height: 64px;
+    padding: 12px 10px;
+    border-radius: 12px;
+  }
+
+  .modal-inventory .inv-dept-cube-name {
+    font-size: 14px;
+  }
+
+  .modal-inventory .inv-comment-toggle {
+    display: inline-flex;
   }
 
   .modal-inventory .inv-sheet-top {
@@ -7695,12 +7913,30 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
     display: flex;
     flex-direction: column;
     gap: 6px;
-    padding: 6px 12px 8px;
+    padding: 0 12px 8px;
     border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
     background: var(--surface);
     max-width: 100%;
     min-width: 0;
     box-sizing: border-box;
+  }
+
+  .modal-inventory .inv-items-context {
+    font-size: 12px;
+  }
+
+  .modal-inventory--setup .modal-footer-actions {
+    grid-template-columns: 1fr 1.35fr;
+  }
+
+  .modal-inventory--items .modal-footer-actions {
+    grid-template-columns: auto 1fr 1fr;
+  }
+
+  .modal-inventory--items .modal-footer-actions .btn {
+    min-height: 42px;
+    font-size: 14px;
+    padding: 8px 4px;
   }
 
   .modal-inventory .inv-sheet-scroll {
