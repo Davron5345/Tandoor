@@ -3399,10 +3399,11 @@ input[type='number']::-webkit-inner-spin-button {
 .inv-sheet-tabs {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 6px;
+  gap: 8px;
   flex: 0 0 auto;
-  padding: 0 0 10px;
+  padding: 0 16px 12px;
   max-width: 100%;
+  box-sizing: border-box;
 }
 
 .inv-sheet-tab {
@@ -3435,15 +3436,16 @@ input[type='number']::-webkit-inner-spin-button {
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding: 4px 2px 8px;
+  gap: 12px;
+  padding: 0 16px 16px;
   max-width: 100%;
+  box-sizing: border-box;
 }
 
 .inv-setup-meta {
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) 88px;
-  gap: 10px 12px;
+  grid-template-columns: minmax(0, 1fr) 80px;
+  gap: 8px 10px;
   align-items: end;
   max-width: 100%;
 }
@@ -3469,7 +3471,7 @@ input[type='number']::-webkit-inner-spin-button {
 .inv-dept-cubes {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: 8px;
 }
 
 @media (min-width: 769px) {
@@ -3479,10 +3481,10 @@ input[type='number']::-webkit-inner-spin-button {
 }
 
 .inv-dept-cube {
-  min-height: 72px;
-  padding: 14px 12px;
+  min-height: 52px;
+  padding: 10px 12px;
   border: 1px solid var(--control-border);
-  border-radius: 14px;
+  border-radius: 12px;
   background: var(--surface);
   color: var(--text);
   text-align: left;
@@ -3507,7 +3509,7 @@ input[type='number']::-webkit-inner-spin-button {
 
 .inv-dept-cube-name {
   display: block;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 700;
   line-height: 1.25;
   word-break: break-word;
@@ -7777,7 +7779,7 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
     display: flex;
     flex: 0 0 auto;
     align-items: center;
-    padding: max(8px, env(safe-area-inset-top, 0px)) 14px 6px;
+    padding: max(10px, env(safe-area-inset-top, 0px)) 16px 8px;
     max-width: 100%;
     box-sizing: border-box;
   }
@@ -7808,7 +7810,7 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
     max-width: 100%;
     box-sizing: border-box;
     justify-content: stretch;
-    padding: 6px 10px max(8px, calc(env(safe-area-inset-bottom, 0px) + 2px));
+    padding: 10px 16px max(12px, calc(env(safe-area-inset-bottom, 0px) + 6px));
     background: var(--surface);
     border-top: 1px solid var(--border);
   }
@@ -7817,7 +7819,7 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
     width: 100%;
-    gap: 6px;
+    gap: 8px;
   }
 
   .modal-inventory .modal-footer-actions > :first-child {
@@ -7827,9 +7829,9 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
   .modal-inventory .modal-footer-actions .btn {
     width: 100%;
     min-width: 0;
-    min-height: 42px;
-    padding: 8px 4px;
-    font-size: 14px;
+    min-height: 44px;
+    padding: 10px 8px;
+    font-size: 15px;
   }
 
   .modal-inventory .doc-modal {
@@ -7846,37 +7848,38 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
   }
 
   .modal-inventory .inv-sheet-tabs {
-    padding: 0 12px 8px;
-    gap: 6px;
+    padding: 0 16px 10px;
+    gap: 8px;
   }
 
   .modal-inventory .inv-sheet-tab {
-    min-height: 36px;
-    padding: 6px 8px;
-    font-size: 13px;
+    min-height: 38px;
+    padding: 8px 10px;
+    font-size: 14px;
   }
 
   .modal-inventory .inv-sheet-setup {
-    padding: 4px 12px 12px;
-    gap: 12px;
+    padding: 0 16px 16px;
+    gap: 10px;
   }
 
   .modal-inventory .inv-setup-meta {
-    grid-template-columns: minmax(0, 1.35fr) 64px;
-    gap: 6px 8px;
+    grid-template-columns: minmax(0, 1fr) 76px;
+    gap: 8px 10px;
   }
 
-  .modal-inventory .inv-setup-meta .form-group label {
-    font-size: 11px;
-    margin-bottom: 2px;
+  .modal-inventory .inv-setup-meta .form-group label,
+  .modal-inventory .inv-dept-label {
+    font-size: 12px;
+    margin-bottom: 4px;
   }
 
   .modal-inventory .inv-setup-meta .form-group input,
   .modal-inventory .inv-sheet-setup .form-group-comment input {
-    min-height: 34px;
-    height: 34px;
-    padding: 4px 8px;
-    font-size: 15px;
+    min-height: 40px;
+    height: 40px;
+    padding: 8px 10px;
+    font-size: 16px;
     width: 100%;
     min-width: 0;
     box-sizing: border-box;
@@ -7889,14 +7892,18 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
     max-width: 100%;
   }
 
+  .modal-inventory .inv-dept-block {
+    gap: 8px;
+  }
+
   .modal-inventory .inv-dept-cubes {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
   }
 
   .modal-inventory .inv-dept-cube {
-    min-height: 64px;
-    padding: 12px 10px;
+    min-height: 48px;
+    padding: 10px 12px;
     border-radius: 12px;
   }
 
@@ -7906,19 +7913,31 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
 
   .modal-inventory .inv-comment-toggle {
     display: inline-flex;
+    margin-top: 2px;
+    min-height: 36px;
+    align-items: center;
+    padding: 4px 0;
   }
 
   .modal-inventory .inv-sheet-top {
     flex: 0 0 auto;
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    padding: 0 12px 8px;
+    gap: 8px;
+    padding: 0 16px 10px;
     border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
     background: var(--surface);
     max-width: 100%;
     min-width: 0;
     box-sizing: border-box;
+  }
+
+  .modal-inventory .inv-sheet-scroll {
+    padding: 10px 16px;
+  }
+
+  .modal-inventory .doc-modal-totals {
+    padding: 8px 16px;
   }
 
   .modal-inventory .inv-items-context {
@@ -7934,9 +7953,9 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
   }
 
   .modal-inventory--items .modal-footer-actions .btn {
-    min-height: 42px;
+    min-height: 44px;
     font-size: 14px;
-    padding: 8px 4px;
+    padding: 8px 6px;
   }
 
   .modal-inventory .inv-sheet-scroll {
