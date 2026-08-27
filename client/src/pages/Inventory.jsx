@@ -26,38 +26,17 @@ function useInventoryPhoneShell(modalOpen) {
     const html = document.documentElement;
     const mq = window.matchMedia(INVENTORY_PHONE_MQ);
 
-    const syncVvh = () => {
-      const height = window.visualViewport?.height ?? window.innerHeight;
-      html.style.setProperty('--app-vvh', `${Math.round(height)}px`);
-      const offsetTop = window.visualViewport?.offsetTop ?? 0;
-      html.style.setProperty('--app-vv-top', `${Math.round(offsetTop)}px`);
-    };
-
     const sync = () => {
-      if (mq.matches) {
-        html.classList.add('inventory-phone-lock');
-        syncVvh();
-      } else {
-        html.classList.remove('inventory-phone-lock');
-        html.style.removeProperty('--app-vvh');
-        html.style.removeProperty('--app-vv-top');
-      }
+      if (mq.matches) html.classList.add('inventory-phone-lock');
+      else html.classList.remove('inventory-phone-lock');
     };
 
     sync();
     mq.addEventListener('change', sync);
-    window.visualViewport?.addEventListener('resize', syncVvh);
-    window.visualViewport?.addEventListener('scroll', syncVvh);
-    window.addEventListener('resize', syncVvh);
-
     return () => {
       mq.removeEventListener('change', sync);
-      window.visualViewport?.removeEventListener('resize', syncVvh);
-      window.visualViewport?.removeEventListener('scroll', syncVvh);
-      window.removeEventListener('resize', syncVvh);
       html.classList.remove('inventory-phone-lock');
-      html.style.removeProperty('--app-vvh');
-      html.style.removeProperty('--app-vv-top');
+      html.classList.remove('inventory-modal-open');
     };
   }, []);
 
@@ -67,7 +46,7 @@ function useInventoryPhoneShell(modalOpen) {
     return () => html.classList.remove('inventory-modal-open');
   }, [modalOpen]);
 
-  /* Kill iOS rubber-band when list is at edge */
+  /* Kill iOS rubber-band when list/modal scroll is at edge */
   useEffect(() => {
     const mq = window.matchMedia(INVENTORY_PHONE_MQ);
     let startY = 0;
