@@ -27,6 +27,12 @@ import {
   assertCounterpartyBranch,
 } from './counterparties.js';
 import { syncSupplierPriceListFromPrihod } from './supplierPrices.js';
+import {
+  allocateExtraCosts,
+  extraCostsTotal,
+  capitalizedExtraTotal,
+  normalizeExtraCosts,
+} from '../documentExtraCosts.js';
 
 const { queryAll, queryOne, run, transaction } = db;
 
@@ -192,10 +198,13 @@ export function snapshotDocument(docId) {
     JOIN products p ON p.id = di.product_id
     WHERE di.document_id = ?
   `, [docId]);
+  const extra_costs = queryAll(`
+    SELECT * FROM document_extra_costs WHERE document_id = ? ORDER BY COALESCE(sort_order, 0) ASC, id ASC
+  `, [docId]);
   const counterparty = doc?.counterparty_id
     ? queryOne('SELECT * FROM counterparties WHERE id = ?', [doc.counterparty_id])
     : null;
-  return JSON.stringify({ document: doc, items, counterparty });
+  return JSON.stringify({ document: doc, items, extra_costs, counterparty });
 }
 
 export function addHistory(documentId, action, userId = null) {
@@ -215,7 +224,15 @@ function updateStock(documentId, reverse = false) {
   const doc = queryOne('SELECT * FROM documents WHERE id = ?', [documentId]);
   if (!doc || doc.status !== 'confirmed') return;
 
-  const items = queryAll('SELECT * FROM document_items WHERE document_id = ?', [documentId]);
+  const items = queryAll(
+    'SELECT * FROM document_items WHERE document_id = ? ORDER BY COALESCE(sort_order, 0) ASC, id ASC',
+    [documentId],
+  );
+  const extraCosts = queryAll(
+    'SELECT * FROM document_extra_costs WHERE document_id = ? ORDER BY COALESCE(sort_order, 0) ASC, id ASC',
+    [documentId],
+  );
+  const allocatedExtras = doc.type === 'prihod' ? allocateExtraCosts(items, extraCosts) : items.map(() => 0);
   const multiplier = reverse ? -1 : 1;
   const variantId = (item) => item.variant_id || null;
 
@@ -330,15 +347,16 @@ function updateStock(documentId, reverse = false) {
   }
 
   const branchId = doc.branch_id || DEFAULT_BRANCH_ID;
-  for (const item of items) {
+  items.forEach((item, idx) => {
     const qty = Math.abs(item.quantity);
-    if (qty <= 0) continue;
+    if (qty <= 0) return;
     const vid = variantId(item);
 
     if (doc.type === 'prihod' && doc.to_department_id) {
       const stockQty = itemStockQty(item);
       const lineAmount = itemLineAmount(item);
-      const unitCost = stockQty > 0 ? lineAmount / stockQty : 0;
+      const extraAmount = allocatedExtras[idx] || 0;
+      const unitCost = stockQty > 0 ? (lineAmount + extraAmount) / stockQty : 0;
       if (multiplier > 0) {
         receiveDepartmentStock(doc.to_department_id, item.product_id, stockQty, unitCost, vid);
       } else {
@@ -379,7 +397,7 @@ function updateStock(documentId, reverse = false) {
       afterVariantStockChange(vid, item.product_id, branchId);
       syncBranchStockFromDepartments(branchId, item.product_id);
     }
-  }
+  });
 
   if (!reverse && doc.type === 'prihod') {
     syncSupplierPriceListFromPrihod(doc, items);
@@ -659,6 +677,11 @@ export function getDocument(id, branchId = null) {
   const sale_items = items.filter((i) => i.item_role === 'sale');
   const consumption_items = items.filter((i) => i.item_role === 'consumption');
 
+  const extra_costs = doc.type === 'prihod' ? loadDocumentExtraCosts(id) : [];
+  const extra_costs_total = extraCostsTotal(extra_costs);
+  const capitalized_extra_total = capitalizedExtraTotal(extra_costs);
+  const goods_total = Number(doc.total_amount) || 0;
+
   return {
     ...doc,
     items: doc.type === 'dish_sale' ? sale_items : items,
@@ -666,6 +689,10 @@ export function getDocument(id, branchId = null) {
     output_items,
     sale_items,
     consumption_items,
+    extra_costs,
+    extra_costs_total,
+    capitalized_extra_total,
+    landed_total: goods_total + capitalized_extra_total,
   };
 }
 
@@ -701,6 +728,52 @@ function itemLineAmount(item) {
 
 function itemsTotal(items) {
   return items.reduce((s, i) => s + itemLineAmount(i), 0);
+}
+
+function mapExtraCostRow(row) {
+  return {
+    id: row.id,
+    title: row.title,
+    amount: Number(row.amount) || 0,
+    capitalize: Number(row.capitalize) !== 0,
+    sort_order: row.sort_order || 0,
+  };
+}
+
+function loadDocumentExtraCosts(documentId) {
+  return queryAll(
+    'SELECT * FROM document_extra_costs WHERE document_id = ? ORDER BY COALESCE(sort_order, 0) ASC, id ASC',
+    [documentId],
+  ).map(mapExtraCostRow);
+}
+
+function replaceDocumentExtraCosts(documentId, extras) {
+  run('DELETE FROM document_extra_costs WHERE document_id = ?', [documentId]);
+  extras.forEach((row, idx) => {
+    run(`
+      INSERT INTO document_extra_costs (id, document_id, title, amount, capitalize, sort_order)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `, [uuidv4(), documentId, row.title, row.amount, row.capitalize ? 1 : 0, row.sort_order ?? idx]);
+  });
+}
+
+function extraCostsForWrite(data, docType, documentId = null) {
+  if (docType !== 'prihod') {
+    if (Array.isArray(data.extra_costs) && data.extra_costs.length > 0) {
+      throw new Error('Доп. расходы можно указать только в приходе');
+    }
+    return { extras: [], replace: true };
+  }
+  if (data.extra_costs === undefined && documentId) {
+    return { extras: loadDocumentExtraCosts(documentId), replace: false };
+  }
+  return { extras: normalizeExtraCosts(data.extra_costs, docType), replace: true };
+}
+
+function assertExtraCostsAllocatable(items, extras) {
+  if (capitalizedExtraTotal(extras) > 0) {
+    allocateExtraCosts(items, extras);
+  }
 }
 
 function normalizeItems(items) {
@@ -1222,6 +1295,8 @@ export function createDocument(data, userId = null, branchId = DEFAULT_BRANCH_ID
     assertReturnQtyNotExceeded(sourceDocumentId, null, items);
   }
   const total = itemsTotal(items);
+  const { extras, replace: replaceExtras } = extraCostsForWrite(data, data.type);
+  assertExtraCostsAllocatable(items, extras);
   const willConfirm = data.status === 'confirmed';
   const contractId = isSupplierCounterpartyDoc(data.type)
     ? resolveDocumentContractId(data.contract_id, data.counterparty_id, docBranchId)
@@ -1255,6 +1330,8 @@ export function createDocument(data, userId = null, branchId = DEFAULT_BRANCH_ID
         VALUES (?, ?, ?, ?, ?, ?, ?, 'input', ?, ?)
       `, [uuidv4(), id, item.product_id, item.variant_id || null, item.quantity, item.price, item.amount, item.net_weight ?? null, idx]);
     });
+
+    if (replaceExtras) replaceDocumentExtraCosts(id, extras);
 
     addHistory(id, 'created', userId);
 
@@ -1419,6 +1496,8 @@ export function updateDocument(id, data, userId = null, branchId = DEFAULT_BRANC
 
   const wasConfirmed = existingDoc.status === 'confirmed';
   const willConfirm = data.status === 'confirmed' || (wasConfirmed && data.status !== 'draft');
+  const { extras, replace: replaceExtras } = extraCostsForWrite(data, docType, id);
+  assertExtraCostsAllocatable(items, extras);
 
   transaction(() => {
     if (wasConfirmed) updateStock(id, true);
@@ -1461,6 +1540,8 @@ export function updateDocument(id, data, userId = null, branchId = DEFAULT_BRANC
         VALUES (?, ?, ?, ?, ?, ?, ?, 'input', ?, ?)
       `, [uuidv4(), id, item.product_id, item.variant_id || null, item.quantity, item.price, item.amount, item.net_weight ?? null, idx]);
     });
+
+    if (replaceExtras) replaceDocumentExtraCosts(id, extras);
 
     addHistory(id, 'updated', userId);
 

@@ -30,6 +30,7 @@ export const PG_MIGRATION_SETTINGS_KEYS = [
   'document_item_cost_v1',
   'document_item_net_weight_v1',
   'document_item_sort_order_v1',
+  'document_extra_costs_v1',
   'must_change_pwd_v1',
   'opening_balance_docs_v1',
   'performance_indexes_v1',
@@ -356,6 +357,15 @@ CREATE TABLE IF NOT EXISTS document_items (
   sort_order INTEGER DEFAULT 0
 );
 
+CREATE TABLE IF NOT EXISTS document_extra_costs (
+  id TEXT PRIMARY KEY,
+  document_id TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  amount DOUBLE PRECISION NOT NULL DEFAULT 0,
+  capitalize INTEGER NOT NULL DEFAULT 1,
+  sort_order INTEGER DEFAULT 0
+);
+
 CREATE TABLE IF NOT EXISTS document_history (
   id TEXT PRIMARY KEY,
   document_id TEXT,
@@ -553,6 +563,7 @@ CREATE INDEX IF NOT EXISTS idx_docs_to_branch ON documents (to_branch_id, status
 CREATE INDEX IF NOT EXISTS idx_docs_counterparty ON documents (counterparty_id);
 CREATE INDEX IF NOT EXISTS idx_doc_items_doc ON document_items (document_id);
 CREATE INDEX IF NOT EXISTS idx_doc_items_product ON document_items (product_id);
+CREATE INDEX IF NOT EXISTS idx_doc_extra_costs_doc ON document_extra_costs (document_id);
 CREATE INDEX IF NOT EXISTS idx_document_history_document ON document_history (document_id);
 CREATE INDEX IF NOT EXISTS idx_payments_branch_date ON payments (branch_id, date, type);
 CREATE INDEX IF NOT EXISTS idx_payments_counterparty ON payments (counterparty_id);
@@ -607,6 +618,7 @@ export const PG_TABLE_IMPORT_ORDER = [
   'cash_articles',
   'documents',
   'document_items',
+  'document_extra_costs',
   'document_history',
   'opening_balance_lines',
   'branch_opening_balances',

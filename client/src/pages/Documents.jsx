@@ -9,6 +9,7 @@ import CounterpartyCreateModal from '../components/CounterpartyCreateModal';
 import ProductCreateModal from '../components/ProductCreateModal';
 import ContractSelect from '../components/ContractSelect';
 import { amountInWordsCapitalized } from '../utils/amountInWords';
+import { allocateExtraCosts, extraCostsTotal, capitalizedExtraTotal } from '../utils/documentExtraCosts';
 import { useAuth } from '../AuthContext';
 import { useBranch } from '../BranchContext';
 import { hasPermission, DOC_TYPE_LABELS } from '../permissions';
@@ -77,6 +78,7 @@ function formatContractLabel(contract) {
 }
 
 const emptyItem = { product_id: '', variant_id: null, quantity: 1, price: 0, net_weight: '' };
+const emptyExtraCost = { title: '', amount: '', capitalize: true };
 
 function hasNetColumn(type) {
   return type === 'prihod' || type === 'peremeshchenie';
@@ -134,6 +136,7 @@ const emptyDoc = {
   comment: '',
   status: 'draft',
   items: [{ ...emptyItem }],
+  extra_costs: [],
 };
 
 export default function Documents({ defaultType }) {
@@ -780,6 +783,7 @@ export default function Documents({ defaultType }) {
       to_department_id: '',
       from_department_id: '',
       items: [{ ...emptyItem }],
+      extra_costs: type === 'prihod' ? [] : [],
     });
   };
 
@@ -908,6 +912,13 @@ export default function Documents({ defaultType }) {
         amount: i.amount,
         net_weight: i.net_weight ?? '',
       })),
+      extra_costs: doc.type === 'prihod'
+        ? (doc.extra_costs || []).map((e) => ({
+          title: e.title || '',
+          amount: e.amount,
+          capitalize: e.capitalize !== false,
+        }))
+        : [],
     };
     setForm(applyDocumentDraft(id, loadedForm));
     setModal(id);
@@ -1023,6 +1034,48 @@ export default function Documents({ defaultType }) {
       };
     }
     setForm({ ...form, items });
+  };
+
+  const extraAllocations = useMemo(() => {
+    if (form.type !== 'prihod') return [];
+    const extras = (form.extra_costs || []).map((e) => ({
+      ...e,
+      amount: parsePriceInput(e.amount) ?? 0,
+    }));
+    return allocateExtraCosts(form.items, extras);
+  }, [form.type, form.items, form.extra_costs]);
+
+  const extrasTotal = extraCostsTotal(
+    (form.extra_costs || []).map((e) => ({
+      ...e,
+      amount: parsePriceInput(e.amount) ?? 0,
+    })),
+  );
+  const extrasCapitalized = capitalizedExtraTotal(
+    (form.extra_costs || []).map((e) => ({
+      ...e,
+      amount: parsePriceInput(e.amount) ?? 0,
+    })),
+  );
+
+  const updateExtraCost = (idx, field, value) => {
+    const extra_costs = [...(form.extra_costs || [])];
+    extra_costs[idx] = { ...extra_costs[idx], [field]: value };
+    setForm({ ...form, extra_costs });
+  };
+
+  const addExtraCost = () => {
+    setForm({
+      ...form,
+      extra_costs: [...(form.extra_costs || []), { ...emptyExtraCost }],
+    });
+  };
+
+  const removeExtraCost = (idx) => {
+    setForm({
+      ...form,
+      extra_costs: (form.extra_costs || []).filter((_, i) => i !== idx),
+    });
   };
 
   const total = form.items.reduce(
@@ -1170,6 +1223,13 @@ export default function Documents({ defaultType }) {
           };
         }),
       };
+      if (form.type === 'prihod') {
+        data.extra_costs = (form.extra_costs || []).map((e) => ({
+          title: e.title,
+          amount: parsePriceInput(e.amount) ?? 0,
+          capitalize: e.capitalize !== false,
+        }));
+      }
       if (form.type === 'peremeshchenie') {
         if (form.transfer_mode === 'department') {
           const branch = form.from_branch_id || branchId || 'main';
@@ -2066,13 +2126,20 @@ export default function Documents({ defaultType }) {
                           />
                         </td>
                         <td className="doc-items-amount-col">
-                          <input
-                            type="text"
-                            inputMode="decimal"
-                            value={item.amount_input ?? formatPriceInput(item.amount ?? lineAmount)}
-                            disabled={isReadOnly}
-                            onChange={(e) => updateItemAmount(idx, e.target.value)}
-                          />
+                          <div className={form.type === 'prihod' && extraAllocations[idx] > 0 ? 'doc-items-net-wrap has-hint' : undefined}>
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={item.amount_input ?? formatPriceInput(item.amount ?? lineAmount)}
+                              disabled={isReadOnly}
+                              onChange={(e) => updateItemAmount(idx, e.target.value)}
+                            />
+                            {form.type === 'prihod' && extraAllocations[idx] > 0 && (
+                              <span className="doc-items-net-hint">
+                                с доставкой: {formatMoney(lineAmount + extraAllocations[idx])}
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="doc-items-actions-col">
                           {canEdit && (
@@ -2102,6 +2169,59 @@ export default function Documents({ defaultType }) {
               </div>
             </div>
 
+            {form.type === 'prihod' && (
+              <div className="doc-extra-costs">
+                <div className="doc-extra-costs-head">
+                  <h3>Доп. расходы</h3>
+                  {canEdit && (
+                    <IconButton title="Добавить расход" onClick={addExtraCost}>
+                      <IconPlus />
+                    </IconButton>
+                  )}
+                </div>
+                {(form.extra_costs || []).length === 0 && (
+                  <p className="doc-extra-costs-empty">Дорога, разгрузка и другие суммы сверх счёта поставщика</p>
+                )}
+                {(form.extra_costs || []).map((row, idx) => (
+                  <div key={idx} className="doc-extra-costs-row">
+                    <input
+                      type="text"
+                      placeholder="Название (дорога…)"
+                      value={row.title}
+                      disabled={isReadOnly}
+                      onChange={(e) => updateExtraCost(idx, 'title', e.target.value)}
+                    />
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      placeholder="Сумма"
+                      value={formatPriceInput(row.amount)}
+                      disabled={isReadOnly}
+                      onChange={(e) => updateExtraCost(idx, 'amount', formatPriceInput(e.target.value))}
+                    />
+                    <select
+                      value={row.capitalize === false ? 'period' : 'cost'}
+                      disabled={isReadOnly}
+                      onChange={(e) => updateExtraCost(idx, 'capitalize', e.target.value !== 'period')}
+                    >
+                      <option value="cost">В себестоимость</option>
+                      <option value="period">В расходы</option>
+                    </select>
+                    {canEdit && (
+                      <IconButton title="Удалить" danger onClick={() => removeExtraCost(idx)}>
+                        <IconTrash />
+                      </IconButton>
+                    )}
+                  </div>
+                ))}
+                {(form.extra_costs || []).some((e) => e.capitalize !== false) && (
+                  <p className="doc-extra-costs-hint">
+                    В себестоимость: попадёт в цену товара. Кассу платите отдельно статьёй «Закуп», иначе расход в P&L задвоится.
+                  </p>
+                )}
+              </div>
+            )}
+
             <div className="doc-modal-footer">
               <div className="doc-modal-footer-comment">
                 <label>Комментарий</label>
@@ -2113,7 +2233,17 @@ export default function Documents({ defaultType }) {
                   placeholder="Примечание к документу..."
                 />
               </div>
-              <div className="doc-modal-total">Итого: {formatMoney(total)}</div>
+              <div className="doc-modal-totals">
+                {form.type === 'prihod' ? (
+                  <>
+                    <div>Товары: {formatMoney(total)}</div>
+                    <div>Доп. расходы: {formatMoney(extrasTotal)}</div>
+                    <div className="doc-modal-total">На склад: {formatMoney(total + extrasCapitalized)}</div>
+                  </>
+                ) : (
+                  <div className="doc-modal-total">Итого: {formatMoney(total)}</div>
+                )}
+              </div>
             </div>
           </div>
         </Modal>

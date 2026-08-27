@@ -534,6 +534,7 @@ function migrateSchema() {
   migrateDocumentItemCost();
   migrateDocumentItemNetWeight();
   migrateDocumentItemSortOrder();
+  migrateDocumentExtraCosts();
   migrateShopOrderDocument();
   migrateCalculationKind();
   migrateProductKind();
@@ -993,6 +994,26 @@ function migrateDocumentItemSortOrder() {
   }
   run("INSERT OR REPLACE INTO settings (key, value) VALUES ('document_item_sort_order_v1', '1')");
   saveDb();
+}
+
+function migrateDocumentExtraCosts() {
+  run(`
+    CREATE TABLE IF NOT EXISTS document_extra_costs (
+      id TEXT PRIMARY KEY,
+      document_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      amount REAL NOT NULL DEFAULT 0,
+      capitalize INTEGER NOT NULL DEFAULT 1,
+      sort_order INTEGER DEFAULT 0,
+      FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE
+    )
+  `);
+  run('CREATE INDEX IF NOT EXISTS idx_doc_extra_costs_doc ON document_extra_costs (document_id)');
+  const done = queryOne("SELECT value FROM settings WHERE key = 'document_extra_costs_v1'");
+  if (!done) {
+    run("INSERT OR REPLACE INTO settings (key, value) VALUES ('document_extra_costs_v1', '1')");
+    saveDb();
+  }
 }
 
 function migrateProductBranchesBackfill() {

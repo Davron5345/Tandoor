@@ -25,9 +25,11 @@ import {
   resolvePickFromProducts,
 } from '../utils/productVariants';
 import { todayLocalIso } from '../utils/date';
+import { allocateExtraCosts, extraCostsTotal, capitalizedExtraTotal } from '../utils/documentExtraCosts';
 
 const DEFAULT_CONTRACT_ID = '__default__';
 const emptyItem = { product_id: '', variant_id: null, quantity: '1', price: 0, net_weight: '' };
+const emptyExtraCost = { title: '', amount: '', capitalize: true };
 
 const STATUS_FILTERS = [
   { value: '', label: 'Все' },
@@ -79,6 +81,7 @@ export default function PrihodMobile() {
     to_department_id: '',
     date: todayLocalIso(),
     items: [{ ...emptyItem }],
+    extra_costs: [],
   });
 
   const loadDocs = useCallback(async ({ silent = false } = {}) => {
@@ -159,6 +162,7 @@ export default function PrihodMobile() {
       to_department_id: '',
       date: todayLocalIso(),
       items: [{ ...emptyItem }],
+      extra_costs: [],
     });
     setProducts([]);
     loadCreateRefs();
@@ -193,9 +197,16 @@ export default function PrihodMobile() {
   const productOptions = useMemo(() => buildProductPickOptions(products), [products]);
 
   const formTotal = form.items.reduce(
-    (sum, item) => sum + (parseQuantityInput(item.quantity) ?? 0) * (parsePriceInput(item.price) ?? 0),
+    (sum, item) => sum + lineMoneyFromItem(item).amount,
     0,
   );
+  const extrasParsed = (form.extra_costs || []).map((e) => ({
+    ...e,
+    amount: parsePriceInput(e.amount) ?? 0,
+  }));
+  const extrasTotal = extraCostsTotal(extrasParsed);
+  const extrasCapitalized = capitalizedExtraTotal(extrasParsed);
+  const extraAllocations = allocateExtraCosts(form.items, extrasParsed);
 
   const openCreate = () => {
     if (!canEdit) return;
@@ -289,6 +300,28 @@ export default function PrihodMobile() {
     });
   };
 
+  const updateExtraCost = (idx, patch) => {
+    setForm((prev) => {
+      const extra_costs = [...(prev.extra_costs || [])];
+      extra_costs[idx] = { ...extra_costs[idx], ...patch };
+      return { ...prev, extra_costs };
+    });
+  };
+
+  const addExtraCost = () => {
+    setForm((prev) => ({
+      ...prev,
+      extra_costs: [...(prev.extra_costs || []), { ...emptyExtraCost }],
+    }));
+  };
+
+  const removeExtraCost = (idx) => {
+    setForm((prev) => ({
+      ...prev,
+      extra_costs: (prev.extra_costs || []).filter((_, i) => i !== idx),
+    }));
+  };
+
   const buildPayload = (status) => {
     if (!form.counterparty_id) {
       setNotice('Выберите поставщика');
@@ -326,6 +359,11 @@ export default function PrihodMobile() {
           net_weight: i.net_weight !== '' && i.net_weight != null ? Number(i.net_weight) : null,
         };
       }),
+      extra_costs: (form.extra_costs || []).map((e) => ({
+        title: e.title,
+        amount: parsePriceInput(e.amount) ?? 0,
+        capitalize: e.capitalize !== false,
+      })),
     };
   };
 
@@ -644,6 +682,11 @@ export default function PrihodMobile() {
                     />
                   </label>
                 </div>
+                {extraAllocations[idx] > 0 && (
+                  <p className="warehouse-prihod-hint">
+                    С доставкой: {formatMoney(lineMoneyFromItem(item).amount + extraAllocations[idx])}
+                  </p>
+                )}
                 {(() => {
                   const net = Number(item.net_weight) || 0;
                   const qty = parseQuantityInput(item.quantity) ?? 0;
@@ -663,10 +706,69 @@ export default function PrihodMobile() {
             ))}
           </div>
 
+          <div className="warehouse-prihod-extras">
+            <div className="warehouse-prihod-items-head">
+              <h3>Доп. расходы</h3>
+              <button type="button" className="btn btn-ghost" onClick={addExtraCost}>+ Расход</button>
+            </div>
+            {(form.extra_costs || []).map((row, idx) => (
+              <div key={idx} className="warehouse-prihod-item">
+                <label className="warehouse-prihod-field">
+                  <span>Название</span>
+                  <input
+                    type="text"
+                    placeholder="Дорога…"
+                    value={row.title}
+                    onChange={(e) => updateExtraCost(idx, { title: e.target.value })}
+                  />
+                </label>
+                <div className="warehouse-prihod-item-row">
+                  <label className="warehouse-prihod-field">
+                    <span>Сумма</span>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={formatPriceInput(row.amount)}
+                      onChange={(e) => updateExtraCost(idx, { amount: formatPriceInput(e.target.value) })}
+                    />
+                  </label>
+                  <label className="warehouse-prihod-field">
+                    <span>Учёт</span>
+                    <select
+                      value={row.capitalize === false ? 'period' : 'cost'}
+                      onChange={(e) => updateExtraCost(idx, { capitalize: e.target.value !== 'period' })}
+                    >
+                      <option value="cost">В себестоимость</option>
+                      <option value="period">В расходы</option>
+                    </select>
+                  </label>
+                </div>
+                <button type="button" className="warehouse-prihod-item-remove" onClick={() => removeExtraCost(idx)}>
+                  Удалить расход
+                </button>
+              </div>
+            ))}
+            {(form.extra_costs || []).some((e) => e.capitalize !== false) && (
+              <p className="warehouse-prihod-hint">
+                В себестоимость: кассу платите отдельно статьёй «Закуп».
+              </p>
+            )}
+          </div>
+
           <div className="warehouse-prihod-footer">
             <div className="warehouse-orders-mobile-detail-total">
-              <span>Итого</span>
+              <span>Товары</span>
               <strong>{formatMoney(formTotal)}</strong>
+            </div>
+            {extrasTotal > 0 && (
+              <div className="warehouse-orders-mobile-detail-total">
+                <span>Доп. расходы</span>
+                <strong>{formatMoney(extrasTotal)}</strong>
+              </div>
+            )}
+            <div className="warehouse-orders-mobile-detail-total">
+              <span>На склад</span>
+              <strong>{formatMoney(formTotal + extrasCapitalized)}</strong>
             </div>
             <button
               type="button"
@@ -707,9 +809,21 @@ export default function PrihodMobile() {
 
           <div className="warehouse-orders-mobile-detail-body">
             <div className="warehouse-orders-mobile-detail-total">
-              <span>Итого</span>
+              <span>Товары</span>
               <strong>{formatMoney(selected.total_amount)}</strong>
             </div>
+            {(selected.extra_costs_total || 0) > 0 && (
+              <div className="warehouse-orders-mobile-detail-total">
+                <span>Доп. расходы</span>
+                <strong>{formatMoney(selected.extra_costs_total)}</strong>
+              </div>
+            )}
+            {(selected.capitalized_extra_total || 0) > 0 && (
+              <div className="warehouse-orders-mobile-detail-total">
+                <span>На склад</span>
+                <strong>{formatMoney(selected.landed_total)}</strong>
+              </div>
+            )}
 
             <div className="shop-order-detail-grid warehouse-orders-mobile-detail-grid">
               <div>
@@ -747,6 +861,27 @@ export default function PrihodMobile() {
                 ))}
               </ul>
             </div>
+            {(selected.extra_costs || []).length > 0 && (
+              <div className="shop-order-items warehouse-orders-mobile-items">
+                <h3>Доп. расходы</h3>
+                <ul>
+                  {selected.extra_costs.map((row) => (
+                    <li key={row.id || row.title}>
+                      <div className="shop-order-item-main">
+                        <strong>{row.title}</strong>
+                        <span className="muted">
+                          {' '}
+                          {row.capitalize ? 'в себестоимость' : 'в расходы'}
+                        </span>
+                      </div>
+                      <div className="shop-order-item-meta">
+                        <strong>{formatMoney(row.amount)}</strong>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
 
           {selected.status === 'draft' && canConfirm && (

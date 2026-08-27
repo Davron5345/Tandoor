@@ -4602,6 +4602,72 @@ input[type='number']::-webkit-inner-spin-button {
   white-space: nowrap;
 }
 
+.doc-modal-totals {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--text-muted);
+  text-align: right;
+}
+
+.doc-modal-totals .doc-modal-total {
+  margin-top: 2px;
+}
+
+.doc-extra-costs {
+  flex-shrink: 0;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.doc-extra-costs-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.doc-extra-costs-head h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.doc-extra-costs-empty,
+.doc-extra-costs-hint {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.doc-extra-costs-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) 140px minmax(140px, 180px) 36px;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.doc-extra-costs-row input,
+.doc-extra-costs-row select {
+  width: 100%;
+  min-width: 0;
+}
+
+@media (max-width: 720px) {
+  .doc-extra-costs-row {
+    grid-template-columns: 1fr 1fr auto;
+  }
+  .doc-extra-costs-row input:first-child {
+    grid-column: 1 / -1;
+  }
+}
+
 .filter-panel {
   margin-bottom: 16px;
   padding: 16px;
@@ -11590,6 +11656,13 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
   color: var(--text);
   font-size: 15px;
   font-weight: 600;
+}
+
+.warehouse-prihod-extras {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
 }
 
 .warehouse-prihod-items-head {
