@@ -8159,15 +8159,7 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
     align-items: center;
     text-align: left;
     gap: 4px 8px;
-    padding: 6px 12px;
-    max-width: 100%;
-    box-sizing: border-box;
-    border-top: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
-    background: var(--surface);
-    font-size: 12px;
-  }
-
-  .modal-inventory .doc-modal-totals > div {
+    padding: 8px 16px;
     display: block;
     justify-content: unset;
     gap: 0;
