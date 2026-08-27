@@ -1364,7 +1364,7 @@ export default function Documents({ defaultType }) {
     : docs;
 
   return (
-    <div>
+    <div className="docs-page">
       {Toast}
       <div className="page-header">
         <h1>{title}</h1>
@@ -1547,6 +1547,7 @@ export default function Documents({ defaultType }) {
           className="modal-doc"
           title={modalTitle}
           dirty={isFormDirty}
+          footerPlacement="end"
           onClose={() => {
             clearFormDraft(draftKey);
             setPrihodBodyTab('items');

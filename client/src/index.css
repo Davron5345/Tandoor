@@ -7502,6 +7502,464 @@ html.app-phone-lock .app {
     justify-content: space-between;
     gap: 12px;
   }
+
+  /* ——— Ops phone minimum (documents / bank / products / CP / cashier) ——— */
+  .main-content > div {
+    overflow-x: hidden;
+  }
+
+  .page-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .page-header .btn-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .page-header .btn-group .btn {
+    flex: 1 1 calc(50% - 8px);
+    min-width: 0;
+    min-height: 44px;
+  }
+
+  .page-header .btn-group .btn-primary {
+    flex: 1 1 100%;
+  }
+
+  .page-subtitle {
+    white-space: normal;
+  }
+
+  .filters,
+  .report-filters,
+  .filter-panel-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    align-items: end;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .card-header.report-toolbar:not(.inventory-toolbar) {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    align-items: end;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .filters .filter-field,
+  .report-filters label,
+  .filter-panel-row .filter-field {
+    width: 100%;
+    min-width: 0;
+    margin: 0;
+  }
+
+  .filters .filter-field-sum {
+    margin-left: 0;
+    grid-column: 1 / -1;
+  }
+
+  .filters select,
+  .filters input[type="search"],
+  .filters input[type="date"],
+  .filters input[type="text"],
+  .report-filters input,
+  .report-filters select,
+  .filter-field select,
+  .filter-field input {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  .table-wrap {
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: auto;
+  }
+
+  .btn-group-icons .btn-icon,
+  .doc-actions .btn-icon,
+  button.btn-icon {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .modal-overlay:has(.modal-doc):not(:has(.modal-inventory)) {
+    padding: 0;
+    align-items: stretch;
+    justify-content: stretch;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
+  .modal-doc:not(.modal-inventory) {
+    width: 100%;
+    max-width: 100%;
+    height: 100%;
+    max-height: none;
+    border-radius: 0;
+    margin: 0;
+  }
+
+  .modal-doc:not(.modal-inventory) .modal-header {
+    flex-shrink: 0;
+    flex-wrap: nowrap;
+    align-items: center;
+    padding: 12px 14px;
+  }
+
+  .modal-doc:not(.modal-inventory) .modal-header h2 {
+    flex: 0 1 auto;
+  }
+
+  .modal-doc:not(.modal-inventory) .modal-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    overscroll-behavior: none;
+    -webkit-overflow-scrolling: auto;
+  }
+
+  .modal-doc:not(.modal-inventory) .modal-footer {
+    flex-shrink: 0;
+    width: 100%;
+    padding: 10px 12px max(12px, env(safe-area-inset-bottom, 0px));
+    background: var(--surface);
+  }
+
+  .modal-doc:not(.modal-inventory) .modal-footer-actions {
+    display: flex;
+    flex-wrap: wrap;
+    width: 100%;
+    gap: 8px;
+  }
+
+  .modal-doc:not(.modal-inventory) .modal-footer-actions .btn {
+    flex: 1 1 calc(50% - 8px);
+    min-width: 0;
+    min-height: 44px;
+  }
+
+  .modal-doc .doc-modal-items-scroll {
+    min-height: 120px;
+    max-width: 100%;
+    overflow: auto;
+    overscroll-behavior: none;
+  }
+
+  .modal-doc .doc-modal-items-scroll table {
+    min-width: 520px;
+  }
+
+  .modal-product,
+  .modal-cp,
+  .modal-wide {
+    width: 100%;
+    max-width: 100%;
+    max-height: none;
+    height: 100%;
+    border-radius: 0;
+    margin: 0;
+  }
+
+  .modal-overlay:has(.modal-product),
+  .modal-overlay:has(.modal-cp),
+  .modal-overlay:has(.modal-wide):not(:has(.modal-doc)):not(:has(.modal-inventory)) {
+    padding: 0;
+    align-items: stretch;
+    overflow: hidden;
+  }
+
+  .modal-product .modal-body,
+  .modal-cp .modal-body {
+    overflow: auto;
+    overscroll-behavior: none;
+    -webkit-overflow-scrolling: auto;
+  }
+
+  .modal-cp .form-grid,
+  .modal-cp .form-grid-compact,
+  .modal-product .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .modal-bank-day .modal-footer,
+  .modal-bank-import .modal-footer,
+  .modal-product .modal-footer,
+  .modal-cp .modal-footer {
+    flex-shrink: 0;
+    width: 100%;
+    padding: 10px 12px max(12px, env(safe-area-inset-bottom, 0px));
+    background: var(--surface);
+  }
+
+  .modal-bank-day .modal-footer-actions,
+  .modal-bank-import .modal-footer-actions,
+  .modal-product .modal-footer-actions,
+  .modal-cp .modal-footer-actions {
+    display: flex;
+    flex-wrap: wrap;
+    width: 100%;
+    gap: 8px;
+  }
+
+  .modal-bank-day .modal-footer-actions .btn,
+  .modal-bank-import .modal-footer-actions .btn,
+  .modal-product .modal-footer-actions .btn,
+  .modal-cp .modal-footer-actions .btn {
+    flex: 1 1 calc(50% - 8px);
+    min-width: 0;
+    min-height: 44px;
+  }
+
+  /* Bank */
+  .bank-days-head-pin {
+    display: none !important;
+  }
+
+  .bank-days-toolbar {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    align-items: end;
+  }
+
+  .bank-days-toolbar > * {
+    min-width: 0;
+  }
+
+  .bank-page-header,
+  .page-header.bank-page-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .modal-overlay:has(.modal-bank-day),
+  .modal-overlay:has(.modal-bank-import) {
+    padding: 0;
+    align-items: stretch;
+  }
+
+  .modal-bank-day,
+  .modal-bank-import {
+    width: 100%;
+    max-width: 100%;
+    height: 100%;
+    border-radius: 0;
+    margin: 0;
+  }
+
+  .modal-bank-day .modal-footer-actions .btn,
+  .modal-bank-import .modal-footer-actions .btn {
+    min-height: 44px;
+  }
+
+  /* Products */
+  .products-toolbar .filters,
+  .products-toolbar-filters {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .products-toolbar-filters > * {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .products-table {
+    min-width: 0;
+  }
+
+  .products-table col.col-photo,
+  .products-table col.col-kind,
+  .products-table col.col-category,
+  .products-table col.col-sku,
+  .products-table col.col-weight,
+  .products-table col.col-suppliers,
+  .products-table col.col-shop,
+  .products-table th.product-list-photo-col,
+  .products-table td.product-list-photo-col,
+  .products-table th.product-list-shop-col,
+  .products-table td.product-list-shop-col,
+  .products-table [data-col="kind"],
+  .products-table [data-col="category"],
+  .products-table [data-col="sku"],
+  .products-table [data-col="net_weight"],
+  .products-table [data-col="gross_weight"],
+  .products-table [data-col="suppliers"],
+  .products-table [data-col="shop"],
+  .products-table [data-col="photo"] {
+    display: none;
+  }
+
+  .products-table .col-actions,
+  .products-table [data-col="actions"] {
+    width: 1%;
+    min-width: 96px;
+  }
+
+  /* Counterparties */
+  .cp-page .table-wrap table {
+    min-width: 0;
+  }
+
+  .cp-page table th:nth-child(1),
+  .cp-page table td:nth-child(1),
+  .cp-page table th:nth-child(5),
+  .cp-page table td:nth-child(5),
+  .cp-page table th:nth-child(6),
+  .cp-page table td:nth-child(6) {
+    display: none;
+  }
+
+  /* Cashier */
+  html:has(.app-cashier-mode),
+  html:has(.app-cashier-mode) body {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    max-height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+    touch-action: manipulation;
+    background-attachment: scroll;
+  }
+
+  html:has(.app-cashier-mode) #root,
+  html:has(.app-cashier-mode) .app {
+    height: 100%;
+    min-height: 0;
+    max-height: 100%;
+    overflow: hidden;
+  }
+
+  .cashier-page {
+    max-width: 100%;
+    overflow-x: hidden;
+    min-height: 0;
+    height: 100%;
+  }
+
+  .cashier-unified-bar,
+  .cashier-top,
+  .cashier-top-controls,
+  .cashier-kpi-inline {
+    max-width: 100%;
+  }
+
+  .cashier-unified-bar .cashier-kpi-inline,
+  .cashier-kpi-inline {
+    flex-wrap: wrap;
+  }
+
+  .cashier-table-wrap {
+    overflow-x: auto;
+    max-width: 100%;
+    overscroll-behavior-x: contain;
+  }
+
+  .cashier-unified-bar .cashier-app-bar-icon,
+  .cashier-app-bar-icon {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+/* Tablet ops: compact 2-col headers, no phone fullscreen except inventory */
+@media (max-width: 1100px) and (min-width: 769px) {
+  .page-header {
+    flex-wrap: wrap;
+    gap: 10px 16px;
+  }
+
+  .filters,
+  .report-filters,
+  .filter-panel-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px 12px;
+    align-items: end;
+  }
+
+  .filters .filter-field-sum {
+    margin-left: 0;
+    grid-column: 1 / -1;
+  }
+
+  .filters select,
+  .filters input,
+  .report-filters input,
+  .report-filters select {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  .doc-modal-fields .form-grid-prihod-header,
+  .doc-modal-fields .form-grid-transfer-header,
+  .doc-modal-fields .form-grid-transfer-header.is-department {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .modal-doc {
+    width: min(100%, 960px);
+    max-height: min(94vh, 94dvh);
+  }
+
+  .modal-doc .modal-footer-actions .btn {
+    min-height: 40px;
+  }
+
+  .bank-days-toolbar {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .products-table col.col-sku,
+  .products-table col.col-weight,
+  .products-table col.col-shop,
+  .products-table [data-col="sku"],
+  .products-table [data-col="net_weight"],
+  .products-table [data-col="gross_weight"],
+  .products-table [data-col="shop"],
+  .products-table th.product-list-shop-col,
+  .products-table td.product-list-shop-col {
+    display: none;
+  }
+
+  .cp-page table th:nth-child(6),
+  .cp-page table td:nth-child(6) {
+    display: none;
+  }
+
+  .cashier-unified-bar {
+    flex-wrap: wrap;
+  }
+
+  .cashier-table-wrap {
+    overflow-x: auto;
+    max-width: 100%;
+  }
 }
 
 .login-page {

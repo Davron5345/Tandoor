@@ -151,7 +151,7 @@ export default function Counterparties() {
   }, [items, search]);
 
   return (
-    <div>
+    <div className="cp-page">
       {Toast}
       <div className="page-header">
         <h1>Контрагенты</h1>
@@ -251,6 +251,7 @@ export default function Counterparties() {
           title={modal === 'create' ? 'Новый контрагент' : 'Редактировать контрагента'}
           className="modal-cp"
           dirty={isFormDirty}
+          footerPlacement="end"
           onClose={closeMainModal}
           footer={(
             <>

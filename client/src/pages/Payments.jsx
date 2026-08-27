@@ -689,9 +689,9 @@ export default function Payments() {
   };
 
   return (
-    <div>
+    <div className="bank-page">
       {Toast}
-      <div className="page-header">
+      <div className="page-header bank-page-header">
         <h1>Банк{branchName ? ` · ${branchName}` : ''}</h1>
         {canEdit && (
           <div className="btn-group">
@@ -943,6 +943,7 @@ export default function Payments() {
           title={`${selectedAccount?.name || 'Выписка'} · ${formatDate(viewDay)}`}
           wide
           className="modal-bank-day"
+          footerPlacement="end"
           onClose={() => setViewDay(null)}
           footer={
             <>
@@ -1095,6 +1096,7 @@ export default function Payments() {
           title="Импорт банковской выписки"
           wide
           className="modal-bank-import"
+          footerPlacement="end"
           onClose={closeImport}
           footer={
             <>

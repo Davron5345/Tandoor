@@ -65,11 +65,12 @@ function readProductPageSize() {
   return 15;
 }
 
-function SortHeader({ label, sortKey, activeKey, direction, onSort, className = '' }) {
+function SortHeader({ label, sortKey, activeKey, direction, onSort, className = '', dataCol }) {
   const active = activeKey === sortKey;
   return (
     <th
       className={`sortable-th ${className}${active ? ' is-sorted' : ''}`}
+      data-col={dataCol}
       aria-sort={active ? (direction === 'asc' ? 'ascending' : 'descending') : 'none'}
     >
       <div className="sortable-th-inner">
@@ -322,12 +323,13 @@ function ProductTable({
                     activeKey={sortKey}
                     direction={sortDir}
                     onSort={onSort}
-                    className={col.sortThClass || ''}
+                    className={`${col.colClass || ''} ${col.sortThClass || ''}`.trim()}
+                    dataCol={col.id}
                   />
                 );
               }
               return (
-                <th key={col.id} className={col.thClass || ''}>
+                <th key={col.id} className={col.thClass || col.colClass || ''} data-col={col.id}>
                   {col.id === 'actions' ? '' : col.label}
                 </th>
               );
@@ -1079,17 +1081,17 @@ export default function Products() {
           highlighted ? 'product-row-highlight' : '',
         ].filter(Boolean).join(' ')}
       >
-        <td className="product-list-num-col">
+        <td className="product-list-num-col" data-col="num">
           <span className={`product-list-num${isVariant ? ' product-list-num-variant' : ''}`}>
             {rowNumber}
           </span>
         </td>
         {columnVisible('photo') && (
-          <td className="product-list-photo-col">
+          <td className="product-list-photo-col" data-col="photo">
             <ProductListPhoto product={p} variant={variant} />
           </td>
         )}
-        <td>
+        <td data-col="name">
           <div className="product-list-name">
             {renderProductName(p, { hasVariants, isExpanded, isVariant, variant })}
           </div>
@@ -1100,29 +1102,29 @@ export default function Products() {
           )}
         </td>
         {columnVisible('kind') && (
-          <td>{p.product_kind_label || productKindLabel(p.product_kind)}</td>
+          <td data-col="kind">{p.product_kind_label || productKindLabel(p.product_kind)}</td>
         )}
         {columnVisible('category') && (
-          <td>{formatCategory(p)}</td>
+          <td data-col="category">{formatCategory(p)}</td>
         )}
         {columnVisible('sku') && (
-          <td>{isVariant ? '—' : (p.sku || '—')}</td>
+          <td data-col="sku">{isVariant ? '—' : (p.sku || '—')}</td>
         )}
-        {columnVisible('unit') && <td>{p.unit}</td>}
+        {columnVisible('unit') && <td data-col="unit">{p.unit}</td>}
         {columnVisible('net_weight') && (
-          <td>{isVariant ? '—' : formatWeight(p.net_weight)}</td>
+          <td data-col="net_weight">{isVariant ? '—' : formatWeight(p.net_weight)}</td>
         )}
         {columnVisible('gross_weight') && (
-          <td>{isVariant ? '—' : formatWeight(p.gross_weight)}</td>
+          <td data-col="gross_weight">{isVariant ? '—' : formatWeight(p.gross_weight)}</td>
         )}
         {columnVisible('price') && (
-          <td>{isVariant ? formatMoney(variant.price) : formatProductPrice(p)}</td>
+          <td data-col="price">{isVariant ? formatMoney(variant.price) : formatProductPrice(p)}</td>
         )}
         {columnVisible('stock') && (
-          <td>{isVariant ? (variant.stock ?? 0) : p.stock}</td>
+          <td data-col="stock">{isVariant ? (variant.stock ?? 0) : p.stock}</td>
         )}
         {columnVisible('suppliers') && (
-          <td>
+          <td data-col="suppliers">
             {isVariant ? (
               <span className="product-meta">—</span>
             ) : p.suppliers?.length > 0 ? (
@@ -1137,7 +1139,7 @@ export default function Products() {
           </td>
         )}
         {columnVisible('shop') && (
-          <td className="product-list-shop-col">
+          <td className="product-list-shop-col" data-col="shop">
             {!isVariant && canEdit ? (
               <label
                 className="shop-visible-toggle"
@@ -1156,7 +1158,7 @@ export default function Products() {
             )}
           </td>
         )}
-        <td>
+        <td data-col="actions">
           {canEdit && isVariant && listView === 'catalog' ? (
             <div className="btn-group btn-group-icons">
               <IconButton title="Изменить" onClick={() => openEdit(p, { variantId: variant.id })}>
@@ -1196,7 +1198,7 @@ export default function Products() {
   };
 
   return (
-    <div>
+    <div className="products-page">
       {Toast}
       <div className="page-header">
         <div>
@@ -1337,6 +1339,7 @@ export default function Products() {
           className="modal-product"
           title={modal === 'create' ? 'Новый товар' : 'Карточка товара'}
           dirty={isFormDirty}
+          footerPlacement="end"
           onClose={() => {
             clearFormDraft(draftKey);
             clearImages();

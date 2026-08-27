@@ -405,6 +405,7 @@ export default function ProductCreateModal({
         className="modal-product"
         title={isEdit ? 'Карточка товара' : 'Новый товар'}
         dirty={isFormDirty}
+        footerPlacement="end"
         onClose={close}
         footer={(
           <>
