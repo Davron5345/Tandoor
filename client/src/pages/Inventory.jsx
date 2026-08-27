@@ -17,6 +17,7 @@ import ProductSelect from '../components/ProductSelect';
 import { encodeProductPick, resolvePickFromProducts } from '../utils/productVariants';
 import { hasPermission } from '../permissions';
 import { todayLocalIso } from '../utils/date';
+import { textMatchesSearch } from '../utils/searchNormalize';
 
 const INVENTORY_PHONE_MQ = '(max-width: 768px)';
 
@@ -144,6 +145,17 @@ function productName(products, item) {
   const pick = resolvePickFromProducts(products, encodeProductPick(item.product_id, item.variant_id));
   if (!pick.product) return '—';
   return pick.variant ? `${pick.product.name} — ${pick.variant.name}` : pick.product.name;
+}
+
+function productSearchHaystack(products, item) {
+  const pick = resolvePickFromProducts(products, encodeProductPick(item.product_id, item.variant_id));
+  const name = productName(products, item);
+  const parts = [name];
+  if (pick.product?.sku) parts.push(pick.product.sku);
+  if (pick.product?.barcode) parts.push(pick.product.barcode);
+  if (pick.variant?.sku) parts.push(pick.variant.sku);
+  if (pick.variant?.name) parts.push(pick.variant.name);
+  return parts.filter(Boolean).join(' ');
 }
 
 function InventoryDocCard({ doc, canEdit, canDelete, onOpen, onDelete }) {
@@ -347,9 +359,9 @@ export default function Inventory() {
     if (lineFilter === 'discrepancies') {
       rows = rows.filter(({ item }) => Math.abs(lineDiff(item)) > 1e-9);
     }
-    const q = itemSearch.trim().toLowerCase();
+    const q = itemSearch.trim();
     if (q) {
-      rows = rows.filter(({ item }) => productName(products, item).toLowerCase().includes(q));
+      rows = rows.filter(({ item }) => textMatchesSearch(productSearchHaystack(products, item), q));
     }
     return rows;
   }, [form.items, lineFilter, itemSearch, products]);
