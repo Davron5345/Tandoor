@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   api,
   formatDate,
@@ -16,6 +16,98 @@ import ProductSelect from '../components/ProductSelect';
 import { encodeProductPick, resolvePickFromProducts } from '../utils/productVariants';
 import { hasPermission } from '../permissions';
 import { todayLocalIso } from '../utils/date';
+
+const INVENTORY_PHONE_MQ = '(max-width: 768px)';
+
+function useInventoryPhoneShell(modalOpen) {
+  const listRef = useRef(null);
+
+  useEffect(() => {
+    const html = document.documentElement;
+    const mq = window.matchMedia(INVENTORY_PHONE_MQ);
+
+    const syncVvh = () => {
+      const height = window.visualViewport?.height ?? window.innerHeight;
+      html.style.setProperty('--app-vvh', `${Math.round(height)}px`);
+      const offsetTop = window.visualViewport?.offsetTop ?? 0;
+      html.style.setProperty('--app-vv-top', `${Math.round(offsetTop)}px`);
+    };
+
+    const sync = () => {
+      if (mq.matches) {
+        html.classList.add('inventory-phone-lock');
+        syncVvh();
+      } else {
+        html.classList.remove('inventory-phone-lock');
+        html.style.removeProperty('--app-vvh');
+        html.style.removeProperty('--app-vv-top');
+      }
+    };
+
+    sync();
+    mq.addEventListener('change', sync);
+    window.visualViewport?.addEventListener('resize', syncVvh);
+    window.visualViewport?.addEventListener('scroll', syncVvh);
+    window.addEventListener('resize', syncVvh);
+
+    return () => {
+      mq.removeEventListener('change', sync);
+      window.visualViewport?.removeEventListener('resize', syncVvh);
+      window.visualViewport?.removeEventListener('scroll', syncVvh);
+      window.removeEventListener('resize', syncVvh);
+      html.classList.remove('inventory-phone-lock');
+      html.style.removeProperty('--app-vvh');
+      html.style.removeProperty('--app-vv-top');
+    };
+  }, []);
+
+  useEffect(() => {
+    const html = document.documentElement;
+    html.classList.toggle('inventory-modal-open', Boolean(modalOpen));
+    return () => html.classList.remove('inventory-modal-open');
+  }, [modalOpen]);
+
+  /* Kill iOS rubber-band when list is at edge */
+  useEffect(() => {
+    const mq = window.matchMedia(INVENTORY_PHONE_MQ);
+    let startY = 0;
+    let scrollEl = null;
+
+    const resolveScrollEl = () => {
+      if (modalOpen) {
+        return document.querySelector('.modal-doc.modal-inventory .modal-body');
+      }
+      return listRef.current;
+    };
+
+    const onStart = (event) => {
+      scrollEl = resolveScrollEl();
+      if (!event.touches?.[0]) return;
+      startY = event.touches[0].clientY;
+    };
+
+    const onMove = (event) => {
+      if (!mq.matches || event.touches.length !== 1 || !scrollEl) return;
+      const y = event.touches[0].clientY;
+      const dy = y - startY;
+      const { scrollTop, scrollHeight, clientHeight } = scrollEl;
+      const atTop = scrollTop <= 0;
+      const atBottom = scrollTop + clientHeight >= scrollHeight - 1;
+      if ((atTop && dy > 0) || (atBottom && dy < 0)) {
+        event.preventDefault();
+      }
+    };
+
+    document.addEventListener('touchstart', onStart, { passive: true, capture: true });
+    document.addEventListener('touchmove', onMove, { passive: false, capture: true });
+    return () => {
+      document.removeEventListener('touchstart', onStart, { capture: true });
+      document.removeEventListener('touchmove', onMove, { capture: true });
+    };
+  }, [modalOpen]);
+
+  return listRef;
+}
 
 function formatQty(n) {
   const value = Number(n) || 0;
@@ -174,6 +266,7 @@ export default function Inventory() {
   const [filling, setFilling] = useState(false);
   const [lineFilter, setLineFilter] = useState('all');
   const [addPick, setAddPick] = useState('');
+  const listRef = useInventoryPhoneShell(Boolean(modal));
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -529,7 +622,7 @@ export default function Inventory() {
             </tbody>
           </table>
         </div>
-        <div className="inventory-list-cards">
+        <div className="inventory-list-cards" ref={listRef}>
           {loading ? (
             <div className="inventory-list-empty">Загрузка…</div>
           ) : docs.length === 0 ? (

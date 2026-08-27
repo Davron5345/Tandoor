@@ -629,7 +629,7 @@ function AppContent() {
       '.bank-days-wrap',
       '.cashier-table-wrap',
       '.products-table-scroll',
-      '.inventory-list-cards',
+      '.inventory-status-chips',
       '[data-allow-h-scroll]',
     ].join(',');
 
