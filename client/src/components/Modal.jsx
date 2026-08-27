@@ -27,6 +27,7 @@ export default function Modal({
   children,
   onClose,
   footer,
+  footerPlacement = 'header',
   wide,
   className = '',
   dirty = false,
@@ -99,13 +100,18 @@ export default function Modal({
           )}
           <div className="modal-header">
             <h2>{title}</h2>
-            {footer && (
+            {footer && footerPlacement !== 'end' && (
               <div className="modal-header-actions">
                 <div className="modal-footer-actions">{footer}</div>
               </div>
             )}
           </div>
           <div className="modal-body">{children}</div>
+          {footer && footerPlacement === 'end' && (
+            <div className="modal-footer">
+              <div className="modal-footer-actions">{footer}</div>
+            </div>
+          )}
         </div>
       </div>
     </ModalCloseContext.Provider>

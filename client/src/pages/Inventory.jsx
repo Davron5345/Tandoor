@@ -551,6 +551,7 @@ export default function Inventory() {
         <Modal
           className="modal-doc modal-inventory"
           title={modalTitle}
+          footerPlacement="end"
           onClose={() => setModal(null)}
           footer={(
             <>
