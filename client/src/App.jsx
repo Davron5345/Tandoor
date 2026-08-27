@@ -657,19 +657,17 @@ function AppContent() {
           <div className="logo">
             <div className="logo-mark" aria-hidden><IconNavWarehouse /></div>
             <div className="logo-text">
-              <div className="logo-title-row">
-                <strong>Склад</strong>
-                <SidebarFavorites
-                  currentItem={findNavItemForPath(allSubNavItems, location.pathname)}
-                  favoriteItems={favoriteNavItems}
-                  isFavorite={isNavFavorite}
-                  onToggleFavorite={toggleNavFavorite}
-                />
-              </div>
+              <strong>Склад</strong>
               <span>Учёт прихода и расхода</span>
             </div>
           </div>
           <div className="sidebar-header-actions">
+            <SidebarFavorites
+              currentItem={findNavItemForPath(allSubNavItems, location.pathname)}
+              favoriteItems={favoriteNavItems}
+              isFavorite={isNavFavorite}
+              onToggleFavorite={toggleNavFavorite}
+            />
             <button
               type="button"
               className={`sidebar-account-toggle${accountOpen ? ' is-open' : ''}`}
