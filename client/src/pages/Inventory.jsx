@@ -159,6 +159,7 @@ function productSearchHaystack(products, item) {
 }
 
 function InventoryDocCard({ doc, canEdit, canDelete, onOpen, onDelete }) {
+  const showDelete = canDelete && doc.status !== 'confirmed';
   return (
     <article className="inventory-doc-card">
       <button
@@ -171,24 +172,20 @@ function InventoryDocCard({ doc, canEdit, canDelete, onOpen, onDelete }) {
           <span className={`badge badge-${doc.status}`}>{STATUS_LABELS[doc.status]}</span>
         </div>
         <div className="inventory-doc-card-meta">
-          {formatDate(doc.date)}
-          {doc.to_department_name ? ` · ${doc.to_department_name}` : ''}
+          <span className="inventory-doc-card-meta-left">
+            {formatDate(doc.date)}
+            {doc.to_department_name ? ` · ${doc.to_department_name}` : ''}
+          </span>
+          <span className="inventory-doc-card-sum">{formatMoney(doc.total_amount)}</span>
         </div>
-        <div className="inventory-doc-card-sum">{formatMoney(doc.total_amount)}</div>
       </button>
-      <div className="inventory-doc-card-actions">
-        <IconButton
-          title={doc.status === 'confirmed' && !canEdit ? 'Просмотр' : 'Открыть'}
-          onClick={() => onOpen(doc.id, doc.status !== 'draft' && !canEdit)}
-        >
-          <IconEye />
-        </IconButton>
-        {canDelete && doc.status !== 'confirmed' && (
+      {showDelete && (
+        <div className="inventory-doc-card-actions">
           <IconButton title="Удалить" onClick={() => onDelete(doc.id)}>
             <IconTrash />
           </IconButton>
-        )}
-      </div>
+        </div>
+      )}
     </article>
   );
 }
@@ -320,9 +317,20 @@ export default function Inventory() {
       setTopbarEl(null);
       return undefined;
     }
-    const el = document.querySelector('.main-topbar');
-    setTopbarEl(el || null);
-    return undefined;
+    let cancelled = false;
+    const find = () => {
+      const el = document.querySelector('.main-topbar');
+      if (!cancelled && el) setTopbarEl(el);
+      return Boolean(el);
+    };
+    if (find()) return undefined;
+    const raf = requestAnimationFrame(() => { find(); });
+    const timer = setTimeout(() => { find(); }, 100);
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(raf);
+      clearTimeout(timer);
+    };
   }, [isPhone]);
 
   const load = useCallback(async () => {
@@ -621,10 +629,18 @@ export default function Inventory() {
     <div className={`inventory-page${canEdit ? ' inventory-page--fab' : ''}`}>
       {Toast}
       {isPhone && topbarEl && createPortal(
-        <div className="inventory-topbar-heading">
-          <h1>Инвентаризация</h1>
-          <BranchChip>{branchName}</BranchChip>
-        </div>,
+        <>
+          <div className="inventory-topbar-heading">
+            <h1>Инвентаризация</h1>
+            <BranchChip>{branchName}</BranchChip>
+          </div>
+          {canEdit && (
+            <button type="button" className="inventory-topbar-new" onClick={openCreate}>
+              <IconPlus />
+              <span>Новый</span>
+            </button>
+          )}
+        </>,
         topbarEl,
       )}
 
@@ -1039,11 +1055,10 @@ export default function Inventory() {
           </div>
         </Modal>
       )}
-      {canEdit && isPhone && createPortal(
+      {canEdit && !isPhone && (
         <button type="button" className="inventory-fab" onClick={openCreate}>
           <IconPlus /> Новый
-        </button>,
-        document.body,
+        </button>
       )}
     </div>
   );

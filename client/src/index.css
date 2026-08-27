@@ -3746,14 +3746,25 @@ input[type='number']::-webkit-inner-spin-button {
   margin-top: 6px;
   font-size: 13px;
   color: var(--text-muted);
-  justify-content: flex-start;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.inventory-doc-card-meta-left {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .inventory-doc-card-sum {
-  margin-top: 8px;
-  font-size: 15px;
+  margin-top: 0;
+  flex: 0 0 auto;
+  font-size: 14px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+  color: var(--text);
 }
 
 .inventory-doc-card-actions {
@@ -7243,7 +7254,8 @@ html.inventory-phone-lock .main-content > .inventory-page {
   touch-action: pan-y;
 }
 
-html.inventory-phone-lock.inventory-modal-open .inventory-fab {
+html.inventory-phone-lock.inventory-modal-open .inventory-fab,
+html.inventory-phone-lock.inventory-modal-open .inventory-topbar-new {
   visibility: hidden;
   pointer-events: none;
 }
@@ -7299,7 +7311,7 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
 
   .inventory-topbar-heading h1 {
     margin: 0;
-    font-size: 1.15rem;
+    font-size: 1.1rem;
     line-height: 1.2;
     font-weight: 700;
     white-space: nowrap;
@@ -7310,7 +7322,7 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
   .inventory-topbar-heading .ui-chip {
     flex: 0 1 auto;
     min-width: 0;
-    max-width: 46%;
+    max-width: 38%;
     margin: 0;
   }
 
@@ -7318,6 +7330,29 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .inventory-topbar-new {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    flex: 0 0 auto;
+    min-height: 40px;
+    padding: 8px 12px;
+    border: none;
+    border-radius: 10px;
+    background: var(--primary);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+
+  .inventory-topbar-new svg {
+    width: 16px;
+    height: 16px;
   }
 
   .sidebar-menu-btn {
@@ -7644,8 +7679,8 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
     flex-shrink: 0;
     flex-direction: column;
     align-items: stretch;
-    gap: 12px;
-    padding: 12px 16px 10px;
+    gap: 8px;
+    padding: 10px 16px;
     max-width: 100%;
     min-width: 0;
     box-sizing: border-box;
@@ -7656,7 +7691,7 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
   .inventory-list-cards {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 8px;
     flex: 1;
     min-height: 0;
     min-width: 0;
@@ -7666,13 +7701,12 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
     overscroll-behavior: none;
     -webkit-overflow-scrolling: touch;
     touch-action: pan-y;
-    padding: 12px 16px 16px;
+    padding: 10px 16px max(16px, calc(env(safe-area-inset-bottom, 0px) + 12px));
     box-sizing: border-box;
   }
 
   .inventory-page--fab .inventory-list-cards {
-    /* Safari toolbar (~50px) + FAB + home indicator */
-    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 140px);
+    padding-bottom: max(16px, calc(env(safe-area-inset-bottom, 0px) + 12px));
   }
 
   .inventory-list-empty {
@@ -7707,7 +7741,7 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
     gap: 0;
     background: var(--surface);
     border: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
-    border-radius: 14px;
+    border-radius: 12px;
     overflow: hidden;
     max-width: 100%;
   }
@@ -7715,42 +7749,40 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
   .inventory-doc-card-main {
     flex: 1;
     min-width: 0;
-    padding: 14px 14px 14px 16px;
+    padding: 10px 12px;
     text-align: left;
     border: none;
     background: transparent;
     color: inherit;
   }
 
+  .inventory-doc-card-top strong {
+    font-size: 15px;
+  }
+
+  .inventory-doc-card-meta {
+    margin-top: 4px;
+  }
+
+  .inventory-doc-card-actions {
+    display: flex;
+    align-items: center;
+    padding: 4px 8px 4px 0;
+  }
+
   .inventory-doc-card-actions button:first-child {
-    display: none;
+    display: inline-flex;
+  }
+
+  .inventory-page .report-filters input,
+  .inventory-page .report-filters select,
+  .inventory-date-filters input {
+    min-height: 40px;
+    padding: 8px 10px;
   }
 
   .inventory-fab {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    position: fixed;
-    right: max(16px, env(safe-area-inset-right, 0px));
-    /* Above iOS Safari bottom toolbar (not covered by safe-area alone) */
-    bottom: calc(env(safe-area-inset-bottom, 0px) + 72px);
-    z-index: 90;
-    min-height: 52px;
-    padding: 14px 22px;
-    border: none;
-    border-radius: 999px;
-    background: var(--primary);
-    color: #fff;
-    font-weight: 700;
-    font-size: 16px;
-    box-shadow: 0 8px 24px color-mix(in srgb, var(--primary) 40%, transparent);
-    touch-action: manipulation;
-  }
-
-  .inventory-fab svg {
-    width: 18px;
-    height: 18px;
+    display: none !important;
   }
 
   /* Inventory modal: portaled fullscreen sheet — list must get remaining height */
