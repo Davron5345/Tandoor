@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { isTopModalCloseHandler, registerModalClose } from '../modalRegistry';
 
 const ModalCloseContext = createContext({
@@ -73,7 +74,7 @@ export default function Modal({
     };
   }, []);
 
-  return (
+  return createPortal(
     <ModalCloseContext.Provider value={{ intentionalClose: requestClose }}>
       <div
         className="modal-overlay"
@@ -114,7 +115,8 @@ export default function Modal({
           )}
         </div>
       </div>
-    </ModalCloseContext.Provider>
+    </ModalCloseContext.Provider>,
+    document.body,
   );
 }
 

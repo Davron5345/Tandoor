@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-08-28 (инвентаризация: ровные отступы, удобный телефонный UI)
+**Последнее обновление документации:** 2026-08-28 (инвентаризация: app-like shell + portal Modal)
 
 ---
 
@@ -200,6 +200,8 @@ npm run db:reset-operations    # Сброс операционных данны�
 - Автоматически добавляет `branch_id` query param через `setActiveBranchId()`
 - Native app: Bearer token из `getNativeSessionToken()`, заголовок `X-Native-Client: 1`
 - Cookie-based сессия: `credentials: 'include'`
+
+**Модалки (`Modal.jsx`):** рендер через `createPortal(..., document.body)`, чтобы `position: fixed` не клипался `overflow: hidden` у `.main` / phone-lock (критично для fullscreen на iPhone Safari).
 
 ### 6.4 Навигация и права (`App.jsx`)
 
@@ -469,7 +471,7 @@ GET  /api/auth/roles
 | `/prihod`, `/rashod`, `/return-*`, `/transfer` | Documents.jsx | documents.*; фильтры: дата С/По, контрагент/поставщик, статус; `?open={id}` открывает документ; приход — вкладки **Товары** / **Доп. расходы** в том же окне (в себестоимость / в расходы; шапка и итоги всегда видны); перемещение — компактная шапка в один ряд (Дата / Тип / Откуда / Куда), колонка «Нетто» + остаток склада «Откуда» под кол-вом и нетто |
 | `/documents` | Documents.jsx | documents.view; те же фильтры + тип документа |
 | `/razdelka` | Razdelka.jsx | documents.razdelka |
-| `/inventory` | Inventory.jsx | documents.inventory; документ по отделу: учёт / факт / разница; заполнение по учёту; проведение из карточки; **планшет** — компактная таблица (шапка 2 колонки), **телефон** — flex-shell без absolute/vv-offset (без обрезания слева), чипы с внутренним scroll, даты 44px, FAB выше Safari; карточка — дата+номер в ряд, футер 48px, `footerPlacement="end"` |
+| `/inventory` | Inventory.jsx | documents.inventory; документ по отделу: учёт / факт / разница; заполнение по учёту; проведение из карточки; **планшет** — компактная таблица; **телефон** — full-bleed shell (без «карточки» тулбара), чипы/даты 16px, FAB portaled выше Safari toolbar; карточка — `Modal` через `createPortal(document.body)`, шапка полей + scroll строк + футер 48px |
 | `/calculations` | Calculations.jsx | calculations.view |
 | `/dish-sales` | DishSales.jsx | documents.dish_sale |
 | `/cashier` | Cashier.jsx | cashier.* |
@@ -760,6 +762,7 @@ GET  /api/auth/roles
 | 2026-08-28 | Телефон: жёсткий shell — страница не скроллится вбок (`overflow-x: hidden` + block horizontal pan); таблицы только внутри `.table-wrap` |
 | 2026-08-28 | Инвентаризация телефон: `inventory-phone-lock`, `--app-vvh` от visualViewport, absolute shell, один скролл + prevent rubber-band на краях списка/модалки |
 | 2026-08-28 | Инвентаризация: убран vv-offset/absolute (обрезало «Дата»), симметричные отступы, дата+номер в ряд, крупные кнопки/FAB выше Safari |
+| 2026-08-28 | Инвентаризация app-like: `Modal`/`FAB` через `createPortal(body)`, full-bleed список без «карточки» тулбара, sheet = поля + scroll строк + футер; FAB выше Safari toolbar |
 
 ---
 

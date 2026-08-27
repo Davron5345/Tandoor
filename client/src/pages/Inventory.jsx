@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   api,
   formatDate,
@@ -21,13 +22,18 @@ const INVENTORY_PHONE_MQ = '(max-width: 768px)';
 
 function useInventoryPhoneShell(modalOpen) {
   const listRef = useRef(null);
+  const [isPhone, setIsPhone] = useState(() => (
+    typeof window !== 'undefined' && window.matchMedia(INVENTORY_PHONE_MQ).matches
+  ));
 
   useEffect(() => {
     const html = document.documentElement;
     const mq = window.matchMedia(INVENTORY_PHONE_MQ);
 
     const sync = () => {
-      if (mq.matches) html.classList.add('inventory-phone-lock');
+      const phone = mq.matches;
+      setIsPhone(phone);
+      if (phone) html.classList.add('inventory-phone-lock');
       else html.classList.remove('inventory-phone-lock');
     };
 
@@ -46,7 +52,7 @@ function useInventoryPhoneShell(modalOpen) {
     return () => html.classList.remove('inventory-modal-open');
   }, [modalOpen]);
 
-  /* Kill iOS rubber-band when list/modal scroll is at edge */
+  /* Kill iOS rubber-band only when the pane actually scrolls */
   useEffect(() => {
     const mq = window.matchMedia(INVENTORY_PHONE_MQ);
     let startY = 0;
@@ -54,7 +60,8 @@ function useInventoryPhoneShell(modalOpen) {
 
     const resolveScrollEl = () => {
       if (modalOpen) {
-        return document.querySelector('.modal-doc.modal-inventory .modal-body');
+        return document.querySelector('.modal-doc.modal-inventory .inv-sheet-scroll')
+          || document.querySelector('.modal-doc.modal-inventory .modal-body');
       }
       return listRef.current;
     };
@@ -67,9 +74,10 @@ function useInventoryPhoneShell(modalOpen) {
 
     const onMove = (event) => {
       if (!mq.matches || event.touches.length !== 1 || !scrollEl) return;
+      const { scrollTop, scrollHeight, clientHeight } = scrollEl;
+      if (scrollHeight <= clientHeight + 1) return;
       const y = event.touches[0].clientY;
       const dy = y - startY;
-      const { scrollTop, scrollHeight, clientHeight } = scrollEl;
       const atTop = scrollTop <= 0;
       const atBottom = scrollTop + clientHeight >= scrollHeight - 1;
       if ((atTop && dy > 0) || (atBottom && dy < 0)) {
@@ -85,7 +93,7 @@ function useInventoryPhoneShell(modalOpen) {
     };
   }, [modalOpen]);
 
-  return listRef;
+  return { listRef, isPhone };
 }
 
 function formatQty(n) {
@@ -245,7 +253,7 @@ export default function Inventory() {
   const [filling, setFilling] = useState(false);
   const [lineFilter, setLineFilter] = useState('all');
   const [addPick, setAddPick] = useState('');
-  const listRef = useInventoryPhoneShell(Boolean(modal));
+  const { listRef, isPhone } = useInventoryPhoneShell(Boolean(modal));
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -649,162 +657,166 @@ export default function Inventory() {
           )}
         >
           <div className="doc-modal">
-            <div className="doc-modal-fields">
-              <div className="form-grid form-grid-inventory-header">
-                <div className="form-group form-group-date">
-                  <label>Дата</label>
-                  <input
-                    type="date"
-                    value={form.date}
-                    disabled={readOnly}
-                    onChange={(e) => setForm({ ...form, date: e.target.value })}
-                  />
+            <div className="inv-sheet-top">
+              <div className="doc-modal-fields">
+                <div className="form-grid form-grid-inventory-header">
+                  <div className="form-group form-group-date">
+                    <label>Дата</label>
+                    <input
+                      type="date"
+                      value={form.date}
+                      disabled={readOnly}
+                      onChange={(e) => setForm({ ...form, date: e.target.value })}
+                    />
+                  </div>
+                  <div className="form-group form-group-number">
+                    <label>Номер</label>
+                    <input value={form.number} disabled readOnly />
+                  </div>
+                  <div className="form-group">
+                    <label>Отдел *</label>
+                    <select
+                      value={form.to_department_id}
+                      disabled={readOnly}
+                      onChange={(e) => setForm({ ...form, to_department_id: e.target.value, items: [] })}
+                    >
+                      <option value="">— выберите —</option>
+                      {branchDepartments.map((d) => (
+                        <option key={d.id} value={d.id}>{d.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Комментарий</label>
+                    <input
+                      value={form.comment}
+                      disabled={readOnly}
+                      onChange={(e) => setForm({ ...form, comment: e.target.value })}
+                      placeholder="Необязательно"
+                    />
+                  </div>
                 </div>
-                <div className="form-group form-group-number">
-                  <label>Номер</label>
-                  <input value={form.number} disabled readOnly />
-                </div>
-                <div className="form-group">
-                  <label>Отдел *</label>
-                  <select
-                    value={form.to_department_id}
-                    disabled={readOnly}
-                    onChange={(e) => setForm({ ...form, to_department_id: e.target.value, items: [] })}
+              </div>
+
+              <div className="inv-toolbar">
+                {canEdit && !readOnly && (
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    onClick={fillFromStock}
+                    disabled={filling || !form.to_department_id}
                   >
-                    <option value="">— выберите —</option>
-                    {branchDepartments.map((d) => (
-                      <option key={d.id} value={d.id}>{d.name}</option>
-                    ))}
-                  </select>
+                    {filling ? 'Заполнение…' : 'Заполнить по учёту'}
+                  </button>
+                )}
+                <div className="inv-line-filter">
+                  <button
+                    type="button"
+                    className={`btn btn-ghost${lineFilter === 'all' ? ' is-active' : ''}`}
+                    onClick={() => setLineFilter('all')}
+                  >
+                    Все
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn btn-ghost${lineFilter === 'discrepancies' ? ' is-active' : ''}`}
+                    onClick={() => setLineFilter('discrepancies')}
+                  >
+                    Только расхождения
+                  </button>
                 </div>
-                <div className="form-group">
-                  <label>Комментарий</label>
-                  <input
-                    value={form.comment}
-                    disabled={readOnly}
-                    onChange={(e) => setForm({ ...form, comment: e.target.value })}
-                    placeholder="Необязательно"
-                  />
-                </div>
+                {canEdit && !readOnly && (
+                  <div className="inv-add-line">
+                    <ProductSelect
+                      products={products}
+                      value={addPick}
+                      onChange={addLine}
+                      placeholder="Добавить товар…"
+                      disabled={!form.to_department_id}
+                    />
+                  </div>
+                )}
               </div>
             </div>
 
-            <div className="inv-toolbar">
-              {canEdit && !readOnly && (
-                <button
-                  type="button"
-                  className="btn btn-ghost"
-                  onClick={fillFromStock}
-                  disabled={filling || !form.to_department_id}
-                >
-                  {filling ? 'Заполнение…' : 'Заполнить по учёту'}
-                </button>
-              )}
-              <div className="inv-line-filter">
-                <button
-                  type="button"
-                  className={`btn btn-ghost${lineFilter === 'all' ? ' is-active' : ''}`}
-                  onClick={() => setLineFilter('all')}
-                >
-                  Все
-                </button>
-                <button
-                  type="button"
-                  className={`btn btn-ghost${lineFilter === 'discrepancies' ? ' is-active' : ''}`}
-                  onClick={() => setLineFilter('discrepancies')}
-                >
-                  Только расхождения
-                </button>
-              </div>
-              {canEdit && !readOnly && (
-                <div className="inv-add-line">
-                  <ProductSelect
-                    products={products}
-                    value={addPick}
-                    onChange={addLine}
-                    placeholder="Добавить товар…"
-                    disabled={!form.to_department_id}
-                  />
-                </div>
-              )}
-            </div>
-
-            <div className="table-wrap items-table inventory-items-table doc-modal-items-scroll">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Товар</th>
-                    <th>Ед.</th>
-                    <th className="col-num">Учёт</th>
-                    <th className="col-num">Факт</th>
-                    <th className="col-num">Разница</th>
-                    <th className="col-num">Сумма</th>
-                    {!readOnly && <th />}
-                  </tr>
-                </thead>
-                <tbody>
-                  {visibleItems.length === 0 ? (
+            <div className="inv-sheet-scroll">
+              <div className="table-wrap items-table inventory-items-table doc-modal-items-scroll">
+                <table>
+                  <thead>
                     <tr>
-                      <td colSpan={readOnly ? 6 : 7} className="empty">
-                        {form.items.length === 0
-                          ? 'Нажмите «Заполнить по учёту» или добавьте товар'
-                          : 'Нет расхождений'}
-                      </td>
+                      <th>Товар</th>
+                      <th>Ед.</th>
+                      <th className="col-num">Учёт</th>
+                      <th className="col-num">Факт</th>
+                      <th className="col-num">Разница</th>
+                      <th className="col-num">Сумма</th>
+                      {!readOnly && <th />}
                     </tr>
-                  ) : visibleItems.map(({ item, idx }) => {
-                    const diff = lineDiff(item);
-                    const amount = lineAmount(item);
-                    const diffClass = diff > 1e-9 ? 'inv-diff-pos' : diff < -1e-9 ? 'inv-diff-neg' : '';
-                    return (
-                      <tr key={`${item.product_id}:${item.variant_id || ''}:${idx}`} className={diffClass ? 'inv-row-discrepancy' : undefined}>
-                        <td>{productName(products, item)}</td>
-                        <td>{productUnit(products, item)}</td>
-                        <td className="col-num inv-book-muted">{formatQty(lineBook(item))}</td>
-                        <td>
-                          {readOnly ? (
-                            formatQty(lineFact(item))
-                          ) : (
-                            <input
-                              className="input-qty"
-                              inputMode="decimal"
-                              value={item.quantity ?? ''}
-                              onChange={(e) => updateFact(idx, e.target.value)}
-                            />
-                          )}
+                  </thead>
+                  <tbody>
+                    {visibleItems.length === 0 ? (
+                      <tr>
+                        <td colSpan={readOnly ? 6 : 7} className="empty">
+                          {form.items.length === 0
+                            ? 'Нажмите «Заполнить по учёту» или добавьте товар'
+                            : 'Нет расхождений'}
                         </td>
-                        <td className={`col-num ${diffClass}`}>{formatQty(diff)}</td>
-                        <td className="col-num">{formatMoney(amount)}</td>
-                        {!readOnly && (
-                          <td>
-                            <IconButton title="Убрать" onClick={() => removeItem(idx)}>
-                              <IconTrash />
-                            </IconButton>
-                          </td>
-                        )}
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-            <div className="inventory-items-cards">
-              {visibleItems.length === 0 ? (
-                <div className="inventory-list-empty">
-                  {form.items.length === 0
-                    ? 'Нажмите «Заполнить по учёту» или добавьте товар'
-                    : 'Нет расхождений'}
-                </div>
-              ) : visibleItems.map(({ item, idx }) => (
-                <InventoryLineCard
-                  key={`${item.product_id}:${item.variant_id || ''}:${idx}`}
-                  item={item}
-                  idx={idx}
-                  products={products}
-                  readOnly={readOnly}
-                  onFact={updateFact}
-                  onRemove={removeItem}
-                />
-              ))}
+                    ) : visibleItems.map(({ item, idx }) => {
+                      const diff = lineDiff(item);
+                      const amount = lineAmount(item);
+                      const diffClass = diff > 1e-9 ? 'inv-diff-pos' : diff < -1e-9 ? 'inv-diff-neg' : '';
+                      return (
+                        <tr key={`${item.product_id}:${item.variant_id || ''}:${idx}`} className={diffClass ? 'inv-row-discrepancy' : undefined}>
+                          <td>{productName(products, item)}</td>
+                          <td>{productUnit(products, item)}</td>
+                          <td className="col-num inv-book-muted">{formatQty(lineBook(item))}</td>
+                          <td>
+                            {readOnly ? (
+                              formatQty(lineFact(item))
+                            ) : (
+                              <input
+                                className="input-qty"
+                                inputMode="decimal"
+                                value={item.quantity ?? ''}
+                                onChange={(e) => updateFact(idx, e.target.value)}
+                              />
+                            )}
+                          </td>
+                          <td className={`col-num ${diffClass}`}>{formatQty(diff)}</td>
+                          <td className="col-num">{formatMoney(amount)}</td>
+                          {!readOnly && (
+                            <td>
+                              <IconButton title="Убрать" onClick={() => removeItem(idx)}>
+                                <IconTrash />
+                              </IconButton>
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <div className="inventory-items-cards">
+                {visibleItems.length === 0 ? (
+                  <div className="inventory-list-empty">
+                    {form.items.length === 0
+                      ? 'Нажмите «Заполнить по учёту» или добавьте товар'
+                      : 'Нет расхождений'}
+                  </div>
+                ) : visibleItems.map(({ item, idx }) => (
+                  <InventoryLineCard
+                    key={`${item.product_id}:${item.variant_id || ''}:${idx}`}
+                    item={item}
+                    idx={idx}
+                    products={products}
+                    readOnly={readOnly}
+                    onFact={updateFact}
+                    onRemove={removeItem}
+                  />
+                ))}
+              </div>
             </div>
 
             <div className="doc-modal-totals">
@@ -817,10 +829,11 @@ export default function Inventory() {
           </div>
         </Modal>
       )}
-      {canEdit && (
+      {canEdit && isPhone && createPortal(
         <button type="button" className="inventory-fab" onClick={openCreate}>
           <IconPlus /> Новый
-        </button>
+        </button>,
+        document.body,
       )}
     </div>
   );

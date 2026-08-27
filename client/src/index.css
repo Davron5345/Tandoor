@@ -7046,7 +7046,7 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
     position: static;
     z-index: 90;
     margin: 0;
-    padding: max(6px, env(safe-area-inset-top, 0px)) 12px 8px;
+    padding: max(6px, env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) 8px max(12px, env(safe-area-inset-left, 0px));
     background: var(--bg);
   }
 
@@ -7246,6 +7246,7 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
     overflow-y: auto;
   }
 
+  /* Inventory phone: Prihod-like full-bleed shell inside App */
   .inventory-page-header {
     flex-direction: row !important;
     align-items: center;
@@ -7254,8 +7255,9 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
     width: 100%;
     max-width: 100%;
     min-width: 0;
-    padding: 0;
+    padding: 4px 16px 0;
     margin: 0;
+    box-sizing: border-box;
   }
 
   .inventory-page-heading {
@@ -7290,9 +7292,9 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
     min-width: 0;
     overflow-x: auto;
     overscroll-behavior-x: contain;
-    -webkit-overflow-scrolling: auto;
+    -webkit-overflow-scrolling: touch;
     touch-action: pan-x;
-    padding-bottom: 2px;
+    padding: 0 0 2px;
     scrollbar-width: none;
   }
 
@@ -7367,13 +7369,15 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    padding: 8px 12px 0;
+    gap: 0;
+    padding: 0;
+    margin: 0;
     width: 100%;
     max-width: 100%;
     min-width: 0;
     min-height: 0;
     height: 100%;
+    background: var(--bg);
     overscroll-behavior: none;
     touch-action: pan-y;
   }
@@ -7389,6 +7393,7 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
     background: transparent;
     border: none;
     box-shadow: none;
+    border-radius: 0;
   }
 
   .inventory-toolbar {
@@ -7396,10 +7401,12 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
     flex-direction: column;
     align-items: stretch;
     gap: 12px;
-    padding: 12px;
+    padding: 12px 16px 10px;
     max-width: 100%;
     min-width: 0;
     box-sizing: border-box;
+    background: var(--surface);
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
   }
 
   .inventory-list-cards {
@@ -7413,17 +7420,20 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
     overflow-x: hidden;
     overflow-y: auto;
     overscroll-behavior: none;
-    -webkit-overflow-scrolling: auto;
+    -webkit-overflow-scrolling: touch;
     touch-action: pan-y;
-    padding: 4px 2px max(16px, env(safe-area-inset-bottom, 0px));
+    padding: 12px 16px 16px;
+    box-sizing: border-box;
   }
 
   .inventory-page--fab .inventory-list-cards {
-    padding-bottom: max(96px, calc(env(safe-area-inset-bottom, 0px) + 80px));
+    /* Safari toolbar (~50px) + FAB + home indicator */
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 140px);
   }
 
   .inventory-list-empty {
-    padding: 48px 16px;
+    margin: auto 0;
+    padding: 32px 16px;
     text-align: center;
     color: var(--text-muted);
     font-size: 15px;
@@ -7435,15 +7445,37 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
     box-shadow: none;
     overflow: hidden;
     max-width: 100%;
+    border-radius: 0;
   }
 
   .inventory-page .card-header {
-    background: var(--surface);
-    border: 1px solid var(--control-border);
-    border-radius: 14px;
+    background: transparent;
+    border: none;
+    border-radius: 0;
     margin: 0;
     max-width: 100%;
     box-sizing: border-box;
+  }
+
+  .inventory-doc-card {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    background: var(--surface);
+    border: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+    border-radius: 14px;
+    overflow: hidden;
+    max-width: 100%;
+  }
+
+  .inventory-doc-card-main {
+    flex: 1;
+    min-width: 0;
+    padding: 14px 14px 14px 16px;
+    text-align: left;
+    border: none;
+    background: transparent;
+    color: inherit;
   }
 
   .inventory-doc-card-actions button:first-child {
@@ -7457,10 +7489,11 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
     gap: 8px;
     position: fixed;
     right: max(16px, env(safe-area-inset-right, 0px));
-    bottom: max(28px, calc(env(safe-area-inset-bottom, 0px) + 24px));
-    z-index: 80;
+    /* Above iOS Safari bottom toolbar (not covered by safe-area alone) */
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 72px);
+    z-index: 90;
     min-height: 52px;
-    padding: 14px 20px;
+    padding: 14px 22px;
     border: none;
     border-radius: 999px;
     background: var(--primary);
@@ -7476,7 +7509,7 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
     height: 18px;
   }
 
-  /* Inventory modal: true fullscreen, symmetric padding, no vv-offset shift */
+  /* Inventory modal: portaled fullscreen sheet */
   .modal-overlay:has(.modal-inventory) {
     padding: 0;
     align-items: stretch;
@@ -7488,6 +7521,7 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
     width: 100%;
     height: 100%;
     max-height: 100%;
+    z-index: 1100;
   }
 
   .modal-doc.modal-inventory {
@@ -7501,14 +7535,17 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
     overflow: hidden;
     overscroll-behavior: none;
     touch-action: pan-y;
+    display: flex;
+    flex-direction: column;
   }
 
   .modal-doc.modal-inventory .modal-header {
     display: flex;
     flex: 0 0 auto;
     align-items: center;
-    padding: 14px 16px;
+    padding: max(12px, env(safe-area-inset-top, 0px)) 16px 12px;
     max-width: 100%;
+    box-sizing: border-box;
   }
 
   .modal-doc.modal-inventory .modal-header h2 {
@@ -7523,14 +7560,11 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
     flex: 1 1 auto;
     min-height: 0;
     max-width: 100%;
-    overflow-x: hidden;
-    overflow-y: auto;
+    overflow: hidden;
     display: flex;
     flex-direction: column;
     justify-content: flex-start;
-    padding: 12px 16px 16px;
-    -webkit-overflow-scrolling: auto;
-    overscroll-behavior: none;
+    padding: 0;
     touch-action: pan-y;
   }
 
@@ -7565,13 +7599,41 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
   }
 
   .modal-inventory .doc-modal {
-    gap: 14px;
-    flex: 0 1 auto;
+    gap: 0;
+    flex: 1 1 auto;
     min-height: 0;
     max-width: 100%;
     width: 100%;
-    overflow-x: hidden;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
     justify-content: flex-start;
+  }
+
+  .modal-inventory .inv-sheet-top {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 12px 16px;
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+    background: var(--surface);
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  .modal-inventory .inv-sheet-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-width: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: none;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+    padding: 12px 16px;
+    box-sizing: border-box;
   }
 
   .modal-inventory .doc-modal-fields,
@@ -7606,18 +7668,22 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
     align-items: stretch;
     gap: 10px;
     max-width: 100%;
+    min-width: 0;
   }
 
   .inv-line-filter {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 8px;
+    max-width: 100%;
+    min-width: 0;
   }
 
   .inv-toolbar .btn,
   .inv-line-filter .btn {
     min-height: 44px;
     font-size: 15px;
+    min-width: 0;
   }
 
   .inv-add-line {
@@ -7647,11 +7713,15 @@ html.inventory-phone-lock.inventory-modal-open .inventory-fab {
   }
 
   .modal-inventory .doc-modal-totals {
+    flex: 0 0 auto;
     align-items: stretch;
     text-align: left;
     gap: 6px;
-    padding-top: 4px;
+    padding: 10px 16px 12px;
     max-width: 100%;
+    box-sizing: border-box;
+    border-top: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+    background: var(--surface);
   }
 
   .modal-inventory .doc-modal-totals > div {
