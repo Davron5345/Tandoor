@@ -3409,6 +3409,30 @@ input[type='number']::-webkit-inner-spin-button {
   text-align: right;
 }
 
+.inventory-page-header {
+  align-items: flex-start;
+}
+
+.inventory-page-heading {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+
+.inventory-page-lead {
+  margin: 0;
+  max-width: 36rem;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.inventory-page {
+  overflow-x: hidden;
+}
+
 .inventory-list-cards,
 .inventory-items-cards {
   display: none;
@@ -6929,8 +6953,8 @@ input[type='number']::-webkit-inner-spin-button {
     position: sticky;
     top: 0;
     z-index: 90;
-    margin: -8px 0 12px;
-    padding: 8px 0;
+    margin: 0 0 12px;
+    padding: max(2px, env(safe-area-inset-top, 0px)) 0 8px;
     background: var(--bg);
   }
 
@@ -6989,7 +7013,8 @@ input[type='number']::-webkit-inner-spin-button {
   .main {
     margin-left: 0;
     width: 100%;
-    padding: 16px;
+    overflow-x: hidden;
+    padding: 12px max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
   }
 
   .app.sidebar-collapsed .sidebar {
@@ -7081,35 +7106,58 @@ input[type='number']::-webkit-inner-spin-button {
     overflow: hidden;
   }
 
-  .inventory-page .page-header {
-    align-items: flex-start;
+  .inventory-page-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
   }
 
-  .inventory-page .page-header .btn-group {
+  .inventory-page-heading {
     width: 100%;
-    justify-content: space-between;
+  }
+
+  .inventory-page-lead {
+    max-width: none;
   }
 
   .inventory-new-btn {
-    flex: 1;
-    min-height: 44px;
+    width: 100%;
+    min-height: 48px;
+    justify-content: center;
   }
 
   .inventory-page .report-filters {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
     width: 100%;
   }
 
   .inventory-page .report-filters label {
-    flex: 1 1 calc(50% - 8px);
+    width: 100%;
     min-width: 0;
+    flex: none;
   }
 
   .inventory-page .report-filters input,
   .inventory-page .report-filters select {
-    min-width: 0;
+    box-sizing: border-box;
     width: 100%;
-    min-height: 42px;
+    min-width: 0;
+    max-width: 100%;
+    min-height: 44px;
     font-size: 16px;
+  }
+
+  .inventory-page .report-filters input[type="date"] {
+    display: block;
+    appearance: none;
+    -webkit-appearance: none;
+  }
+
+  .inventory-page .report-filters input[type="date"]::-webkit-date-and-time-value {
+    text-align: left;
+    min-height: 1.25em;
   }
 
   .table-wrap.inventory-list-table {

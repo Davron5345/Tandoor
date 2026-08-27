@@ -431,19 +431,17 @@ export default function Inventory() {
     <div className="inventory-page">
       {Toast}
 
-      <div className="page-header">
-        <div>
+      <div className="page-header inventory-page-header">
+        <div className="inventory-page-heading">
           <h1>Инвентаризация</h1>
-          <p className="page-subtitle">Сверка факта с учётом по отделу</p>
-        </div>
-        <div className="btn-group">
+          <p className="inventory-page-lead">Сверка факта с учётом по отделу</p>
           <BranchChip>{branchName}</BranchChip>
-          {canEdit && (
-            <button type="button" className="btn btn-primary inventory-new-btn" onClick={openCreate}>
-              <IconPlus /> Новый
-            </button>
-          )}
         </div>
+        {canEdit && (
+          <button type="button" className="btn btn-primary inventory-new-btn" onClick={openCreate}>
+            <IconPlus /> Новый
+          </button>
+        )}
       </div>
 
       <div className="card">
