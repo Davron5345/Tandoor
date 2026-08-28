@@ -387,35 +387,37 @@ function SectionTabs({ section, isFavorite, onToggleFavorite }) {
   if (!section || section.items.length < 2) return null;
 
   return (
-    <nav className="section-tabs" aria-label={section.label} data-allow-h-scroll>
-      {section.items.map((item) => {
-        const favorite = isFavorite(item.to);
-        return (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            end={item.end}
-            className={({ isActive }) => `section-tab${isActive ? ' is-active' : ''}`}
-          >
-            <span className="section-tab-label">{item.label}</span>
-            <button
-              type="button"
-              className={`nav-star${favorite ? ' is-on' : ''}`}
-              onClick={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                onToggleFavorite(item.to);
-              }}
-              title={favorite ? 'Убрать из избранного' : 'В избранное'}
-              aria-label={favorite ? `Убрать «${item.label}» из избранного` : `Добавить «${item.label}» в избранное`}
-              aria-pressed={favorite}
+    <div className="section-tabs-bar">
+      <nav className="section-tabs" aria-label={section.label} data-allow-h-scroll>
+        {section.items.map((item) => {
+          const favorite = isFavorite(item.to);
+          return (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.end}
+              className={({ isActive }) => `section-tab${isActive ? ' is-active' : ''}`}
             >
-              <IconNavStar filled={favorite} />
-            </button>
-          </NavLink>
-        );
-      })}
-    </nav>
+              <span className="section-tab-label">{item.label}</span>
+              <button
+                type="button"
+                className={`nav-star${favorite ? ' is-on' : ''}`}
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  onToggleFavorite(item.to);
+                }}
+                title={favorite ? 'Убрать из избранного' : 'В избранное'}
+                aria-label={favorite ? `Убрать «${item.label}» из избранного` : `Добавить «${item.label}» в избранное`}
+                aria-pressed={favorite}
+              >
+                <IconNavStar filled={favorite} />
+              </button>
+            </NavLink>
+          );
+        })}
+      </nav>
+    </div>
   );
 }
 

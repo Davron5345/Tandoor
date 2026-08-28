@@ -1135,12 +1135,23 @@ textarea::placeholder {
 }
 
 .main {
+  --main-pad: clamp(16px, 3vw, 32px);
   flex: 1;
   min-width: 0;
   margin-left: var(--sidebar-width);
-  padding: clamp(16px, 3vw, 32px);
+  padding: var(--main-pad);
   width: calc(100% - var(--sidebar-width));
   transition: margin-left 0.25s ease, width 0.25s ease;
+}
+
+.section-tabs-bar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  margin: 0 calc(-1 * var(--main-pad)) 12px;
+  padding: 4px var(--main-pad) 6px;
+  background: var(--bg);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--border) 65%, transparent);
 }
 
 .section-tabs {
@@ -1148,7 +1159,7 @@ textarea::placeholder {
   align-items: stretch;
   gap: 4px;
   max-width: 1600px;
-  margin: 0 auto 12px;
+  margin: 0 auto;
   padding: 0 0 2px;
   overflow-x: auto;
   overflow-y: hidden;
@@ -7259,12 +7270,6 @@ html.inventory-phone-lock.inventory-modal-open .inventory-topbar-new {
     background: var(--bg);
   }
 
-  .section-tabs {
-    flex-shrink: 0;
-    margin: 0 0 8px;
-    padding: 0 max(16px, env(safe-area-inset-right, 0px)) 4px max(16px, env(safe-area-inset-left, 0px));
-  }
-
   .inventory-topbar-heading {
     display: flex;
     align-items: center;
@@ -7386,6 +7391,7 @@ html.inventory-phone-lock.inventory-modal-open .inventory-topbar-new {
   }
 
   .main {
+    --main-pad: 0px;
     display: flex;
     flex-direction: column;
     margin-left: 0;
@@ -7395,6 +7401,22 @@ html.inventory-phone-lock.inventory-modal-open .inventory-topbar-new {
     min-height: 0;
     overflow: hidden;
     overflow-x: hidden;
+    padding: 0;
+  }
+
+  .section-tabs-bar {
+    flex-shrink: 0;
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    margin: 0 0 8px;
+    padding: 0 max(16px, env(safe-area-inset-right, 0px)) 4px max(16px, env(safe-area-inset-left, 0px));
+    background: var(--bg);
+    box-shadow: 0 1px 0 color-mix(in srgb, var(--border) 65%, transparent);
+  }
+
+  .section-tabs {
+    margin: 0;
     padding: 0;
   }
 
