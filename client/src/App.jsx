@@ -45,7 +45,6 @@ import {
   IconNavReports,
   IconNavTelegram,
   IconNavAdmin,
-  IconNavWarehouse,
   IconNavSun,
   IconNavMoon,
   IconNavChevronLeft,
@@ -670,20 +669,7 @@ function AppContent() {
       <aside className="sidebar">
         <div className="sidebar-panel">
         <div className="sidebar-header">
-          <div className="logo">
-            <div className="logo-mark" aria-hidden><IconNavWarehouse /></div>
-            <div className="logo-text">
-              <strong>Склад</strong>
-              <span>Учёт прихода и расхода</span>
-            </div>
-          </div>
           <div className="sidebar-header-actions">
-            <SidebarFavorites
-              currentItem={findNavItemForPath(allSubNavItems, location.pathname)}
-              favoriteItems={favoriteNavItems}
-              isFavorite={isNavFavorite}
-              onToggleFavorite={toggleNavFavorite}
-            />
             <button
               type="button"
               className={`sidebar-account-toggle${accountOpen ? ' is-open' : ''}`}
@@ -711,6 +697,12 @@ function AppContent() {
             >
               {theme === 'dark' ? <IconNavSun /> : <IconNavMoon />}
             </button>
+            <SidebarFavorites
+              currentItem={findNavItemForPath(allSubNavItems, location.pathname)}
+              favoriteItems={favoriteNavItems}
+              isFavorite={isNavFavorite}
+              onToggleFavorite={toggleNavFavorite}
+            />
           </div>
         </div>
         {accountOpen && (
