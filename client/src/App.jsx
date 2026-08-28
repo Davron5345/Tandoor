@@ -1,4 +1,4 @@
-import { Routes, Route, NavLink, useLocation, Navigate } from 'react-router-dom';
+import { Routes, Route, NavLink, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { useEffect, useState, useCallback, useRef } from 'react';
 import Dashboard from './pages/Dashboard';
 import Products from './pages/Products';
@@ -194,6 +194,10 @@ function pathInGroup(pathname, paths) {
   return paths.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 
+function findActiveSection(pathname, sections) {
+  return sections.find((section) => section.paths.length && pathInGroup(pathname, section.paths)) ?? null;
+}
+
 function findNavItemForPath(items, pathname) {
   const matches = items.filter((item) => pathname === item.to || pathname.startsWith(`${item.to}/`));
   if (!matches.length) return null;
@@ -327,7 +331,7 @@ function SidebarFavorites({
           )}
           {favoriteItems.length === 0 && !currentItem && (
             <p className="sidebar-favorites-empty">
-              Звезда у пункта меню — страница появится здесь
+              Звезда у вкладки раздела — страница появится здесь
             </p>
           )}
           {favoriteItems.map((item) => (
@@ -379,152 +383,74 @@ function SubNavLink({ item, favorite, onToggleFavorite }) {
   );
 }
 
-function NavGroup({
-  groupId,
-  icon: Icon,
-  label,
-  children,
-  paths,
-  isOpen,
-  onToggle,
-  sidebarCollapsed,
-  flyoutOpen,
-  onFlyoutToggle,
-  onFlyoutClose,
-}) {
-  const location = useLocation();
-  const isActive = pathInGroup(location.pathname, paths);
-  const [flyoutPos, setFlyoutPos] = useState({
-    top: 0, left: 0, maxHeight: 360, caretTop: 16, opensUp: false,
-  });
-  const groupRef = useRef(null);
-  const toggleRef = useRef(null);
-  const flyoutRef = useRef(null);
-  const itemsVisible = sidebarCollapsed ? flyoutOpen : isOpen;
-
-  const syncFlyoutPosition = useCallback(() => {
-    const el = toggleRef.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    const margin = 8;
-    const viewportH = window.innerHeight;
-    const panel = flyoutRef.current;
-    const spaceBelow = Math.max(0, viewportH - rect.top - margin);
-    const spaceAbove = Math.max(0, rect.bottom - margin);
-    const measured = panel?.scrollHeight || panel?.offsetHeight || 0;
-    const naturalH = measured > 40 ? measured : 420;
-    // If it won't fit below the icon — open upward
-    const opensUp = naturalH > spaceBelow && spaceAbove > spaceBelow;
-    const available = Math.max(160, opensUp ? spaceAbove : spaceBelow);
-    const maxPanelH = Math.min(available, viewportH - margin * 2);
-    const panelH = Math.min(naturalH, maxPanelH);
-    let top = opensUp ? rect.bottom - panelH : rect.top;
-    top = Math.min(Math.max(margin, top), viewportH - panelH - margin);
-    const caretTop = Math.min(
-      Math.max(12, rect.top + rect.height / 2 - top - 5),
-      Math.max(12, panelH - 20),
-    );
-    setFlyoutPos({
-      top,
-      left: rect.right + 8,
-      maxHeight: maxPanelH,
-      caretTop,
-      opensUp,
-    });
-  }, []);
-
-  useEffect(() => {
-    if (!flyoutOpen || !sidebarCollapsed) return undefined;
-
-    syncFlyoutPosition();
-    const raf = window.requestAnimationFrame(() => syncFlyoutPosition());
-    const onLayout = () => syncFlyoutPosition();
-    window.addEventListener('resize', onLayout);
-    window.addEventListener('scroll', onLayout, true);
-
-    const closeFlyout = (event) => {
-      const target = event.target;
-      if (toggleRef.current?.contains(target)) return;
-      if (flyoutRef.current?.contains(target)) return;
-      if (groupRef.current?.contains(target)) return;
-      onFlyoutClose();
-    };
-
-    const timer = window.setTimeout(() => {
-      document.addEventListener('click', closeFlyout);
-    }, 0);
-
-    return () => {
-      window.cancelAnimationFrame(raf);
-      window.clearTimeout(timer);
-      document.removeEventListener('click', closeFlyout);
-      window.removeEventListener('resize', onLayout);
-      window.removeEventListener('scroll', onLayout, true);
-    };
-  }, [flyoutOpen, sidebarCollapsed, syncFlyoutPosition, onFlyoutClose]);
-
-  const handleToggle = (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    if (sidebarCollapsed) {
-      if (!flyoutOpen) window.requestAnimationFrame(syncFlyoutPosition);
-      onFlyoutToggle();
-      return;
-    }
-    onToggle(groupId);
-  };
-
-  const flyoutStyle = sidebarCollapsed && flyoutOpen
-    ? {
-      top: flyoutPos.top,
-      left: flyoutPos.left,
-      maxHeight: flyoutPos.maxHeight,
-      '--nav-flyout-caret-top': `${flyoutPos.caretTop}px`,
-    }
-    : undefined;
+function SectionTabs({ section, isFavorite, onToggleFavorite }) {
+  if (!section || section.items.length < 2) return null;
 
   return (
-    <div
-      ref={groupRef}
-      className={[
-        'nav-group',
-        isActive ? 'nav-group-active' : '',
-        isOpen ? 'nav-group-open' : '',
-        flyoutOpen ? 'nav-group-flyout-open' : '',
-      ].filter(Boolean).join(' ')}
-    >
+    <nav className="section-tabs" aria-label={section.label} data-allow-h-scroll>
+      {section.items.map((item) => {
+        const favorite = isFavorite(item.to);
+        return (
+          <NavLink
+            key={item.to}
+            to={item.to}
+            end={item.end}
+            className={({ isActive }) => `section-tab${isActive ? ' is-active' : ''}`}
+          >
+            <span className="section-tab-label">{item.label}</span>
+            <button
+              type="button"
+              className={`nav-star${favorite ? ' is-on' : ''}`}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                onToggleFavorite(item.to);
+              }}
+              title={favorite ? 'Убрать из избранного' : 'В избранное'}
+              aria-label={favorite ? `Убрать «${item.label}» из избранного` : `Добавить «${item.label}» в избранное`}
+              aria-pressed={favorite}
+            >
+              <IconNavStar filled={favorite} />
+            </button>
+          </NavLink>
+        );
+      })}
+    </nav>
+  );
+}
+
+function NavGroup({
+  icon: Icon,
+  label,
+  items,
+  paths,
+  sidebarCollapsed,
+}) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const isActive = pathInGroup(location.pathname, paths);
+  const firstTo = items[0]?.to;
+  if (!firstTo) return null;
+
+  return (
+    <div className={`nav-group${isActive ? ' nav-group-active' : ''}`}>
       <button
-        ref={toggleRef}
         type="button"
-        className="nav-group-toggle"
-        onClick={handleToggle}
-        aria-expanded={itemsVisible}
+        className={`nav-group-toggle${isActive ? ' is-active' : ''}`}
+        onClick={() => navigate(firstTo)}
         title={sidebarCollapsed ? label : undefined}
       >
         <span className="nav-group-toggle-main">
           <span className="nav-icon">{Icon ? <Icon /> : null}</span>
           <span className="nav-label">{label}</span>
         </span>
-        <span className={`nav-group-chevron${isOpen ? ' is-open' : ''}`} aria-hidden="true">
-          <IconNavChevronDown />
-        </span>
       </button>
-      <div
-        ref={flyoutRef}
-        className={`nav-group-items${itemsVisible ? ' is-visible' : ''}${sidebarCollapsed ? ' nav-flyout-panel' : ''}${sidebarCollapsed && flyoutOpen && flyoutPos.opensUp ? ' nav-flyout-panel-up' : ''}`}
-        style={flyoutStyle}
-      >
-        {sidebarCollapsed && <div className="nav-flyout-title">{label}</div>}
-        {children}
-      </div>
     </div>
   );
 }
 
 function AppContent() {
   const [telegramOnline, setTelegramOnline] = useState(false);
-  const [openNavGroup, setOpenNavGroup] = useState(null);
-  const [openFlyoutGroup, setOpenFlyoutGroup] = useState(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => (
     isMobileNavViewport() ? true : readSidebarCollapsed()
   ));
@@ -543,10 +469,6 @@ function AppContent() {
   useEffect(() => { refreshTelegramStatus(); }, [location.pathname, refreshTelegramStatus]);
 
   useEffect(() => {
-    if (!sidebarCollapsed) setOpenFlyoutGroup(null);
-  }, [sidebarCollapsed]);
-
-  useEffect(() => {
     const mq = window.matchMedia(MOBILE_NAV_MQ);
     const apply = () => {
       if (mq.matches) setSidebarCollapsed(true);
@@ -558,18 +480,8 @@ function AppContent() {
   }, []);
 
   useEffect(() => {
-    setOpenFlyoutGroup(null);
     if (isMobileNavViewport()) setSidebarCollapsed(true);
   }, [location.pathname]);
-
-  useEffect(() => {
-    if (!user) return;
-
-    const { sections } = buildAppNav(user);
-    const path = location.pathname;
-    const match = sections.find((section) => section.paths.length && pathInGroup(path, section.paths));
-    setOpenNavGroup(match?.id ?? null);
-  }, [user, location.pathname]);
 
   const isCashierLayoutPreview = Boolean(user && isCashierOnlyLayout(user));
   const isMyShopStorePreview = location.pathname === '/myshop';
@@ -630,6 +542,7 @@ function AppContent() {
       '.cashier-table-wrap',
       '.products-table-scroll',
       '.inventory-status-chips',
+      '.section-tabs',
       '[data-allow-h-scroll]',
     ].join(',');
 
@@ -705,18 +618,6 @@ function AppContent() {
     || adminSection.paths[0]
     || '/');
 
-  const toggleNavGroup = (groupId) => {
-    setOpenNavGroup((current) => (current === groupId ? null : groupId));
-  };
-
-  const toggleFlyoutGroup = (groupId) => {
-    setOpenFlyoutGroup((current) => (current === groupId ? null : groupId));
-  };
-
-  const closeFlyoutGroup = () => {
-    setOpenFlyoutGroup(null);
-  };
-
   const toggleNavFavorite = (path) => {
     setNavFavorites((current) => {
       const next = current.includes(path)
@@ -729,11 +630,7 @@ function AppContent() {
 
   const isNavFavorite = (path) => navFavorites.includes(path);
 
-  const navGroupFlyoutProps = (groupId) => ({
-    flyoutOpen: openFlyoutGroup === groupId,
-    onFlyoutToggle: () => toggleFlyoutGroup(groupId),
-    onFlyoutClose: closeFlyoutGroup,
-  });
+  const activeSection = findActiveSection(location.pathname, appNav.sections);
 
   const toggleSidebar = () => {
     setSidebarCollapsed((collapsed) => {
@@ -891,24 +788,12 @@ function AppContent() {
               section.items.length > 0 && (
                 <NavGroup
                   key={section.id}
-                  groupId={section.id}
                   icon={section.icon}
                   label={section.label}
+                  items={section.items}
                   paths={section.paths}
-                  isOpen={openNavGroup === section.id}
-                  onToggle={toggleNavGroup}
                   sidebarCollapsed={sidebarCollapsed}
-                  {...navGroupFlyoutProps(section.id)}
-                >
-                  {section.items.map((item) => (
-                    <SubNavLink
-                      key={item.to}
-                      item={item}
-                      favorite={isNavFavorite(item.to)}
-                      onToggleFavorite={toggleNavFavorite}
-                    />
-                  ))}
-                </NavGroup>
+                />
               )
             ))}
 
@@ -928,24 +813,12 @@ function AppContent() {
 
             {adminSection.items.length > 0 && (
               <NavGroup
-                groupId="admin"
                 icon={IconNavAdmin}
                 label="Администрирование"
+                items={adminSection.items}
                 paths={adminSection.paths}
-                isOpen={openNavGroup === 'admin'}
-                onToggle={toggleNavGroup}
                 sidebarCollapsed={sidebarCollapsed}
-                {...navGroupFlyoutProps('admin')}
-              >
-                {adminSection.items.map((item) => (
-                  <SubNavLink
-                    key={item.to}
-                    item={item}
-                    favorite={isNavFavorite(item.to)}
-                    onToggleFavorite={toggleNavFavorite}
-                  />
-                ))}
-              </NavGroup>
+              />
             )}
           </nav>
         </div>
@@ -968,6 +841,13 @@ function AppContent() {
             <span className="sidebar-menu-btn-label">{sidebarCollapsed ? 'Меню' : 'Свернуть'}</span>
           </button>
         </div>
+        )}
+        {!isCashierLayout && (
+          <SectionTabs
+            section={activeSection}
+            isFavorite={isNavFavorite}
+            onToggleFavorite={toggleNavFavorite}
+          />
         )}
         <div className="main-content">
         {isCashierLayout && location.pathname !== '/cashier' ? (
