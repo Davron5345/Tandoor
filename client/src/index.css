@@ -250,7 +250,10 @@ textarea::placeholder {
   display: flex;
   min-height: 100vh;
   min-height: 100dvh;
+  height: 100vh;
+  height: 100dvh;
   width: 100%;
+  overflow: hidden;
 }
 
 .sidebar {
@@ -1138,6 +1141,11 @@ textarea::placeholder {
   --main-pad: clamp(16px, 3vw, 32px);
   flex: 1;
   min-width: 0;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   margin-left: var(--sidebar-width);
   padding: var(--main-pad);
   width: calc(100% - var(--sidebar-width));
@@ -1145,9 +1153,9 @@ textarea::placeholder {
 }
 
 .section-tabs-bar {
-  position: sticky;
-  top: 0;
-  z-index: 40;
+  flex: 0 0 auto;
+  position: relative;
+  z-index: 5;
   margin: 0 calc(-1 * var(--main-pad)) 12px;
   padding: 4px var(--main-pad) 6px;
   background: var(--bg);
@@ -1226,9 +1234,14 @@ textarea::placeholder {
 }
 
 .main-content {
+  flex: 1 1 auto;
+  min-height: 0;
   width: 100%;
   max-width: 1600px;
   margin: 0 auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .main-content > div {
@@ -7405,10 +7418,9 @@ html.inventory-phone-lock.inventory-modal-open .inventory-topbar-new {
   }
 
   .section-tabs-bar {
-    flex-shrink: 0;
-    position: sticky;
-    top: 0;
-    z-index: 40;
+    flex: 0 0 auto;
+    position: relative;
+    z-index: 5;
     margin: 0 0 8px;
     padding: 0 max(16px, env(safe-area-inset-right, 0px)) 4px max(16px, env(safe-area-inset-left, 0px));
     background: var(--bg);
