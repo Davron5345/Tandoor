@@ -1153,7 +1153,7 @@ textarea::placeholder {
   flex-direction: column;
   overflow: hidden;
   margin-left: var(--sidebar-width);
-  padding: var(--main-pad);
+  padding: 0 var(--main-pad) var(--main-pad);
   width: calc(100% - var(--sidebar-width));
   transition: margin-left 0.25s ease, width 0.25s ease;
 }
@@ -1162,19 +1162,21 @@ textarea::placeholder {
   flex: 0 0 auto;
   position: relative;
   z-index: 5;
-  margin: 0 calc(-1 * var(--main-pad)) 12px;
-  padding: 4px var(--main-pad) 6px;
+  display: flex;
+  align-items: center;
+  margin: 0 calc(-1 * var(--main-pad));
+  padding: 14px var(--main-pad) 12px;
   background: var(--bg);
-  box-shadow: 0 1px 0 color-mix(in srgb, var(--border) 65%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
 }
 
 .section-tabs {
   display: flex;
-  align-items: stretch;
+  align-items: center;
   gap: 4px;
+  width: 100%;
   max-width: 1600px;
   margin: 0 auto;
-  padding: 0 0 2px;
   overflow-x: auto;
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
@@ -1187,8 +1189,8 @@ textarea::placeholder {
   align-items: center;
   gap: 4px;
   flex: 0 0 auto;
-  min-height: 44px;
-  padding: 8px 10px 8px 14px;
+  min-height: 36px;
+  padding: 6px 10px 6px 12px;
   border-radius: 10px;
   border: 1px solid transparent;
   background: transparent;
@@ -1245,6 +1247,7 @@ textarea::placeholder {
   width: 100%;
   max-width: 1600px;
   margin: 0 auto;
+  padding-top: var(--main-pad);
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -7427,15 +7430,20 @@ html.inventory-phone-lock.inventory-modal-open .inventory-topbar-new {
     flex: 0 0 auto;
     position: relative;
     z-index: 5;
-    margin: 0 0 8px;
-    padding: 0 max(16px, env(safe-area-inset-right, 0px)) 4px max(16px, env(safe-area-inset-left, 0px));
+    margin: 0;
+    padding: 8px max(16px, env(safe-area-inset-right, 0px)) 8px max(16px, env(safe-area-inset-left, 0px));
     background: var(--bg);
-    box-shadow: 0 1px 0 color-mix(in srgb, var(--border) 65%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+    box-shadow: none;
   }
 
   .section-tabs {
     margin: 0;
     padding: 0;
+  }
+
+  .section-tab {
+    min-height: 40px;
   }
 
   .app.sidebar-collapsed .sidebar {
@@ -7459,6 +7467,7 @@ html.inventory-phone-lock.inventory-modal-open .inventory-topbar-new {
     flex: 1;
     min-height: 0;
     min-width: 0;
+    padding-top: 0;
     overflow: hidden;
     overflow-x: hidden;
     display: flex;
