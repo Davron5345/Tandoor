@@ -64,6 +64,7 @@ export default function PrihodMobile() {
   const canEdit = hasPermission(user, 'documents.edit');
   const canConfirm = hasPermission(user, 'documents.confirm');
   const canOrders = hasPermission(user, 'shop_orders.view');
+  const canTransferMobile = hasPermission(user, 'documents.transfer') && Boolean(user?.department_id);
 
   const [view, setView] = useState('list');
   const [docs, setDocs] = useState([]);
@@ -409,11 +410,13 @@ export default function PrihodMobile() {
   if (user.must_change_password) return <ChangePassword />;
   if (!canView) return <Navigate to="/" replace />;
 
-  const navTabs = canOrders && (
+  const navTabs = (canOrders || canTransferMobile) && (
     <nav className="warehouse-orders-mobile-nav" aria-label="Разделы снабжения">
-      <Link to="/warehouse/orders" className="warehouse-orders-mobile-nav-tab">
-        Заявки
-      </Link>
+      {canOrders && (
+        <Link to="/warehouse/orders" className="warehouse-orders-mobile-nav-tab">
+          Заявки
+        </Link>
+      )}
       <Link
         to="/warehouse/prihod"
         className="warehouse-orders-mobile-nav-tab active"
@@ -421,6 +424,11 @@ export default function PrihodMobile() {
       >
         Приход
       </Link>
+      {canTransferMobile && (
+        <Link to="/warehouse/transfer" className="warehouse-orders-mobile-nav-tab">
+          Перемещение
+        </Link>
+      )}
     </nav>
   );
 

@@ -45,7 +45,7 @@ function mapSessionRow(row, currentToken = null) {
 
 function activeSessionSql() {
   return `
-    SELECT s.*, u.username, u.name as user_name, u.role, u.branch_id, u.must_change_password
+    SELECT s.*, u.username, u.name as user_name, u.role, u.branch_id, u.department_id, u.must_change_password
     FROM sessions s
     JOIN users u ON u.id = s.user_id
     WHERE s.expires_at >= datetime('now') AND u.active = 1
@@ -75,6 +75,7 @@ export function resolveAuthFromToken(token) {
       name: row.user_name,
       role: row.role,
       branch_id: row.branch_id,
+      department_id: row.department_id,
       must_change_password: row.must_change_password,
     }),
     session: mapSessionRow(row, token),

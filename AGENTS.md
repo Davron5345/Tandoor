@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-08-28 (вкладки вровень с шапкой сайдбара)
+**Последнее обновление документации:** 2026-08-29 (mobile перемещения по отделам)
 
 ---
 
@@ -170,7 +170,7 @@ npm run db:reset-operations    # Сброс операционных данны�
 | Контрагенты | `counterparties`, `counterparty_firms` (юрлица: ИНН, bank_account, mfo), `counterparty_contracts` (title, number, date, end_date, direction, amount, `firm_id`) |
 | Финансы | `payments` (+ `external_ref`, `import_batch_id`, `contract_id`, `firm_id`, `bank_account_id`), `bank_accounts`, `cash_articles`, `branch_opening_balances` |
 | Калькуляции | `calculations`, `calculation_items`, `calculation_sources` |
-| Auth/Admin | `users`, `sessions`, `roles`, `role_permissions`, `audit_log`, `visit_log`, `blocked_devices` |
+| Auth/Admin | `users` (+ `department_id` → отдел филиала), `sessions`, `roles`, `role_permissions`, `audit_log`, `visit_log`, `blocked_devices` |
 | MyShop/Mobile | `shop_orders`, `shop_order_items`, `push_subscriptions`, `staff_locations`, `staff_location_history` |
 | Прочее | `telegram_messages`, `settings`, `branches` |
 
@@ -186,6 +186,7 @@ npm run db:reset-operations    # Сброс операционных данны�
 | `/shop/:branchId/dept/:departmentId` | `PublicShop` | Нет |
 | `/warehouse/orders`, `/snab` | `ShopOrdersMobile` | Да (mobile snab) |
 | `/warehouse/prihod` | `PrihodMobile` | Да (mobile приход) |
+| `/warehouse/transfer` | `TransferMobile` | Да (mobile перемещение по отделам; нужен `users.department_id`) |
 | `/*` | `App` (основное приложение) | Да |
 
 ### 6.2 Контексты
@@ -309,6 +310,8 @@ Frontend зеркало: `client/src/permissions.js`.
 | `dish_sale` | Продажа блюд | −ингредиенты, +выручка в P&L |
 | `inventory` | Инвентаризация | факт − учёт по отделу; ±остаток по avg_cost; P&L без кассы |
 | `opening_balance` | Начальное сальдо | стартовые остатки/долги/касса |
+
+**Dept-scoped перемещение:** у `users.department_id` сотрудник видит только transfers, где его отдел = from или to (`direction=in|out` в `GET /api/documents`); создавать/проводить/менять может только как **отправитель** (`from_department_id` принудительно = свой отдел, только внутри филиала). Получатель только смотрит список. Mobile: `/warehouse/transfer` (`TransferMobile.jsx`).
 
 ### 9.3 Статусы документов
 
@@ -438,7 +441,7 @@ GET  /api/auth/roles
 |---------|---------------|------------|
 | `/api/products` | catalog.routes.js | Номенклатура, варианты, изображения |
 | `/api/calculations` | catalog.routes.js | Калькуляции |
-| `/api/documents` | documents.routes.js | Складские документы (`date_from`, `date_to`, `counterparty_id`, `product_id`, `variant_id`, type, status); при `product_id` — JOIN `document_items`, поля строки `quantity`/`price`/`amount`/`net_weight` (отдельная строка на позицию); `variant_id` сужает до варианта; без `type` исключаются `supplier_price`, `opening_balance` и `inventory`; в приходе `extra_costs` (название, сумма, `capitalize`); `GET /api/documents/inventory/stock?department_id=` — снимок остатка отдела (`documents.inventory`) |
+| `/api/documents` | documents.routes.js | Складские документы (`date_from`, `date_to`, `counterparty_id`, `product_id`, `variant_id`, type, status); при `type=peremeshchenie` у пользователя с `department_id` — фильтр involving + `direction=in|out`; при `product_id` — JOIN `document_items`… |
 | `/api/supplier-prices` | supplierPrices.routes.js | Прайс-документы поставщика (CRUD + confirm/cancel); `products.view`/`products.edit` |
 | `/api/counterparties` | counterparties.routes.js | Контрагенты, договоры (`/:id/contracts` CRUD), `/:id/firms` — юрлица поставщика (CRUD) |
 | `/api/payments` | finance.routes.js | Оплаты; `GET/POST/PUT/DELETE /api/bank-accounts`; `GET /bank-opening?bank_account_id=`; `DELETE /by-date/:date?bank_account_id=`; import parse/confirm |
@@ -483,15 +486,16 @@ GET  /api/auth/roles
 | `/myshop/constructor` | MyShopConstructor.jsx | myshop.edit |
 | `/shop-orders` | ShopOrders.jsx | shop_orders.view |
 | `/telegram` | Telegram.jsx | telegram.view |
-| `/employees` | Employees.jsx | users.view |
+| `/employees` | Employees.jsx | users.view; поле **Отдел** (`department_id` филиала сотрудника) |
 | `/roles` | Roles.jsx | admin |
 | `/branches` | Branches.jsx | admin |
 | `/departments` | Departments.jsx | admin |
 | `/tracking` | StaffTracking.jsx | admin: трекинг снабженцев с картой маршрута |
 | `/security` | SecurityAdmin.jsx | admin: сеансы, трекинг, push (`AdminPushTab.jsx`), блокировки |
 | `/audit-log` | AuditLog.jsx | admin |
-| `/warehouse/orders` | ShopOrdersMobile.jsx | shop_orders (mobile); таб «Приход» при `documents.prihod` |
-| `/warehouse/prihod` | PrihodMobile.jsx | documents.prihod / documents.view (mobile приход: список, создание, проведение, доп. расходы) |
+| `/warehouse/orders` | ShopOrdersMobile.jsx | shop_orders (mobile); табы Приход / Перемещение при правах |
+| `/warehouse/prihod` | PrihodMobile.jsx | documents.prihod / documents.view (mobile приход) |
+| `/warehouse/transfer` | TransferMobile.jsx | documents.transfer + `user.department_id`; входящие/исходящие; отправка с проведением |
 
 ---
 
@@ -546,7 +550,8 @@ GET  /api/auth/roles
 ### Экран снабженца (`ShopOrdersMobile.jsx`)
 
 - Маршруты: `/warehouse/orders`, `/snab` (redirect)
-- Таб «Заявки | Приход» при праве `documents.prihod` → `/warehouse/prihod` (`PrihodMobile.jsx`: список/создание/проведение прихода, без оплат и Telegram)
+- Таб «Заявки | Приход | Перемещение» при правах; Перемещение → `/warehouse/transfer` (`TransferMobile.jsx`) при `documents.transfer` и назначенном отделе
+- `PrihodMobile.jsx`: список/создание/проведение прихода, без оплат и Telegram
 - Профиль: `SnabProfileView.jsx` — версия, push, геолокация
 - Тема: `ThemeContext` + `data-theme` на `<html>`; **не дублировать цветовые CSS-переменные в `:root`** (ломает тёмную тему)
 - Трекинг: `useStaffLocationPing` + `backgroundLocation.js`
@@ -777,6 +782,7 @@ GET  /api/auth/roles
 | 2026-08-28 | Вкладки разделов: вне скролла — `.main` flex-shell, скролл только `.main-content` (список не залезает на вкладки) |
 | 2026-08-28 | Сайдбар: убран логотип «Склад»; в шапке ряд кнопок профиль / свернуть / тема / избранное |
 | 2026-08-28 | Вкладки разделов: выровнены по высоте с шапкой сайдбара (без верхнего padding у `.main`) |
+| 2026-08-29 | `users.department_id`; dept-scoped `peremeshchenie`; mobile `/warehouse/transfer` (входящие/исходящие, отправка с проведением) |
 
 ---
 

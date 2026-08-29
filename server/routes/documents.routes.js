@@ -5,9 +5,13 @@ import { canAccessDocumentType } from '../permissions.js';
 import { requirePermission, requireAnyPermission, attachBranch } from '../middleware.js';
 import {
   filterDocumentsForUser,
+  filterTransfersForDepartment,
   assertDocumentTypeAccess,
   assertDocumentBranchAccess,
+  assertDocumentDepartmentAccess,
   assertDocumentMutableInBranch,
+  applyDepartmentScopedTransferBody,
+  isDepartmentScopedUser,
 } from '../documentAccess.js';
 import { parsePagination, paginateList, stripPaginationParams } from '../pagination.js';
 import { logAudit } from '../auditLog.js';
@@ -17,6 +21,20 @@ const DOC_READ_PERMS = [
   'documents.view', 'documents.prihod', 'documents.rashod', 'documents.dish_sale',
   'documents.transfer', 'documents.razdelka', 'documents.inventory',
 ];
+
+function buildDocumentListFilters(req) {
+  const filters = {
+    ...stripPaginationParams(req.query),
+    branch_id: req.branchId,
+  };
+  if (isDepartmentScopedUser(req.user) && filters.type === 'peremeshchenie') {
+    filters.involving_department_id = req.user.department_id;
+    if (!['in', 'out'].includes(filters.direction)) {
+      delete filters.direction;
+    }
+  }
+  return filters;
+}
 
 export function registerDocumentRoutes(app) {
   app.get('/api/documents/next-number', requireAnyPermission('documents.view', 'documents.prihod', 'documents.rashod', 'documents.dish_sale', 'documents.transfer', 'documents.inventory', 'documents.edit'), attachBranch, (req, res) => {
@@ -38,11 +56,11 @@ export function registerDocumentRoutes(app) {
   });
 
   app.get('/api/documents', requireAnyPermission(...DOC_READ_PERMS), attachBranch, (req, res) => {
-    const docs = svc.getDocuments({
-      ...stripPaginationParams(req.query),
-      branch_id: req.branchId,
-    });
-    const filtered = filterDocumentsForUser(docs, req.user.role);
+    const docs = svc.getDocuments(buildDocumentListFilters(req));
+    const filtered = filterTransfersForDepartment(
+      filterDocumentsForUser(docs, req.user.role),
+      req.user,
+    );
     const amountSum = filtered.reduce((sum, d) => sum + (Number(d.total_amount) || 0), 0);
     const pagination = parsePagination(req.query);
     if (pagination) {
@@ -72,6 +90,7 @@ export function registerDocumentRoutes(app) {
     }
     try {
       assertDocumentBranchAccess(req.user, doc, req.branchId);
+      assertDocumentDepartmentAccess(req.user, doc);
     } catch (e) {
       return res.status(403).json({ error: e.message });
     }
@@ -80,8 +99,9 @@ export function registerDocumentRoutes(app) {
 
   app.post('/api/documents', requirePermission('documents.edit'), attachBranch, async (req, res) => {
     try {
-      assertDocumentTypeAccess(req.user.role, req.body.type);
-      const doc = svc.createDocument(req.body, req.user.id, req.branchId);
+      const body = applyDepartmentScopedTransferBody(req.body, req.user, req.branchId);
+      assertDocumentTypeAccess(req.user.role, body.type);
+      const doc = svc.createDocument(body, req.user.id, req.branchId);
       if (doc.status === 'confirmed') {
         logAudit(req, 'document.confirm', {
           entity_type: 'document',
@@ -107,8 +127,16 @@ export function registerDocumentRoutes(app) {
       if (!existing) return res.status(404).json({ error: 'Не найден' });
       assertDocumentTypeAccess(req.user.role, req.body.type || existing.type);
       assertDocumentBranchAccess(req.user, existing, req.branchId);
-      assertDocumentMutableInBranch(existing, req.branchId);
-      const doc = svc.updateDocument(req.params.id, req.body, req.user.id, req.branchId);
+      assertDocumentDepartmentAccess(req.user, existing);
+      assertDocumentMutableInBranch(existing, req.branchId, req.user);
+      const body = existing.type === 'peremeshchenie'
+        ? applyDepartmentScopedTransferBody({
+          ...req.body,
+          type: 'peremeshchenie',
+          to_department_id: req.body.to_department_id ?? existing.to_department_id,
+        }, req.user, req.branchId)
+        : req.body;
+      const doc = svc.updateDocument(req.params.id, body, req.user.id, req.branchId);
       res.json(doc);
     } catch (e) {
       res.status(400).json({ error: e.message });
@@ -121,7 +149,8 @@ export function registerDocumentRoutes(app) {
       if (!existing) return res.status(404).json({ error: 'Не найден' });
       assertDocumentTypeAccess(req.user.role, existing.type);
       assertDocumentBranchAccess(req.user, existing, req.branchId);
-      assertDocumentMutableInBranch(existing, req.branchId);
+      assertDocumentDepartmentAccess(req.user, existing);
+      assertDocumentMutableInBranch(existing, req.branchId, req.user);
       const doc = svc.confirmDocument(req.params.id, req.user.id);
       logAudit(req, 'document.confirm', {
         entity_type: 'document',
@@ -146,7 +175,8 @@ export function registerDocumentRoutes(app) {
       if (!existing) return res.status(404).json({ error: 'Не найден' });
       assertDocumentTypeAccess(req.user.role, existing.type);
       assertDocumentBranchAccess(req.user, existing, req.branchId);
-      assertDocumentMutableInBranch(existing, req.branchId);
+      assertDocumentDepartmentAccess(req.user, existing);
+      assertDocumentMutableInBranch(existing, req.branchId, req.user);
       const doc = svc.cancelDocument(req.params.id, req.user.id);
       logAudit(req, 'document.cancel', {
         entity_type: 'document',
@@ -165,7 +195,8 @@ export function registerDocumentRoutes(app) {
       if (!existing) return res.status(404).json({ error: 'Не найден' });
       assertDocumentTypeAccess(req.user.role, existing.type);
       assertDocumentBranchAccess(req.user, existing, req.branchId);
-      assertDocumentMutableInBranch(existing, req.branchId);
+      assertDocumentDepartmentAccess(req.user, existing);
+      assertDocumentMutableInBranch(existing, req.branchId, req.user);
       res.json(svc.deleteDocument(req.params.id));
     } catch (e) {
       res.status(400).json({ error: e.message });
@@ -180,6 +211,7 @@ export function registerDocumentRoutes(app) {
     }
     try {
       assertDocumentBranchAccess(req.user, doc, req.branchId);
+      assertDocumentDepartmentAccess(req.user, doc);
     } catch (e) {
       return res.status(403).json({ error: e.message });
     }

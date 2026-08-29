@@ -885,6 +885,9 @@ export function getUserPayload(user) {
   const branch = user.branch_id
     ? db.queryOne('SELECT id, name FROM branches WHERE id = ?', [user.branch_id])
     : null;
+  const department = user.department_id
+    ? db.queryOne('SELECT id, name FROM departments WHERE id = ?', [user.department_id])
+    : null;
   return {
     id: user.id,
     username: user.username,
@@ -893,6 +896,8 @@ export function getUserPayload(user) {
     roleLabel: getRoles()[user.role]?.label || user.role,
     branch_id: user.branch_id || null,
     branch_name: branch?.name || null,
+    department_id: user.department_id || null,
+    department_name: department?.name || user.department_name || null,
     permissions: getPermissionsForRole(user.role),
     must_change_password: !!user.must_change_password,
   };

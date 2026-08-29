@@ -6,7 +6,9 @@ import { useBranch } from '../BranchContext';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import { hasPermission } from '../permissions';
 
-const emptyUser = { username: '', password: '', name: '', role: 'warehouse', branch_id: 'main', active: true };
+const emptyUser = {
+  username: '', password: '', name: '', role: 'warehouse', branch_id: 'main', department_id: '', active: true,
+};
 
 export default function Employees() {
   const { user } = useAuth();
@@ -15,11 +17,17 @@ export default function Employees() {
 
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState({});
+  const [departments, setDepartments] = useState([]);
   const [userModal, setUserModal] = useState(null);
   const [userForm, setUserForm] = useState(emptyUser);
   const { show, Toast } = useToast();
 
   const activeBranches = branches.filter((b) => b.active);
+
+  const formDepartments = useMemo(() => {
+    const bid = userForm.branch_id || branchId;
+    return (departments || []).filter((d) => d.branch_id === bid && d.active !== false && d.active !== 0);
+  }, [departments, userForm.branch_id, branchId]);
 
   const availableRoles = useMemo(() => {
     const targetBranch = userForm.role === 'admin' ? null : (userForm.branch_id || branchId);
@@ -35,6 +43,7 @@ export default function Employees() {
   const load = () => {
     api.getUsers().then(setUsers).catch(console.error);
     api.getRoles().then(setRoles).catch(console.error);
+    api.getDepartments().then(setDepartments).catch(() => setDepartments([]));
   };
 
   useEffect(() => { load(); }, [branchId]);
@@ -47,6 +56,7 @@ export default function Employees() {
       password: '',
       role: defaultRole,
       branch_id: activeBranches[0]?.id || 'main',
+      department_id: '',
     });
     setUserModal('create');
   };
@@ -58,6 +68,7 @@ export default function Employees() {
       name: u.name,
       role: u.role,
       branch_id: u.branch_id || 'main',
+      department_id: u.department_id || '',
       active: u.active,
       protected: !!u.protected,
     });
@@ -135,6 +146,7 @@ export default function Employees() {
                 <th>Логин</th>
                 <th>Роль</th>
                 <th>Филиал</th>
+                <th>Отдел</th>
                 <th>Статус</th>
                 {canEdit && <th></th>}
               </tr>
@@ -151,6 +163,7 @@ export default function Employees() {
                     </span>
                   </td>
                   <td>{u.role === 'admin' ? 'Все филиалы' : (u.branch_name || '—')}</td>
+                  <td>{u.department_name || '—'}</td>
                   <td>
                     <span className={`badge badge-${u.active ? 'confirmed' : 'cancelled'}`}>
                       {u.active ? 'Активен' : 'Отключён'}
@@ -219,10 +232,28 @@ export default function Employees() {
                 <label>Филиал *</label>
                 <select
                   value={userForm.branch_id || ''}
-                  onChange={(e) => setUserForm({ ...userForm, branch_id: e.target.value })}
+                  onChange={(e) => setUserForm({
+                    ...userForm,
+                    branch_id: e.target.value,
+                    department_id: '',
+                  })}
                 >
                   {activeBranches.map((b) => (
                     <option key={b.id} value={b.id}>{b.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {userForm.role !== 'admin' && (
+              <div className="form-group">
+                <label>Отдел</label>
+                <select
+                  value={userForm.department_id || ''}
+                  onChange={(e) => setUserForm({ ...userForm, department_id: e.target.value })}
+                >
+                  <option value="">Не назначен</option>
+                  {formDepartments.map((d) => (
+                    <option key={d.id} value={d.id}>{d.name}</option>
                   ))}
                 </select>
               </div>

@@ -85,6 +85,8 @@ async function ensureBootstrap() {
   await execRaw('ALTER TABLE payments ADD COLUMN IF NOT EXISTS bank_account_id TEXT');
   await execRaw('ALTER TABLE documents ADD COLUMN IF NOT EXISTS firm_id TEXT');
   await execRaw('ALTER TABLE opening_balance_lines ADD COLUMN IF NOT EXISTS bank_account_id TEXT');
+  await execRaw('ALTER TABLE users ADD COLUMN IF NOT EXISTS department_id TEXT');
+  await execRaw('CREATE INDEX IF NOT EXISTS idx_users_department ON users(department_id)');
   await execRaw(`
     CREATE TABLE IF NOT EXISTS bank_accounts (
       id TEXT PRIMARY KEY,

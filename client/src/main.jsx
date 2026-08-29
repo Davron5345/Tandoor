@@ -1,10 +1,10 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import App from './App';
 import PublicShop from './pages/PublicShop';
 import ShopOrdersMobile from './pages/ShopOrdersMobile';
 import PrihodMobile from './pages/PrihodMobile';
+import TransferMobile from './pages/TransferMobile';
 import { ThemeProvider } from './ThemeContext';
 import { AuthProvider } from './AuthContext';
 import { BranchProvider } from './BranchContext';
@@ -41,9 +41,19 @@ ReactDOM.createRoot(document.getElementById('root')).render(
               </AuthProvider>
             )}
           />
+          <Route
+            path="/warehouse/transfer"
+            element={(
+              <AuthProvider>
+                <BranchProvider>
+                  <TransferMobile />
+                </BranchProvider>
+              </AuthProvider>
+            )}
+          />
           <Route path="/*" element={<RootEntry />} />
         </Routes>
       </BrowserRouter>
     </ThemeProvider>
-  </React.StrictMode>
+  </React.StrictMode>,
 );

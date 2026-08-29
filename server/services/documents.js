@@ -568,6 +568,18 @@ export function getDocuments(filters = {}) {
       params.push(filters.variant_id, filters.variant_id);
     }
   }
+  if (filters.involving_department_id) {
+    if (filters.direction === 'in') {
+      sql += ' AND d.to_department_id = ?';
+      params.push(filters.involving_department_id);
+    } else if (filters.direction === 'out') {
+      sql += ' AND d.from_department_id = ?';
+      params.push(filters.involving_department_id);
+    } else {
+      sql += ' AND (d.from_department_id = ? OR d.to_department_id = ?)';
+      params.push(filters.involving_department_id, filters.involving_department_id);
+    }
+  }
 
   sql += ' ORDER BY d.date DESC, d.created_at DESC';
   return queryAll(sql, params);

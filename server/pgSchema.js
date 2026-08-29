@@ -53,6 +53,7 @@ export const PG_MIGRATION_SETTINGS_KEYS = [
   'shop_orders_dept_v1',
   'units_v1',
   'users_role_v2',
+  'users_department_v1',
   'variant_department_stock_v1',
   'variant_department_stock_v2',
   'demo_seed_done',
@@ -101,6 +102,7 @@ CREATE TABLE IF NOT EXISTS users (
   active INTEGER DEFAULT 1,
   created_at TEXT DEFAULT (${NOW}),
   branch_id TEXT REFERENCES branches(id),
+  department_id TEXT,
   must_change_password INTEGER DEFAULT 0
 );
 

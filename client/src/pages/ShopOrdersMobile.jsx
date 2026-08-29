@@ -63,6 +63,7 @@ export default function ShopOrdersMobile() {
   const canView = hasPermission(user, 'shop_orders.view');
   const canEdit = hasPermission(user, 'shop_orders.edit');
   const canPrihod = hasPermission(user, 'documents.prihod');
+  const canTransferMobile = hasPermission(user, 'documents.transfer') && Boolean(user?.department_id);
 
   const [orders, setOrders] = useState([]);
   const [statusFilter, setStatusFilter] = useState('');
@@ -452,7 +453,7 @@ export default function ShopOrdersMobile() {
             </div>
           </header>
 
-          {canPrihod && (
+          {(canPrihod || canTransferMobile) && (
             <nav className="warehouse-orders-mobile-nav" aria-label="Разделы снабжения">
               <Link
                 to="/warehouse/orders"
@@ -461,9 +462,16 @@ export default function ShopOrdersMobile() {
               >
                 Заявки
               </Link>
-              <Link to="/warehouse/prihod" className="warehouse-orders-mobile-nav-tab">
-                Приход
-              </Link>
+              {canPrihod && (
+                <Link to="/warehouse/prihod" className="warehouse-orders-mobile-nav-tab">
+                  Приход
+                </Link>
+              )}
+              {canTransferMobile && (
+                <Link to="/warehouse/transfer" className="warehouse-orders-mobile-nav-tab">
+                  Перемещение
+                </Link>
+              )}
             </nav>
           )}
 

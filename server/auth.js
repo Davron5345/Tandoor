@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import db from './db.js';
 import { getUserPayload, roleExists, assertRoleMatchesBranch } from './permissions.js';
 import { getBranch, canViewAllBranches } from './branches.js';
+import { getDepartment } from './departments.js';
 import {
   cleanExpiredSessions,
   createSession,
@@ -42,6 +43,43 @@ export function verifyPassword(password, stored) {
 
 function cleanSessions() {
   cleanExpiredSessions();
+}
+
+/** Отдел должен принадлежать филиалу сотрудника; admin без филиала — без отдела. */
+export function resolveUserDepartmentId(departmentId, branchId, role) {
+  if (role === 'admin' || !branchId) return null;
+  const raw = departmentId === undefined || departmentId === '' || departmentId === null
+    ? null
+    : String(departmentId);
+  if (!raw) return null;
+  const dept = getDepartment(raw);
+  if (!dept) throw new Error('Отдел не найден');
+  if (dept.branch_id !== branchId) throw new Error('Отдел должен принадлежать филиалу сотрудника');
+  if (!dept.active) throw new Error('Отдел отключён');
+  return dept.id;
+}
+
+function userSelectSql(where = 'WHERE u.id = ?') {
+  return `
+    SELECT u.id, u.username, u.name, u.role, u.active, u.created_at, u.branch_id, u.department_id,
+           b.name as branch_name, d.name as department_name
+    FROM users u
+    LEFT JOIN branches b ON b.id = u.branch_id
+    LEFT JOIN departments d ON d.id = u.department_id
+    ${where}
+  `;
+}
+
+function mapUserRow(u) {
+  if (!u) return null;
+  return {
+    ...u,
+    roleLabel: getUserPayload(u).roleLabel,
+    active: !!u.active,
+    protected: isProtectedAdmin(u.username),
+    department_id: u.department_id || null,
+    department_name: u.department_name || null,
+  };
 }
 
 export function login(username, password, options = {}) {
@@ -101,10 +139,11 @@ export function changePassword(userId, currentPassword, newPassword, keepToken =
 
 export function getUsers(requester, branchId = null, { allBranches = false } = {}) {
   let sql = `
-    SELECT u.id, u.username, u.name, u.role, u.active, u.created_at, u.branch_id,
-           b.name as branch_name
+    SELECT u.id, u.username, u.name, u.role, u.active, u.created_at, u.branch_id, u.department_id,
+           b.name as branch_name, d.name as department_name
     FROM users u
     LEFT JOIN branches b ON b.id = u.branch_id
+    LEFT JOIN departments d ON d.id = u.department_id
   `;
   const params = [];
   if (requester?.role === 'admin') {
@@ -118,12 +157,7 @@ export function getUsers(requester, branchId = null, { allBranches = false } = {
   }
   sql += ' ORDER BY u.name';
 
-  return queryAll(sql, params).map((u) => ({
-    ...u,
-    roleLabel: getUserPayload(u).roleLabel,
-    active: !!u.active,
-    protected: isProtectedAdmin(u.username),
-  }));
+  return queryAll(sql, params).map(mapUserRow);
 }
 
 export function createUser(data, requester = null) {
@@ -151,10 +185,12 @@ export function createUser(data, requester = null) {
     branchId = null;
   }
 
+  const departmentId = resolveUserDepartmentId(data.department_id, branchId, data.role);
+
   const id = uuidv4();
   run(`
-    INSERT INTO users (id, username, password_hash, name, role, active, branch_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO users (id, username, password_hash, name, role, active, branch_id, department_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `, [
     id,
     username,
@@ -163,15 +199,10 @@ export function createUser(data, requester = null) {
     data.role,
     data.active !== false ? 1 : 0,
     branchId,
+    departmentId,
   ]);
 
-  return queryOne(`
-    SELECT u.id, u.username, u.name, u.role, u.active, u.created_at, u.branch_id,
-           b.name as branch_name
-    FROM users u
-    LEFT JOIN branches b ON b.id = u.branch_id
-    WHERE u.id = ?
-  `, [id]);
+  return mapUserRow(queryOne(userSelectSql(), [id]));
 }
 
 export function updateUser(id, data, requester = null) {
@@ -208,20 +239,14 @@ export function updateUser(id, data, requester = null) {
 
     const nextName = (data.name || user.name).trim();
     if (data.password) {
-      run('UPDATE users SET name = ?, password_hash = ? WHERE id = ?', [
+      run('UPDATE users SET name = ?, password_hash = ?, department_id = NULL WHERE id = ?', [
         nextName, hashPassword(data.password), id,
       ]);
     } else {
-      run('UPDATE users SET name = ? WHERE id = ?', [nextName, id]);
+      run('UPDATE users SET name = ?, department_id = NULL WHERE id = ?', [nextName, id]);
     }
 
-    return queryOne(`
-      SELECT u.id, u.username, u.name, u.role, u.active, u.created_at, u.branch_id,
-             b.name as branch_name
-      FROM users u
-      LEFT JOIN branches b ON b.id = u.branch_id
-      WHERE u.id = ?
-    `, [id]);
+    return mapUserRow(queryOne(userSelectSql(), [id]));
   }
 
   if (data.username && data.username.trim() !== user.username) {
@@ -241,9 +266,17 @@ export function updateUser(id, data, requester = null) {
     assertRoleMatchesBranch(nextRole, branchId);
   }
 
+  const departmentId = data.department_id !== undefined || data.branch_id !== undefined || data.role
+    ? resolveUserDepartmentId(
+      data.department_id !== undefined ? data.department_id : user.department_id,
+      branchId,
+      nextRole,
+    )
+    : (user.department_id || null);
+
   run(`
     UPDATE users
-    SET username = ?, name = ?, role = ?, active = ?, branch_id = ?
+    SET username = ?, name = ?, role = ?, active = ?, branch_id = ?, department_id = ?
     WHERE id = ?
   `, [
     (data.username || user.username).trim(),
@@ -251,6 +284,7 @@ export function updateUser(id, data, requester = null) {
     nextRole,
     data.active !== undefined ? (data.active ? 1 : 0) : user.active,
     branchId,
+    departmentId,
     id,
   ]);
 
@@ -262,7 +296,7 @@ export function updateUser(id, data, requester = null) {
     revokeUserSessions(id);
   }
 
-  return queryOne('SELECT id, username, name, role, active, created_at FROM users WHERE id = ?', [id]);
+  return mapUserRow(queryOne(userSelectSql(), [id]));
 }
 
 export function deleteUser(id, requester = null) {
@@ -341,7 +375,7 @@ function ensureProtectedAdmin() {
 
   if (admin.role !== 'admin' || !admin.active || admin.branch_id) {
     run(`
-      UPDATE users SET role = 'admin', active = 1, branch_id = NULL
+      UPDATE users SET role = 'admin', active = 1, branch_id = NULL, department_id = NULL
       WHERE id = ?
     `, [admin.id]);
   }

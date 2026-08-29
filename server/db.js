@@ -545,7 +545,25 @@ function migrateSchema() {
   migrateCounterpartyFirms();
   migrateBankAccounts();
   sanitizeOrphanBranchReferences();
+  migrateUsersDepartment();
   addPerformanceIndexes();
+}
+
+function migrateUsersDepartment() {
+  const cols = queryAll('PRAGMA table_info(users)').map((c) => c.name);
+  if (!cols.includes('department_id')) {
+    run('ALTER TABLE users ADD COLUMN department_id TEXT REFERENCES departments(id)');
+  }
+  try {
+    run('CREATE INDEX IF NOT EXISTS idx_users_department ON users(department_id)');
+  } catch {
+    // ignore
+  }
+  const done = queryOne("SELECT value FROM settings WHERE key = 'users_department_v1'");
+  if (!done) {
+    run("INSERT OR REPLACE INTO settings (key, value) VALUES ('users_department_v1', '1')");
+    saveDb();
+  }
 }
 
 function migrateCounterpartyInn() {
