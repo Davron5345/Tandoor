@@ -729,7 +729,7 @@ export function getDocument(id, branchId = null) {
     ? loadRemainderSummary(id)
     : null;
   const inventoryAmounts = doc.type === 'inventory'
-    ? inventoryStockAmountFields({ ...doc, remainder_document }, items)
+    ? inventoryStockAmountFields({ ...doc, remainder_document }, items, { includeWriteoffItems: true })
     : null;
   const inventoryItems = inventoryAmounts?.items || items;
   const inventoryTotalsOut = doc.type === 'inventory' ? inventoryTotals(inventoryItems) : null;
@@ -751,6 +751,7 @@ export function getDocument(id, branchId = null) {
     ...(inventoryAmounts ? {
       counted_amount: inventoryAmounts.counted_amount,
       remainder_amount: inventoryAmounts.remainder_amount,
+      remainder_items: inventoryAmounts.remainder_items,
       stock_amount: inventoryAmounts.stock_amount,
     } : {}),
   };
@@ -1035,6 +1036,28 @@ function attachInventoryListAmounts(docs) {
   });
 }
 
+function mapInventoryWriteoffItem(item) {
+  const book = Number(item.book_qty) || 0;
+  const cost = Number(item.unit_cost) || Number(item.price) || 0;
+  const amount = Number.isFinite(Number(item.amount)) && Number(item.amount) !== 0
+    ? roundMoney(Number(item.amount))
+    : roundMoney(book * cost);
+  const productName = item.product_name
+    || item.name
+    || (item.variant_name ? `${item.product_name || ''} — ${item.variant_name}`.trim() : '');
+  return {
+    product_id: item.product_id,
+    variant_id: item.variant_id || null,
+    product_name: productName || getItemStockLabel(item),
+    unit: item.unit || 'шт',
+    book_qty: book,
+    quantity: Number(item.quantity) || 0,
+    unit_cost: cost,
+    price: cost,
+    amount,
+  };
+}
+
 function collectInventoryLeftovers(departmentId, branchId, countedItems) {
   const counted = new Set((countedItems || []).map(inventoryLineKey));
   const rows = getStockReport(branchId, departmentId, true);
@@ -1049,6 +1072,8 @@ function collectInventoryLeftovers(departmentId, branchId, countedItems) {
     leftovers.push({
       product_id: row.product_id,
       variant_id: row.variant_id || null,
+      product_name: row.name,
+      unit: row.unit || 'шт',
       quantity: 0,
       book_qty: stock,
       price: cost,
@@ -1058,6 +1083,24 @@ function collectInventoryLeftovers(departmentId, branchId, countedItems) {
     });
   }
   return leftovers;
+}
+
+function loadRemainderWriteoffItems(remainderId) {
+  if (!remainderId) return [];
+  const rows = queryAll(`
+    SELECT di.*, p.name as product_name, p.unit, pv.name as variant_name
+    FROM document_items di
+    JOIN products p ON p.id = di.product_id
+    LEFT JOIN product_variants pv ON pv.id = di.variant_id
+    WHERE di.document_id = ?
+    ORDER BY COALESCE(di.sort_order, 0) ASC, di.id ASC
+  `, [remainderId]);
+  return rows.map((row) => mapInventoryWriteoffItem({
+    ...row,
+    product_name: row.variant_name
+      ? `${row.product_name} — ${row.variant_name}`
+      : row.product_name,
+  }));
 }
 
 function reverseInventoryRemainder(parentId, userId = null) {
@@ -1258,25 +1301,29 @@ function inventoryCountedStockAmount(items) {
   ), 0));
 }
 
-function inventoryDraftRemainderAmount(doc, items) {
-  if (doc.inventory_coverage !== 'full' || doc.status === 'confirmed') return 0;
-  const leftovers = collectInventoryLeftovers(
-    doc.to_department_id,
-    doc.branch_id || DEFAULT_BRANCH_ID,
-    items,
-  );
-  return inventoryTotals(leftovers).shortage;
-}
-
-function inventoryStockAmountFields(doc, items) {
+function inventoryStockAmountFields(doc, items, { includeWriteoffItems = false } = {}) {
   const priced = applyInventoryItemCosts(doc.to_department_id, items);
   const counted_amount = inventoryCountedStockAmount(priced);
   let remainder_amount = 0;
+  let remainder_items = [];
   if (doc.inventory_coverage === 'full') {
     if (doc.status === 'confirmed') {
       remainder_amount = Number(doc.remainder_document?.total_amount) || 0;
+      if (includeWriteoffItems) {
+        remainder_items = loadRemainderWriteoffItems(doc.remainder_document?.id);
+      }
     } else {
-      remainder_amount = inventoryDraftRemainderAmount(doc, priced);
+      const leftovers = collectInventoryLeftovers(
+        doc.to_department_id,
+        doc.branch_id || DEFAULT_BRANCH_ID,
+        priced,
+      );
+      remainder_amount = roundMoney(leftovers.reduce((sum, item) => (
+        sum + (Number(item.amount) || 0)
+      ), 0));
+      if (includeWriteoffItems) {
+        remainder_items = leftovers.map(mapInventoryWriteoffItem);
+      }
     }
   }
   const totals = inventoryTotals(priced);
@@ -1284,6 +1331,7 @@ function inventoryStockAmountFields(doc, items) {
     items: priced,
     counted_amount,
     remainder_amount,
+    remainder_items,
     stock_amount: roundMoney(counted_amount + remainder_amount),
     shortage_total: totals.shortage,
     surplus_total: totals.surplus,

@@ -120,6 +120,7 @@ function emptyForm() {
     liable_department_id: '',
     remainder_document: null,
     remainder_amount: 0,
+    remainder_items: [],
     counted_amount: 0,
     stock_amount: 0,
     items: [],
@@ -172,6 +173,29 @@ function lineStockAmount(item) {
 
 function inventoryStockAmount(doc) {
   return Number(doc.stock_amount) || 0;
+}
+
+function mapRemainderItems(doc) {
+  return (doc.remainder_items || []).map((item) => ({
+    product_id: item.product_id,
+    variant_id: item.variant_id || null,
+    product_name: item.product_name,
+    unit: item.unit || 'шт',
+    book_qty: Number(item.book_qty) || 0,
+    quantity: Number(item.quantity) || 0,
+    unit_cost: Number(item.unit_cost) || Number(item.price) || 0,
+    amount: Number(item.amount) || 0,
+  }));
+}
+
+function remainderLineAmount(item) {
+  const stored = Number(item.amount);
+  if (Number.isFinite(stored) && stored > 0) return stored;
+  return (Number(item.book_qty) || 0) * (Number(item.unit_cost) || 0);
+}
+
+function remainderLineKey(item) {
+  return `${item.product_id}:${item.variant_id || ''}`;
 }
 
 function needsSurplusCost(item) {
@@ -265,6 +289,83 @@ function InventoryDocCard({ doc, canEdit, canDelete, onOpen, onEdit, onDelete })
         )}
       </div>
     </article>
+  );
+}
+
+function InventoryWriteoffBlock({ items, products, showAmount, isPhone, confirmed }) {
+  if (!items.length) return null;
+  return (
+    <section className="inv-writeoff" id="inv-writeoff">
+      <div className="inv-writeoff-head">
+        Не пересчитано — спишется
+        <span className="inv-writeoff-hint">
+          {confirmed ? 'остаток обнуляется' : 'нет в списке пересчёта'}
+        </span>
+      </div>
+      {!isPhone && (
+        <div className="table-wrap items-table inventory-items-table">
+          <table>
+            <thead>
+              <tr>
+                <th>Товар</th>
+                <th>Ед.</th>
+                <th className="col-num">Учёт</th>
+                <th className="col-num">Факт</th>
+                {showAmount ? <th className="col-num">Сумма</th> : null}
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item) => (
+                <tr key={remainderLineKey(item)}>
+                  <td>{productName(products, item)}</td>
+                  <td>{productUnit(products, item)}</td>
+                  <td className="col-num">{formatQty(item.book_qty)}</td>
+                  <td className="col-num">0</td>
+                  {showAmount ? (
+                    <td className="col-num">{formatMoney(remainderLineAmount(item))}</td>
+                  ) : null}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <div className={`inventory-items-cards inv-writeoff-cards${isPhone ? ' is-phone' : ''}`}>
+        {items.map((item) => (
+          <article
+            key={remainderLineKey(item)}
+            className="inventory-line-card inventory-line-card--compact inv-writeoff-card"
+          >
+            <div className="inventory-line-card-head">
+              <div>
+                <strong>{productName(products, item)}</strong>
+              </div>
+            </div>
+            <div className={`inventory-line-card-compact-row${showAmount ? '' : ' is-qty-only'}`}>
+              <div className="inventory-line-card-compact-meta">
+                <span>Учёт</span>
+                <b>{formatQty(item.book_qty)}</b>
+              </div>
+              <div className="inventory-line-card-compact-meta">
+                <span>Факт</span>
+                <b>0</b>
+              </div>
+              {showAmount ? (
+                <div className="inventory-line-card-compact-meta">
+                  <span>Сумма</span>
+                  <b>{formatMoney(remainderLineAmount(item))}</b>
+                </div>
+              ) : (
+                <div className="inventory-line-card-compact-meta">
+                  <span>Ед.</span>
+                  <b>{productUnit(products, item)}</b>
+                </div>
+              )}
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -549,6 +650,20 @@ export default function Inventory() {
 
   const canGoToItems = Boolean(form.to_department_id && form.date);
 
+  const remainderItems = useMemo(() => {
+    if (form.inventory_coverage !== 'full') return [];
+    const rows = form.remainder_items || [];
+    if (form.status === 'confirmed') return rows;
+    const counted = new Set(form.items.map(remainderLineKey));
+    return rows.filter((item) => !counted.has(remainderLineKey(item)));
+  }, [form.inventory_coverage, form.remainder_items, form.items, form.status]);
+
+  const visibleRemainderItems = useMemo(() => {
+    const q = itemSearch.trim();
+    if (!q) return remainderItems;
+    return remainderItems.filter((item) => textMatchesSearch(productSearchHaystack(products, item), q));
+  }, [remainderItems, itemSearch, products]);
+
   const totals = useMemo(() => {
     let shortage = 0;
     let surplus = 0;
@@ -560,7 +675,13 @@ export default function Inventory() {
       if (diff < -1e-9) shortage += amount;
       else if (diff > 1e-9) surplus += amount;
     }
-    const remainder = Number(form.remainder_amount) || 0;
+    const remainder = form.inventory_coverage === 'full'
+      ? (form.status === 'confirmed'
+        ? (Number(form.remainder_amount) || 0)
+        : remainderItems.length
+          ? remainderItems.reduce((sum, item) => sum + remainderLineAmount(item), 0)
+          : (Number(form.remainder_amount) || 0))
+      : 0;
     return {
       shortage,
       surplus,
@@ -569,7 +690,7 @@ export default function Inventory() {
       remainder,
       stockTotal: stock + remainder,
     };
-  }, [form.items, form.remainder_amount]);
+  }, [form.items, form.remainder_amount, form.inventory_coverage, form.status, remainderItems]);
 
   const listStockSum = useMemo(
     () => docs.reduce((sum, d) => sum + inventoryStockAmount(d), 0),
@@ -674,6 +795,7 @@ export default function Inventory() {
         liable_department_id: doc.liable_department_id || '',
         remainder_document: doc.remainder_document || null,
         remainder_amount: Number(doc.remainder_amount) || 0,
+        remainder_items: mapRemainderItems(doc),
         counted_amount: Number(doc.counted_amount) || 0,
         stock_amount: Number(doc.stock_amount) || 0,
         items: (doc.items || []).map((i) => ({
@@ -1385,19 +1507,38 @@ export default function Inventory() {
                   </div>
                 )}
 
-                {form.remainder_document?.number && (
+                {form.inventory_coverage === 'full' && (form.remainder_document?.number || remainderItems.length > 0) && (
                   <div className="inv-remainder-note">
-                    Списание непересчитанного №{form.remainder_document.number}
-                    {' · '}
-                    {form.remainder_document.article_name || 'статья'}
-                    {form.remainder_document.liable_user_name
-                      ? ` · ${form.remainder_document.liable_user_name}`
-                      : form.remainder_document.liable_department_name
-                        ? ` · ${form.remainder_document.liable_department_name}`
-                        : ''}
-                    {' · '}
-                    {formatMoney(form.remainder_document.total_amount)}
-                    {form.remainder_document.status === 'cancelled' ? ' (отменено)' : ''}
+                    {form.remainder_document?.number ? (
+                      <>
+                        Списание непересчитанного №{form.remainder_document.number}
+                        {' · '}
+                        {form.remainder_document.article_name || 'статья'}
+                        {form.remainder_document.liable_user_name
+                          ? ` · ${form.remainder_document.liable_user_name}`
+                          : form.remainder_document.liable_department_name
+                            ? ` · ${form.remainder_document.liable_department_name}`
+                            : ''}
+                        {' · '}
+                        {formatMoney(form.remainder_document.total_amount)}
+                        {form.remainder_document.status === 'cancelled' ? ' (отменено)' : ''}
+                      </>
+                    ) : (
+                      <>
+                        Списание непересчитанного · {formatMoney(totals.remainder)}
+                        {' · '}
+                        {remainderItems.length}
+                        {' '}
+                        {remainderItems.length === 1 ? 'позиция' : 'позиций'}
+                      </>
+                    )}
+                    <button
+                      type="button"
+                      className="inv-remainder-note-link"
+                      onClick={() => setSheetTab('items')}
+                    >
+                      Что спишется
+                    </button>
                   </div>
                 )}
 
@@ -1609,6 +1750,13 @@ export default function Inventory() {
                       />
                     ))}
                   </div>
+                  <InventoryWriteoffBlock
+                    items={visibleRemainderItems}
+                    products={products}
+                    showAmount={showAmount}
+                    isPhone={isPhone}
+                    confirmed={form.status === 'confirmed'}
+                  />
                 </div>
 
                 <div className={`doc-modal-totals${showAmount ? '' : ' is-qty-only'}`}>
@@ -1616,7 +1764,16 @@ export default function Inventory() {
                     <>
                       <div>Остатки {formatMoney(totals.stock)}</div>
                       {form.inventory_coverage === 'full' && totals.remainder > 0 ? (
-                        <div>Списание {formatMoney(totals.remainder)}</div>
+                        <button
+                          type="button"
+                          className="inv-totals-writeoff"
+                          onClick={() => document.getElementById('inv-writeoff')?.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'nearest',
+                          })}
+                        >
+                          Списание {formatMoney(totals.remainder)}
+                        </button>
                       ) : null}
                       <div>− {formatMoney(totals.shortage)}</div>
                       <div>+ {formatMoney(totals.surplus)}</div>

@@ -3596,6 +3596,69 @@ input[type='number']::-webkit-inner-spin-button {
   padding: 8px 10px;
   border-radius: 8px;
   background: var(--surface-2, var(--bg-muted, #f4f4f5));
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+
+.inv-remainder-note-link {
+  margin-left: auto;
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--primary);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.inv-writeoff {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--primary) 18%, transparent);
+}
+
+.inv-writeoff-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 8px;
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  color: var(--text);
+}
+
+.inv-writeoff-hint {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.inv-writeoff .inventory-items-table {
+  margin: 0;
+}
+
+.inv-writeoff-card {
+  background: var(--surface);
+}
+
+.modal-inventory .doc-modal-totals .inv-totals-writeoff {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
+  border-radius: 6px;
 }
 
 .inventory-doc-card-remainder {
@@ -8432,7 +8495,8 @@ html.inventory-phone-lock.inventory-modal-open .inventory-topbar-new {
     font-size: 12px;
   }
 
-  .modal-inventory .doc-modal-totals > div {
+  .modal-inventory .doc-modal-totals > div,
+  .modal-inventory .doc-modal-totals > .inv-totals-writeoff {
     display: block;
     justify-content: unset;
     gap: 0;

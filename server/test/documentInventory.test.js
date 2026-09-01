@@ -410,6 +410,11 @@ test('inventory: partial leaves unlisted stock; full writes off leftovers with a
   assert.equal(full.counted_amount, 900);
   assert.equal(full.remainder_amount, 1000);
   assert.equal(full.stock_amount, 1900);
+  assert.equal(full.remainder_items.length, 1);
+  assert.equal(full.remainder_items[0].product_id, leftover.id);
+  assert.equal(full.remainder_items[0].product_name, 'Инв leftover');
+  assert.equal(full.remainder_items[0].book_qty, 5);
+  assert.equal(full.remainder_items[0].amount, 1000);
 
   const listed = svc.getDocuments({ branch_id: 'main', type: 'inventory' });
   assert.ok(listed.some((d) => d.id === full.id));
@@ -448,6 +453,9 @@ test('inventory: partial leaves unlisted stock; full writes off leftovers with a
   const unconfirmed = svc.getDocument(full.id, 'main');
   assert.equal(unconfirmed.status, 'draft');
   assert.equal(unconfirmed.remainder_document.status, 'cancelled');
+  assert.ok(unconfirmed.remainder_items.some((item) => (
+    item.product_id === leftover.id && item.book_qty === 5
+  )));
 
   const edited = svc.updateDocument(full.id, {
     type: 'inventory',
