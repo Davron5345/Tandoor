@@ -280,3 +280,32 @@ test('inventory: one draft per department; line snapshot includes zero stock', a
   }, 'test-user', 'main');
   assert.equal(nextDraft.status, 'draft');
 });
+
+test('inventory snapshot for a variant uses the product unit', async () => {
+  const { default: db, initDb } = await import('../db.js');
+  const { initPermissions } = await import('../permissions.js');
+  const { seedDefaultUsers } = await import('../auth.js');
+  const svc = await import('../services.js');
+  const { getDefaultDepartmentId } = await import('../departments.js');
+
+  await initDb();
+  initPermissions(db);
+  seedDefaultUsers();
+
+  const deptId = getDefaultDepartmentId('main');
+  const product = svc.createProduct({
+    name: 'Инв вариант',
+    sku: 'INV-VAR-1',
+    unit: 'л',
+    branch_id: 'main',
+    has_variants: true,
+    variants: [{ name: '0.5', price: 80 }],
+  });
+  const variantId = product.variants[0].id;
+
+  const snap = svc.getInventoryStockSnapshot(deptId, 'main', product.id, variantId);
+  assert.equal(snap.length, 1);
+  assert.equal(snap[0].unit, 'л');
+  assert.equal(snap[0].variant_id, variantId);
+  assert.match(snap[0].name, /0\.5/);
+});

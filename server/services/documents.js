@@ -999,12 +999,11 @@ export function getInventoryStockSnapshot(departmentId, branchId = DEFAULT_BRANC
     const vid = variantId || null;
     if (vid) {
       const variant = queryOne(
-        'SELECT name, unit FROM product_variants WHERE id = ? AND product_id = ?',
+        'SELECT name FROM product_variants WHERE id = ? AND product_id = ?',
         [vid, productId],
       );
       if (!variant) throw new Error('Вариант не найден');
       name = `${product.name} — ${variant.name}`;
-      unit = variant.unit || unit;
     }
     const { stock, avgCost } = getDepartmentStockWithCost(departmentId, productId, vid);
     const avg = Number(avgCost) || 0;
