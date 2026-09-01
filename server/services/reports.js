@@ -15,7 +15,7 @@ function normalizeSupplierIds(supplierIds) {
 export function getStockReport(branchId = DEFAULT_BRANCH_ID, departmentId = null, onlyInStock = true) {
   let sql = `
     SELECT pds.stock, COALESCE(pds.avg_cost, 0) as avg_cost, pds.variant_id,
-           p.id as product_id, p.name as product_name, p.unit, p.category_id,
+           p.id as product_id, p.name as product_name, p.unit, p.net_weight, p.category_id,
            pv.name as variant_name,
            d.id as department_id, d.name as department_name,
            pc.name as category_name
@@ -88,6 +88,7 @@ export function getStockReport(branchId = DEFAULT_BRANCH_ID, departmentId = null
       category_id: row.category_id,
       category_name: row.category_name,
       unit: row.unit || 'шт',
+      net_weight: Number(row.net_weight) || 0,
       stock,
       unitCost,
       total: stock * unitCost,

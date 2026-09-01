@@ -3748,7 +3748,7 @@ input[type='number']::-webkit-inner-spin-button {
 }
 
 .inventory-line-card-compact-row.is-qty-only {
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, 0.8fr) minmax(0, 0.7fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, 0.8fr);
 }
 
 .inventory-line-card-compact-meta,
@@ -3882,6 +3882,40 @@ input[type='number']::-webkit-inner-spin-button {
 .inventory-items-table td:nth-child(3) {
   width: 3.5rem;
   white-space: nowrap;
+}
+
+.inventory-items-table .doc-items-net-col {
+  width: 5.5rem;
+  min-width: 5.5rem;
+  max-width: 6.5rem;
+  vertical-align: top;
+}
+
+.inventory-items-table .doc-items-net-wrap b {
+  display: block;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.inventory-line-card-net-row {
+  display: grid;
+  grid-template-columns: minmax(0, 0.7fr) minmax(0, 1.3fr);
+  gap: 6px 8px;
+  margin-top: 6px;
+  align-items: end;
+}
+
+.inventory-line-card-net-row .doc-items-net-wrap.has-hint {
+  padding-bottom: 14px;
+}
+
+.inventory-line-card-net-row .input-qty {
+  width: 100%;
+  max-width: none;
+  min-height: 36px;
+  padding: 6px 8px;
+  font-size: 16px;
+  text-align: right;
 }
 
 .inv-line-num {

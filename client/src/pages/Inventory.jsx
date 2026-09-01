@@ -189,8 +189,20 @@ function lineCost(item) {
   return Number(item.unit_cost) || 0;
 }
 
+function lineNet(item) {
+  const parsed = parseQuantityInput(item.net_weight);
+  if (parsed != null) return parsed;
+  return Number(item.net_weight) || 0;
+}
+
+function lineFactStock(item) {
+  const fact = lineFact(item);
+  const net = lineNet(item);
+  return net > 0 ? net * fact : fact;
+}
+
 function lineDiff(item) {
-  return lineFact(item) - lineBook(item);
+  return lineFactStock(item) - lineBook(item);
 }
 
 function lineAmount(item) {
@@ -198,7 +210,30 @@ function lineAmount(item) {
 }
 
 function lineStockAmount(item) {
-  return lineFact(item) * lineCost(item);
+  return lineFactStock(item) * lineCost(item);
+}
+
+function catalogNetValue(source) {
+  const n = Number(source?.net_weight);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+function roundQty3(n) {
+  return Math.round((Number(n) || 0) * 1000) / 1000;
+}
+
+function factQtyFromBook(book, net) {
+  const n = Number(net) || 0;
+  const b = Number(book) || 0;
+  if (n > 0) return String(roundQty3(b / n));
+  return String(b);
+}
+
+function lineStockHint(item, unit) {
+  const net = lineNet(item);
+  const qty = lineFact(item);
+  if (!(net > 0) || !(qty > 0)) return '';
+  return `на склад: ${formatQty(net * qty)}${unit ? ` ${unit}` : ''}`;
 }
 
 function inventoryStockAmount(doc) {
@@ -404,8 +439,29 @@ function InventoryWriteoffBlock({ items, products, showAmount, isPhone, confirme
   );
 }
 
+function InventoryNetField({ item, idx, unit, readOnly, onNet }) {
+  const hint = lineStockHint(item, unit);
+  const netDisplay = lineNet(item);
+  return (
+    <div className={`doc-items-net-wrap${hint ? ' has-hint' : ''}`}>
+      {readOnly ? (
+        <b>{netDisplay > 0 ? formatQty(netDisplay) : '—'}</b>
+      ) : (
+        <input
+          className="input-qty"
+          inputMode="decimal"
+          value={item.net_weight ?? ''}
+          placeholder="на 1 шт"
+          onChange={(e) => onNet(idx, e.target.value)}
+        />
+      )}
+      {hint ? <span className="doc-items-net-hint">{hint}</span> : null}
+    </div>
+  );
+}
+
 function InventoryLineCard({
-  item, idx, num, products, readOnly, onFact, onCost, onRemove, compact, showAmount = true,
+  item, idx, num, products, readOnly, onFact, onNet, onCost, onRemove, compact, showAmount = true,
 }) {
   const diff = lineDiff(item);
   const amount = lineAmount(item);
@@ -424,6 +480,9 @@ function InventoryLineCard({
       />
     </div>
   ) : null;
+  const netField = (
+    <InventoryNetField item={item} idx={idx} unit={unit} readOnly={readOnly} onNet={onNet} />
+  );
   if (compact) {
     return (
       <article className={`inventory-line-card inventory-line-card--compact${diffClass ? ' inv-row-discrepancy' : ''}`}>
@@ -465,16 +524,18 @@ function InventoryLineCard({
               <span>Сумма</span>
               <b>{formatMoney(amount)}</b>
             </div>
-          ) : (
-            <div className="inventory-line-card-compact-meta">
-              <span>Ед.</span>
-              <b>{unit}</b>
-            </div>
-          )}
+          ) : null}
         </div>
-        {showAmount && (
-          <div className="inventory-line-card-unit-row">Ед. изм.: <b>{unit}</b></div>
-        )}
+        <div className="inventory-line-card-net-row">
+          <div className="inventory-line-card-compact-meta">
+            <span>Ед.</span>
+            <b>{unit}</b>
+          </div>
+          <div className="inventory-line-card-compact-fact">
+            <span>Нетто</span>
+            {netField}
+          </div>
+        </div>
         {costField}
       </article>
     );
@@ -510,6 +571,10 @@ function InventoryLineCard({
               onChange={(e) => onFact(idx, e.target.value)}
             />
           )}
+        </div>
+        <div>
+          <span>Нетто</span>
+          {netField}
         </div>
         <div>
           <span>Разница</span>
@@ -919,6 +984,7 @@ export default function Inventory() {
           unit: i.unit,
           book_qty: Number(i.book_qty) || 0,
           quantity: i.quantity,
+          net_weight: i.net_weight != null && i.net_weight !== '' ? i.net_weight : '',
           unit_cost: Number(i.unit_cost) || Number(i.price) || 0,
         })),
       });
@@ -977,16 +1043,20 @@ export default function Inventory() {
       }
       setForm({
         ...form,
-        items: rows.map((row) => ({
-          product_id: row.product_id,
-          variant_id: row.variant_id || null,
-          product_name: row.name,
-          variant_name: row.variant_name || null,
-          unit: row.unit,
-          book_qty: Number(row.book_qty) || 0,
-          quantity: String(row.book_qty ?? 0),
-          unit_cost: Number(row.avg_cost) || Number(row.suggest_cost) || 0,
-        })),
+        items: rows.map((row) => {
+          const net = catalogNetValue(row);
+          return {
+            product_id: row.product_id,
+            variant_id: row.variant_id || null,
+            product_name: row.name,
+            variant_name: row.variant_name || null,
+            unit: row.unit,
+            book_qty: Number(row.book_qty) || 0,
+            quantity: factQtyFromBook(row.book_qty, net),
+            net_weight: net > 0 ? String(net) : '',
+            unit_cost: Number(row.avg_cost) || Number(row.suggest_cost) || 0,
+          };
+        }),
       });
       setLineFilter('all');
     } catch (e) {
@@ -1026,6 +1096,7 @@ export default function Inventory() {
       const book_qty = Number(row?.book_qty) || 0;
       const catalogAvg = Number(resolved.variant?.avg_cost) || Number(resolved.product?.avg_cost) || 0;
       const liveCost = Number(row?.avg_cost) || Number(row?.suggest_cost) || catalogAvg || 0;
+      const net = catalogNetValue(resolved.product) || catalogNetValue(row);
       setForm((prev) => {
         const already = prev.items.some(
           (i) => i.product_id === resolved.productId
@@ -1043,7 +1114,8 @@ export default function Inventory() {
               variant_name: resolved.variant?.name || null,
               unit,
               book_qty,
-              quantity: String(book_qty),
+              quantity: factQtyFromBook(book_qty, net),
+              net_weight: net > 0 ? String(net) : '',
               unit_cost: liveCost,
             },
           ],
@@ -1094,6 +1166,12 @@ export default function Inventory() {
     setForm({ ...form, items });
   };
 
+  const updateNet = (idx, value) => {
+    const items = [...form.items];
+    items[idx] = { ...items[idx], net_weight: normalizeQuantityInput(value) };
+    setForm({ ...form, items });
+  };
+
   const updateCost = (idx, value) => {
     const items = [...form.items];
     items[idx] = {
@@ -1115,6 +1193,7 @@ export default function Inventory() {
       variant_id: i.variant_id || null,
       quantity: lineFact(i),
       book_qty: lineBook(i),
+      net_weight: lineNet(i) > 0 ? lineNet(i) : null,
       unit_cost: lineCost(i),
       price: lineCost(i),
     }));
@@ -1803,7 +1882,8 @@ export default function Inventory() {
                           <tr>
                             <th className="inv-row-num">№</th>
                             <th>Товар</th>
-                            <th>Ед.</th>
+                            <th className="doc-items-unit-col">Ед.</th>
+                            <th className="doc-items-net-col">Нетто</th>
                             <th className="col-num">Учёт</th>
                             <th className="col-num">Факт</th>
                             <th className="col-num">Разница</th>
@@ -1815,7 +1895,7 @@ export default function Inventory() {
                         <tbody>
                           {visibleItems.length === 0 ? (
                             <tr>
-                              <td colSpan={(showAmount ? 7 : 6) + (showSurplusCostCol ? 1 : 0) + (readOnly ? 0 : 1)} className="empty">
+                              <td colSpan={(showAmount ? 8 : 7) + (showSurplusCostCol ? 1 : 0) + (readOnly ? 0 : 1)} className="empty">
                                 {form.items.length === 0
                                   ? 'Заполните по учёту или добавьте товар'
                                   : itemSearch.trim()
@@ -1826,12 +1906,24 @@ export default function Inventory() {
                           ) : visibleItems.map(({ item, idx }) => {
                             const diff = lineDiff(item);
                             const amount = lineAmount(item);
+                            const unit = productUnit(products, item);
                             const diffClass = diff > 1e-9 ? 'inv-diff-pos' : diff < -1e-9 ? 'inv-diff-neg' : '';
                             return (
                               <tr key={`${item.product_id}:${item.variant_id || ''}:${idx}`} className={diffClass ? 'inv-row-discrepancy' : undefined}>
                                 <td className="inv-row-num">{idx + 1}</td>
                                 <td>{productName(products, item)}</td>
-                                <td>{productUnit(products, item)}</td>
+                                <td className="doc-items-unit-col">
+                                  <span className="doc-item-unit">{unit}</span>
+                                </td>
+                                <td className="doc-items-net-col">
+                                  <InventoryNetField
+                                    item={item}
+                                    idx={idx}
+                                    unit={unit}
+                                    readOnly={readOnly}
+                                    onNet={updateNet}
+                                  />
+                                </td>
                                 <td className="col-num inv-book-muted">{formatQty(lineBook(item))}</td>
                                 <td>
                                   {readOnly ? (
@@ -1892,6 +1984,7 @@ export default function Inventory() {
                         products={products}
                         readOnly={readOnly}
                         onFact={updateFact}
+                        onNet={updateNet}
                         onCost={updateCost}
                         onRemove={removeItem}
                         compact={isPhone}

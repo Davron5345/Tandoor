@@ -579,3 +579,59 @@ test('inventory: full leftover can hang on a department', async () => {
   assert.equal(full.remainder_document.liable_user_id, null);
   assert.equal(full.remainder_document.total_amount, 320);
 });
+
+test('inventory: net_weight fact is net × qty against warehouse book', async () => {
+  const { default: db, initDb } = await import('../db.js');
+  const { initPermissions } = await import('../permissions.js');
+  const { seedDefaultUsers } = await import('../auth.js');
+  const svc = await import('../services.js');
+  const { createDepartment } = await import('../departments.js');
+  const { getDepartmentStockWithCost } = await import('../inventoryCost.js');
+
+  await initDb();
+  initPermissions(db);
+  seedDefaultUsers();
+
+  const deptId = createDepartment({ name: 'Отдел инв нетто', branch_id: 'main' }).id;
+  const product = svc.createProduct({
+    name: 'Инв нетто',
+    sku: 'INV-NET',
+    unit: 'кг',
+    price: 1000,
+    net_weight: 0.5,
+    branch_id: 'main',
+  });
+
+  svc.createDocument({
+    type: 'prihod',
+    date: '2026-08-20',
+    to_department_id: deptId,
+    items: [{ product_id: product.id, quantity: 20, price: 500, net_weight: 0.5 }],
+    status: 'confirmed',
+  }, 'test-user', 'main');
+
+  assert.equal(getDepartmentStockWithCost(deptId, product.id).stock, 10);
+
+  const snap = svc.getInventoryStockSnapshot(deptId, 'main', product.id);
+  assert.equal(snap[0].net_weight, 0.5);
+  assert.equal(snap[0].book_qty, 10);
+
+  const inv = svc.createDocument({
+    type: 'inventory',
+    date: '2026-08-28',
+    to_department_id: deptId,
+    items: [{
+      product_id: product.id,
+      book_qty: 10,
+      quantity: 24,
+      net_weight: 0.5,
+      unit_cost: 1000,
+    }],
+    status: 'confirmed',
+  }, 'test-user', 'main');
+
+  assert.equal(inv.items[0].net_weight, 0.5);
+  assert.equal(inv.items[0].quantity, 24);
+  assert.equal(inv.surplus_total, 2000);
+  assert.equal(getDepartmentStockWithCost(deptId, product.id).stock, 12);
+});

@@ -785,7 +785,7 @@ function roundMoney(n) {
 }
 
 function inventoryLineDiff(item) {
-  return (Number(item.quantity) || 0) - (Number(item.book_qty) || 0);
+  return itemStockQty(item) - (Number(item.book_qty) || 0);
 }
 
 function inventoryLineCost(item) {
@@ -826,13 +826,23 @@ function normalizeInventoryItems(items) {
     if (!Number.isFinite(book) || book < 0) {
       throw new Error('Учётное количество не может быть отрицательным');
     }
+    let netWeight = null;
+    if (item.net_weight !== undefined && item.net_weight !== null && item.net_weight !== '') {
+      const net = Number(item.net_weight);
+      if (!Number.isFinite(net) || net < 0) {
+        throw new Error('Нетто не может быть отрицательным');
+      }
+      netWeight = net > 0 ? net : null;
+    }
     const cost = Math.max(0, Number(item.unit_cost ?? item.price) || 0);
-    const amount = roundMoney(Math.abs(fact - book) * cost);
+    const factStock = netWeight > 0 ? netWeight * fact : fact;
+    const amount = roundMoney(Math.abs(factStock - book) * cost);
     return {
       product_id: item.product_id,
       variant_id: item.variant_id || null,
       quantity: fact,
       book_qty: book,
+      net_weight: netWeight,
       price: cost,
       unit_cost: cost,
       amount,
@@ -1284,23 +1294,23 @@ function inventoryItemDisplayCost(departmentId, item) {
 function applyInventoryItemCosts(departmentId, items) {
   return (items || []).map((item) => {
     const cost = inventoryItemDisplayCost(departmentId, item);
-    const fact = Number(item.quantity) || 0;
+    const factStock = itemStockQty(item);
     const book = Number(item.book_qty) || 0;
-    const amount = roundMoney(Math.abs(fact - book) * cost);
+    const amount = roundMoney(Math.abs(factStock - book) * cost);
     return {
       ...item,
       unit_cost: cost,
       price: cost || Number(item.price) || 0,
       amount,
       cost_amount: amount,
-      stock_amount: roundMoney(fact * cost),
+      stock_amount: roundMoney(factStock * cost),
     };
   });
 }
 
 function inventoryCountedStockAmount(items) {
   return roundMoney((items || []).reduce((sum, item) => (
-    sum + (Number(item.stock_amount) || ((Number(item.quantity) || 0) * inventoryLineCost(item)))
+    sum + (Number(item.stock_amount) || (itemStockQty(item) * inventoryLineCost(item)))
   ), 0));
 }
 
@@ -1345,7 +1355,7 @@ function applyInventoryBookSnapshot(departmentId, items) {
   return (items || []).map((item) => {
     const vid = item.variant_id || null;
     const { stock, avgCost } = getDepartmentStockWithCost(departmentId, item.product_id, vid);
-    const fact = Number(item.quantity) || 0;
+    const fact = itemStockQty(item);
     const book = Number(stock) || 0;
     let cost = avgCost > 0 ? avgCost : inventoryLineCost(item);
     if (fact - book > 1e-9 && !(cost > 0)) {
@@ -1380,9 +1390,9 @@ function persistInventoryItems(documentId, items) {
     run(`
       INSERT INTO document_items (
         id, document_id, product_id, variant_id, quantity, price, amount,
-        item_role, unit_cost, cost_amount, book_qty, sort_order
+        item_role, unit_cost, cost_amount, book_qty, net_weight, sort_order
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, 'input', ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 'input', ?, ?, ?, ?, ?)
     `, [
       uuidv4(),
       documentId,
@@ -1394,6 +1404,7 @@ function persistInventoryItems(documentId, items) {
       item.unit_cost,
       item.cost_amount,
       item.book_qty,
+      item.net_weight ?? null,
       idx,
     ]);
   });
@@ -1460,7 +1471,7 @@ export function getInventoryStockSnapshot(departmentId, branchId = DEFAULT_BRANC
   if (!departmentId) throw new Error('Выберите отдел');
   assertDepartmentInBranch(departmentId, branchId);
   if (productId) {
-    const product = queryOne('SELECT id, name, unit FROM products WHERE id = ?', [productId]);
+    const product = queryOne('SELECT id, name, unit, net_weight FROM products WHERE id = ?', [productId]);
     if (!product) throw new Error('Товар не найден');
     let name = product.name;
     let unit = product.unit || 'шт';
@@ -1477,12 +1488,14 @@ export function getInventoryStockSnapshot(departmentId, branchId = DEFAULT_BRANC
     }
     const { stock, avgCost } = getDepartmentStockWithCost(departmentId, productId, vid);
     const avg = Number(avgCost) || 0;
+    const net = Number(product.net_weight) || 0;
     return [{
       product_id: productId,
       variant_id: vid,
       name,
       variant_name: variantName,
       unit,
+      net_weight: net > 0 ? net : null,
       book_qty: Number(stock) || 0,
       avg_cost: avg,
       suggest_cost: avg > 0 ? 0 : lastPrihodUnitCost(departmentId, productId, vid),
@@ -1492,12 +1505,14 @@ export function getInventoryStockSnapshot(departmentId, branchId = DEFAULT_BRANC
   return getStockReport(branchId, departmentId, true).map((row) => {
     const vid = row.variant_id || null;
     const avg = Number(row.unitCost) || 0;
+    const net = Number(row.net_weight) || 0;
     return {
       product_id: row.product_id,
       variant_id: vid,
       name: row.name,
       variant_name: row.variant_name || null,
       unit: row.unit,
+      net_weight: net > 0 ? net : null,
       book_qty: Number(row.stock) || 0,
       avg_cost: avg,
       suggest_cost: avg > 0 ? 0 : (lastMap.get(`${row.product_id}:${vid || ''}`) || 0),
