@@ -682,10 +682,11 @@ export function getDocument(id, branchId = null) {
   let itemsParams;
   if (stockDepartmentId) {
     itemsSql = `
-      SELECT di.*, p.name as product_name, p.sku, p.unit,
+      SELECT di.*, p.name as product_name, p.sku, p.unit, pv.name as variant_name,
              COALESCE(pds.stock, 0) as stock
       FROM document_items di
       JOIN products p ON p.id = di.product_id
+      LEFT JOIN product_variants pv ON pv.id = di.variant_id
       LEFT JOIN product_department_stock pds
         ON pds.product_id = p.id
         AND pds.department_id = ?
@@ -696,7 +697,7 @@ export function getDocument(id, branchId = null) {
     itemsParams = [stockDepartmentId, id];
   } else {
     itemsSql = `
-      SELECT di.*, p.name as product_name, p.sku, p.unit,
+      SELECT di.*, p.name as product_name, p.sku, p.unit, pv.name as variant_name,
              COALESCE((
                SELECT SUM(pds2.stock)
                FROM product_department_stock pds2
@@ -705,6 +706,7 @@ export function getDocument(id, branchId = null) {
              ), COALESCE(pbs.stock, 0)) as stock
       FROM document_items di
       JOIN products p ON p.id = di.product_id
+      LEFT JOIN product_variants pv ON pv.id = di.variant_id
       LEFT JOIN product_branch_stock pbs ON pbs.product_id = p.id AND pbs.branch_id = ?
       WHERE di.document_id = ?
       ORDER BY COALESCE(di.sort_order, 0) ASC, di.id ASC
@@ -714,6 +716,7 @@ export function getDocument(id, branchId = null) {
   const items = queryAll(itemsSql, itemsParams).map((row) => ({
     ...row,
     item_role: row.item_role || 'input',
+    variant_name: row.variant_name || null,
   }));
 
   const input_items = items.filter((i) => i.item_role === 'input');
@@ -1462,12 +1465,14 @@ export function getInventoryStockSnapshot(departmentId, branchId = DEFAULT_BRANC
     let name = product.name;
     let unit = product.unit || 'шт';
     const vid = variantId || null;
+    let variantName = null;
     if (vid) {
       const variant = queryOne(
         'SELECT name FROM product_variants WHERE id = ? AND product_id = ?',
         [vid, productId],
       );
       if (!variant) throw new Error('Вариант не найден');
+      variantName = variant.name;
       name = `${product.name} — ${variant.name}`;
     }
     const { stock, avgCost } = getDepartmentStockWithCost(departmentId, productId, vid);
@@ -1476,6 +1481,7 @@ export function getInventoryStockSnapshot(departmentId, branchId = DEFAULT_BRANC
       product_id: productId,
       variant_id: vid,
       name,
+      variant_name: variantName,
       unit,
       book_qty: Number(stock) || 0,
       avg_cost: avg,
@@ -1490,6 +1496,7 @@ export function getInventoryStockSnapshot(departmentId, branchId = DEFAULT_BRANC
       product_id: row.product_id,
       variant_id: vid,
       name: row.name,
+      variant_name: row.variant_name || null,
       unit: row.unit,
       book_qty: Number(row.stock) || 0,
       avg_cost: avg,
@@ -1953,7 +1960,7 @@ function persistInventoryDocument(existingId, data, userId, branchId, existing =
     throw new Error('Документ списания непересчитанного нельзя редактировать');
   }
 
-  let items = applyInventoryItemCosts(toDepartmentId, normalizeInventoryItems(data.items));
+  let items = normalizeInventoryItems(data.items);
   const id = existingId || uuidv4();
   const number = data.number || existing?.number || generateDocNumber(docBranchId, 'inventory');
   const wasConfirmed = existing?.status === 'confirmed';

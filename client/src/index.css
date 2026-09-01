@@ -3697,9 +3697,14 @@ input[type='number']::-webkit-inner-spin-button {
 
 .modal-inventory--items .modal-footer-actions {
   display: grid;
-  grid-template-columns: auto 1fr 1fr;
+  grid-template-columns: auto 1fr 1.4fr;
   gap: 8px;
   width: 100%;
+}
+
+.inv-save-confirm {
+  white-space: normal;
+  line-height: 1.2;
 }
 
 .inv-item-search {
@@ -8255,7 +8260,7 @@ html.inventory-phone-lock.inventory-modal-open .inventory-topbar-new {
   }
 
   .modal-inventory--items .modal-footer-actions {
-    grid-template-columns: auto 1fr 1fr;
+    grid-template-columns: auto 1fr 1.45fr;
   }
 
   .modal-inventory--items .modal-footer-actions .btn {

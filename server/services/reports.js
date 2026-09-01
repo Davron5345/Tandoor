@@ -83,6 +83,8 @@ export function getStockReport(branchId = DEFAULT_BRANCH_ID, departmentId = null
       product_id: row.product_id,
       variant_id: row.variant_id || null,
       name,
+      product_name: row.product_name,
+      variant_name: row.variant_name || null,
       category_id: row.category_id,
       category_name: row.category_name,
       unit: row.unit || 'шт',

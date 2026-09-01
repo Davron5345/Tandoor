@@ -293,28 +293,76 @@ test('inventory snapshot for a variant uses the product unit', async () => {
   const { initPermissions } = await import('../permissions.js');
   const { seedDefaultUsers } = await import('../auth.js');
   const svc = await import('../services.js');
-  const { getDefaultDepartmentId } = await import('../departments.js');
+  const { getDefaultDepartmentId, createDepartment } = await import('../departments.js');
 
   await initDb();
   initPermissions(db);
   seedDefaultUsers();
 
-  const deptId = getDefaultDepartmentId('main');
+  const deptId = createDepartment({ name: 'Отдел варианты инв', branch_id: 'main' }).id;
   const product = svc.createProduct({
     name: 'Инв вариант',
     sku: 'INV-VAR-1',
     unit: 'л',
     branch_id: 'main',
     has_variants: true,
-    variants: [{ name: '0.5', price: 80 }],
+    variants: [{ name: '0.5', price: 80 }, { name: '1.0', price: 90 }],
   });
-  const variantId = product.variants[0].id;
+  const v05 = product.variants.find((v) => v.name === '0.5');
+  const v10 = product.variants.find((v) => v.name === '1.0');
+  assert.ok(v05 && v10);
 
-  const snap = svc.getInventoryStockSnapshot(deptId, 'main', product.id, variantId);
+  const snap = svc.getInventoryStockSnapshot(deptId, 'main', product.id, v05.id);
   assert.equal(snap.length, 1);
   assert.equal(snap[0].unit, 'л');
-  assert.equal(snap[0].variant_id, variantId);
+  assert.equal(snap[0].variant_id, v05.id);
   assert.match(snap[0].name, /0\.5/);
+  assert.equal(snap[0].variant_name, '0.5');
+
+  svc.createDocument({
+    type: 'prihod',
+    date: '2026-08-20',
+    to_department_id: deptId,
+    items: [
+      { product_id: product.id, variant_id: v05.id, quantity: 1, price: 80 },
+      { product_id: product.id, variant_id: v10.id, quantity: 1, price: 90 },
+    ],
+    status: 'confirmed',
+  }, 'test-user', 'main');
+
+  const draft = svc.createDocument({
+    type: 'inventory',
+    date: '2026-08-27',
+    to_department_id: deptId,
+    items: [
+      { product_id: product.id, variant_id: v05.id, book_qty: 1, quantity: 1.9, unit_cost: 80 },
+      { product_id: product.id, variant_id: v10.id, book_qty: 1, quantity: 1.4, unit_cost: 90 },
+    ],
+    status: 'draft',
+  }, 'test-user', 'main');
+  assert.equal(draft.items.length, 2);
+  assert.equal(draft.items[0].variant_id, v05.id);
+  assert.equal(draft.items[0].variant_name, '0.5');
+  assert.equal(draft.items[0].product_name, 'Инв вариант');
+  assert.equal(draft.items[0].quantity, 1.9);
+  assert.equal(draft.items[1].variant_name, '1.0');
+  assert.equal(draft.items[1].quantity, 1.4);
+
+  const saved = svc.updateDocument(draft.id, {
+    type: 'inventory',
+    date: '2026-08-27',
+    to_department_id: deptId,
+    items: [
+      { product_id: product.id, variant_id: v05.id, book_qty: 1, quantity: 1.9, unit_cost: 80 },
+      { product_id: product.id, variant_id: v10.id, book_qty: 1, quantity: 1.4, unit_cost: 90 },
+    ],
+    status: 'draft',
+  }, 'test-user', 'main');
+  assert.equal(saved.items[0].quantity, 1.9);
+  assert.equal(saved.items[0].book_qty, 1);
+  assert.equal(saved.items[0].variant_id, v05.id);
+  assert.equal(saved.items[1].quantity, 1.4);
+  assert.equal(saved.items[1].variant_name, '1.0');
 });
 
 test('inventory: partial leaves unlisted stock; full writes off leftovers with article', async () => {

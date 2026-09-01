@@ -180,6 +180,7 @@ function mapRemainderItems(doc) {
     product_id: item.product_id,
     variant_id: item.variant_id || null,
     product_name: item.product_name,
+    variant_name: item.variant_name || null,
     unit: item.unit || 'шт',
     book_qty: Number(item.book_qty) || 0,
     quantity: Number(item.quantity) || 0,
@@ -208,10 +209,11 @@ function productUnit(products, item) {
 }
 
 function productName(products, item) {
-  if (item.product_name) return item.product_name;
   const pick = resolvePickFromProducts(products, encodeProductPick(item.product_id, item.variant_id));
-  if (!pick.product) return '—';
-  return pick.variant ? `${pick.product.name} — ${pick.variant.name}` : pick.product.name;
+  const base = pick.product?.name || item.product_name || '—';
+  const variant = pick.variant?.name || item.variant_name;
+  if (variant && !String(base).includes(variant)) return `${base} — ${variant}`;
+  return base;
 }
 
 function productSearchHaystack(products, item) {
@@ -802,6 +804,7 @@ export default function Inventory() {
           product_id: i.product_id,
           variant_id: i.variant_id || null,
           product_name: i.product_name,
+          variant_name: i.variant_name || null,
           unit: i.unit,
           book_qty: Number(i.book_qty) || 0,
           quantity: i.quantity,
@@ -866,6 +869,7 @@ export default function Inventory() {
           product_id: row.product_id,
           variant_id: row.variant_id || null,
           product_name: row.name,
+          variant_name: row.variant_name || null,
           unit: row.unit,
           book_qty: Number(row.book_qty) || 0,
           quantity: String(row.book_qty ?? 0),
@@ -924,6 +928,7 @@ export default function Inventory() {
               product_id: resolved.productId,
               variant_id: resolved.variantId || null,
               product_name: name,
+              variant_name: resolved.variant?.name || null,
               unit,
               book_qty,
               quantity: String(book_qty),
@@ -1054,9 +1059,26 @@ export default function Inventory() {
       } else {
         doc = await api.createDocument(payload);
       }
-      show(andConfirm ? 'Документ проведён' : 'Сохранено');
-      setProductModalOpen(false);
-      setModal(null);
+      if (andConfirm) {
+        show('Документ проведён');
+        setProductModalOpen(false);
+        setModal(null);
+        await loadDocs();
+        return doc;
+      }
+      show('Сохранено');
+      setForm((prev) => ({
+        ...prev,
+        id: doc.id,
+        number: doc.number || prev.number,
+        status: doc.status || 'draft',
+        remainder_document: doc.remainder_document || null,
+        remainder_amount: Number(doc.remainder_amount) || 0,
+        remainder_items: mapRemainderItems(doc),
+        counted_amount: Number(doc.counted_amount) || 0,
+        stock_amount: Number(doc.stock_amount) || 0,
+      }));
+      setModal(doc.id);
       await loadDocs();
       return doc;
     } catch (e) {
@@ -1313,8 +1335,13 @@ export default function Inventory() {
                       Сохранить
                     </button>
                     {canConfirm && (
-                      <button type="button" className="btn btn-success" onClick={() => save(true)} disabled={saving}>
-                        Провести
+                      <button
+                        type="button"
+                        className="btn btn-success inv-save-confirm"
+                        onClick={() => save(true)}
+                        disabled={saving}
+                      >
+                        Сохранить и провести
                       </button>
                     )}
                   </>
