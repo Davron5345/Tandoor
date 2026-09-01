@@ -34,6 +34,7 @@ import { useBranch } from '../BranchContext';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import { useFormDraft, formDraftKey, readFormDraft, clearFormDraft, promptRestoreDraft } from '../hooks/useFormDraft';
 import { useFormDirty } from '../hooks/useFormDirty';
+import { isoMonthYearRange, MONTH_NAMES_RU, recentYearOptions } from '../utils/date';
 import { hasPermission } from '../permissions';
 import { IconImage } from '../components/ActionIcons';
 import {
@@ -55,6 +56,7 @@ const categoryFilterExtras = [{ id: FILTER_NO_CATEGORY, label: 'Без кате�
 const supplierFilterExtras = [{ id: FILTER_NO_SUPPLIER, label: 'Без поставщиков' }];
 const PRODUCT_PAGE_SIZE_KEY = 'warehouse-products-page-size';
 const PRODUCT_PAGE_SIZE_OPTIONS = [15, 25, 50, 100];
+const PRIHOD_YEAR_OPTIONS = recentYearOptions();
 
 function readProductPageSize() {
   try {
@@ -403,6 +405,8 @@ export default function Products() {
   const [prihodLoading, setPrihodLoading] = useState(false);
   const [prihodDateFrom, setPrihodDateFrom] = useState('');
   const [prihodDateTo, setPrihodDateTo] = useState('');
+  const [prihodMonth, setPrihodMonth] = useState('');
+  const [prihodYear, setPrihodYear] = useState('');
   const { show, Toast } = useToast();
   const { user } = useAuth();
   const { branchId, branches, isAdmin } = useBranch();
@@ -1038,12 +1042,22 @@ export default function Products() {
     }
     setPrihodDateFrom('');
     setPrihodDateTo('');
+    setPrihodMonth('');
+    setPrihodYear('');
     setPrihodDocs([]);
     setPrihodModal({
       id: product.id,
       variantId: variantId || null,
       name: displayName || product.name,
     });
+  };
+
+  const applyPrihodMonthYear = (year, month) => {
+    const range = isoMonthYearRange(year, month);
+    setPrihodYear(year);
+    setPrihodMonth(month);
+    setPrihodDateFrom(range.date_from);
+    setPrihodDateTo(range.date_to);
   };
 
   useEffect(() => {
@@ -1724,6 +1738,34 @@ export default function Products() {
           footer={<ModalCancelButton>Закрыть</ModalCancelButton>}
         >
           <div className="filters product-prihod-filters">
+            <label className="filter-field">
+              <span className="filter-field-caption">Месяц</span>
+              <select
+                value={prihodMonth}
+                onChange={(e) => {
+                  const month = e.target.value;
+                  const year = prihodYear || (month ? String(new Date().getFullYear()) : '');
+                  applyPrihodMonthYear(year, month);
+                }}
+              >
+                <option value="">Все</option>
+                {MONTH_NAMES_RU.map((label, idx) => (
+                  <option key={label} value={String(idx + 1)}>{label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="filter-field">
+              <span className="filter-field-caption">Год</span>
+              <select
+                value={prihodYear}
+                onChange={(e) => applyPrihodMonthYear(e.target.value, prihodMonth)}
+              >
+                <option value="">Все</option>
+                {PRIHOD_YEAR_OPTIONS.map((y) => (
+                  <option key={y} value={String(y)}>{y}</option>
+                ))}
+              </select>
+            </label>
             <label className="filter-field">
               <span className="filter-field-caption">С</span>
               <input

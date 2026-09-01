@@ -7165,8 +7165,9 @@ input[type='number']::-webkit-inner-spin-button {
   padding: 10px 12px;
 }
 
-.modal-product-prihods .product-prihod-filters .filter-field input[type='date'] {
-  min-width: 11rem;
+.modal-product-prihods .product-prihod-filters .filter-field input[type='date'],
+.modal-product-prihods .product-prihod-filters .filter-field select {
+  min-width: 9.5rem;
 }
 
 .product-list-name-toggle {
