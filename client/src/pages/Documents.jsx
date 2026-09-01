@@ -28,6 +28,7 @@ import {
   IconWallet,
 } from '../components/ActionIcons';
 
+import { PriceWithTrend, prihodLinePriceTrend } from '../components/PriceTrendMark';
 import {
   encodeProductPick,
   getPickStock,
@@ -2149,13 +2150,27 @@ export default function Documents({ defaultType }) {
                           );
                         })()}
                         <td>
-                          <input
-                            type="text"
-                            inputMode="decimal"
-                            value={formatPriceInput(item.price)}
-                            disabled={isReadOnly}
-                            onChange={(e) => updateItem(idx, 'price', formatPriceInput(e.target.value))}
-                          />
+                          {form.type === 'prihod' ? (
+                            <PriceWithTrend
+                              trend={prihodLinePriceTrend(item, resolvedItem.product, resolvedItem.variant)}
+                            >
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                value={formatPriceInput(item.price)}
+                                disabled={isReadOnly}
+                                onChange={(e) => updateItem(idx, 'price', formatPriceInput(e.target.value))}
+                              />
+                            </PriceWithTrend>
+                          ) : (
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={formatPriceInput(item.price)}
+                              disabled={isReadOnly}
+                              onChange={(e) => updateItem(idx, 'price', formatPriceInput(e.target.value))}
+                            />
+                          )}
                         </td>
                         <td className="doc-items-amount-col">
                           <div className={form.type === 'prihod' && extraAllocations[idx] > 0 ? 'doc-items-net-wrap has-hint' : undefined}>

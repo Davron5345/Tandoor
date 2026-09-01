@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { formatMoney } from '../api';
 import { IconEdit, IconImage } from './ActionIcons';
+import { PriceTrendMark, pickPriceTrend } from './PriceTrendMark';
 import SearchHighlight from './SearchHighlight';
 import {
   buildProductPickGroups,
@@ -39,10 +40,14 @@ function ProductThumb({ product, variant = null, className = '', compact = false
 
 function OptionMeta({ product, variant = null }) {
   const { stock, unit, price } = getPickMetaParts(product, variant);
+  const trend = pickPriceTrend(product, variant);
   return (
     <span className="product-select-option-side">
       <span className="product-select-option-stock">{stock} {unit}</span>
-      <span className="product-select-option-price">{formatMoney(price)}</span>
+      <span className="product-select-option-price">
+        {formatMoney(price)}
+        <PriceTrendMark trend={trend} />
+      </span>
     </span>
   );
 }

@@ -20,6 +20,7 @@ import {
   getVariantPrimaryImage,
   productListRowMatchesSearch,
 } from '../utils/productVariants';
+import { PriceTrendMark, PriceWithTrend, priceTrendFromValues } from '../components/PriceTrendMark';
 import ProductKindFilter from '../components/ProductKindFilter';
 import ProductTableColumnsMenu from '../components/ProductTableColumnsMenu';
 import SearchHighlight from '../components/SearchHighlight';
@@ -257,41 +258,6 @@ function formatAvgCost(n) {
 function formatProductAvgCost(product, variant = null) {
   if (variant) return formatAvgCost(variant.avg_cost);
   return formatAvgCost(product.avg_cost);
-}
-
-function priceTrendFromValues(current, previous) {
-  const lastN = Number(current) || 0;
-  const prevN = Number(previous) || 0;
-  if (!(lastN > 0) || !(prevN > 0)) return null;
-  if (lastN - prevN > 0.005) return { dir: 'up', last: lastN, prev: prevN };
-  if (prevN - lastN > 0.005) return { dir: 'down', last: lastN, prev: prevN };
-  return null;
-}
-
-function PriceTrendMark({ trend }) {
-  if (!trend?.dir) return null;
-  const up = trend.dir === 'up';
-  const title = up
-    ? `Подорожало: было ${formatMoney(trend.prev)}, стало ${formatMoney(trend.last)}`
-    : `Подешевело: было ${formatMoney(trend.prev)}, стало ${formatMoney(trend.last)}`;
-  return (
-    <span
-      className={`price-trend ${up ? 'is-up' : 'is-down'}`}
-      title={title}
-      aria-label={title}
-    >
-      {up ? '▲' : '▼'}
-    </span>
-  );
-}
-
-function PriceWithTrend({ children, trend }) {
-  return (
-    <span className="price-with-trend">
-      {children}
-      <PriceTrendMark trend={trend} />
-    </span>
-  );
 }
 
 function formatWeight(value) {

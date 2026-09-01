@@ -5073,6 +5073,9 @@ input[type='number']::-webkit-inner-spin-button {
   font-weight: 600;
   color: var(--text);
   white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .product-select-option:hover,
@@ -6883,9 +6886,15 @@ input[type='number']::-webkit-inner-spin-button {
   min-width: 0;
 }
 
+.price-with-trend:has(> input) {
+  display: flex;
+  width: 100%;
+}
+
 .price-with-trend > input {
   flex: 1;
   min-width: 0;
+  width: auto;
 }
 
 .price-trend {
@@ -13823,6 +13832,10 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
   background: var(--surface);
   color: var(--text);
   font-size: 16px;
+}
+
+.warehouse-prihod-field .price-with-trend {
+  width: 100%;
 }
 
 .warehouse-prihod-readonly {

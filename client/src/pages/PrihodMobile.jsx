@@ -25,6 +25,7 @@ import {
   resolvePickFromProducts,
 } from '../utils/productVariants';
 import { todayLocalIso } from '../utils/date';
+import { PriceWithTrend, pickPriceTrend, prihodLinePriceTrend } from '../components/PriceTrendMark';
 import { allocateExtraCosts, extraCostsTotal, capitalizedExtraTotal } from '../utils/documentExtraCosts';
 
 const DEFAULT_CONTRACT_ID = '__default__';
@@ -636,7 +637,10 @@ export default function PrihodMobile() {
               <p className="warehouse-prihod-hint">Сначала выберите поставщика — появится список его товаров.</p>
             )}
 
-            {form.items.map((item, idx) => (
+            {form.items.map((item, idx) => {
+              const resolved = resolvePickFromProducts(products, encodeProductPick(item.product_id, item.variant_id));
+              const priceTrend = prihodLinePriceTrend(item, resolved.product, resolved.variant);
+              return (
               <div key={idx} className="warehouse-prihod-item">
                 <label className="warehouse-prihod-field">
                   <span>Товар</span>
@@ -646,9 +650,13 @@ export default function PrihodMobile() {
                     disabled={!form.counterparty_id}
                   >
                     <option value="">Выберите…</option>
-                    {productOptions.map((opt) => (
-                      <option key={opt.key} value={opt.key}>{opt.label}</option>
-                    ))}
+                    {productOptions.map((opt) => {
+                      const t = pickPriceTrend(opt.product, opt.variant);
+                      const mark = t?.dir === 'up' ? ' ▲' : t?.dir === 'down' ? ' ▼' : '';
+                      return (
+                        <option key={opt.key} value={opt.key}>{opt.label}{mark}</option>
+                      );
+                    })}
                   </select>
                 </label>
                 <div className="warehouse-prihod-item-row">
@@ -673,12 +681,14 @@ export default function PrihodMobile() {
                   </label>
                   <label className="warehouse-prihod-field">
                     <span>Цена</span>
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      value={formatPriceInput(item.price)}
-                      onChange={(e) => updateItem(idx, { price: formatPriceInput(e.target.value) })}
-                    />
+                    <PriceWithTrend trend={priceTrend}>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={formatPriceInput(item.price)}
+                        onChange={(e) => updateItem(idx, { price: formatPriceInput(e.target.value) })}
+                      />
+                    </PriceWithTrend>
                   </label>
                   <label className="warehouse-prihod-field">
                     <span>Сумма</span>
@@ -711,7 +721,8 @@ export default function PrihodMobile() {
                   </button>
                 )}
               </div>
-            ))}
+              );
+            })}
           </div>
 
           <div className="warehouse-prihod-extras">
