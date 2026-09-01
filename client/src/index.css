@@ -1253,6 +1253,11 @@ textarea::placeholder {
   overscroll-behavior: contain;
 }
 
+html.app-modal-open .main-content {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
 .main-content > div {
   display: flex;
   flex-direction: column;
@@ -3138,6 +3143,12 @@ input[type='number']::-webkit-inner-spin-button {
   z-index: 1000;
   padding: clamp(12px, 2vw, 20px);
   overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.modal-overlay:has(.modal-inventory) {
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
 .modal {
@@ -3307,6 +3318,31 @@ input[type='number']::-webkit-inner-spin-button {
   gap: 20px;
   flex: 1;
   min-height: 0;
+  overflow: hidden;
+}
+
+.modal-inventory .inv-sheet-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.modal-inventory .inv-sheet-tabs,
+.modal-inventory .inv-sheet-top {
+  flex-shrink: 0;
+}
+
+.modal-inventory .inventory-items-table.doc-modal-items-scroll {
+  flex: none;
+  min-height: 0;
+  overflow-x: auto;
+  overflow-y: visible;
+}
+
+.modal-inventory .doc-modal-totals {
+  flex-shrink: 0;
 }
 
 .doc-modal-fields .form-grid {

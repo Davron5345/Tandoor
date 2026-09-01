@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-09-01 (инвентаризация: живой учёт, пересъёмка при проведении)
+**Последнее обновление документации:** 2026-09-01 (инвентаризация: скролл модалки не двигает фон)
 
 ---
 
@@ -202,7 +202,7 @@ npm run db:reset-operations    # Сброс операционных данны�
 - Native app: Bearer token из `getNativeSessionToken()`, заголовок `X-Native-Client: 1`
 - Cookie-based сессия: `credentials: 'include'`
 
-**Модалки (`Modal.jsx`):** рендер через `createPortal(..., document.body)`, чтобы `position: fixed` не клипался `overflow: hidden` у `.main` / phone-lock (критично для fullscreen на iPhone Safari).
+**Модалки (`Modal.jsx`):** рендер через `createPortal(..., document.body)`, чтобы `position: fixed` не клипался `overflow: hidden` у `.main` / phone-lock (критично для fullscreen на iPhone Safari). Открытая модалка ставит `app-modal-open` на `html` и блокирует скролл `.main-content` (иначе колесо в окне крутит список под оверлеем). Инвентаризация: список позиций скроллится в `.inv-sheet-scroll`, оверлей не скроллится.
 
 ### 6.4 Навигация и права (`App.jsx`)
 
@@ -784,6 +784,7 @@ GET  /api/auth/roles
 | 2026-08-28 | Вкладки разделов: выровнены по высоте с шапкой сайдбара (без верхнего padding у `.main`) |
 | 2026-08-29 | `users.department_id`; dept-scoped `peremeshchenie`; mobile `/warehouse/transfer` (входящие/исходящие, отправка с проведением) |
 | 2026-09-01 | Инвентаризация: живой учёт при добавлении строки; проведение переснимает `book_qty` (остаток = факт); один черновик на отдел |
+| 2026-09-01 | Модалка инвентаризации: скролл только списка товаров; фон `.main-content` и оверлей не едут |
 
 ---
 

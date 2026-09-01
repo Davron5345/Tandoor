@@ -6,6 +6,20 @@ const ModalCloseContext = createContext({
   intentionalClose: () => {},
 });
 
+let openModalCount = 0;
+
+function lockPageScroll() {
+  openModalCount += 1;
+  document.documentElement.classList.add('app-modal-open');
+}
+
+function unlockPageScroll() {
+  openModalCount = Math.max(0, openModalCount - 1);
+  if (openModalCount === 0) {
+    document.documentElement.classList.remove('app-modal-open');
+  }
+}
+
 export function useModalClose() {
   return useContext(ModalCloseContext).intentionalClose;
 }
@@ -67,10 +81,12 @@ export default function Modal({
     document.addEventListener('keydown', onKey);
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
+    lockPageScroll();
     return () => {
       unregister();
       document.removeEventListener('keydown', onKey);
       document.body.style.overflow = prevOverflow;
+      unlockPageScroll();
     };
   }, []);
 
