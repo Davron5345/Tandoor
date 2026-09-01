@@ -94,6 +94,72 @@ function lastPriceForItem(lastMap, productId, variantId = null) {
   return lastMap[productId] ?? null;
 }
 
+function prihodLineUnitCost(row) {
+  const qty = Math.abs(Number(row.quantity) || 0);
+  const net = Number(row.net_weight) || 0;
+  const stockQty = net > 0 ? net * qty : qty;
+  const storedAmount = Number(row.amount);
+  const lineAmount = Number.isFinite(storedAmount)
+    ? storedAmount
+    : qty * (Number(row.price) || 0);
+  if (stockQty <= 0 || !(lineAmount > 0)) return 0;
+  return lineAmount / stockQty;
+}
+
+function makePriceTrend(last, prev) {
+  const lastN = Number(last) || 0;
+  const prevN = Number(prev) || 0;
+  let dir = null;
+  if (lastN > 0 && prevN > 0) {
+    if (lastN - prevN > 0.005) dir = 'up';
+    else if (prevN - lastN > 0.005) dir = 'down';
+  }
+  return { dir, last: lastN, prev: prevN };
+}
+
+function priceTrendKey(productId, variantId) {
+  return variantId ? `v:${variantId}` : productId;
+}
+
+function getPrihodPriceTrendMap(productIds, branchId) {
+  const map = new Map();
+  const ids = [...new Set((productIds || []).filter(Boolean))];
+  if (!ids.length) return map;
+  const placeholders = ids.map(() => '?').join(',');
+  const rows = queryAll(`
+    SELECT di.product_id, di.variant_id, di.quantity, di.price, di.amount, di.net_weight
+    FROM document_items di
+    JOIN documents d ON d.id = di.document_id
+    WHERE d.status = 'confirmed' AND d.type = 'prihod'
+      AND COALESCE(d.branch_id, d.from_branch_id, ?) = ?
+      AND di.product_id IN (${placeholders})
+    ORDER BY d.date DESC, d.created_at DESC
+  `, [branchId, branchId, ...ids]);
+
+  const pairs = new Map();
+  for (const row of rows) {
+    const key = priceTrendKey(row.product_id, row.variant_id);
+    const cost = prihodLineUnitCost(row);
+    if (!(cost > 0)) continue;
+    const pair = pairs.get(key);
+    if (!pair) {
+      pairs.set(key, [cost, null]);
+      continue;
+    }
+    if (pair[1] == null) pair[1] = cost;
+  }
+  for (const [key, [last, prev]] of pairs) {
+    map.set(key, makePriceTrend(last, prev));
+  }
+  return map;
+}
+
+function trendFor(trendMap, productId, variantId = null) {
+  if (!trendMap) return null;
+  if (variantId) return trendMap.get(`v:${variantId}`) || null;
+  return trendMap.get(productId) || null;
+}
+
 export function getProductLastPrice(productId, branchId, docType, counterpartyId = null) {
   const map = getLastPricesMap(branchId, docType, counterpartyId);
   return map[productId] ?? null;
@@ -304,10 +370,12 @@ export function getProducts(filters = {}) {
   const usedIds = getUsedProductIdSet(pageIds);
   const suppliersMap = getSuppliersMapForProducts(pageIds, branchId);
   const departmentStockMap = getDepartmentStockByProducts(pageIds, branchId);
+  const trendMap = getPrihodPriceTrendMap(pageIds, branchId);
   const enriched = pageRows.map((p) => enrichProduct(p, branchId, departmentId, lastMap, {
     is_used: usedIds.has(p.id),
     suppliers: suppliersMap.get(p.id) || [],
     department_stock: departmentStockMap.get(p.id) || [],
+    trendMap,
   }));
 
   if (!pageMeta) return enriched;
@@ -591,7 +659,7 @@ function syncProductStockFromVariants(productId, branchId = DEFAULT_BRANCH_ID) {
   adjustBranchStock(branchId, productId, total - current);
 }
 
-function getProductVariants(productId, departmentId = null, branchId = DEFAULT_BRANCH_ID, lastMap = null) {
+function getProductVariants(productId, departmentId = null, branchId = DEFAULT_BRANCH_ID, lastMap = null, trendMap = null) {
   const variants = queryAll(`
     SELECT id, product_id, name, price, stock, sort_order
     FROM product_variants
@@ -628,6 +696,7 @@ function getProductVariants(productId, departmentId = null, branchId = DEFAULT_B
       stock,
       avg_cost,
       last_price: lastMap ? lastPriceForItem(lastMap, productId, variant.id) : null,
+      price_trend: trendFor(trendMap, productId, variant.id),
       images: queryAll(`
         SELECT id, product_id, variant_id, file_name, original_name, mime_type, media_type, size, sort_order, is_primary, created_at
         FROM product_images
@@ -723,7 +792,10 @@ function enrichProduct(product, branchId = DEFAULT_BRANCH_ID, departmentId = nul
 
   const extraCount = Math.max(0, (photo_count || 0) + (gif_count || 0) - (primary_file_name ? 1 : 0));
   const hasVariants = !!rest.has_variants;
-  const variants = hasVariants ? getProductVariants(product.id, departmentId, branchId, lastMap) : [];
+  const trendMap = options.trendMap !== undefined
+    ? options.trendMap
+    : getPrihodPriceTrendMap([product.id], branchId);
+  const variants = hasVariants ? getProductVariants(product.id, departmentId, branchId, lastMap, trendMap) : [];
   const variantPrices = variants.map((v) => v.price);
   const variantStocks = variants.map((v) => v.stock || 0);
 
@@ -746,6 +818,7 @@ function enrichProduct(product, branchId = DEFAULT_BRANCH_ID, departmentId = nul
   return {
     ...rest,
     department_stock,
+    price_trend: hasVariants ? null : trendFor(trendMap, product.id),
     product_kind: normalizeProductKind(rest.product_kind),
     product_kind_label: productKindLabel(rest.product_kind),
     has_variants: hasVariants,

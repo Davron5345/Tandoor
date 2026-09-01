@@ -232,3 +232,64 @@ test('inventory surplus at avg 0 uses last prihod, else requires cost', async ()
   assert.equal(getDepartmentStockWithCost(deptId, withManual.id).avgCost, 80);
   assert.equal(manual.items[0].unit_cost, 80);
 });
+
+test('product list price_trend compares last two prihods', async () => {
+  const { default: db, initDb } = await import('../db.js');
+  const { initPermissions } = await import('../permissions.js');
+  const { seedDefaultUsers } = await import('../auth.js');
+  const svc = await import('../services.js');
+  const { getDefaultDepartmentId } = await import('../departments.js');
+
+  await initDb();
+  initPermissions(db);
+  seedDefaultUsers();
+
+  const deptId = getDefaultDepartmentId('main');
+  const product = svc.createProduct({
+    name: 'Тренд цены',
+    sku: 'TREND-1',
+    unit: 'кг',
+    price: 100,
+    branch_id: 'main',
+  });
+
+  const once = svc.getProducts({ branch_id: 'main' });
+  const before = (Array.isArray(once) ? once : once.items).find((p) => p.id === product.id);
+  assert.ok(before);
+  assert.equal(before.price_trend?.dir ?? null, null);
+
+  svc.createDocument({
+    type: 'prihod',
+    date: '2026-08-01',
+    to_department_id: deptId,
+    items: [{ product_id: product.id, quantity: 1, price: 100 }],
+    status: 'confirmed',
+  }, 'test-user', 'main');
+  svc.createDocument({
+    type: 'prihod',
+    date: '2026-08-10',
+    to_department_id: deptId,
+    items: [{ product_id: product.id, quantity: 1, price: 140 }],
+    status: 'confirmed',
+  }, 'test-user', 'main');
+
+  const upList = svc.getProducts({ branch_id: 'main' });
+  const up = (Array.isArray(upList) ? upList : upList.items).find((p) => p.id === product.id);
+  assert.equal(up.price_trend.dir, 'up');
+  assert.equal(up.price_trend.last, 140);
+  assert.equal(up.price_trend.prev, 100);
+
+  svc.createDocument({
+    type: 'prihod',
+    date: '2026-08-20',
+    to_department_id: deptId,
+    items: [{ product_id: product.id, quantity: 1, price: 90 }],
+    status: 'confirmed',
+  }, 'test-user', 'main');
+
+  const downList = svc.getProducts({ branch_id: 'main' });
+  const down = (Array.isArray(downList) ? downList : downList.items).find((p) => p.id === product.id);
+  assert.equal(down.price_trend.dir, 'down');
+  assert.equal(down.price_trend.last, 90);
+  assert.equal(down.price_trend.prev, 140);
+});

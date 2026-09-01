@@ -6875,6 +6875,33 @@ input[type='number']::-webkit-inner-spin-button {
 .products-table .col-price { width: 110px; }
 .products-table .col-avg-cost { width: 110px; }
 .products-table .col-stock { width: 72px; }
+
+.price-with-trend {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.price-with-trend > input {
+  flex: 1;
+  min-width: 0;
+}
+
+.price-trend {
+  flex: none;
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 800;
+}
+
+.price-trend.is-up {
+  color: var(--danger);
+}
+
+.price-trend.is-down {
+  color: var(--success);
+}
 .products-table .col-suppliers { width: 12%; min-width: 100px; }
 .products-table .col-shop { width: 72px; }
 .products-table .col-actions { width: 174px; min-width: 174px; }

@@ -259,6 +259,41 @@ function formatProductAvgCost(product, variant = null) {
   return formatAvgCost(product.avg_cost);
 }
 
+function priceTrendFromValues(current, previous) {
+  const lastN = Number(current) || 0;
+  const prevN = Number(previous) || 0;
+  if (!(lastN > 0) || !(prevN > 0)) return null;
+  if (lastN - prevN > 0.005) return { dir: 'up', last: lastN, prev: prevN };
+  if (prevN - lastN > 0.005) return { dir: 'down', last: lastN, prev: prevN };
+  return null;
+}
+
+function PriceTrendMark({ trend }) {
+  if (!trend?.dir) return null;
+  const up = trend.dir === 'up';
+  const title = up
+    ? `Подорожало: было ${formatMoney(trend.prev)}, стало ${formatMoney(trend.last)}`
+    : `Подешевело: было ${formatMoney(trend.prev)}, стало ${formatMoney(trend.last)}`;
+  return (
+    <span
+      className={`price-trend ${up ? 'is-up' : 'is-down'}`}
+      title={title}
+      aria-label={title}
+    >
+      {up ? '▲' : '▼'}
+    </span>
+  );
+}
+
+function PriceWithTrend({ children, trend }) {
+  return (
+    <span className="price-with-trend">
+      {children}
+      <PriceTrendMark trend={trend} />
+    </span>
+  );
+}
+
 function formatWeight(value) {
   if (value == null || value === '') return '—';
   return `${value} кг`;
@@ -364,6 +399,13 @@ function prihodStockQty(row) {
   const qty = Number(row.quantity) || 0;
   const net = Number(row.net_weight) || 0;
   return net > 0 ? net * qty : qty;
+}
+
+function prihodUnitCost(row) {
+  const qty = prihodStockQty(row);
+  const amount = Number(row.amount);
+  if (qty > 0 && Number.isFinite(amount) && amount > 0) return amount / qty;
+  return Number(row.price) || 0;
 }
 
 export default function Products() {
@@ -779,6 +821,7 @@ export default function Products() {
       stock: p.stock,
       department_stock: p.department_stock || [],
       variants: p.variants || [],
+      price_trend: p.price_trend || null,
     });
     setModal(p.id);
     if (p.has_variants) {
@@ -1094,6 +1137,7 @@ export default function Products() {
     const highlighted = p.id === highlightedProductId;
     const hasVariants = !isVariant && p.has_variants && (p.variants?.length > 0);
     const isExpanded = hasVariants && expandedProductIds.has(p.id);
+    const priceTrend = isVariant ? (variant?.price_trend || null) : (p.price_trend || null);
 
     return (
       <tr
@@ -1143,11 +1187,17 @@ export default function Products() {
           <td data-col="gross_weight">{isVariant ? '—' : formatWeight(p.gross_weight)}</td>
         )}
         {columnVisible('price') && (
-          <td data-col="price">{isVariant ? formatMoney(variant.price) : formatProductPrice(p)}</td>
+          <td data-col="price">
+            <PriceWithTrend trend={priceTrend}>
+              {isVariant ? formatMoney(variant.price) : formatProductPrice(p)}
+            </PriceWithTrend>
+          </td>
         )}
         {columnVisible('avg_cost') && (
           <td data-col="avg_cost" title="Средневзвешенная себестоимость по филиалу">
-            {formatProductAvgCost(p, isVariant ? variant : null)}
+            <PriceWithTrend trend={priceTrend}>
+              {formatProductAvgCost(p, isVariant ? variant : null)}
+            </PriceWithTrend>
           </td>
         )}
         {columnVisible('stock') && (
@@ -1506,7 +1556,10 @@ export default function Products() {
                     <div className="form-grid">
                       <div className="form-group">
                         <label>Себест. склада (филиал)</label>
-                        <input readOnly value={formatAvgCost(warehouseInfo?.avg_cost)} />
+                        <div className="price-with-trend">
+                          <input readOnly value={formatAvgCost(warehouseInfo?.avg_cost)} />
+                          <PriceTrendMark trend={warehouseInfo?.price_trend} />
+                        </div>
                       </div>
                       <div className="form-group">
                         <label>Остаток филиала</label>
@@ -1707,7 +1760,12 @@ export default function Products() {
                   </tr>
                 </thead>
                 <tbody>
-                  {prihodDocs.map((d, idx) => (
+                  {prihodDocs.map((d, idx) => {
+                    const older = prihodDocs[idx + 1];
+                    const trend = older
+                      ? priceTrendFromValues(prihodUnitCost(d), prihodUnitCost(older))
+                      : null;
+                    return (
                     <tr
                       key={`${d.id}-${idx}`}
                       className="product-prihod-row"
@@ -1718,10 +1776,13 @@ export default function Products() {
                       <td>{d.counterparty_name || '—'}</td>
                       <td>{d.to_department_name || '—'}</td>
                       <td className="num">{prihodStockQty(d)}</td>
-                      <td className="num">{formatMoney(d.price)}</td>
+                      <td className="num">
+                        <PriceWithTrend trend={trend}>{formatMoney(d.price)}</PriceWithTrend>
+                      </td>
                       <td className="num">{formatMoney(d.amount)}</td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
