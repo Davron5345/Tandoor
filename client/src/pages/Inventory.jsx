@@ -122,6 +122,19 @@ function emptyForm() {
   };
 }
 
+function cubeTone(id) {
+  const s = String(id || '');
+  let hash = 0;
+  for (let i = 0; i < s.length; i += 1) {
+    hash = (hash * 31 + s.charCodeAt(i)) >>> 0;
+  }
+  return hash % 8;
+}
+
+function cubeClass(id, selected) {
+  return `inv-dept-cube inv-cube-tone-${cubeTone(id)}${selected ? ' is-selected' : ''}`;
+}
+
 function liableKindFromDoc(doc) {
   if (doc?.liable_user_id) return 'user';
   if (doc?.liable_department_id) return 'department';
@@ -1096,7 +1109,7 @@ export default function Inventory() {
                         <button
                           key={d.id}
                           type="button"
-                          className={`inv-dept-cube${form.to_department_id === d.id ? ' is-selected' : ''}`}
+                          className={cubeClass(d.id, form.to_department_id === d.id)}
                           disabled={readOnly}
                           onClick={() => selectDepartment(d.id)}
                         >
@@ -1109,29 +1122,26 @@ export default function Inventory() {
 
                 <div className="inv-coverage-block">
                   <div className="inv-dept-label">Покрытие *</div>
-                  <div className="inv-coverage-tabs" role="tablist" aria-label="Тип инвентаризации">
+                  <div className="inv-dept-cubes inv-coverage-cubes" role="tablist" aria-label="Тип инвентаризации">
                     <button
                       type="button"
-                      className={`btn btn-ghost${form.inventory_coverage !== 'full' ? ' is-active' : ''}`}
+                      className={`inv-dept-cube inv-cube-tone-0${form.inventory_coverage !== 'full' ? ' is-selected' : ''}`}
                       disabled={readOnly}
                       onClick={() => setCoverage('partial')}
                     >
-                      Частичная
+                      <span className="inv-dept-cube-name">Частичная</span>
+                      <span className="inv-dept-cube-sub">Только что изменили</span>
                     </button>
                     <button
                       type="button"
-                      className={`btn btn-ghost${form.inventory_coverage === 'full' ? ' is-active' : ''}`}
+                      className={`inv-dept-cube inv-cube-tone-4${form.inventory_coverage === 'full' ? ' is-selected' : ''}`}
                       disabled={readOnly}
                       onClick={() => setCoverage('full')}
                     >
-                      Полная
+                      <span className="inv-dept-cube-name">Полная</span>
+                      <span className="inv-dept-cube-sub">Невыбранное спишем</span>
                     </button>
                   </div>
-                  <p className="form-hint inv-coverage-hint">
-                    {form.inventory_coverage === 'full'
-                      ? 'Пересчитанные строки — по факту. Что не в списке, спишется отдельным документом.'
-                      : 'Меняется только то, что изменили в списке. Остальное на складе не трогаем.'}
-                  </p>
                 </div>
 
                 {form.inventory_coverage === 'full' && (
@@ -1151,61 +1161,78 @@ export default function Inventory() {
                     </div>
                     <div className="inv-dept-block">
                       <div className="inv-dept-label">Кто закрывает сумму</div>
-                      <div className="inv-coverage-tabs" role="tablist" aria-label="Должник">
+                      <div className="inv-dept-cubes inv-liable-cubes" role="tablist" aria-label="Должник">
                         <button
                           type="button"
-                          className={`btn btn-ghost${form.liable_kind === 'none' ? ' is-active' : ''}`}
+                          className={`inv-dept-cube inv-cube-tone-3${form.liable_kind === 'none' ? ' is-selected' : ''}`}
                           disabled={readOnly}
                           onClick={() => setLiableKind('none')}
                         >
-                          В расход
+                          <span className="inv-dept-cube-name">В расход</span>
+                          <span className="inv-dept-cube-sub">Без должника</span>
                         </button>
                         <button
                           type="button"
-                          className={`btn btn-ghost${form.liable_kind === 'user' ? ' is-active' : ''}`}
+                          className={`inv-dept-cube inv-cube-tone-6${form.liable_kind === 'user' ? ' is-selected' : ''}`}
                           disabled={readOnly}
                           onClick={() => setLiableKind('user')}
                         >
-                          Сотрудник
+                          <span className="inv-dept-cube-name">Сотрудник</span>
+                          <span className="inv-dept-cube-sub">Повесить долг</span>
                         </button>
                         <button
                           type="button"
-                          className={`btn btn-ghost${form.liable_kind === 'department' ? ' is-active' : ''}`}
+                          className={`inv-dept-cube inv-cube-tone-1${form.liable_kind === 'department' ? ' is-selected' : ''}`}
                           disabled={readOnly}
                           onClick={() => setLiableKind('department')}
                         >
-                          Отдел
+                          <span className="inv-dept-cube-name">Отдел</span>
+                          <span className="inv-dept-cube-sub">Повесить долг</span>
                         </button>
                       </div>
                     </div>
                     {form.liable_kind === 'user' && (
-                      <div className="form-group">
-                        <label>Сотрудник *</label>
-                        <select
-                          value={form.liable_user_id}
-                          disabled={readOnly}
-                          onChange={(e) => setForm({ ...form, liable_user_id: e.target.value })}
-                        >
-                          <option value="">Выберите сотрудника</option>
-                          {invOptions.users.map((u) => (
-                            <option key={u.id} value={u.id}>{u.name}</option>
-                          ))}
-                        </select>
+                      <div className="inv-dept-block">
+                        <div className="inv-dept-label">Сотрудник *</div>
+                        {invOptions.users.length === 0 ? (
+                          <div className="inventory-list-empty">Нет сотрудников филиала</div>
+                        ) : (
+                          <div className="inv-dept-cubes">
+                            {invOptions.users.map((u) => (
+                              <button
+                                key={u.id}
+                                type="button"
+                                className={cubeClass(u.id, form.liable_user_id === u.id)}
+                                disabled={readOnly}
+                                onClick={() => setForm({ ...form, liable_user_id: u.id })}
+                              >
+                                <span className="inv-dept-cube-name">{u.name}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     )}
                     {form.liable_kind === 'department' && (
-                      <div className="form-group">
-                        <label>Отдел-должник *</label>
-                        <select
-                          value={form.liable_department_id}
-                          disabled={readOnly}
-                          onChange={(e) => setForm({ ...form, liable_department_id: e.target.value })}
-                        >
-                          <option value="">Выберите отдел</option>
-                          {branchDepartments.map((d) => (
-                            <option key={d.id} value={d.id}>{d.name}</option>
-                          ))}
-                        </select>
+                      <div className="inv-dept-block">
+                        <div className="inv-dept-label">Отдел-должник *</div>
+                        {branchDepartments.length === 0 ? (
+                          <div className="inventory-list-empty">Нет отделов филиала</div>
+                        ) : (
+                          <div className="inv-dept-cubes">
+                            {branchDepartments.map((d) => (
+                              <button
+                                key={d.id}
+                                type="button"
+                                className={cubeClass(d.id, form.liable_department_id === d.id)}
+                                disabled={readOnly}
+                                onClick={() => setForm({ ...form, liable_department_id: d.id })}
+                              >
+                                <span className="inv-dept-cube-name">{d.name}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
