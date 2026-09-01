@@ -106,6 +106,8 @@ test('inventory: surplus/shortage at avg_cost, P&L without cash, cancel restores
   const typed = svc.getDocuments({ branch_id: 'main', type: 'inventory' });
   assert.equal(typed.length, 1);
   assert.equal(typed[0].id, inv.id);
+  assert.equal(typed[0].counted_amount, 26000);
+  assert.equal(typed[0].stock_amount, 26000);
 
   svc.cancelDocument(inv.id, 'test-user');
   assert.equal(svc.getDocument(inv.id, 'main').status, 'draft');
@@ -234,9 +236,12 @@ test('inventory: one draft per department; line snapshot includes zero stock', a
     type: 'inventory',
     date: '2026-08-27',
     to_department_id: deptId,
-    items: [{ product_id: product.id, book_qty: 4, quantity: 4, unit_cost: 100 }],
+    items: [{ product_id: product.id, book_qty: 4, quantity: 4, unit_cost: 0 }],
     status: 'draft',
   }, 'test-user', 'main');
+  assert.equal(draft.items[0].unit_cost, 100);
+  assert.equal(draft.counted_amount, 400);
+  assert.equal(draft.stock_amount, 400);
 
   assert.throws(
     () => svc.createDocument({
@@ -402,6 +407,9 @@ test('inventory: partial leaves unlisted stock; full writes off leftovers with a
   assert.equal(full.remainder_document.liable_user_id, sklad.id);
   assert.equal(full.remainder_document.article_id, articleId);
   assert.equal(full.remainder_document.total_amount, 1000);
+  assert.equal(full.counted_amount, 900);
+  assert.equal(full.remainder_amount, 1000);
+  assert.equal(full.stock_amount, 1900);
 
   const listed = svc.getDocuments({ branch_id: 'main', type: 'inventory' });
   assert.ok(listed.some((d) => d.id === full.id));

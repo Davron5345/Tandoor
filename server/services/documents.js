@@ -600,7 +600,7 @@ export function getDocuments(filters = {}) {
   sql += ' ORDER BY d.date DESC, d.created_at DESC';
   const rows = queryAll(sql, params);
   if (filters.type === 'inventory') {
-    return attachRemaindersToDocuments(rows);
+    return attachInventoryListAmounts(attachRemaindersToDocuments(rows));
   }
   return rows;
 }
@@ -725,16 +725,21 @@ export function getDocument(id, branchId = null) {
   const extra_costs_total = extraCostsTotal(extra_costs);
   const capitalized_extra_total = capitalizedExtraTotal(extra_costs);
   const goods_total = Number(doc.total_amount) || 0;
-  const inventoryTotalsOut = doc.type === 'inventory' ? inventoryTotals(items) : null;
+  const remainder_document = doc.type === 'inventory' && doc.inventory_coverage !== 'remainder'
+    ? loadRemainderSummary(id)
+    : null;
+  const inventoryAmounts = doc.type === 'inventory'
+    ? inventoryStockAmountFields({ ...doc, remainder_document }, items)
+    : null;
+  const inventoryItems = inventoryAmounts?.items || items;
+  const inventoryTotalsOut = doc.type === 'inventory' ? inventoryTotals(inventoryItems) : null;
 
   return {
     ...doc,
     shortage_total: inventoryTotalsOut?.shortage ?? 0,
     surplus_total: inventoryTotalsOut?.surplus ?? 0,
-    remainder_document: doc.type === 'inventory' && doc.inventory_coverage !== 'remainder'
-      ? loadRemainderSummary(id)
-      : null,
-    items: doc.type === 'dish_sale' ? sale_items : items,
+    remainder_document,
+    items: doc.type === 'dish_sale' ? sale_items : inventoryItems,
     input_items,
     output_items,
     sale_items,
@@ -743,6 +748,11 @@ export function getDocument(id, branchId = null) {
     extra_costs_total,
     capitalized_extra_total,
     landed_total: goods_total + capitalized_extra_total,
+    ...(inventoryAmounts ? {
+      counted_amount: inventoryAmounts.counted_amount,
+      remainder_amount: inventoryAmounts.remainder_amount,
+      stock_amount: inventoryAmounts.stock_amount,
+    } : {}),
   };
 }
 
@@ -994,6 +1004,37 @@ function attachRemaindersToDocuments(docs) {
   ));
 }
 
+function attachInventoryListAmounts(docs) {
+  const inventoryDocs = (docs || []).filter((d) => d.type === 'inventory');
+  if (!inventoryDocs.length) return docs;
+  const ids = inventoryDocs.map((d) => d.id);
+  const placeholders = ids.map(() => '?').join(',');
+  const rows = queryAll(
+    `SELECT document_id, product_id, variant_id, quantity, book_qty, unit_cost, price
+     FROM document_items
+     WHERE document_id IN (${placeholders})`,
+    ids,
+  );
+  const byDoc = new Map();
+  for (const row of rows) {
+    const list = byDoc.get(row.document_id) || [];
+    list.push(row);
+    byDoc.set(row.document_id, list);
+  }
+  return docs.map((doc) => {
+    if (doc.type !== 'inventory') return doc;
+    const fields = inventoryStockAmountFields(doc, byDoc.get(doc.id) || []);
+    return {
+      ...doc,
+      counted_amount: fields.counted_amount,
+      remainder_amount: fields.remainder_amount,
+      stock_amount: fields.stock_amount,
+      shortage_total: fields.shortage_total,
+      surplus_total: fields.surplus_total,
+    };
+  });
+}
+
 function collectInventoryLeftovers(departmentId, branchId, countedItems) {
   const counted = new Set((countedItems || []).map(inventoryLineKey));
   const rows = getStockReport(branchId, departmentId, true);
@@ -1176,6 +1217,77 @@ function resolveInventorySurplusCost(departmentId, productId, variantId, fallbac
   throw new Error(
     `Укажите себестоимость излишка «${getItemStockLabel({ product_id: productId, variant_id: variantId })}»: на складе нет средней цены`,
   );
+}
+
+function inventoryItemDisplayCost(departmentId, item) {
+  const stored = inventoryLineCost(item);
+  if (stored > 0) return stored;
+  if (!departmentId || !item?.product_id) return 0;
+  try {
+    return resolveInventorySurplusCost(
+      departmentId,
+      item.product_id,
+      item.variant_id || null,
+      0,
+    );
+  } catch {
+    return 0;
+  }
+}
+
+function applyInventoryItemCosts(departmentId, items) {
+  return (items || []).map((item) => {
+    const cost = inventoryItemDisplayCost(departmentId, item);
+    const fact = Number(item.quantity) || 0;
+    const book = Number(item.book_qty) || 0;
+    const amount = roundMoney(Math.abs(fact - book) * cost);
+    return {
+      ...item,
+      unit_cost: cost,
+      price: cost || Number(item.price) || 0,
+      amount,
+      cost_amount: amount,
+      stock_amount: roundMoney(fact * cost),
+    };
+  });
+}
+
+function inventoryCountedStockAmount(items) {
+  return roundMoney((items || []).reduce((sum, item) => (
+    sum + (Number(item.stock_amount) || ((Number(item.quantity) || 0) * inventoryLineCost(item)))
+  ), 0));
+}
+
+function inventoryDraftRemainderAmount(doc, items) {
+  if (doc.inventory_coverage !== 'full' || doc.status === 'confirmed') return 0;
+  const leftovers = collectInventoryLeftovers(
+    doc.to_department_id,
+    doc.branch_id || DEFAULT_BRANCH_ID,
+    items,
+  );
+  return inventoryTotals(leftovers).shortage;
+}
+
+function inventoryStockAmountFields(doc, items) {
+  const priced = applyInventoryItemCosts(doc.to_department_id, items);
+  const counted_amount = inventoryCountedStockAmount(priced);
+  let remainder_amount = 0;
+  if (doc.inventory_coverage === 'full') {
+    if (doc.status === 'confirmed') {
+      remainder_amount = Number(doc.remainder_document?.total_amount) || 0;
+    } else {
+      remainder_amount = inventoryDraftRemainderAmount(doc, priced);
+    }
+  }
+  const totals = inventoryTotals(priced);
+  return {
+    items: priced,
+    counted_amount,
+    remainder_amount,
+    stock_amount: roundMoney(counted_amount + remainder_amount),
+    shortage_total: totals.shortage,
+    surplus_total: totals.surplus,
+  };
 }
 
 function applyInventoryBookSnapshot(departmentId, items) {
@@ -1793,7 +1905,7 @@ function persistInventoryDocument(existingId, data, userId, branchId, existing =
     throw new Error('Документ списания непересчитанного нельзя редактировать');
   }
 
-  let items = normalizeInventoryItems(data.items);
+  let items = applyInventoryItemCosts(toDepartmentId, normalizeInventoryItems(data.items));
   const id = existingId || uuidv4();
   const number = data.number || existing?.number || generateDocNumber(docBranchId, 'inventory');
   const wasConfirmed = existing?.status === 'confirmed';

@@ -119,6 +119,9 @@ function emptyForm() {
     liable_user_id: '',
     liable_department_id: '',
     remainder_document: null,
+    remainder_amount: 0,
+    counted_amount: 0,
+    stock_amount: 0,
     items: [],
   };
 }
@@ -161,6 +164,14 @@ function lineDiff(item) {
 
 function lineAmount(item) {
   return Math.abs(lineDiff(item)) * lineCost(item);
+}
+
+function lineStockAmount(item) {
+  return lineFact(item) * lineCost(item);
+}
+
+function inventoryStockAmount(doc) {
+  return Number(doc.stock_amount) || 0;
 }
 
 function needsSurplusCost(item) {
@@ -209,8 +220,15 @@ function InventoryDocCard({ doc, canEdit, canDelete, onOpen, onEdit, onDelete })
             {doc.to_department_name ? ` · ${doc.to_department_name}` : ''}
             {doc.inventory_coverage === 'full' ? ' · Полная' : ''}
           </span>
-          <span className="inventory-doc-card-sum">{formatMoney(doc.total_amount)}</span>
+          <span className="inventory-doc-card-sum">{formatMoney(inventoryStockAmount(doc))}</span>
         </div>
+        {(Number(doc.shortage_total) > 0 || Number(doc.surplus_total) > 0) ? (
+          <div className="inventory-doc-card-diff">
+            {Number(doc.shortage_total) > 0 ? `− ${formatMoney(doc.shortage_total)}` : ''}
+            {Number(doc.shortage_total) > 0 && Number(doc.surplus_total) > 0 ? ' · ' : ''}
+            {Number(doc.surplus_total) > 0 ? `+ ${formatMoney(doc.surplus_total)}` : ''}
+          </div>
+        ) : null}
         {doc.remainder_document?.number ? (
           <div className="inventory-doc-card-remainder">
             Списание №{doc.remainder_document.number}
@@ -221,6 +239,10 @@ function InventoryDocCard({ doc, canEdit, canDelete, onOpen, onEdit, onDelete })
                 : ''}
             {' · '}
             {formatMoney(doc.remainder_document.total_amount)}
+          </div>
+        ) : Number(doc.remainder_amount) > 0 ? (
+          <div className="inventory-doc-card-remainder">
+            Списание {formatMoney(doc.remainder_amount)}
           </div>
         ) : null}
       </button>
@@ -530,14 +552,29 @@ export default function Inventory() {
   const totals = useMemo(() => {
     let shortage = 0;
     let surplus = 0;
+    let stock = 0;
     for (const item of form.items) {
       const diff = lineDiff(item);
       const amount = Math.abs(diff) * lineCost(item);
+      stock += lineStockAmount(item);
       if (diff < -1e-9) shortage += amount;
       else if (diff > 1e-9) surplus += amount;
     }
-    return { shortage, surplus, net: shortage - surplus };
-  }, [form.items]);
+    const remainder = Number(form.remainder_amount) || 0;
+    return {
+      shortage,
+      surplus,
+      net: shortage - surplus,
+      stock,
+      remainder,
+      stockTotal: stock + remainder,
+    };
+  }, [form.items, form.remainder_amount]);
+
+  const listStockSum = useMemo(
+    () => docs.reduce((sum, d) => sum + inventoryStockAmount(d), 0),
+    [docs],
+  );
 
   const visibleItems = useMemo(() => {
     let rows = form.items.map((item, idx) => ({ item, idx }));
@@ -636,6 +673,9 @@ export default function Inventory() {
         liable_user_id: doc.liable_user_id || '',
         liable_department_id: doc.liable_department_id || '',
         remainder_document: doc.remainder_document || null,
+        remainder_amount: Number(doc.remainder_amount) || 0,
+        counted_amount: Number(doc.counted_amount) || 0,
+        stock_amount: Number(doc.stock_amount) || 0,
         items: (doc.items || []).map((i) => ({
           product_id: i.product_id,
           variant_id: i.variant_id || null,
@@ -1016,7 +1056,7 @@ export default function Inventory() {
                 <th>Дата</th>
                 <th>Номер</th>
                 <th>Отдел</th>
-                <th className="col-num">Недостача − излишек</th>
+                <th className="col-num">Сумма остатков</th>
                 <th>Статус</th>
                 <th />
               </tr>
@@ -1039,7 +1079,19 @@ export default function Inventory() {
                     ) : null}
                   </td>
                   <td>{d.to_department_name || '—'}</td>
-                  <td className="col-num">{formatMoney(d.total_amount)}</td>
+                  <td className="col-num">
+                    {formatMoney(inventoryStockAmount(d))}
+                    {(Number(d.shortage_total) > 0 || Number(d.surplus_total) > 0) ? (
+                      <div className="inv-list-sub">
+                        {Number(d.shortage_total) > 0 ? `− ${formatMoney(d.shortage_total)}` : ''}
+                        {Number(d.shortage_total) > 0 && Number(d.surplus_total) > 0 ? ' · ' : ''}
+                        {Number(d.surplus_total) > 0 ? `+ ${formatMoney(d.surplus_total)}` : ''}
+                      </div>
+                    ) : null}
+                    {Number(d.remainder_amount) > 0 ? (
+                      <div className="inv-list-sub">Списание {formatMoney(d.remainder_amount)}</div>
+                    ) : null}
+                  </td>
                   <td><span className={`badge badge-${d.status}`}>{STATUS_LABELS[d.status]}</span></td>
                   <td>
                     <div className="btn-group btn-group-icons doc-actions">
@@ -1083,6 +1135,12 @@ export default function Inventory() {
             />
           ))}
         </div>
+        {!loading && docs.length > 0 && (
+          <div className="inventory-list-total">
+            <span>Итого остатки</span>
+            <strong>{formatMoney(listStockSum)}</strong>
+          </div>
+        )}
       </div>
 
       {modal && (
@@ -1556,10 +1614,14 @@ export default function Inventory() {
                 <div className={`doc-modal-totals${showAmount ? '' : ' is-qty-only'}`}>
                   {showAmount ? (
                     <>
+                      <div>Остатки {formatMoney(totals.stock)}</div>
+                      {form.inventory_coverage === 'full' && totals.remainder > 0 ? (
+                        <div>Списание {formatMoney(totals.remainder)}</div>
+                      ) : null}
                       <div>− {formatMoney(totals.shortage)}</div>
                       <div>+ {formatMoney(totals.surplus)}</div>
                       <div className="doc-modal-total">
-                        <strong>Нетто {formatMoney(totals.net)}</strong>
+                        <strong>Итого {formatMoney(totals.stockTotal)}</strong>
                       </div>
                     </>
                   ) : (

@@ -3586,7 +3586,8 @@ input[type='number']::-webkit-inner-spin-button {
 
 .inv-remainder-note,
 .inv-list-sub,
-.inventory-doc-card-remainder {
+.inventory-doc-card-remainder,
+.inventory-doc-card-diff {
   font-size: 12px;
   color: var(--text-muted);
 }
@@ -3879,6 +3880,24 @@ input[type='number']::-webkit-inner-spin-button {
   padding: 28px 16px;
   text-align: center;
   color: var(--text-muted);
+}
+
+.inventory-list-total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.inventory-list-total strong {
+  font-size: 16px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
 }
 
 .inventory-line-card {
