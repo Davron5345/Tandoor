@@ -3834,6 +3834,20 @@ input[type='number']::-webkit-inner-spin-button {
   font-weight: 700;
 }
 
+.inventory-line-card-cost {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.inventory-line-card-cost .input-qty {
+  flex: 1;
+  min-width: 0;
+}
+
 .inv-toolbar .inv-show-amount-toggle {
   flex: 0 0 auto;
   min-height: 34px;
@@ -6858,7 +6872,8 @@ input[type='number']::-webkit-inner-spin-button {
 .products-table .col-sku { width: 8%; min-width: 72px; }
 .products-table .col-unit { width: 52px; }
 .products-table .col-weight { width: 72px; }
-.products-table .col-price { width: 96px; }
+.products-table .col-price { width: 110px; }
+.products-table .col-avg-cost { width: 110px; }
 .products-table .col-stock { width: 72px; }
 .products-table .col-suppliers { width: 12%; min-width: 100px; }
 .products-table .col-shop { width: 72px; }
@@ -8581,6 +8596,7 @@ html.inventory-phone-lock.inventory-modal-open .inventory-topbar-new {
   .products-table col.col-category,
   .products-table col.col-sku,
   .products-table col.col-weight,
+  .products-table col.col-avg-cost,
   .products-table col.col-suppliers,
   .products-table col.col-shop,
   .products-table th.product-list-photo-col,
@@ -8592,6 +8608,7 @@ html.inventory-phone-lock.inventory-modal-open .inventory-topbar-new {
   .products-table [data-col="sku"],
   .products-table [data-col="net_weight"],
   .products-table [data-col="gross_weight"],
+  .products-table [data-col="avg_cost"],
   .products-table [data-col="suppliers"],
   .products-table [data-col="shop"],
   .products-table [data-col="photo"] {

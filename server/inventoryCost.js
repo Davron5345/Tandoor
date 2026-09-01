@@ -34,9 +34,15 @@ export function getDepartmentStockWithCost(departmentId, productId, variantId = 
   return { stock: row?.stock || 0, avgCost: row?.avg_cost || 0 };
 }
 
+function roundAvgCost(n) {
+  const v = Number(n);
+  if (!Number.isFinite(v) || v <= 0) return 0;
+  return Math.round((v + Number.EPSILON) * 10000) / 10000;
+}
+
 function upsertRow(departmentId, productId, stock, avgCost, variantId = null) {
   const safeStock = Math.max(0, stock);
-  const safeAvg = safeStock > 0 ? Math.max(0, avgCost) : 0;
+  const safeAvg = safeStock > 0 ? roundAvgCost(avgCost) : 0;
   const row = getRow(departmentId, productId, variantId);
   const { where, params } = scopeSql(departmentId, productId, variantId);
   if (row) {

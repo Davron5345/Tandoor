@@ -504,13 +504,17 @@ export function getStats(branchId = DEFAULT_BRANCH_ID) {
 
   const topProducts = queryAll(`
     SELECT p.id, p.name, p.unit,
-           COALESCE(pbs.stock, 0) as stock,
-           COALESCE(pb.price, p.price, 0) as price,
-           COALESCE(pbs.stock * COALESCE(pb.price, p.price, 0), 0) as value
-    FROM product_branch_stock pbs
-    JOIN products p ON p.id = pbs.product_id
+           COALESCE(SUM(pds.stock), 0) as stock,
+           CASE WHEN SUM(pds.stock) > 0
+             THEN SUM(pds.stock * pds.avg_cost) / SUM(pds.stock)
+             ELSE 0 END as price,
+           COALESCE(SUM(pds.stock * pds.avg_cost), 0) as value
+    FROM product_department_stock pds
+    JOIN departments d ON d.id = pds.department_id AND d.branch_id = ?
+    JOIN products p ON p.id = pds.product_id
     JOIN product_branches pb ON pb.product_id = p.id AND pb.branch_id = ? AND pb.visible = 1
-    WHERE pbs.branch_id = ? AND pbs.stock > 0
+    WHERE pds.stock > 0
+    GROUP BY p.id, p.name, p.unit
     ORDER BY value DESC
     LIMIT 6
   `, [branchId, branchId]);

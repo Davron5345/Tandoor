@@ -3,6 +3,7 @@ import db from '../db.js';
 import { DEFAULT_BRANCH_ID, getBranch } from '../branches.js';
 import { assertDepartmentInBranch, syncBranchStockFromDepartments } from '../departments.js';
 import { setDepartmentStock, syncVariantCatalogStock } from '../inventoryCost.js';
+import { assertNoLaterStockMovements } from '../stockMovementGuard.js';
 import { getCounterparty } from './counterparties.js';
 import { assertBankAccountInBranch } from './bankAccounts.js';
 
@@ -360,6 +361,7 @@ export function cancelOpeningBalanceDocument(id, userId = null, branchId = DEFAU
   if (doc.status !== 'confirmed') throw new Error('Отменить можно только проведённый документ');
 
   const lines = loadLines(id);
+  assertNoLaterStockMovements(doc, lines);
 
   transaction(() => {
     // Снова черновик — можно править и провести заново (не «отменён навсегда»)

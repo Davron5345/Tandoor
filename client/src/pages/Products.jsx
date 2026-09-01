@@ -143,6 +143,11 @@ function compareProducts(a, b, sortKey, sortDir) {
       if (bv == null) return -1;
       return dir * (av - bv);
     }
+    case 'avg_cost': {
+      const av = number(a.avg_cost) ?? 0;
+      const bv = number(b.avg_cost) ?? 0;
+      return dir * (av - bv);
+    }
     case 'stock': {
       const av = number(a.stock);
       const bv = number(b.stock);
@@ -241,6 +246,17 @@ function formatProductPrice(product) {
     return formatMoney(product.variant_price_min);
   }
   return formatMoney(product.price);
+}
+
+function formatAvgCost(n) {
+  const v = Number(n) || 0;
+  if (!(v > 0)) return '—';
+  return new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 4 }).format(v);
+}
+
+function formatProductAvgCost(product, variant = null) {
+  if (variant) return formatAvgCost(variant.avg_cost);
+  return formatAvgCost(product.avg_cost);
 }
 
 function formatWeight(value) {
@@ -388,6 +404,7 @@ export default function Products() {
   const [archivedVariants, setArchivedVariants] = useState([]);
   const [togglingShopVisible, setTogglingShopVisible] = useState(null);
   const [visibleColumns, setVisibleColumns] = useState(() => readProductTableColumns());
+  const [warehouseInfo, setWarehouseInfo] = useState(null);
   const showShopColumn = canEdit && listView === 'catalog';
 
   const columnVisible = useCallback(
@@ -705,6 +722,7 @@ export default function Products() {
     setProductCardTab(tab);
     setFocusedVariantId(null);
     setArchivedVariants([]);
+    setWarehouseInfo(null);
     setModal('create');
   };
 
@@ -719,6 +737,7 @@ export default function Products() {
     setProductCardTab('main');
     setFocusedVariantId(null);
     setArchivedVariants([]);
+    setWarehouseInfo(null);
     setModal('create');
     show('Скопированы категория, ед. изм. и поставщики');
   };
@@ -755,6 +774,12 @@ export default function Products() {
     }
     setFocusedVariantId(variantId);
     setArchivedVariants([]);
+    setWarehouseInfo({
+      avg_cost: p.avg_cost,
+      stock: p.stock,
+      department_stock: p.department_stock || [],
+      variants: p.variants || [],
+    });
     setModal(p.id);
     if (p.has_variants) {
       api.getArchivedProductVariants(p.id)
@@ -1120,6 +1145,11 @@ export default function Products() {
         {columnVisible('price') && (
           <td data-col="price">{isVariant ? formatMoney(variant.price) : formatProductPrice(p)}</td>
         )}
+        {columnVisible('avg_cost') && (
+          <td data-col="avg_cost" title="Средневзвешенная себестоимость по филиалу">
+            {formatProductAvgCost(p, isVariant ? variant : null)}
+          </td>
+        )}
         {columnVisible('stock') && (
           <td data-col="stock">{isVariant ? (variant.stock ?? 0) : p.stock}</td>
         )}
@@ -1345,6 +1375,7 @@ export default function Products() {
             clearImages();
             setHighlightedProductId(null);
             setFocusedVariantId(null);
+            setWarehouseInfo(null);
             setModal(null);
             load();
           }}
@@ -1459,12 +1490,62 @@ export default function Products() {
                     {form.has_variants && (
                       <div className="form-group full">
                         <p className="product-variants-main-note">
-                          Цена и фото задаются во вкладке «Варианты».
+                          Цена справочника и фото задаются во вкладке «Варианты».
                         </p>
                       </div>
                     )}
                   </div>
                 </div>
+
+                {modal !== 'create' && (
+                  <div className="form-section">
+                    <h3 className="form-section-title">Склад филиала</h3>
+                    <p className="product-variants-hint">
+                      Себестоимость склада — средневзвешенная по отделам этого филиала. Цена справочника задаётся выше и в витрину не подставляется как складская.
+                    </p>
+                    <div className="form-grid">
+                      <div className="form-group">
+                        <label>Себест. склада (филиал)</label>
+                        <input readOnly value={formatAvgCost(warehouseInfo?.avg_cost)} />
+                      </div>
+                      <div className="form-group">
+                        <label>Остаток филиала</label>
+                        <input readOnly value={warehouseInfo?.stock ?? '—'} />
+                      </div>
+                    </div>
+                    {(warehouseInfo?.department_stock || []).length > 0 && (
+                      <div className="table-wrap" style={{ marginTop: 12 }}>
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>Отдел</th>
+                              {form.has_variants && <th>Вариант</th>}
+                              <th className="num">Остаток</th>
+                              <th className="num">Себест. склада</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {warehouseInfo.department_stock.map((row) => {
+                              const variantName = row.variant_id
+                                ? (warehouseInfo.variants || []).find((v) => v.id === row.variant_id)?.name
+                                  || form.variants?.find((v) => v.id === row.variant_id)?.name
+                                  || '—'
+                                : null;
+                              return (
+                                <tr key={`${row.department_id}:${row.variant_id || ''}`}>
+                                  <td>{row.department_name}</td>
+                                  {form.has_variants && <td>{variantName || '—'}</td>}
+                                  <td className="num">{row.stock}</td>
+                                  <td className="num">{formatAvgCost(row.avg_cost)}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {!form.has_variants && (
                   <div className="form-section">

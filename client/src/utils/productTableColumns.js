@@ -10,7 +10,8 @@ export const PRODUCT_TABLE_COLUMNS = [
   { id: 'unit', label: 'Ед.', colClass: 'col-unit', sortKey: 'unit', sortThClass: 'col-unit' },
   { id: 'net_weight', label: 'Нетто', colClass: 'col-weight', sortKey: 'net_weight', sortThClass: 'col-num' },
   { id: 'gross_weight', label: 'Брутто', colClass: 'col-weight', sortKey: 'gross_weight', sortThClass: 'col-num' },
-  { id: 'price', label: 'Цена', colClass: 'col-price', sortKey: 'price', sortThClass: 'col-num' },
+  { id: 'price', label: 'Цена справочника', colClass: 'col-price', sortKey: 'price', sortThClass: 'col-num' },
+  { id: 'avg_cost', label: 'Себест. склада', colClass: 'col-avg-cost', sortKey: 'avg_cost', sortThClass: 'col-num' },
   { id: 'stock', label: 'Остаток', colClass: 'col-stock', sortKey: 'stock', sortThClass: 'col-num' },
   { id: 'suppliers', label: 'Поставщики', colClass: 'col-suppliers' },
   { id: 'shop', label: 'Магазин', colClass: 'col-shop', thClass: 'product-list-shop-col', shopOnly: true },
@@ -23,6 +24,8 @@ const TOGGLEABLE_IDS = PRODUCT_TABLE_COLUMNS
 
 export const DEFAULT_VISIBLE_COLUMNS = [...TOGGLEABLE_IDS];
 
+const AVG_COST_COL_MIGRATED_KEY = 'warehouse-products-avg-cost-col-v1';
+
 export function readProductTableColumns() {
   try {
     const raw = localStorage.getItem(PRODUCT_TABLE_COLUMNS_KEY);
@@ -30,7 +33,15 @@ export function readProductTableColumns() {
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return new Set(DEFAULT_VISIBLE_COLUMNS);
     const valid = new Set(TOGGLEABLE_IDS);
-    return new Set(parsed.filter((id) => valid.has(id)));
+    const next = parsed.filter((id) => valid.has(id));
+    if (!localStorage.getItem(AVG_COST_COL_MIGRATED_KEY) && !next.includes('avg_cost')) {
+      const priceIdx = next.indexOf('price');
+      if (priceIdx >= 0) next.splice(priceIdx + 1, 0, 'avg_cost');
+      else next.push('avg_cost');
+      localStorage.setItem(PRODUCT_TABLE_COLUMNS_KEY, JSON.stringify(next));
+    }
+    localStorage.setItem(AVG_COST_COL_MIGRATED_KEY, '1');
+    return new Set(next);
   } catch {
     return new Set(DEFAULT_VISIBLE_COLUMNS);
   }

@@ -177,7 +177,7 @@ export function getProducts(filters = {}) {
           COALESCE(p.has_variants, 0) = 0 AND (pds_all.variant_id IS NULL OR pds_all.variant_id = '')
           OR COALESCE(p.has_variants, 0) = 1 AND pds_all.variant_id IS NOT NULL AND pds_all.variant_id != ''
         )
-    ), COALESCE(pb.price, p.price)) as avg_cost`;
+    ), 0) as avg_cost`;
     stockJoin = `INNER JOIN product_branches pb ON pb.product_id = p.id AND pb.branch_id = ? AND pb.visible = 1`;
     params = [departmentId, departmentId, branchId];
   } else {
@@ -200,7 +200,7 @@ export function getProducts(filters = {}) {
           COALESCE(p.has_variants, 0) = 0 AND (pds3.variant_id IS NULL OR pds3.variant_id = '')
           OR COALESCE(p.has_variants, 0) = 1 AND pds3.variant_id IS NOT NULL AND pds3.variant_id != ''
         )
-    ), COALESCE(pb.price, p.price)) as avg_cost`;
+    ), 0) as avg_cost`;
     if (adminList) {
       stockJoin = `LEFT JOIN product_branches pb ON pb.product_id = p.id AND pb.branch_id = ?
         LEFT JOIN product_branch_stock pbs ON pbs.product_id = p.id AND pbs.branch_id = ?`;
@@ -303,9 +303,11 @@ export function getProducts(filters = {}) {
   const pageIds = pageRows.map((p) => p.id);
   const usedIds = getUsedProductIdSet(pageIds);
   const suppliersMap = getSuppliersMapForProducts(pageIds, branchId);
+  const departmentStockMap = getDepartmentStockByProducts(pageIds, branchId);
   const enriched = pageRows.map((p) => enrichProduct(p, branchId, departmentId, lastMap, {
     is_used: usedIds.has(p.id),
     suppliers: suppliersMap.get(p.id) || [],
+    department_stock: departmentStockMap.get(p.id) || [],
   }));
 
   if (!pageMeta) return enriched;
@@ -599,7 +601,7 @@ function getProductVariants(productId, departmentId = null, branchId = DEFAULT_B
 
   return variants.map((variant) => {
     let stock = variant.stock || 0;
-    let avg_cost = variant.price || 0;
+    let avg_cost = 0;
 
     if (departmentId) {
       const row = queryOne(
@@ -607,7 +609,7 @@ function getProductVariants(productId, departmentId = null, branchId = DEFAULT_B
         [departmentId, productId, variant.id],
       );
       stock = row?.stock ?? 0;
-      avg_cost = row?.avg_cost ?? variant.price ?? 0;
+      avg_cost = row?.avg_cost ?? 0;
     } else {
       stock = getVariantBranchStock(variant.id, branchId);
       const avgRow = queryOne(`
@@ -616,7 +618,7 @@ function getProductVariants(productId, departmentId = null, branchId = DEFAULT_B
         JOIN departments d ON d.id = pds.department_id AND d.branch_id = ?
         WHERE pds.variant_id = ?
       `, [branchId, variant.id]);
-      avg_cost = avgRow?.avg_cost ?? variant.price ?? 0;
+      avg_cost = avgRow?.avg_cost ?? 0;
     }
 
     return {
@@ -737,9 +739,13 @@ function enrichProduct(product, branchId = DEFAULT_BRANCH_ID, departmentId = nul
   const suppliers = options.suppliers != null
     ? options.suppliers
     : getSuppliersForProduct(product.id, branchId);
+  const department_stock = options.department_stock != null
+    ? options.department_stock
+    : (getDepartmentStockByProducts([product.id], branchId).get(product.id) || []);
 
   return {
     ...rest,
+    department_stock,
     product_kind: normalizeProductKind(rest.product_kind),
     product_kind_label: productKindLabel(rest.product_kind),
     has_variants: hasVariants,
@@ -760,6 +766,32 @@ function enrichProduct(product, branchId = DEFAULT_BRANCH_ID, departmentId = nul
     image_count: (photo_count || 0) + (gif_count || 0),
     extra_image_count: extraCount,
   };
+}
+
+function getDepartmentStockByProducts(productIds, branchId) {
+  const map = new Map();
+  if (!productIds.length) return map;
+  const placeholders = productIds.map(() => '?').join(',');
+  const rows = queryAll(`
+    SELECT pds.product_id, pds.variant_id, pds.department_id, pds.stock, pds.avg_cost,
+           dep.name as department_name
+    FROM product_department_stock pds
+    JOIN departments dep ON dep.id = pds.department_id AND dep.branch_id = ?
+    WHERE pds.product_id IN (${placeholders})
+      AND pds.stock != 0
+    ORDER BY dep.name
+  `, [branchId, ...productIds]);
+  for (const row of rows) {
+    if (!map.has(row.product_id)) map.set(row.product_id, []);
+    map.get(row.product_id).push({
+      department_id: row.department_id,
+      department_name: row.department_name,
+      variant_id: row.variant_id || null,
+      stock: Number(row.stock) || 0,
+      avg_cost: Number(row.avg_cost) || 0,
+    });
+  }
+  return map;
 }
 
 function fetchProductRow(id, branchId) {

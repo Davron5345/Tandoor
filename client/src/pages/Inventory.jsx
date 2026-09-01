@@ -4,6 +4,8 @@ import {
   api,
   formatDate,
   formatMoney,
+  formatPriceInput,
+  parsePriceInput,
   normalizeQuantityInput,
   parseQuantityInput,
   STATUS_LABELS,
@@ -98,9 +100,9 @@ function useInventoryPhoneShell(modalOpen) {
 }
 
 function formatQty(n) {
-  const value = Number(n) || 0;
-  if (Number.isInteger(value)) return String(value);
-  return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 3 }).format(value);
+  const rounded = Math.round((Number(n) || 0) * 1000) / 1000;
+  if (Number.isInteger(rounded)) return String(rounded);
+  return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 3 }).format(rounded);
 }
 
 function emptyForm() {
@@ -133,6 +135,10 @@ function lineDiff(item) {
 
 function lineAmount(item) {
   return Math.abs(lineDiff(item)) * lineCost(item);
+}
+
+function needsSurplusCost(item) {
+  return lineDiff(item) > 1e-9 && !(lineCost(item) > 0);
 }
 
 function productUnit(products, item) {
@@ -191,12 +197,25 @@ function InventoryDocCard({ doc, canEdit, canDelete, onOpen, onDelete }) {
 }
 
 function InventoryLineCard({
-  item, idx, products, readOnly, onFact, onRemove, compact, showAmount = true,
+  item, idx, products, readOnly, onFact, onCost, onRemove, compact, showAmount = true,
 }) {
   const diff = lineDiff(item);
   const amount = lineAmount(item);
   const unit = productUnit(products, item);
   const diffClass = diff > 1e-9 ? 'inv-diff-pos' : diff < -1e-9 ? 'inv-diff-neg' : '';
+  const showCost = !readOnly && needsSurplusCost(item);
+  const costField = showCost ? (
+    <div className="inventory-line-card-cost">
+      <span>Себест. излишка</span>
+      <input
+        className="input-qty"
+        inputMode="decimal"
+        value={item.unit_cost_input ?? (item.unit_cost ? formatPriceInput(item.unit_cost) : '')}
+        onChange={(e) => onCost(idx, e.target.value)}
+        placeholder="0,00"
+      />
+    </div>
+  ) : null;
   if (compact) {
     return (
       <article className={`inventory-line-card inventory-line-card--compact${diffClass ? ' inv-row-discrepancy' : ''}`}>
@@ -247,6 +266,7 @@ function InventoryLineCard({
         {showAmount && (
           <div className="inventory-line-card-unit-row">Ед. изм.: <b>{unit}</b></div>
         )}
+        {costField}
       </article>
     );
   }
@@ -297,6 +317,7 @@ function InventoryLineCard({
           </div>
         )}
       </div>
+      {costField}
     </article>
   );
 }
@@ -463,6 +484,8 @@ export default function Inventory() {
     return rows;
   }, [form.items, lineFilter, itemSearch, products]);
 
+  const showSurplusCostCol = !readOnly && form.items.some(needsSurplusCost);
+
   const openCreate = async () => {
     const next = emptyForm();
     if (branchDepartments.length === 1) next.to_department_id = branchDepartments[0].id;
@@ -561,7 +584,7 @@ export default function Inventory() {
           unit: row.unit,
           book_qty: Number(row.book_qty) || 0,
           quantity: String(row.book_qty ?? 0),
-          unit_cost: Number(row.avg_cost) || 0,
+          unit_cost: Number(row.avg_cost) || Number(row.suggest_cost) || 0,
         })),
       });
       setLineFilter('all');
@@ -592,7 +615,6 @@ export default function Inventory() {
     const name = resolved.variant
       ? `${resolved.product.name} — ${resolved.variant.name}`
       : resolved.product.name;
-    const catalogCost = Number(resolved.variant?.avg_cost ?? resolved.product?.avg_cost) || 0;
     setAddPick('');
     setAddingLine(true);
     try {
@@ -602,7 +624,7 @@ export default function Inventory() {
       });
       const row = Array.isArray(rows) ? rows[0] : rows;
       const book_qty = Number(row?.book_qty) || 0;
-      const liveCost = Number(row?.avg_cost) || 0;
+      const liveCost = Number(row?.avg_cost) || Number(row?.suggest_cost) || 0;
       setForm((prev) => {
         const already = prev.items.some(
           (i) => i.product_id === resolved.productId
@@ -620,7 +642,7 @@ export default function Inventory() {
               unit,
               book_qty,
               quantity: String(book_qty),
-              unit_cost: liveCost > 0 ? liveCost : catalogCost,
+              unit_cost: liveCost,
             },
           ],
         };
@@ -635,6 +657,16 @@ export default function Inventory() {
   const updateFact = (idx, value) => {
     const items = [...form.items];
     items[idx] = { ...items[idx], quantity: normalizeQuantityInput(value) };
+    setForm({ ...form, items });
+  };
+
+  const updateCost = (idx, value) => {
+    const items = [...form.items];
+    items[idx] = {
+      ...items[idx],
+      unit_cost_input: formatPriceInput(value),
+      unit_cost: parsePriceInput(value) ?? 0,
+    };
     setForm({ ...form, items });
   };
 
@@ -661,6 +693,10 @@ export default function Inventory() {
     const items = payloadItems();
     if (!items.length) {
       show('Заполните документ по учёту или добавьте товар', 'error');
+      return;
+    }
+    if (andConfirm && form.items.some(needsSurplusCost)) {
+      show('Укажите себестоимость излишка: на складе нет средней цены', 'error');
       return;
     }
     setSaving(true);
@@ -1077,13 +1113,14 @@ export default function Inventory() {
                             <th className="col-num">Факт</th>
                             <th className="col-num">Разница</th>
                             {showAmount && <th className="col-num">Сумма</th>}
+                            {showSurplusCostCol && <th className="col-num">Себест.</th>}
                             {!readOnly && <th />}
                           </tr>
                         </thead>
                         <tbody>
                           {visibleItems.length === 0 ? (
                             <tr>
-                              <td colSpan={(showAmount ? 6 : 5) + (readOnly ? 0 : 1)} className="empty">
+                              <td colSpan={(showAmount ? 6 : 5) + (showSurplusCostCol ? 1 : 0) + (readOnly ? 0 : 1)} className="empty">
                                 {form.items.length === 0
                                   ? 'Заполните по учёту или добавьте товар'
                                   : itemSearch.trim()
@@ -1114,6 +1151,19 @@ export default function Inventory() {
                                 </td>
                                 <td className={`col-num ${diffClass}`}>{formatQty(diff)}</td>
                                 {showAmount && <td className="col-num">{formatMoney(amount)}</td>}
+                                {showSurplusCostCol && (
+                                  <td>
+                                    {needsSurplusCost(item) ? (
+                                      <input
+                                        className="input-qty"
+                                        inputMode="decimal"
+                                        value={item.unit_cost_input ?? (item.unit_cost ? formatPriceInput(item.unit_cost) : '')}
+                                        onChange={(e) => updateCost(idx, e.target.value)}
+                                        placeholder="0,00"
+                                      />
+                                    ) : '—'}
+                                  </td>
+                                )}
                                 {!readOnly && (
                                   <td>
                                     <IconButton title="Убрать" onClick={() => removeItem(idx)}>
@@ -1145,6 +1195,7 @@ export default function Inventory() {
                         products={products}
                         readOnly={readOnly}
                         onFact={updateFact}
+                        onCost={updateCost}
                         onRemove={removeItem}
                         compact={isPhone}
                         showAmount={showAmount}

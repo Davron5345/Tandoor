@@ -35,6 +35,7 @@ import {
   normalizeExtraCosts,
 } from '../documentExtraCosts.js';
 import { getStockReport } from './reports.js';
+import { assertNoLaterStockMovements } from '../stockMovementGuard.js';
 
 const { queryAll, queryOne, run, transaction } = db;
 
@@ -817,13 +818,71 @@ function assertNoOpenInventoryDraft(departmentId, branchId, exceptId = null) {
   }
 }
 
+function prihodLineUnitCost(row) {
+  const qty = itemStockQty(row);
+  const storedAmount = Number(row.amount);
+  const lineAmount = Number.isFinite(storedAmount)
+    ? storedAmount
+    : (Number(row.quantity) || 0) * (Number(row.price) || 0);
+  if (qty <= 0 || lineAmount <= 0) return 0;
+  return lineAmount / qty;
+}
+
+function lastPrihodUnitCostMap(departmentId) {
+  const rows = queryAll(`
+    SELECT di.product_id, di.variant_id, di.quantity, di.price, di.amount, di.net_weight
+    FROM document_items di
+    JOIN documents d ON d.id = di.document_id
+    WHERE d.type = 'prihod' AND d.status = 'confirmed' AND d.to_department_id = ?
+    ORDER BY d.date DESC, d.created_at DESC
+  `, [departmentId]);
+  const map = new Map();
+  for (const row of rows) {
+    const key = `${row.product_id}:${row.variant_id || ''}`;
+    if (map.has(key)) continue;
+    map.set(key, prihodLineUnitCost(row));
+  }
+  return map;
+}
+
+function lastPrihodUnitCost(departmentId, productId, variantId = null) {
+  const row = queryOne(`
+    SELECT di.quantity, di.price, di.amount, di.net_weight
+    FROM document_items di
+    JOIN documents d ON d.id = di.document_id
+    WHERE d.type = 'prihod' AND d.status = 'confirmed'
+      AND d.to_department_id = ?
+      AND di.product_id = ?
+      AND IFNULL(di.variant_id, '') = IFNULL(?, '')
+    ORDER BY d.date DESC, d.created_at DESC
+    LIMIT 1
+  `, [departmentId, productId, variantId || null]);
+  if (!row) return 0;
+  return prihodLineUnitCost(row);
+}
+
+function resolveInventorySurplusCost(departmentId, productId, variantId, fallback) {
+  const live = getDepartmentAvgCost(departmentId, productId, variantId);
+  if (live > 0) return live;
+  const stored = Math.max(0, Number(fallback) || 0);
+  if (stored > 0) return stored;
+  const last = lastPrihodUnitCost(departmentId, productId, variantId);
+  if (last > 0) return last;
+  throw new Error(
+    `Укажите себестоимость излишка «${getItemStockLabel({ product_id: productId, variant_id: variantId })}»: на складе нет средней цены`,
+  );
+}
+
 function applyInventoryBookSnapshot(departmentId, items) {
   return (items || []).map((item) => {
     const vid = item.variant_id || null;
     const { stock, avgCost } = getDepartmentStockWithCost(departmentId, item.product_id, vid);
-    const cost = avgCost > 0 ? avgCost : inventoryLineCost(item);
     const fact = Number(item.quantity) || 0;
     const book = Number(stock) || 0;
+    let cost = avgCost > 0 ? avgCost : inventoryLineCost(item);
+    if (fact - book > 1e-9 && !(cost > 0)) {
+      cost = resolveInventorySurplusCost(departmentId, item.product_id, vid, cost);
+    }
     const amount = roundMoney(Math.abs(fact - book) * cost);
     return {
       ...item,
@@ -898,8 +957,7 @@ function applyInventoryStock(doc, items, reverse) {
 
     if (!reverse) {
       if (diff > 0) {
-        const liveAvg = getDepartmentAvgCost(departmentId, item.product_id, vid);
-        const unitCost = liveAvg > 0 ? liveAvg : storedCost;
+        const unitCost = resolveInventorySurplusCost(departmentId, item.product_id, vid, storedCost);
         receiveDepartmentStock(departmentId, item.product_id, qty, unitCost, vid);
         const amount = roundMoney(qty * unitCost);
         run(
@@ -949,23 +1007,31 @@ export function getInventoryStockSnapshot(departmentId, branchId = DEFAULT_BRANC
       unit = variant.unit || unit;
     }
     const { stock, avgCost } = getDepartmentStockWithCost(departmentId, productId, vid);
+    const avg = Number(avgCost) || 0;
     return [{
       product_id: productId,
       variant_id: vid,
       name,
       unit,
       book_qty: Number(stock) || 0,
-      avg_cost: Number(avgCost) || 0,
+      avg_cost: avg,
+      suggest_cost: avg > 0 ? 0 : lastPrihodUnitCost(departmentId, productId, vid),
     }];
   }
-  return getStockReport(branchId, departmentId, true).map((row) => ({
-    product_id: row.product_id,
-    variant_id: row.variant_id || null,
-    name: row.name,
-    unit: row.unit,
-    book_qty: Number(row.stock) || 0,
-    avg_cost: Number(row.unitCost) || 0,
-  }));
+  const lastMap = lastPrihodUnitCostMap(departmentId);
+  return getStockReport(branchId, departmentId, true).map((row) => {
+    const vid = row.variant_id || null;
+    const avg = Number(row.unitCost) || 0;
+    return {
+      product_id: row.product_id,
+      variant_id: vid,
+      name: row.name,
+      unit: row.unit,
+      book_qty: Number(row.stock) || 0,
+      avg_cost: avg,
+      suggest_cost: avg > 0 ? 0 : (lastMap.get(`${row.product_id}:${vid || ''}`) || 0),
+    };
+  });
 }
 
 function itemLineAmount(item) {
@@ -2006,6 +2072,7 @@ export function cancelDocument(id, userId = null) {
     assertRazdelkaCanReverse(id, doc);
     const items = queryAll('SELECT * FROM document_items WHERE document_id = ?', [id]);
     assertTransferCanReverse(doc, items);
+    assertNoLaterStockMovements(doc);
   }
 
   transaction(() => {
@@ -2029,7 +2096,10 @@ export function deleteDocument(id) {
     throw new Error('Нельзя удалить документ: есть привязанные оплаты. Сначала отвяжите или удалите оплаты.');
   }
 
-  if (doc.status === 'confirmed') assertRazdelkaCanReverse(id, doc);
+  if (doc.status === 'confirmed') {
+    assertRazdelkaCanReverse(id, doc);
+    assertNoLaterStockMovements(doc);
+  }
 
   transaction(() => {
     if (doc.status === 'confirmed') {

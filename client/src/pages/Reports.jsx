@@ -20,9 +20,9 @@ import {
 import ReportSupplierMultiSelect from '../components/ReportSupplierMultiSelect';
 
 function formatQty(n) {
-  const value = Number(n) || 0;
-  if (Number.isInteger(value)) return String(value);
-  return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 3 }).format(value);
+  const rounded = Math.round((Number(n) || 0) * 1000) / 1000;
+  if (Number.isInteger(rounded)) return String(rounded);
+  return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 3 }).format(rounded);
 }
 
 function SortHeader({ label, sortKey, activeKey, direction, onSort, className = '' }) {
@@ -107,7 +107,7 @@ function StockTableHeadRow({ showDepartmentColumn, showActions, sortKey, sortDir
         className="col-num"
       />
       <SortHeader
-        label="Себестоимость"
+        label="Себестоимость склада"
         sortKey="unitCost"
         activeKey={sortKey}
         direction={sortDir}

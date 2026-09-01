@@ -287,7 +287,7 @@ export default function Dashboard() {
                   <div className="dash-rank-body">
                     <div className="dash-rank-title">{p.name}</div>
                     <div className="dash-rank-sub">
-                      {p.stock} {p.unit || 'шт'} · {formatMoney(p.price)}
+                      {p.stock} {p.unit || 'шт'} · себест. {formatMoney(p.price)}
                     </div>
                     <div className="dash-rank-track">
                       <div

@@ -49,6 +49,11 @@ export function compareProductsForSort(a, b, sortBy, sortDir = 'asc') {
       if (bv == null) return -1;
       return dir * (av - bv);
     }
+    case 'avg_cost': {
+      const av = number(a.avg_cost) ?? 0;
+      const bv = number(b.avg_cost) ?? 0;
+      return dir * (av - bv);
+    }
     case 'stock': {
       const av = number(a.stock);
       const bv = number(b.stock);
@@ -72,6 +77,7 @@ const SORT_COLUMNS = new Set([
   'net_weight',
   'gross_weight',
   'price',
+  'avg_cost',
   'stock',
 ]);
 
