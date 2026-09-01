@@ -11,7 +11,7 @@ import {
   STATUS_LABELS,
 } from '../api';
 import Modal, { useToast, ModalCancelButton } from '../components/Modal';
-import { IconButton, IconEye, IconPlus, IconTrash } from '../components/ActionIcons';
+import { IconButton, IconEdit, IconEye, IconPlus, IconTrash } from '../components/ActionIcons';
 import { useAuth } from '../AuthContext';
 import { useBranch } from '../BranchContext';
 import BranchChip from '../components/BranchChip';
@@ -190,14 +190,14 @@ function productSearchHaystack(products, item) {
   return parts.filter(Boolean).join(' ');
 }
 
-function InventoryDocCard({ doc, canEdit, canDelete, onOpen, onDelete }) {
+function InventoryDocCard({ doc, canEdit, canDelete, onOpen, onEdit, onDelete }) {
   const showDelete = canDelete && doc.status !== 'confirmed';
   return (
     <article className="inventory-doc-card">
       <button
         type="button"
         className="inventory-doc-card-main"
-        onClick={() => onOpen(doc.id, doc.status !== 'draft' && !canEdit)}
+        onClick={() => (canEdit ? onEdit(doc) : onOpen(doc.id, true))}
       >
         <div className="inventory-doc-card-top">
           <strong>№{doc.number}</strong>
@@ -224,13 +224,24 @@ function InventoryDocCard({ doc, canEdit, canDelete, onOpen, onDelete }) {
           </div>
         ) : null}
       </button>
-      {showDelete && (
-        <div className="inventory-doc-card-actions">
+      <div className="inventory-doc-card-actions">
+        {canEdit && (
+          <IconButton title="Редактировать" onClick={() => onEdit(doc)}>
+            <IconEdit />
+          </IconButton>
+        )}
+        <IconButton
+          title={doc.status === 'confirmed' ? 'Просмотр' : 'Открыть'}
+          onClick={() => onOpen(doc.id, doc.status !== 'draft')}
+        >
+          <IconEye />
+        </IconButton>
+        {showDelete && (
           <IconButton title="Удалить" onClick={() => onDelete(doc.id)}>
             <IconTrash />
           </IconButton>
-        </div>
-      )}
+        )}
+      </div>
     </article>
   );
 }
@@ -606,7 +617,7 @@ export default function Inventory() {
     ensureProducts();
   };
 
-  const openDoc = async (id, viewOnly = false) => {
+  const openDoc = async (id, viewOnly = false, tab = 'items') => {
     try {
       const [doc] = await Promise.all([
         api.getDocument(id),
@@ -639,12 +650,39 @@ export default function Inventory() {
       setItemSearch('');
       setCommentOpen(Boolean(doc.comment));
       setAddPick('');
-      setSheetTab('items');
+      setSheetTab(tab);
       setReadOnly(viewOnly || doc.status !== 'draft');
       setModal(doc.id);
     } catch (e) {
       show(e.message, 'error');
     }
+  };
+
+  const editDoc = async (d) => {
+    if (!canEdit) {
+      await openDoc(d.id, true);
+      return;
+    }
+    if (d.status === 'confirmed') {
+      if (!window.confirm('Документ проведён. Отменить проведение и редактировать?')) return;
+      try {
+        await api.cancelDocument(d.id);
+        show('Проведение отменено — можно править');
+        await loadDocs();
+      } catch (e) {
+        show(e.message, 'error');
+        return;
+      }
+    } else if (d.status === 'cancelled') {
+      try {
+        await api.cancelDocument(d.id);
+        await loadDocs();
+      } catch (e) {
+        show(e.message, 'error');
+        return;
+      }
+    }
+    await openDoc(d.id, false, 'setup');
   };
 
   const fillFromStock = async () => {
@@ -871,13 +909,13 @@ export default function Inventory() {
 
   const cancelDoc = async () => {
     if (!form.id) return;
-    if (!window.confirm('Отменить проведение? Остатки и P&L откатятся.')) return;
+    if (!window.confirm('Отменить проведение? Остатки и P&L откатятся, документ снова станет черновиком.')) return;
     setSaving(true);
     try {
       await api.cancelDocument(form.id);
-      show('Проведение отменено');
-      setModal(null);
+      show('Проведение отменено — можно править');
       await loadDocs();
+      await openDoc(form.id, false, 'setup');
     } catch (e) {
       show(e.message || 'Не удалось отменить', 'error');
     } finally {
@@ -1008,9 +1046,14 @@ export default function Inventory() {
                   <td><span className={`badge badge-${d.status}`}>{STATUS_LABELS[d.status]}</span></td>
                   <td>
                     <div className="btn-group btn-group-icons doc-actions">
+                      {canEdit && (
+                        <IconButton title="Редактировать" onClick={() => editDoc(d)}>
+                          <IconEdit />
+                        </IconButton>
+                      )}
                       <IconButton
                         title={d.status === 'confirmed' && !canEdit ? 'Просмотр' : 'Открыть'}
-                        onClick={() => openDoc(d.id, d.status !== 'draft' && !canEdit)}
+                        onClick={() => openDoc(d.id, d.status !== 'draft')}
                       >
                         <IconEye />
                       </IconButton>
@@ -1038,6 +1081,7 @@ export default function Inventory() {
               canEdit={canEdit}
               canDelete={canDelete}
               onOpen={openDoc}
+              onEdit={editDoc}
               onDelete={deleteDoc}
             />
           ))}
@@ -1057,6 +1101,16 @@ export default function Inventory() {
             sheetTab === 'setup' ? (
               <>
                 <ModalCancelButton>Закрыть</ModalCancelButton>
+                {canEdit && form.status === 'confirmed' && (
+                  <button type="button" className="btn btn-ghost" onClick={cancelDoc} disabled={saving}>
+                    Снять проведение
+                  </button>
+                )}
+                {canEdit && form.status === 'draft' && form.id && (
+                  <button type="button" className="btn btn-ghost" onClick={() => save(false)} disabled={saving}>
+                    Сохранить
+                  </button>
+                )}
                 <button
                   type="button"
                   className="btn btn-primary"
@@ -1073,7 +1127,7 @@ export default function Inventory() {
                 </button>
                 {canEdit && form.status === 'confirmed' && (
                   <button type="button" className="btn btn-ghost" onClick={cancelDoc} disabled={saving}>
-                    Отменить
+                    Снять проведение
                   </button>
                 )}
                 {canEdit && form.status === 'draft' && (
@@ -1088,7 +1142,7 @@ export default function Inventory() {
                     )}
                   </>
                 )}
-                {(!canEdit || form.status === 'cancelled') && (
+                {(!canEdit || (form.status !== 'draft' && form.status !== 'confirmed')) && (
                   <ModalCancelButton>Закрыть</ModalCancelButton>
                 )}
               </>

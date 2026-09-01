@@ -899,7 +899,8 @@ function findInventoryRemainder(parentId) {
     WHERE type = 'inventory'
       AND inventory_coverage = 'remainder'
       AND source_document_id = ?
-    ORDER BY created_at DESC
+    ORDER BY CASE status WHEN 'confirmed' THEN 0 WHEN 'draft' THEN 1 ELSE 2 END,
+             created_at DESC
     LIMIT 1
   `, [parentId]);
 }
@@ -950,7 +951,8 @@ function loadRemainderSummary(parentId) {
     WHERE rem.type = 'inventory'
       AND rem.inventory_coverage = 'remainder'
       AND rem.source_document_id = ?
-    ORDER BY rem.created_at DESC
+    ORDER BY CASE rem.status WHEN 'confirmed' THEN 0 WHEN 'draft' THEN 1 ELSE 2 END,
+             rem.created_at DESC
     LIMIT 1
   `, [parentId]);
   return mapRemainderSummary(row);
@@ -975,7 +977,8 @@ function attachRemaindersToDocuments(docs) {
     WHERE rem.type = 'inventory'
       AND rem.inventory_coverage = 'remainder'
       AND rem.source_document_id IN (${placeholders})
-    ORDER BY rem.created_at DESC
+    ORDER BY CASE rem.status WHEN 'confirmed' THEN 0 WHEN 'draft' THEN 1 ELSE 2 END,
+             rem.created_at DESC
   `, ids);
   const map = new Map();
   for (const row of rows) {
@@ -2370,14 +2373,28 @@ function assertTransferCanReverse(doc, items) {
   }
 }
 
+function isInventoryParentDoc(doc) {
+  return doc?.type === 'inventory' && doc.inventory_coverage !== 'remainder';
+}
+
 export function cancelDocument(id, userId = null) {
   const doc = queryOne('SELECT * FROM documents WHERE id = ?', [id]);
   if (!doc) throw new Error('Документ не найден');
-  if (doc.status === 'cancelled') return getDocument(id);
 
-  const remainder = doc.type === 'inventory' && doc.inventory_coverage !== 'remainder'
-    ? findInventoryRemainder(id)
-    : null;
+  const inventoryParent = isInventoryParentDoc(doc);
+  const branchId = doc.branch_id || DEFAULT_BRANCH_ID;
+
+  if (doc.status === 'cancelled') {
+    if (!inventoryParent) return getDocument(id);
+    assertNoOpenInventoryDraft(doc.to_department_id, branchId, id);
+    transaction(() => {
+      run(`UPDATE documents SET status='draft', updated_at=datetime('now') WHERE id=?`, [id]);
+      addHistory(id, 'updated', userId);
+    });
+    return getDocument(id);
+  }
+
+  const remainder = inventoryParent ? findInventoryRemainder(id) : null;
 
   if (doc.status === 'confirmed') {
     assertRazdelkaCanReverse(id, doc);
@@ -2391,10 +2408,15 @@ export function cancelDocument(id, userId = null) {
     }
   }
 
+  if (inventoryParent) {
+    assertNoOpenInventoryDraft(doc.to_department_id, branchId, id);
+  }
+
+  const nextStatus = inventoryParent ? 'draft' : 'cancelled';
   transaction(() => {
     if (remainder) reverseInventoryRemainder(id, userId);
     if (doc.status === 'confirmed') updateStock(id, true);
-    run(`UPDATE documents SET status='cancelled', updated_at=datetime('now') WHERE id=?`, [id]);
+    run(`UPDATE documents SET status=?, updated_at=datetime('now') WHERE id=?`, [nextStatus, id]);
     addHistory(id, 'cancelled', userId);
   });
 

@@ -108,6 +108,7 @@ test('inventory: surplus/shortage at avg_cost, P&L without cash, cancel restores
   assert.equal(typed[0].id, inv.id);
 
   svc.cancelDocument(inv.id, 'test-user');
+  assert.equal(svc.getDocument(inv.id, 'main').status, 'draft');
   const afterCancelA = getDepartmentStockWithCost(deptId, productA.id);
   const afterCancelB = getDepartmentStockWithCost(deptId, productB.id);
   assert.equal(afterCancelA.stock, 10);
@@ -132,6 +133,7 @@ test('inventory: surplus/shortage at avg_cost, P&L without cash, cancel restores
     }, 'test-user', 'branch-inv'),
     /филиал/,
   );
+  svc.deleteDocument(inv.id);
 });
 
 test('inventory: confirm re-snapshots book so stock equals fact after later documents', async () => {
@@ -362,8 +364,10 @@ test('inventory: partial leaves unlisted stock; full writes off leftovers with a
   assert.equal(getDepartmentStockWithCost(deptId, leftover.id).stock, 5);
   assert.equal(partial.remainder_document, null);
   svc.cancelDocument(partial.id, 'test-user');
+  assert.equal(svc.getDocument(partial.id, 'main').status, 'draft');
   assert.equal(getDepartmentStockWithCost(deptId, counted.id).stock, 10);
   assert.equal(getDepartmentStockWithCost(deptId, leftover.id).stock, 5);
+  svc.deleteDocument(partial.id);
 
   const articleId = cashArticleId('main', SHORTAGE_ARTICLE_CODE);
   assert.throws(
@@ -433,9 +437,25 @@ test('inventory: partial leaves unlisted stock; full writes off leftovers with a
   svc.cancelDocument(full.id, 'test-user');
   assert.equal(getDepartmentStockWithCost(deptId, counted.id).stock, 10);
   assert.equal(getDepartmentStockWithCost(deptId, leftover.id).stock, 5);
-  const cancelled = svc.getDocument(full.id, 'main');
-  assert.equal(cancelled.status, 'cancelled');
-  assert.equal(cancelled.remainder_document.status, 'cancelled');
+  const unconfirmed = svc.getDocument(full.id, 'main');
+  assert.equal(unconfirmed.status, 'draft');
+  assert.equal(unconfirmed.remainder_document.status, 'cancelled');
+
+  const edited = svc.updateDocument(full.id, {
+    type: 'inventory',
+    date: '2026-08-28',
+    to_department_id: deptId,
+    inventory_coverage: 'full',
+    article_id: articleId,
+    liable_user_id: sklad.id,
+    items: [{ product_id: counted.id, book_qty: 10, quantity: 7, unit_cost: 100 }],
+    status: 'confirmed',
+  }, 'test-user', 'main');
+  assert.equal(edited.status, 'confirmed');
+  assert.equal(getDepartmentStockWithCost(deptId, counted.id).stock, 7);
+  assert.equal(getDepartmentStockWithCost(deptId, leftover.id).stock, 0);
+  assert.ok(edited.remainder_document);
+  assert.equal(edited.remainder_document.status, 'confirmed');
 });
 
 test('inventory: full leftover can hang on a department', async () => {
