@@ -769,7 +769,13 @@ function normalizeInventoryItems(items) {
   if (valid.length === 0) {
     throw new Error('Добавьте хотя бы один товар в документ');
   }
+  const seen = new Set();
   return valid.map((item) => {
+    const key = `${item.product_id}:${item.variant_id || ''}`;
+    if (seen.has(key)) {
+      throw new Error(`Товар «${getItemStockLabel(item)}» уже есть в документе`);
+    }
+    seen.add(key);
     const fact = Number(item.quantity);
     const book = Number(item.book_qty);
     if (!Number.isFinite(fact) || fact < 0) {
@@ -791,6 +797,55 @@ function normalizeInventoryItems(items) {
       cost_amount: amount,
     };
   });
+}
+
+function assertNoOpenInventoryDraft(departmentId, branchId, exceptId = null) {
+  if (!departmentId) return;
+  const params = [departmentId, branchId];
+  let sql = `
+    SELECT number FROM documents
+    WHERE type = 'inventory' AND status = 'draft'
+      AND to_department_id = ? AND branch_id = ?
+  `;
+  if (exceptId) {
+    sql += ' AND id != ?';
+    params.push(exceptId);
+  }
+  const existing = queryOne(sql, params);
+  if (existing) {
+    throw new Error(`По этому отделу уже есть черновик инвентаризации №${existing.number}`);
+  }
+}
+
+function applyInventoryBookSnapshot(departmentId, items) {
+  return (items || []).map((item) => {
+    const vid = item.variant_id || null;
+    const { stock, avgCost } = getDepartmentStockWithCost(departmentId, item.product_id, vid);
+    const cost = avgCost > 0 ? avgCost : inventoryLineCost(item);
+    const fact = Number(item.quantity) || 0;
+    const book = Number(stock) || 0;
+    const amount = roundMoney(Math.abs(fact - book) * cost);
+    return {
+      ...item,
+      book_qty: book,
+      price: cost,
+      unit_cost: cost,
+      amount,
+      cost_amount: amount,
+    };
+  });
+}
+
+function writeInventoryBookSnapshot(items) {
+  for (const item of items) {
+    if (!item.id) continue;
+    run(
+      `UPDATE document_items
+       SET book_qty = ?, unit_cost = ?, price = ?, amount = ?, cost_amount = ?
+       WHERE id = ?`,
+      [item.book_qty, item.unit_cost, item.price, item.amount, item.cost_amount, item.id],
+    );
+  }
 }
 
 function persistInventoryItems(documentId, items) {
@@ -875,9 +930,34 @@ function applyInventoryStock(doc, items, reverse) {
   run('UPDATE documents SET total_amount = ? WHERE id = ?', [totals.net, doc.id]);
 }
 
-export function getInventoryStockSnapshot(departmentId, branchId = DEFAULT_BRANCH_ID) {
+export function getInventoryStockSnapshot(departmentId, branchId = DEFAULT_BRANCH_ID, productId = null, variantId = null) {
   if (!departmentId) throw new Error('Выберите отдел');
   assertDepartmentInBranch(departmentId, branchId);
+  if (productId) {
+    const product = queryOne('SELECT id, name, unit FROM products WHERE id = ?', [productId]);
+    if (!product) throw new Error('Товар не найден');
+    let name = product.name;
+    let unit = product.unit || 'шт';
+    const vid = variantId || null;
+    if (vid) {
+      const variant = queryOne(
+        'SELECT name, unit FROM product_variants WHERE id = ? AND product_id = ?',
+        [vid, productId],
+      );
+      if (!variant) throw new Error('Вариант не найден');
+      name = `${product.name} — ${variant.name}`;
+      unit = variant.unit || unit;
+    }
+    const { stock, avgCost } = getDepartmentStockWithCost(departmentId, productId, vid);
+    return [{
+      product_id: productId,
+      variant_id: vid,
+      name,
+      unit,
+      book_qty: Number(stock) || 0,
+      avg_cost: Number(avgCost) || 0,
+    }];
+  }
   return getStockReport(branchId, departmentId, true).map((row) => ({
     product_id: row.product_id,
     variant_id: row.variant_id || null,
@@ -1340,18 +1420,24 @@ function persistInventoryDocument(existingId, data, userId, branchId, existing =
   if (!toDepartmentId) throw new Error('Выберите отдел для инвентаризации');
   assertDepartmentInBranch(toDepartmentId, docBranchId);
 
-  const items = normalizeInventoryItems(data.items);
-  const totals = inventoryTotals(items);
+  let items = normalizeInventoryItems(data.items);
   const id = existingId || uuidv4();
   const number = data.number || existing?.number || generateDocNumber(docBranchId, 'inventory');
   const wasConfirmed = existing?.status === 'confirmed';
   const willConfirm = data.status === 'confirmed' || (wasConfirmed && data.status !== 'draft');
   const status = willConfirm ? 'confirmed' : (data.status || existing?.status || 'draft');
 
-  if (willConfirm) validateInventoryShortage(toDepartmentId, items);
+  assertNoOpenInventoryDraft(toDepartmentId, docBranchId, existingId);
 
   transaction(() => {
     if (existing && wasConfirmed) updateStock(id, true);
+
+    if (willConfirm) {
+      items = applyInventoryBookSnapshot(toDepartmentId, items);
+      validateInventoryShortage(toDepartmentId, items);
+    }
+
+    const totals = inventoryTotals(items);
 
     if (existing) {
       run(`
@@ -1837,10 +1923,12 @@ export function confirmDocument(id, userId = null) {
     );
     assertReturnQtyNotExceeded(doc.source_document_id, id, items);
   }
-  if (doc.type === 'inventory') {
-    validateInventoryShortage(doc.to_department_id, items);
-  }
   transaction(() => {
+    if (doc.type === 'inventory') {
+      const snapped = applyInventoryBookSnapshot(doc.to_department_id, items);
+      writeInventoryBookSnapshot(snapped);
+      validateInventoryShortage(doc.to_department_id, snapped);
+    }
     if (doc.type === 'return_customer') {
       applyReturnCustomerLineCosts(id);
     }

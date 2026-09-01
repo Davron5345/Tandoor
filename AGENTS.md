@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-08-29 (mobile перемещения по отделам)
+**Последнее обновление документации:** 2026-09-01 (инвентаризация: живой учёт, пересъёмка при проведении)
 
 ---
 
@@ -308,7 +308,7 @@ Frontend зеркало: `client/src/permissions.js`.
 | `peremeshchenie` | Перемещение | между отделами или филиалами |
 | `razdelka` | Разделка | −вход, +выход по калькуляции |
 | `dish_sale` | Продажа блюд | −ингредиенты, +выручка в P&L |
-| `inventory` | Инвентаризация | факт − учёт по отделу; ±остаток по avg_cost; P&L без кассы |
+| `inventory` | Инвентаризация | факт − живой учёт отдела на момент проведения; ±остаток по avg_cost; P&L без кассы; один черновик на отдел |
 | `opening_balance` | Начальное сальдо | стартовые остатки/долги/касса |
 
 **Dept-scoped перемещение:** у `users.department_id` сотрудник видит только transfers, где его отдел = from или to (`direction=in|out` в `GET /api/documents`); создавать/проводить/менять может только как **отправитель** (`from_department_id` принудительно = свой отдел, только внутри филиала). Получатель только смотрит список. Mobile: `/warehouse/transfer` (`TransferMobile.jsx`).
@@ -326,7 +326,7 @@ Frontend зеркало: `client/src/permissions.js`.
 - **Нетто в приходе и перемещении** (`document_items.net_weight`): сумма строки сохраняется в `document_items.amount`. Если клиент прислал `amount`, она главная (`price = amount / qty`); иначе `amount = qty × price`. В UI цена и сумма двусторонние (ввод суммы → цена = сумма/кол-во, ввод цены → сумма = цена×кол-во); **Сохранить** шлёт `amount`, чтобы правка суммы не терялась из‑за округления цены до копеек. На склад идёт `stockQty = net × qty` при `net > 0`, иначе `qty`. В приходе `unitCost = (amount + доля доп. расходов) / stockQty` (avg за ед. остатка, л/кг). Каталожное `products.net_weight` — только префилл строки в UI
 - **Доп. расходы прихода** (`document_extra_costs`): название, сумма, флаг `capitalize`. Не входят в `documents.total_amount` (долг поставщику без дороги). «В себестоимость» раскидывается пропорционально `stockQty` (`net × qty`) и увеличивает `avg_cost`. «В расходы» только в документе — касса и P&L не меняются (оплата отдельно; для капитализированных — статья «Закуп», иначе задвоится с COGS). Прайс поставщика без доп. расходов. Касса при проведении не создаётся
 - Расход: `issueDepartmentStock()` — списание по avg_cost
-- **Инвентаризация** (`documents.type = inventory`): один отдел (`to_department_id`). «Заполнить по учёту» пишет снимок в `document_items.book_qty`; `quantity` = факт. Проведение: `diff = факт − учёт`; излишек → `receiveDepartmentStock(diff, текущий avg)` (avg не размывается); недостача → `issueDepartmentStock(|diff|)`. Касса не создаётся. Учёт заморожен в документе — проведение не ставит факт абсолютом
+- **Инвентаризация** (`documents.type = inventory`): один отдел (`to_department_id`). Один **черновик** на отдел филиала. «Заполнить по учёту» и добавление строки пишут живой остаток/`avg` отдела в `book_qty`. Черновик хранит этот снимок для подсчёта. **Проведение переснимает учёт** с текущего остатка отдела, затем `diff = факт − живой учёт`: излишек → `receiveDepartmentStock(diff, текущий avg)` (avg не размывается); недостача → `issueDepartmentStock(|diff|)`. После проведения остаток = факт. Касса не создаётся. Дата документа не пересчитывает историю — снимок всегда «сейчас»
 - Перемещение: `transferDepartmentStock()` — cost следует за товаром; списывается тот же `stockQty` (нетто×шт). В UI под «Кол-во» — остаток в шт (склад/нетто), под «Нетто» — остаток склада-источника в ед. товара
 
 ### 9.5 Калькуляции
@@ -441,7 +441,7 @@ GET  /api/auth/roles
 |---------|---------------|------------|
 | `/api/products` | catalog.routes.js | Номенклатура, варианты, изображения |
 | `/api/calculations` | catalog.routes.js | Калькуляции |
-| `/api/documents` | documents.routes.js | Складские документы (`date_from`, `date_to`, `counterparty_id`, `product_id`, `variant_id`, type, status); при `type=peremeshchenie` у пользователя с `department_id` — фильтр involving + `direction=in|out`; при `product_id` — JOIN `document_items`… |
+| `/api/documents` | documents.routes.js | Складские документы (`date_from`, `date_to`, `counterparty_id`, `product_id`, `variant_id`, type, status); при `type=peremeshchenie` у пользователя с `department_id` — фильтр involving + `direction=in|out`; при `product_id` — JOIN `document_items`…; `GET /api/documents/inventory/stock?department_id=` (+ опционально `product_id`/`variant_id` — одна позиция, в т.ч. с нулевым остатком) |
 | `/api/supplier-prices` | supplierPrices.routes.js | Прайс-документы поставщика (CRUD + confirm/cancel); `products.view`/`products.edit` |
 | `/api/counterparties` | counterparties.routes.js | Контрагенты, договоры (`/:id/contracts` CRUD), `/:id/firms` — юрлица поставщика (CRUD) |
 | `/api/payments` | finance.routes.js | Оплаты; `GET/POST/PUT/DELETE /api/bank-accounts`; `GET /bank-opening?bank_account_id=`; `DELETE /by-date/:date?bank_account_id=`; import parse/confirm |
@@ -474,7 +474,7 @@ GET  /api/auth/roles
 | `/prihod`, `/rashod`, `/return-*`, `/transfer` | Documents.jsx | documents.*; фильтры: дата С/По, контрагент/поставщик, статус; `?open={id}` открывает документ; приход — вкладки **Товары** / **Доп. расходы** в том же окне (в себестоимость / в расходы; шапка и итоги всегда видны); перемещение — компактная шапка в один ряд (Дата / Тип / Откуда / Куда), колонка «Нетто» + остаток склада «Откуда» под кол-вом и нетто |
 | `/documents` | Documents.jsx | documents.view; те же фильтры + тип документа |
 | `/razdelka` | Razdelka.jsx | documents.razdelka |
-| `/inventory` | Inventory.jsx | documents.inventory; **телефон:** ☰ + заголовок + филиал + «Новый» в topbar; список карточек (№/статус/дата·отдел/сумма); **2 вкладки** документа; portal Modal |
+| `/inventory` | Inventory.jsx | documents.inventory; добавление строки берёт живой `book_qty`/`avg` отдела; проведение переснимает учёт; **телефон:** ☰ + заголовок + филиал + «Новый» в topbar; список карточек (№/статус/дата·отдел/сумма); **2 вкладки** документа; portal Modal |
 | `/calculations` | Calculations.jsx | calculations.view |
 | `/dish-sales` | DishSales.jsx | documents.dish_sale |
 | `/cashier` | Cashier.jsx | cashier.* |
@@ -783,6 +783,7 @@ GET  /api/auth/roles
 | 2026-08-28 | Сайдбар: убран логотип «Склад»; в шапке ряд кнопок профиль / свернуть / тема / избранное |
 | 2026-08-28 | Вкладки разделов: выровнены по высоте с шапкой сайдбара (без верхнего padding у `.main`) |
 | 2026-08-29 | `users.department_id`; dept-scoped `peremeshchenie`; mobile `/warehouse/transfer` (входящие/исходящие, отправка с проведением) |
+| 2026-09-01 | Инвентаризация: живой учёт при добавлении строки; проведение переснимает `book_qty` (остаток = факт); один черновик на отдел |
 
 ---
 

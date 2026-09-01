@@ -49,7 +49,12 @@ export function registerDocumentRoutes(app) {
 
   app.get('/api/documents/inventory/stock', requirePermission('documents.inventory'), attachBranch, (req, res) => {
     try {
-      res.json(svc.getInventoryStockSnapshot(req.query.department_id, req.branchId));
+      res.json(svc.getInventoryStockSnapshot(
+        req.query.department_id,
+        req.branchId,
+        req.query.product_id || null,
+        req.query.variant_id || null,
+      ));
     } catch (e) {
       res.status(400).json({ error: e.message });
     }

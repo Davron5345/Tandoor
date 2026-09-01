@@ -325,7 +325,12 @@ export const api = {
   cancelDocument: (id) => request(`/documents/${id}/cancel`, { method: 'POST' }),
   deleteDocument: (id) => request(`/documents/${id}`, { method: 'DELETE' }),
   getDocumentHistory: (id) => request(`/documents/${id}/history`),
-  getInventoryStock: (departmentId) => request(`/documents/inventory/stock?department_id=${encodeURIComponent(departmentId)}`),
+  getInventoryStock: (departmentId, opts = {}) => {
+    const q = new URLSearchParams({ department_id: departmentId });
+    if (opts.product_id) q.set('product_id', opts.product_id);
+    if (opts.variant_id) q.set('variant_id', opts.variant_id);
+    return request(`/documents/inventory/stock?${q}`);
+  },
 
   getSupplierPrices: () => request('/supplier-prices'),
   getSupplierPrice: (id) => request(`/supplier-prices/${id}`),

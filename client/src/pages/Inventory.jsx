@@ -327,6 +327,7 @@ export default function Inventory() {
   const [itemSearch, setItemSearch] = useState('');
   const [commentOpen, setCommentOpen] = useState(false);
   const [addPick, setAddPick] = useState('');
+  const [addingLine, setAddingLine] = useState(false);
   const [sheetTab, setSheetTab] = useState('setup'); // setup | items
   const [showAmount, setShowAmount] = useState(() => {
     try {
@@ -571,7 +572,7 @@ export default function Inventory() {
     }
   };
 
-  const addLine = (pickValue) => {
+  const addLine = async (pickValue) => {
     const resolved = resolvePickFromProducts(products, pickValue);
     if (!resolved.productId) return;
     const exists = form.items.some(
@@ -583,26 +584,52 @@ export default function Inventory() {
       setAddPick('');
       return;
     }
+    if (!form.to_department_id) {
+      show('Сначала выберите отдел', 'error');
+      return;
+    }
     const unit = resolved.variant?.unit || resolved.product?.unit || 'шт';
     const name = resolved.variant
       ? `${resolved.product.name} — ${resolved.variant.name}`
       : resolved.product.name;
-    setForm({
-      ...form,
-      items: [
-        ...form.items,
-        {
-          product_id: resolved.productId,
-          variant_id: resolved.variantId || null,
-          product_name: name,
-          unit,
-          book_qty: 0,
-          quantity: '0',
-          unit_cost: Number(resolved.variant?.avg_cost ?? resolved.product?.avg_cost) || 0,
-        },
-      ],
-    });
+    const catalogCost = Number(resolved.variant?.avg_cost ?? resolved.product?.avg_cost) || 0;
     setAddPick('');
+    setAddingLine(true);
+    try {
+      const rows = await api.getInventoryStock(form.to_department_id, {
+        product_id: resolved.productId,
+        variant_id: resolved.variantId || undefined,
+      });
+      const row = Array.isArray(rows) ? rows[0] : rows;
+      const book_qty = Number(row?.book_qty) || 0;
+      const liveCost = Number(row?.avg_cost) || 0;
+      setForm((prev) => {
+        const already = prev.items.some(
+          (i) => i.product_id === resolved.productId
+            && (i.variant_id || null) === (resolved.variantId || null),
+        );
+        if (already) return prev;
+        return {
+          ...prev,
+          items: [
+            ...prev.items,
+            {
+              product_id: resolved.productId,
+              variant_id: resolved.variantId || null,
+              product_name: name,
+              unit,
+              book_qty,
+              quantity: String(book_qty),
+              unit_cost: liveCost > 0 ? liveCost : catalogCost,
+            },
+          ],
+        };
+      });
+    } catch (e) {
+      show(e.message || 'Не удалось взять учёт по отделу', 'error');
+    } finally {
+      setAddingLine(false);
+    }
   };
 
   const updateFact = (idx, value) => {
@@ -1030,8 +1057,8 @@ export default function Inventory() {
                           products={products}
                           value={addPick}
                           onChange={addLine}
-                          placeholder={productsLoading ? 'Загрузка…' : 'Добавить…'}
-                          disabled={!form.to_department_id || productsLoading}
+                          placeholder={productsLoading || addingLine ? 'Загрузка…' : 'Добавить…'}
+                          disabled={!form.to_department_id || productsLoading || addingLine}
                         />
                       </div>
                     )}

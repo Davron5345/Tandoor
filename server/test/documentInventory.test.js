@@ -133,3 +133,150 @@ test('inventory: surplus/shortage at avg_cost, P&L without cash, cancel restores
     /филиал/,
   );
 });
+
+test('inventory: confirm re-snapshots book so stock equals fact after later documents', async () => {
+  const { default: db, initDb } = await import('../db.js');
+  const { initPermissions } = await import('../permissions.js');
+  const { seedDefaultUsers } = await import('../auth.js');
+  const svc = await import('../services.js');
+  const { getDefaultDepartmentId } = await import('../departments.js');
+  const { getDepartmentStockWithCost } = await import('../inventoryCost.js');
+
+  await initDb();
+  initPermissions(db);
+  seedDefaultUsers();
+
+  const deptId = getDefaultDepartmentId('main');
+  const product = svc.createProduct({
+    name: 'Инв live',
+    sku: 'INV-LIVE-1',
+    unit: 'кг',
+    price: 500,
+    branch_id: 'main',
+  });
+  svc.createDocument({
+    type: 'prihod',
+    date: '2026-08-20',
+    to_department_id: deptId,
+    items: [{ product_id: product.id, quantity: 10, price: 500 }],
+    status: 'confirmed',
+  }, 'test-user', 'main');
+
+  const draft = svc.createDocument({
+    type: 'inventory',
+    date: '2026-08-27',
+    to_department_id: deptId,
+    items: [{ product_id: product.id, book_qty: 10, quantity: 8, unit_cost: 500 }],
+    status: 'draft',
+  }, 'test-user', 'main');
+  assert.equal(draft.items[0].book_qty, 10);
+
+  svc.createDocument({
+    type: 'rashod',
+    date: '2026-08-26',
+    from_department_id: deptId,
+    items: [{ product_id: product.id, quantity: 2, price: 800 }],
+    status: 'confirmed',
+  }, 'test-user', 'main');
+  assert.equal(getDepartmentStockWithCost(deptId, product.id).stock, 8);
+
+  const confirmed = svc.confirmDocument(draft.id, 'test-user');
+  assert.equal(confirmed.status, 'confirmed');
+  assert.equal(confirmed.items[0].book_qty, 8);
+  assert.equal(confirmed.items[0].quantity, 8);
+  assert.equal(confirmed.shortage_total, 0);
+  assert.equal(confirmed.surplus_total, 0);
+  assert.equal(getDepartmentStockWithCost(deptId, product.id).stock, 8);
+});
+
+test('inventory: one draft per department; line snapshot includes zero stock', async () => {
+  const { default: db, initDb } = await import('../db.js');
+  const { initPermissions } = await import('../permissions.js');
+  const { seedDefaultUsers } = await import('../auth.js');
+  const svc = await import('../services.js');
+  const { getDefaultDepartmentId, createDepartment } = await import('../departments.js');
+  const { getDepartmentStockWithCost } = await import('../inventoryCost.js');
+
+  await initDb();
+  initPermissions(db);
+  seedDefaultUsers();
+
+  const deptId = getDefaultDepartmentId('main');
+  const otherDept = createDepartment({ name: 'Инв другой отдел', branch_id: 'main' });
+  const product = svc.createProduct({
+    name: 'Инв draft lock',
+    sku: 'INV-DRAFT-1',
+    unit: 'кг',
+    price: 100,
+    branch_id: 'main',
+  });
+
+  const zeroSnap = svc.getInventoryStockSnapshot(deptId, 'main', product.id, null);
+  assert.equal(zeroSnap.length, 1);
+  assert.equal(zeroSnap[0].book_qty, 0);
+  assert.equal(getDepartmentStockWithCost(deptId, product.id).stock, 0);
+
+  svc.createDocument({
+    type: 'prihod',
+    date: '2026-08-20',
+    to_department_id: deptId,
+    items: [{ product_id: product.id, quantity: 4, price: 100 }],
+    status: 'confirmed',
+  }, 'test-user', 'main');
+
+  const liveSnap = svc.getInventoryStockSnapshot(deptId, 'main', product.id);
+  assert.equal(liveSnap[0].book_qty, 4);
+  assert.equal(liveSnap[0].avg_cost, 100);
+
+  const draft = svc.createDocument({
+    type: 'inventory',
+    date: '2026-08-27',
+    to_department_id: deptId,
+    items: [{ product_id: product.id, book_qty: 4, quantity: 4, unit_cost: 100 }],
+    status: 'draft',
+  }, 'test-user', 'main');
+
+  assert.throws(
+    () => svc.createDocument({
+      type: 'inventory',
+      date: '2026-08-27',
+      to_department_id: deptId,
+      items: [{ product_id: product.id, book_qty: 4, quantity: 3, unit_cost: 100 }],
+      status: 'draft',
+    }, 'test-user', 'main'),
+    /черновик инвентаризации/,
+  );
+
+  const otherDraft = svc.createDocument({
+    type: 'inventory',
+    date: '2026-08-27',
+    to_department_id: otherDept.id,
+    items: [{ product_id: product.id, book_qty: 0, quantity: 0, unit_cost: 100 }],
+    status: 'draft',
+  }, 'test-user', 'main');
+  assert.equal(otherDraft.to_department_id, otherDept.id);
+
+  assert.throws(
+    () => svc.createDocument({
+      type: 'inventory',
+      date: '2026-08-27',
+      to_department_id: deptId,
+      items: [
+        { product_id: product.id, book_qty: 4, quantity: 4, unit_cost: 100 },
+        { product_id: product.id, book_qty: 4, quantity: 3, unit_cost: 100 },
+      ],
+      status: 'draft',
+    }, 'test-user', 'main'),
+    /уже есть в документе/,
+  );
+
+  svc.confirmDocument(draft.id, 'test-user');
+  const nextDraft = svc.createDocument({
+    type: 'inventory',
+    date: '2026-08-28',
+    to_department_id: deptId,
+    items: [{ product_id: product.id, book_qty: 4, quantity: 4, unit_cost: 100 }],
+    status: 'draft',
+  }, 'test-user', 'main');
+  assert.equal(nextDraft.status, 'draft');
+});
