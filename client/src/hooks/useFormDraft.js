@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 
 const STORAGE_PREFIX = 'form-draft:';
+export const FORM_DRAFT_FLUSH_EVENT = 'prihod-flush-form-drafts';
 
 export function formDraftKey(page, modalId) {
   if (!page || modalId == null || modalId === '') return null;
@@ -58,9 +59,14 @@ export function promptRestoreDraft(draft, entityLabel = 'черновик') {
 export function useFormDraft(key, payload, enabled = false) {
   useEffect(() => {
     if (!enabled || !key) return undefined;
-    const timer = window.setTimeout(() => {
-      writeFormDraft(key, payload);
-    }, 600);
-    return () => window.clearTimeout(timer);
+    const flush = () => writeFormDraft(key, payload);
+    const timer = window.setTimeout(flush, 600);
+    window.addEventListener(FORM_DRAFT_FLUSH_EVENT, flush);
+    window.addEventListener('beforeunload', flush);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener(FORM_DRAFT_FLUSH_EVENT, flush);
+      window.removeEventListener('beforeunload', flush);
+    };
   }, [key, payload, enabled]);
 }

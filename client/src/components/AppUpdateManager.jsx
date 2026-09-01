@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { APP_BUILD_ID } from '../appBuildId';
 import { getOpenModalCount, subscribeOpenModalCount } from '../modalRegistry';
+import { FORM_DRAFT_FLUSH_EVENT } from '../hooks/useFormDraft';
 import { isNativeApp, isRemoteCapacitorApp } from '../utils/nativeApp';
 
 const POLL_MS = 60_000;
@@ -38,6 +39,7 @@ export default function AppUpdateManager() {
     }
     reloadingRef.current = true;
     setBanner(message);
+    window.dispatchEvent(new Event(FORM_DRAFT_FLUSH_EVENT));
     window.setTimeout(() => {
       const url = new URL(window.location.href);
       url.searchParams.set('_v', String(Date.now()));
@@ -49,7 +51,7 @@ export default function AppUpdateManager() {
     if (!pendingRef.current || reloadingRef.current) return;
     if (getOpenModalCount() > 0) {
       waitedForModalRef.current = true;
-      setBanner('Доступна новая версия. Обновим автоматически после закрытия окна.');
+      setBanner('Доступна новая версия. Окно не закрываем — обновим, когда закончите работу.');
       return;
     }
     reloadApp(

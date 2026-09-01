@@ -21,8 +21,17 @@ import { encodeProductPick, resolvePickFromProducts } from '../utils/productVari
 import { hasPermission } from '../permissions';
 import { todayLocalIso } from '../utils/date';
 import { textMatchesSearch } from '../utils/searchNormalize';
+import {
+  formDraftKey,
+  readFormDraft,
+  clearFormDraft,
+  promptRestoreDraft,
+  useFormDraft,
+} from '../hooks/useFormDraft';
+import { useFormDirty } from '../hooks/useFormDirty';
 
 const INVENTORY_PHONE_MQ = '(max-width: 768px)';
+const INV_ACTIVE_MODAL_KEY = 'inventory-active-modal';
 
 function useInventoryPhoneShell(modalOpen) {
   const listRef = useRef(null);
@@ -125,6 +134,27 @@ function emptyForm() {
     stock_amount: 0,
     items: [],
   };
+}
+
+function readActiveInventoryModal() {
+  try {
+    return sessionStorage.getItem(INV_ACTIVE_MODAL_KEY) || '';
+  } catch {
+    return '';
+  }
+}
+
+function writeActiveInventoryModal(id) {
+  try {
+    if (id) sessionStorage.setItem(INV_ACTIVE_MODAL_KEY, String(id));
+    else sessionStorage.removeItem(INV_ACTIVE_MODAL_KEY);
+  } catch { /* ignore */ }
+}
+
+function closeInventoryWork(modalId) {
+  clearFormDraft(formDraftKey('inventory', modalId || 'create'));
+  if (modalId && modalId !== 'create') clearFormDraft(formDraftKey('inventory', 'create'));
+  writeActiveInventoryModal('');
 }
 
 function cubeTone(id) {
@@ -543,6 +573,37 @@ export default function Inventory() {
   const [topbarEl, setTopbarEl] = useState(null);
   const { listRef, isPhone } = useInventoryPhoneShell(Boolean(modal));
   const productsBranchRef = useRef(null);
+  const modalRef = useRef(modal);
+  const restoredRef = useRef(false);
+  const [savedTick, setSavedTick] = useState(0);
+  modalRef.current = modal;
+
+  const draftKey = formDraftKey('inventory', modal);
+  const draftPayload = useMemo(() => ({
+    form,
+    sheetTab,
+    commentOpen,
+    readOnly,
+  }), [form, sheetTab, commentOpen, readOnly]);
+  useFormDraft(draftKey, draftPayload, Boolean(modal) && !readOnly);
+  const isFormDirty = useFormDirty(draftPayload, modal ? `${draftKey}:${savedTick}` : null);
+  const isWorking = Boolean(modal) && !readOnly && (
+    saving || isFormDirty || form.items.length > 0 || Boolean(form.comment)
+  );
+
+  useEffect(() => {
+    writeActiveInventoryModal(modal || '');
+  }, [modal]);
+
+  useEffect(() => {
+    if (!isWorking) return undefined;
+    const onBeforeUnload = (e) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [isWorking]);
 
   const toggleShowAmount = () => {
     setShowAmount((prev) => {
@@ -576,7 +637,7 @@ export default function Inventory() {
   }, [isPhone]);
 
   const loadDocs = useCallback(async () => {
-    setLoading(true);
+    if (!modalRef.current) setLoading(true);
     try {
       const params = { type: 'inventory' };
       if (filterDateFrom) params.date_from = filterDateFrom;
@@ -629,6 +690,27 @@ export default function Inventory() {
       setProductsLoading(false);
     }
   }, [branchId, productsReady, show]);
+
+  useEffect(() => {
+    if (restoredRef.current) return;
+    restoredRef.current = true;
+    const active = readActiveInventoryModal();
+    if (!active) return;
+    const draft = readFormDraft(formDraftKey('inventory', active));
+    if (!draft?.form || draft.form.status === 'confirmed') {
+      writeActiveInventoryModal('');
+      return;
+    }
+    setForm(draft.form);
+    setSheetTab(draft.sheetTab === 'items' ? 'items' : 'setup');
+    setCommentOpen(Boolean(draft.commentOpen || draft.form.comment));
+    setReadOnly(Boolean(draft.readOnly));
+    setLineFilter('all');
+    setItemSearch('');
+    setAddPick('');
+    setModal(active);
+    ensureProducts();
+  }, [ensureProducts]);
 
   useEffect(() => {
     loadDepartments();
@@ -725,13 +807,22 @@ export default function Inventory() {
       const { number } = await api.getNextDocNumber('inventory');
       next.number = number;
     } catch { /* ignore */ }
-    setForm(next);
+    const draft = readFormDraft(formDraftKey('inventory', 'create'));
+    if (draft?.form && promptRestoreDraft(draft, 'черновик инвентаризации')) {
+      setForm(draft.form);
+      setSheetTab(draft.sheetTab === 'items' ? 'items' : 'setup');
+      setCommentOpen(Boolean(draft.commentOpen || draft.form.comment));
+    } else {
+      if (draft) clearFormDraft(formDraftKey('inventory', 'create'));
+      setForm(next);
+      setSheetTab('setup');
+      setCommentOpen(false);
+    }
     setLineFilter('all');
     setItemSearch('');
-    setCommentOpen(false);
     setAddPick('');
-    setSheetTab('setup');
     setReadOnly(false);
+    setSavedTick((tick) => tick + 1);
     setModal('create');
     ensureProducts();
   };
@@ -784,6 +875,21 @@ export default function Inventory() {
 
   const openDoc = async (id, viewOnly = false, tab = 'items') => {
     try {
+      const draft = !viewOnly ? readFormDraft(formDraftKey('inventory', id)) : null;
+      if (draft?.form && draft.form.status !== 'confirmed' && promptRestoreDraft(draft, 'черновик инвентаризации')) {
+        setForm(draft.form);
+        setSheetTab(draft.sheetTab === 'items' ? 'items' : tab);
+        setCommentOpen(Boolean(draft.commentOpen || draft.form.comment));
+        setLineFilter('all');
+        setItemSearch('');
+        setAddPick('');
+        setReadOnly(false);
+        setSavedTick((tick) => tick + 1);
+        setModal(id);
+        ensureProducts();
+        return;
+      }
+      if (draft) clearFormDraft(formDraftKey('inventory', id));
       const [doc] = await Promise.all([
         api.getDocument(id),
         ensureProducts(),
@@ -822,6 +928,7 @@ export default function Inventory() {
       setAddPick('');
       setSheetTab(tab);
       setReadOnly(viewOnly || doc.status !== 'draft');
+      setSavedTick((tick) => tick + 1);
       setModal(doc.id);
     } catch (e) {
       show(e.message, 'error');
@@ -1066,12 +1173,15 @@ export default function Inventory() {
       }
       if (andConfirm) {
         show('Документ проведён');
+        closeInventoryWork(form.id || modal);
+        closeInventoryWork('create');
         setProductModalOpen(false);
         setModal(null);
         await loadDocs();
         return doc;
       }
       show('Сохранено');
+      if (modal === 'create') clearFormDraft(formDraftKey('inventory', 'create'));
       setForm((prev) => ({
         ...prev,
         id: doc.id,
@@ -1083,6 +1193,7 @@ export default function Inventory() {
         counted_amount: Number(doc.counted_amount) || 0,
         stock_amount: Number(doc.stock_amount) || 0,
       }));
+      setSavedTick((tick) => tick + 1);
       setModal(doc.id);
       await loadDocs();
       return doc;
@@ -1114,6 +1225,7 @@ export default function Inventory() {
     try {
       await api.deleteDocument(id);
       show('Удалено');
+      closeInventoryWork(id);
       if (modal === id) setModal(null);
       await loadDocs();
     } catch (e) {
@@ -1297,7 +1409,9 @@ export default function Inventory() {
           className={`modal-doc modal-inventory${sheetTab === 'setup' ? ' modal-inventory--setup' : ' modal-inventory--items'}`}
           title={modalTitle}
           footerPlacement="end"
+          dirty={isWorking}
           onClose={() => {
+            closeInventoryWork(modal);
             setProductModalOpen(false);
             setModal(null);
           }}
