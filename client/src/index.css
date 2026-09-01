@@ -3151,6 +3151,10 @@ input[type='number']::-webkit-inner-spin-button {
   overscroll-behavior: none;
 }
 
+.modal-overlay:has(.modal-product) {
+  z-index: 1200;
+}
+
 .modal {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -3381,6 +3385,17 @@ input[type='number']::-webkit-inner-spin-button {
   flex: 1 1 220px;
   min-width: 200px;
   max-width: 420px;
+}
+
+.inv-add-line .quick-add-control {
+  width: 100%;
+}
+
+.inv-add-line .quick-add-button {
+  flex: 0 0 34px;
+  width: 34px;
+  min-width: 34px;
+  min-height: 34px;
 }
 
 .inv-work-bar {
@@ -8335,6 +8350,13 @@ html.inventory-phone-lock.inventory-modal-open .inventory-topbar-new {
     height: 34px;
     padding: 4px 8px;
     font-size: 14px;
+  }
+
+  .modal-inventory .inv-add-line .quick-add-button {
+    flex: 0 0 34px;
+    width: 34px;
+    min-width: 34px !important;
+    min-height: 34px !important;
   }
 
   .modal-inventory .inventory-items-table,

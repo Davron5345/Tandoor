@@ -16,6 +16,7 @@ import { useAuth } from '../AuthContext';
 import { useBranch } from '../BranchContext';
 import BranchChip from '../components/BranchChip';
 import ProductSelect from '../components/ProductSelect';
+import ProductCreateModal from '../components/ProductCreateModal';
 import { encodeProductPick, resolvePickFromProducts } from '../utils/productVariants';
 import { hasPermission } from '../permissions';
 import { todayLocalIso } from '../utils/date';
@@ -367,6 +368,7 @@ export default function Inventory() {
   const canEdit = hasPermission(user, 'documents.edit') && hasPermission(user, 'documents.inventory');
   const canConfirm = hasPermission(user, 'documents.confirm') && canEdit;
   const canDelete = hasPermission(user, 'documents.delete');
+  const canCreateProduct = hasPermission(user, 'products.edit');
 
   const [docs, setDocs] = useState([]);
   const [departments, setDepartments] = useState([]);
@@ -387,6 +389,7 @@ export default function Inventory() {
   const [commentOpen, setCommentOpen] = useState(false);
   const [addPick, setAddPick] = useState('');
   const [addingLine, setAddingLine] = useState(false);
+  const [productModalOpen, setProductModalOpen] = useState(false);
   const [sheetTab, setSheetTab] = useState('setup'); // setup | items
   const [invOptions, setInvOptions] = useState({ expense_articles: [], users: [], default_article_id: '' });
   const [showAmount, setShowAmount] = useState(() => {
@@ -677,9 +680,8 @@ export default function Inventory() {
     }
   };
 
-  const addLine = async (pickValue) => {
-    const resolved = resolvePickFromProducts(products, pickValue);
-    if (!resolved.productId) return;
+  const addResolvedLine = async (resolved) => {
+    if (!resolved?.productId) return false;
     const exists = form.items.some(
       (i) => i.product_id === resolved.productId
         && (i.variant_id || null) === (resolved.variantId || null),
@@ -687,16 +689,16 @@ export default function Inventory() {
     if (exists) {
       show('Эта позиция уже в документе', 'error');
       setAddPick('');
-      return;
+      return false;
     }
     if (!form.to_department_id) {
       show('Сначала выберите отдел', 'error');
-      return;
+      return false;
     }
     const unit = resolved.variant?.unit || resolved.product?.unit || 'шт';
     const name = resolved.variant
       ? `${resolved.product.name} — ${resolved.variant.name}`
-      : resolved.product.name;
+      : (resolved.product?.name || 'Товар');
     setAddPick('');
     setAddingLine(true);
     try {
@@ -729,11 +731,43 @@ export default function Inventory() {
           ],
         };
       });
+      return true;
     } catch (e) {
       show(e.message || 'Не удалось взять учёт по отделу', 'error');
+      return false;
     } finally {
       setAddingLine(false);
     }
+  };
+
+  const addLine = async (pickValue) => {
+    await addResolvedLine(resolvePickFromProducts(products, pickValue));
+  };
+
+  const mergeProductIntoList = (product) => {
+    setProducts((prev) => {
+      const without = prev.filter((p) => p.id !== product.id);
+      return [...without, product].sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+    });
+  };
+
+  const onQuickProductCreated = async (created) => {
+    mergeProductIntoList(created);
+    setProductModalOpen(false);
+    const variants = (created.has_variants ? created.variants : null) || [];
+    const active = variants.filter((v) => v.id && !v.archived);
+    if (active.length > 1) {
+      show('Товар создан. Выберите вариант в списке');
+      return;
+    }
+    const variant = active[0] || null;
+    const added = await addResolvedLine({
+      product: created,
+      productId: created.id,
+      variant,
+      variantId: variant?.id || null,
+    });
+    if (added) show('Товар создан и добавлен');
   };
 
   const updateFact = (idx, value) => {
@@ -824,6 +858,7 @@ export default function Inventory() {
         doc = await api.createDocument(payload);
       }
       show(andConfirm ? 'Документ проведён' : 'Сохранено');
+      setProductModalOpen(false);
       setModal(null);
       await loadDocs();
       return doc;
@@ -1014,7 +1049,10 @@ export default function Inventory() {
           className={`modal-doc modal-inventory${sheetTab === 'setup' ? ' modal-inventory--setup' : ' modal-inventory--items'}`}
           title={modalTitle}
           footerPlacement="end"
-          onClose={() => setModal(null)}
+          onClose={() => {
+            setProductModalOpen(false);
+            setModal(null);
+          }}
           footer={(
             sheetTab === 'setup' ? (
               <>
@@ -1335,13 +1373,27 @@ export default function Inventory() {
                     />
                     {canEdit && !readOnly && (
                       <div className="inv-add-line">
-                        <ProductSelect
-                          products={products}
-                          value={addPick}
-                          onChange={addLine}
-                          placeholder={productsLoading || addingLine ? 'Загрузка…' : 'Добавить…'}
-                          disabled={!form.to_department_id || productsLoading || addingLine}
-                        />
+                        <div className="quick-add-control">
+                          <ProductSelect
+                            products={products}
+                            value={addPick}
+                            onChange={addLine}
+                            placeholder={productsLoading || addingLine ? 'Загрузка…' : 'Добавить…'}
+                            disabled={!form.to_department_id || productsLoading || addingLine}
+                          />
+                          {canCreateProduct && (
+                            <button
+                              type="button"
+                              className="btn btn-icon btn-ghost quick-add-button"
+                              title="Создать новый товар"
+                              aria-label="Создать новый товар"
+                              disabled={!form.to_department_id || addingLine}
+                              onClick={() => setProductModalOpen(true)}
+                            >
+                              <IconPlus />
+                            </button>
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -1471,6 +1523,11 @@ export default function Inventory() {
           </div>
         </Modal>
       )}
+      <ProductCreateModal
+        open={productModalOpen}
+        onClose={() => setProductModalOpen(false)}
+        onCreated={onQuickProductCreated}
+      />
       {canEdit && !isPhone && (
         <button type="button" className="inventory-fab" onClick={openCreate}>
           <IconPlus /> Новый
