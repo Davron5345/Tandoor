@@ -9,6 +9,7 @@ import {
 } from '../departments.js';
 import {
   getDepartmentAvgCost,
+  getBranchAvgCost,
   getDepartmentStockWithCost,
   getVariantBranchStock,
   issueDepartmentStock,
@@ -1138,13 +1139,40 @@ function lastPrihodUnitCost(departmentId, productId, variantId = null) {
   return prihodLineUnitCost(row);
 }
 
+function lastPrihodUnitCostInBranch(branchId, productId, variantId = null) {
+  if (!branchId) return 0;
+  const row = queryOne(`
+    SELECT di.quantity, di.price, di.amount, di.net_weight
+    FROM document_items di
+    JOIN documents d ON d.id = di.document_id
+    WHERE d.type = 'prihod' AND d.status = 'confirmed'
+      AND d.branch_id = ?
+      AND di.product_id = ?
+      AND IFNULL(di.variant_id, '') = IFNULL(?, '')
+    ORDER BY d.date DESC, d.created_at DESC
+    LIMIT 1
+  `, [branchId, productId, variantId || null]);
+  if (!row) return 0;
+  return prihodLineUnitCost(row);
+}
+
+function departmentBranchId(departmentId) {
+  return queryOne('SELECT branch_id FROM departments WHERE id = ?', [departmentId])?.branch_id
+    || DEFAULT_BRANCH_ID;
+}
+
 function resolveInventorySurplusCost(departmentId, productId, variantId, fallback) {
   const live = getDepartmentAvgCost(departmentId, productId, variantId);
   if (live > 0) return live;
   const stored = Math.max(0, Number(fallback) || 0);
   if (stored > 0) return stored;
+  const branchId = departmentBranchId(departmentId);
+  const branchAvg = getBranchAvgCost(branchId, productId, variantId);
+  if (branchAvg > 0) return branchAvg;
   const last = lastPrihodUnitCost(departmentId, productId, variantId);
   if (last > 0) return last;
+  const lastBranch = lastPrihodUnitCostInBranch(branchId, productId, variantId);
+  if (lastBranch > 0) return lastBranch;
   throw new Error(
     `Укажите себестоимость излишка «${getItemStockLabel({ product_id: productId, variant_id: variantId })}»: на складе нет средней цены`,
   );

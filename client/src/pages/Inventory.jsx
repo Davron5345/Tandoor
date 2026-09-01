@@ -746,7 +746,8 @@ export default function Inventory() {
       });
       const row = Array.isArray(rows) ? rows[0] : rows;
       const book_qty = Number(row?.book_qty) || 0;
-      const liveCost = Number(row?.avg_cost) || Number(row?.suggest_cost) || 0;
+      const catalogAvg = Number(resolved.variant?.avg_cost) || Number(resolved.product?.avg_cost) || 0;
+      const liveCost = Number(row?.avg_cost) || Number(row?.suggest_cost) || catalogAvg || 0;
       setForm((prev) => {
         const already = prev.items.some(
           (i) => i.product_id === resolved.productId
@@ -861,10 +862,6 @@ export default function Inventory() {
     const items = payloadItems();
     if (!items.length) {
       show('Заполните документ по учёту или добавьте товар', 'error');
-      return;
-    }
-    if (andConfirm && form.items.some(needsSurplusCost)) {
-      show('Укажите себестоимость излишка: на складе нет средней цены', 'error');
       return;
     }
     setSaving(true);

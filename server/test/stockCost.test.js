@@ -148,7 +148,7 @@ test('inventory surplus at avg 0 uses last prihod, else requires cost', async ()
   const { initPermissions } = await import('../permissions.js');
   const { seedDefaultUsers } = await import('../auth.js');
   const svc = await import('../services.js');
-  const { getDefaultDepartmentId } = await import('../departments.js');
+  const { getDefaultDepartmentId, createDepartment } = await import('../departments.js');
   const { getDepartmentStockWithCost } = await import('../inventoryCost.js');
 
   await initDb();
@@ -231,6 +231,34 @@ test('inventory surplus at avg 0 uses last prihod, else requires cost', async ()
   }, 'test-user', 'main');
   assert.equal(getDepartmentStockWithCost(deptId, withManual.id).avgCost, 80);
   assert.equal(manual.items[0].unit_cost, 80);
+
+  const otherDept = createDepartment({
+    name: 'Склад излишка',
+    branch_id: 'main',
+  });
+  const shared = svc.createProduct({
+    name: 'Излишек с другого отдела',
+    sku: 'INV-SUR-3',
+    unit: 'кг',
+    price: 9999,
+    branch_id: 'main',
+  });
+  svc.createDocument({
+    type: 'prihod',
+    date: '2026-08-20',
+    to_department_id: otherDept.id,
+    items: [{ product_id: shared.id, quantity: 3, price: 120 }],
+    status: 'confirmed',
+  }, 'test-user', 'main');
+  const fromBranch = svc.createDocument({
+    type: 'inventory',
+    date: '2026-09-01',
+    to_department_id: deptId,
+    items: [{ product_id: shared.id, book_qty: 0, quantity: 1, unit_cost: 0 }],
+    status: 'confirmed',
+  }, 'test-user', 'main');
+  assert.equal(fromBranch.items[0].unit_cost, 120);
+  assert.equal(getDepartmentStockWithCost(deptId, shared.id).avgCost, 120);
 });
 
 test('product list price_trend compares last two prihods', async () => {

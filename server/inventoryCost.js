@@ -29,6 +29,26 @@ export function getDepartmentAvgCost(departmentId, productId, variantId = null) 
   return getRow(departmentId, productId, variantId)?.avg_cost || 0;
 }
 
+export function getBranchAvgCost(branchId, productId, variantId = null) {
+  if (!branchId || !productId) return 0;
+  const row = variantId
+    ? queryOne(
+      `SELECT SUM(pds.stock * pds.avg_cost) / NULLIF(SUM(pds.stock), 0) as avg_cost
+       FROM product_department_stock pds
+       JOIN departments d ON d.id = pds.department_id AND d.branch_id = ?
+       WHERE pds.product_id = ? AND pds.variant_id = ?`,
+      [branchId, productId, variantId],
+    )
+    : queryOne(
+      `SELECT SUM(pds.stock * pds.avg_cost) / NULLIF(SUM(pds.stock), 0) as avg_cost
+       FROM product_department_stock pds
+       JOIN departments d ON d.id = pds.department_id AND d.branch_id = ?
+       WHERE pds.product_id = ? AND (pds.variant_id IS NULL OR pds.variant_id = '')`,
+      [branchId, productId],
+    );
+  return Number(row?.avg_cost) || 0;
+}
+
 export function getDepartmentStockWithCost(departmentId, productId, variantId = null) {
   const row = getRow(departmentId, productId, variantId);
   return { stock: row?.stock || 0, avgCost: row?.avg_cost || 0 };
