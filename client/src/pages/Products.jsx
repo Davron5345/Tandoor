@@ -401,6 +401,8 @@ export default function Products() {
   const [prihodModal, setPrihodModal] = useState(null);
   const [prihodDocs, setPrihodDocs] = useState([]);
   const [prihodLoading, setPrihodLoading] = useState(false);
+  const [prihodDateFrom, setPrihodDateFrom] = useState('');
+  const [prihodDateTo, setPrihodDateTo] = useState('');
   const { show, Toast } = useToast();
   const { user } = useAuth();
   const { branchId, branches, isAdmin } = useBranch();
@@ -1029,28 +1031,42 @@ export default function Products() {
     }
   };
 
-  const openProductPrihods = async (product, displayName, variantId = null) => {
+  const openProductPrihods = (product, displayName, variantId = null) => {
     if (!canViewPrihod) {
       show('Недостаточно прав для просмотра приходов', 'error');
       return;
     }
+    setPrihodDateFrom('');
+    setPrihodDateTo('');
+    setPrihodDocs([]);
     setPrihodModal({
       id: product.id,
       variantId: variantId || null,
       name: displayName || product.name,
     });
-    setPrihodDocs([]);
-    setPrihodLoading(true);
-    try {
-      const docs = await api.getProductPrihodDocuments(product.id, variantId || null);
-      setPrihodDocs(Array.isArray(docs) ? docs : []);
-    } catch (e) {
-      show(e.message, 'error');
-      setPrihodModal(null);
-    } finally {
-      setPrihodLoading(false);
-    }
   };
+
+  useEffect(() => {
+    if (!prihodModal) return undefined;
+    let cancelled = false;
+    setPrihodLoading(true);
+    api.getProductPrihodDocuments(prihodModal.id, prihodModal.variantId, {
+      date_from: prihodDateFrom || undefined,
+      date_to: prihodDateTo || undefined,
+    })
+      .then((docs) => {
+        if (!cancelled) setPrihodDocs(Array.isArray(docs) ? docs : []);
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        show(e.message, 'error');
+        setPrihodModal(null);
+      })
+      .finally(() => {
+        if (!cancelled) setPrihodLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [prihodModal, prihodDateFrom, prihodDateTo, branchId, show]);
 
   const openPrihodDocument = (docId) => {
     window.open(`/prihod?open=${encodeURIComponent(docId)}`, '_blank', 'noopener,noreferrer');
@@ -1707,10 +1723,34 @@ export default function Products() {
           className="modal-product-prihods"
           footer={<ModalCancelButton>Закрыть</ModalCancelButton>}
         >
+          <div className="filters product-prihod-filters">
+            <label className="filter-field">
+              <span className="filter-field-caption">С</span>
+              <input
+                type="date"
+                value={prihodDateFrom}
+                max={prihodDateTo || undefined}
+                onChange={(e) => setPrihodDateFrom(e.target.value)}
+              />
+            </label>
+            <label className="filter-field">
+              <span className="filter-field-caption">По</span>
+              <input
+                type="date"
+                value={prihodDateTo}
+                min={prihodDateFrom || undefined}
+                onChange={(e) => setPrihodDateTo(e.target.value)}
+              />
+            </label>
+          </div>
           {prihodLoading ? (
             <p className="text-muted">Загрузка…</p>
           ) : prihodDocs.length === 0 ? (
-            <p className="text-muted">Нет проведённых приходов</p>
+            <p className="text-muted">
+              {prihodDateFrom || prihodDateTo
+                ? 'Нет проведённых приходов за выбранный период'
+                : 'Нет проведённых приходов'}
+            </p>
           ) : (
             <div className="table-wrap">
               <table>

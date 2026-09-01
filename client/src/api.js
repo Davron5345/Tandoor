@@ -311,11 +311,12 @@ export const api = {
     if (params.page || params.limit) return normalizeListResponse(data);
     return Array.isArray(data) ? data : data.items;
   },
-  getProductPrihodDocuments: (productId, variantId = null) => api.getDocuments({
+  getProductPrihodDocuments: (productId, variantId = null, extra = {}) => api.getDocuments({
     type: 'prihod',
     product_id: productId,
     status: 'confirmed',
     ...(variantId ? { variant_id: variantId } : {}),
+    ...extra,
   }),
   getNextDocNumber: (type) => request(`/documents/next-number?type=${encodeURIComponent(type)}`),
   getDocument: (id) => request(`/documents/${id}`),
