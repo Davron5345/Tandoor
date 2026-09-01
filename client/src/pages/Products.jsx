@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { api, formatDate, formatMoney, formatPriceInput, parsePriceInput } from '../api';
+import { api, formatDate, formatMoney, formatPriceInput, formatQty, parsePriceInput } from '../api';
 import Modal, { useToast, ModalCancelButton } from '../components/Modal';
 import CategorySelect from '../components/CategorySelect';
 import CategorySelectWithAdd from '../components/CategorySelectWithAdd';
@@ -251,7 +251,7 @@ function formatProductPrice(product) {
 function formatAvgCost(n) {
   const v = Number(n) || 0;
   if (!(v > 0)) return '—';
-  return new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 4 }).format(v);
+  return new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v);
 }
 
 function formatProductAvgCost(product, variant = null) {
@@ -1201,7 +1201,7 @@ export default function Products() {
           </td>
         )}
         {columnVisible('stock') && (
-          <td data-col="stock">{isVariant ? (variant.stock ?? 0) : p.stock}</td>
+          <td data-col="stock">{formatQty(isVariant ? (variant.stock ?? 0) : p.stock)}</td>
         )}
         {columnVisible('suppliers') && (
           <td data-col="suppliers">
@@ -1563,7 +1563,7 @@ export default function Products() {
                       </div>
                       <div className="form-group">
                         <label>Остаток филиала</label>
-                        <input readOnly value={warehouseInfo?.stock ?? '—'} />
+                        <input readOnly value={warehouseInfo?.stock != null ? formatQty(warehouseInfo.stock) : '—'} />
                       </div>
                     </div>
                     {(warehouseInfo?.department_stock || []).length > 0 && (
@@ -1588,7 +1588,7 @@ export default function Products() {
                                 <tr key={`${row.department_id}:${row.variant_id || ''}`}>
                                   <td>{row.department_name}</td>
                                   {form.has_variants && <td>{variantName || '—'}</td>}
-                                  <td className="num">{row.stock}</td>
+                                  <td className="num">{formatQty(row.stock)}</td>
                                   <td className="num">{formatAvgCost(row.avg_cost)}</td>
                                 </tr>
                               );

@@ -529,12 +529,27 @@ export function formatMoney(n) {
   }).format(Number(n) || 0)} сум`;
 }
 
+export function roundMoney(n) {
+  const v = Number(n);
+  if (!Number.isFinite(v)) return 0;
+  return Math.round((v + Number.EPSILON) * 100) / 100;
+}
+
+export function formatQty(n) {
+  const rounded = Math.round((Number(n) || 0) * 1000) / 1000;
+  if (Number.isInteger(rounded)) return String(rounded);
+  return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 3 }).format(rounded);
+}
+
 /**
  * Поле суммы/цены: пробелы тысяч, дробь через «,» или «.» (до 2 знаков).
  * Хвостовая запятая при вводе сохраняется («12,»).
  */
 export function formatPriceInput(value) {
   if (value === '' || value == null) return '';
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    value = roundMoney(value).toFixed(2);
+  }
   let raw = String(value).replace(/\s/g, '');
   raw = raw.replace(/[^\d.,]/g, '');
   if (!raw) return '';
@@ -576,12 +591,6 @@ export function parsePriceInput(value) {
   if (s === '' || s === '.') return null;
   const num = Number(s);
   return Number.isFinite(num) ? num : null;
-}
-
-export function roundMoney(n) {
-  const v = Number(n);
-  if (!Number.isFinite(v)) return 0;
-  return Math.round((v + Number.EPSILON) * 100) / 100;
 }
 
 /** Цена и сумма строки: если пользователь ввёл сумму, она главная. */

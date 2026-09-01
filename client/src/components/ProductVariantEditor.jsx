@@ -19,7 +19,7 @@ export function mapProductVariants(variants = []) {
     id: v.id || null,
     name: v.name || '',
     price: v.price != null && v.price !== '' ? formatPriceInput(v.price) : '',
-    stock: v.stock != null && v.stock !== '' ? String(v.stock) : '',
+    stock: v.stock != null && v.stock !== '' ? String(Math.round((Number(v.stock) || 0) * 1000) / 1000) : '',
     images: (v.images || []).map((img) => ({ ...img, is_primary: !!img.is_primary })),
   }));
 }

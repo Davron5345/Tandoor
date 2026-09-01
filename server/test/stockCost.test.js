@@ -293,3 +293,29 @@ test('product list price_trend compares last two prihods', async () => {
   assert.equal(down.price_trend.last, 90);
   assert.equal(down.price_trend.prev, 140);
 });
+
+test('department stock qty is rounded to 3 decimals', async () => {
+  const { default: db, initDb } = await import('../db.js');
+  const { initPermissions } = await import('../permissions.js');
+  const { seedDefaultUsers } = await import('../auth.js');
+  const svc = await import('../services.js');
+  const { getDefaultDepartmentId } = await import('../departments.js');
+  const { receiveDepartmentStock, getDepartmentStockWithCost } = await import('../inventoryCost.js');
+
+  await initDb();
+  initPermissions(db);
+  seedDefaultUsers();
+
+  const deptId = getDefaultDepartmentId('main');
+  const product = svc.createProduct({
+    name: 'Округление остатка',
+    sku: 'QTY-ROUND-1',
+    unit: 'кг',
+    price: 10,
+    branch_id: 'main',
+  });
+
+  receiveDepartmentStock(deptId, product.id, 0.1, 10);
+  receiveDepartmentStock(deptId, product.id, 0.2, 10);
+  assert.equal(getDepartmentStockWithCost(deptId, product.id).stock, 0.3);
+});

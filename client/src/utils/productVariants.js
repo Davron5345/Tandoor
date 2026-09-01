@@ -1,4 +1,4 @@
-import { formatMoney } from '../api';
+import { formatMoney, formatQty } from '../api';
 import { textMatchesSearch } from './searchNormalize';
 
 export function encodeProductPick(productId, variantId = null) {
@@ -186,7 +186,7 @@ export function buildProductRowNumbers(rows, startProductIndex = 0) {
 export function productPickMeta(product, variant = null) {
   const parts = [];
   const stock = getPickStock(product, variant);
-  if (stock != null) parts.push(`ост: ${stock} ${product?.unit || 'шт'}`);
+  if (stock != null) parts.push(`ост: ${formatQty(stock)} ${product?.unit || 'шт'}`);
   const price = getPickPrice(product, variant);
   if (price != null) parts.push(formatMoney(price));
   if (!variant && product?.category_name) parts.push(product.category_name);
