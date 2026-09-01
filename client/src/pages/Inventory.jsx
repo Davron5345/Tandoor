@@ -309,6 +309,7 @@ function InventoryWriteoffBlock({ items, products, showAmount, isPhone, confirme
           <table>
             <thead>
               <tr>
+                <th className="inv-row-num">№</th>
                 <th>Товар</th>
                 <th>Ед.</th>
                 <th className="col-num">Учёт</th>
@@ -317,8 +318,9 @@ function InventoryWriteoffBlock({ items, products, showAmount, isPhone, confirme
               </tr>
             </thead>
             <tbody>
-              {items.map((item) => (
+              {items.map((item, row) => (
                 <tr key={remainderLineKey(item)}>
+                  <td className="inv-row-num">{row + 1}</td>
                   <td>{productName(products, item)}</td>
                   <td>{productUnit(products, item)}</td>
                   <td className="col-num">{formatQty(item.book_qty)}</td>
@@ -333,13 +335,14 @@ function InventoryWriteoffBlock({ items, products, showAmount, isPhone, confirme
         </div>
       )}
       <div className={`inventory-items-cards inv-writeoff-cards${isPhone ? ' is-phone' : ''}`}>
-        {items.map((item) => (
+        {items.map((item, row) => (
           <article
             key={remainderLineKey(item)}
             className="inventory-line-card inventory-line-card--compact inv-writeoff-card"
           >
             <div className="inventory-line-card-head">
               <div>
+                <span className="inv-line-num">{row + 1}.</span>
                 <strong>{productName(products, item)}</strong>
               </div>
             </div>
@@ -372,7 +375,7 @@ function InventoryWriteoffBlock({ items, products, showAmount, isPhone, confirme
 }
 
 function InventoryLineCard({
-  item, idx, products, readOnly, onFact, onCost, onRemove, compact, showAmount = true,
+  item, idx, num, products, readOnly, onFact, onCost, onRemove, compact, showAmount = true,
 }) {
   const diff = lineDiff(item);
   const amount = lineAmount(item);
@@ -396,6 +399,7 @@ function InventoryLineCard({
       <article className={`inventory-line-card inventory-line-card--compact${diffClass ? ' inv-row-discrepancy' : ''}`}>
         <div className="inventory-line-card-head">
           <div>
+            {num != null ? <span className="inv-line-num">{num}.</span> : null}
             <strong>{productName(products, item)}</strong>
           </div>
           {!readOnly && (
@@ -449,6 +453,7 @@ function InventoryLineCard({
     <article className={`inventory-line-card${diffClass ? ' inv-row-discrepancy' : ''}`}>
       <div className="inventory-line-card-head">
         <div>
+          {num != null ? <span className="inv-line-num">{num}.</span> : null}
           <strong>{productName(products, item)}</strong>
           <span className="inventory-line-card-unit">{unit}</span>
         </div>
@@ -1682,6 +1687,7 @@ export default function Inventory() {
                       <table>
                         <thead>
                           <tr>
+                            <th className="inv-row-num">№</th>
                             <th>Товар</th>
                             <th>Ед.</th>
                             <th className="col-num">Учёт</th>
@@ -1695,7 +1701,7 @@ export default function Inventory() {
                         <tbody>
                           {visibleItems.length === 0 ? (
                             <tr>
-                              <td colSpan={(showAmount ? 6 : 5) + (showSurplusCostCol ? 1 : 0) + (readOnly ? 0 : 1)} className="empty">
+                              <td colSpan={(showAmount ? 7 : 6) + (showSurplusCostCol ? 1 : 0) + (readOnly ? 0 : 1)} className="empty">
                                 {form.items.length === 0
                                   ? 'Заполните по учёту или добавьте товар'
                                   : itemSearch.trim()
@@ -1709,6 +1715,7 @@ export default function Inventory() {
                             const diffClass = diff > 1e-9 ? 'inv-diff-pos' : diff < -1e-9 ? 'inv-diff-neg' : '';
                             return (
                               <tr key={`${item.product_id}:${item.variant_id || ''}:${idx}`} className={diffClass ? 'inv-row-discrepancy' : undefined}>
+                                <td className="inv-row-num">{idx + 1}</td>
                                 <td>{productName(products, item)}</td>
                                 <td>{productUnit(products, item)}</td>
                                 <td className="col-num inv-book-muted">{formatQty(lineBook(item))}</td>
@@ -1767,6 +1774,7 @@ export default function Inventory() {
                         key={`${item.product_id}:${item.variant_id || ''}:${idx}`}
                         item={item}
                         idx={idx}
+                        num={idx + 1}
                         products={products}
                         readOnly={readOnly}
                         onFact={updateFact}

@@ -3865,13 +3865,32 @@ input[type='number']::-webkit-inner-spin-button {
 
 .inventory-items-table th:nth-child(1),
 .inventory-items-table td:nth-child(1) {
-  min-width: 160px;
+  width: 2.4rem;
+  min-width: 2.4rem;
+  text-align: right;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
 }
 
 .inventory-items-table th:nth-child(2),
 .inventory-items-table td:nth-child(2) {
+  min-width: 160px;
+}
+
+.inventory-items-table th:nth-child(3),
+.inventory-items-table td:nth-child(3) {
   width: 3.5rem;
   white-space: nowrap;
+}
+
+.inv-line-num {
+  display: inline-block;
+  min-width: 1.6rem;
+  margin-right: 6px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
 }
 
 .inventory-items-table .input-qty {
@@ -3987,8 +4006,16 @@ input[type='number']::-webkit-inner-spin-button {
   margin-bottom: 10px;
 }
 
+.inventory-line-card-head > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  min-width: 0;
+}
+
 .inventory-line-card-head strong {
-  display: block;
+  display: inline;
   font-size: 15px;
   line-height: 1.3;
 }
