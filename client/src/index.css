@@ -3511,6 +3511,48 @@ input[type='number']::-webkit-inner-spin-button {
   word-break: break-word;
 }
 
+.inv-coverage-block,
+.inv-full-settle {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.inv-coverage-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.inv-coverage-tabs .btn.is-active {
+  background: var(--accent-soft, #e8f0fe);
+  border-color: var(--accent, #2563eb);
+  color: var(--accent, #2563eb);
+}
+
+.inv-coverage-hint {
+  margin: 0;
+  font-size: 12px;
+}
+
+.inv-remainder-note,
+.inv-list-sub,
+.inventory-doc-card-remainder {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.inv-remainder-note {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--surface-2, var(--bg-muted, #f4f4f5));
+}
+
+.inventory-doc-card-remainder {
+  padding: 0 12px 10px;
+}
+
 .inv-items-context {
   display: flex;
   flex-wrap: wrap;

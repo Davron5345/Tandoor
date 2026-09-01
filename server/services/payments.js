@@ -229,6 +229,28 @@ function assertClientDebtPayment(data, payBranchId) {
 
 function assertDebtReturnPayment(data, payBranchId) {
   if (!isDebtReturnArticleId(data.article_id)) return;
+  if (data.document_id) {
+    const doc = queryOne(
+      `SELECT id, type, status, branch_id, inventory_coverage, liable_user_id, liable_department_id
+       FROM documents WHERE id = ?`,
+      [data.document_id],
+    );
+    if (doc?.type === 'inventory' && doc.inventory_coverage === 'remainder') {
+      if (data.type !== 'other_income') {
+        throw new Error('Возврат долга по инвентаризации — прочий приход');
+      }
+      if (doc.status !== 'confirmed') {
+        throw new Error('Списание ещё не проведено');
+      }
+      if ((doc.branch_id || DEFAULT_BRANCH_ID) !== payBranchId) {
+        throw new Error('Документ принадлежит другому филиалу');
+      }
+      if (!doc.liable_user_id && !doc.liable_department_id) {
+        throw new Error('У списания нет должника — сотрудник или отдел');
+      }
+      return;
+    }
+  }
   if (!data.counterparty_id) throw new Error('Выберите клиента');
   if (data.type !== 'customer_income') throw new Error('Для статьи «Возврат долга» нужен приход от клиента');
   const cp = queryOne('SELECT id, type FROM counterparties WHERE id = ?', [data.counterparty_id]);
@@ -247,18 +269,24 @@ function assertPaymentBranchAccess(paymentBranchId, requestedBranchId) {
 function assertPaymentDocumentLink(documentId, paymentType, payBranchId, counterpartyId = null) {
   if (!documentId) return null;
   const doc = queryOne(
-    'SELECT id, type, status, branch_id, counterparty_id FROM documents WHERE id = ?',
+    'SELECT id, type, status, branch_id, counterparty_id, inventory_coverage, liable_user_id, liable_department_id FROM documents WHERE id = ?',
     [documentId],
   );
   if (!doc) throw new Error('Связанный документ не найден');
   if (doc.status !== 'confirmed') {
     throw new Error('Привязать оплату можно только к проведённому документу');
   }
-  if (doc.type !== 'prihod' && doc.type !== 'rashod') {
-    throw new Error('Оплаты можно привязывать только к документам прихода/расхода');
-  }
   if (doc.branch_id !== payBranchId) {
     throw new Error('Документ принадлежит другому филиалу');
+  }
+  if (doc.type === 'inventory' && doc.inventory_coverage === 'remainder') {
+    if (paymentType !== 'other_income') {
+      throw new Error('К списанию непересчитанного привязывается только возврат долга');
+    }
+    return doc;
+  }
+  if (doc.type !== 'prihod' && doc.type !== 'rashod') {
+    throw new Error('Оплаты можно привязывать только к документам прихода/расхода');
   }
   if (paymentType === 'supplier_payment' && doc.type !== 'prihod') {
     throw new Error('Оплата поставщику привязывается только к документу прихода');
@@ -309,7 +337,7 @@ export function createPayment(data, userId = null, branchId = DEFAULT_BRANCH_ID,
   assertPurchasePayment(data, payBranchId);
   assertClientDebtPayment(data, payBranchId);
   assertDebtReturnPayment(data, payBranchId);
-  assertPaymentDocumentLink(data.document_id || null, data.type, payBranchId, data.counterparty_id || null);
+  const linkedDoc = assertPaymentDocumentLink(data.document_id || null, data.type, payBranchId, data.counterparty_id || null);
   assertPaymentContractLink(data.contract_id || null, data.counterparty_id || null, payBranchId);
   assertPaymentFirmLink(data.firm_id || null, data.counterparty_id || null, payBranchId);
   if (data.bank_account_id) {
@@ -336,14 +364,16 @@ export function createPayment(data, userId = null, branchId = DEFAULT_BRANCH_ID,
     INSERT INTO payments (
       id, number, type, counterparty_id, document_id, amount, date, comment,
       created_by, branch_id, article_id, external_ref, import_batch_id, contract_id, firm_id,
-      bank_account_id
+      bank_account_id, liable_user_id, liable_department_id
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, [
     id, number, data.type, data.counterparty_id || null, data.document_id || null,
     data.amount, data.date, data.comment || '', userId, payBranchId, data.article_id,
     data.external_ref || null, data.import_batch_id || null, data.contract_id || null,
     data.firm_id || null, data.bank_account_id || null,
+    data.liable_user_id || linkedDoc?.liable_user_id || null,
+    data.liable_department_id || linkedDoc?.liable_department_id || null,
   ]);
 
   return queryOne(`
@@ -387,8 +417,8 @@ export function updatePayment(id, data, branchId = DEFAULT_BRANCH_ID, userRole =
   assertCashArticleForPayment(articleId, payType, payBranchId);
   assertPurchasePayment({ ...data, article_id: articleId, type: payType, counterparty_id: counterpartyId }, payBranchId);
   assertClientDebtPayment({ ...data, article_id: articleId, type: payType, counterparty_id: counterpartyId }, payBranchId);
-  assertDebtReturnPayment({ ...data, article_id: articleId, type: payType, counterparty_id: counterpartyId }, payBranchId);
-  assertPaymentDocumentLink(documentId, payType, payBranchId, counterpartyId);
+  assertDebtReturnPayment({ ...data, article_id: articleId, type: payType, counterparty_id: counterpartyId, document_id: documentId }, payBranchId);
+  const linkedDoc = assertPaymentDocumentLink(documentId, payType, payBranchId, counterpartyId);
   assertPaymentContractLink(contractId, counterpartyId, payBranchId);
   assertPaymentFirmLink(firmId, counterpartyId, payBranchId);
   if (bankAccountId) {
@@ -403,7 +433,8 @@ export function updatePayment(id, data, branchId = DEFAULT_BRANCH_ID, userRole =
 
   run(`
     UPDATE payments
-    SET type=?, counterparty_id=?, document_id=?, amount=?, date=?, comment=?, article_id=?, contract_id=?, firm_id=?, bank_account_id=?
+    SET type=?, counterparty_id=?, document_id=?, amount=?, date=?, comment=?, article_id=?, contract_id=?, firm_id=?, bank_account_id=?,
+        liable_user_id=?, liable_department_id=?
     WHERE id=?
   `, [
     payType,
@@ -416,6 +447,8 @@ export function updatePayment(id, data, branchId = DEFAULT_BRANCH_ID, userRole =
     contractId || null,
     firmId || null,
     bankAccountId || null,
+    data.liable_user_id !== undefined ? (data.liable_user_id || null) : (linkedDoc?.liable_user_id ?? existing.liable_user_id),
+    data.liable_department_id !== undefined ? (data.liable_department_id || null) : (linkedDoc?.liable_department_id ?? existing.liable_department_id),
     id,
   ]);
 

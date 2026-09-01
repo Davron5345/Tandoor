@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-09-01 (инвентаризация: ед. изм. варианта)
+**Последнее обновление документации:** 2026-09-01 (инвентаризация: частичная/полная)
 
 ---
 
@@ -167,9 +167,9 @@ npm run db:reset-operations    # Сброс операционных данны�
 |--------|---------|
 | Каталог | `products`, `product_variants`, `product_categories`, `units`, `product_images`, `product_suppliers`, `product_branches`, `product_variant_branches` |
 | Склад | `departments`, `product_department_stock`, `product_branch_stock` |
-| Документы | `documents` (+ `firm_id` у прихода), `document_items` (+ `net_weight` в строках прихода, `book_qty` в инвентаризации), `document_extra_costs` (доп. расходы прихода), `document_history`, `opening_balance_lines` |
+| Документы | `documents` (+ `firm_id` у прихода, `inventory_coverage` / `article_id` / `liable_user_id` / `liable_department_id` у инвентаризации), `document_items` (+ `net_weight` в строках прихода, `book_qty` в инвентаризации), `document_extra_costs` (доп. расходы прихода), `document_history`, `opening_balance_lines` |
 | Контрагенты | `counterparties`, `counterparty_firms` (юрлица: ИНН, bank_account, mfo), `counterparty_contracts` (title, number, date, end_date, direction, amount, `firm_id`) |
-| Финансы | `payments` (+ `external_ref`, `import_batch_id`, `contract_id`, `firm_id`, `bank_account_id`), `bank_accounts`, `cash_articles`, `branch_opening_balances` |
+| Финансы | `payments` (+ `external_ref`, `import_batch_id`, `contract_id`, `firm_id`, `bank_account_id`, `liable_user_id` / `liable_department_id` для возврата долга по remainder-инвентаризации), `bank_accounts`, `cash_articles`, `branch_opening_balances` |
 | Калькуляции | `calculations`, `calculation_items`, `calculation_sources` |
 | Auth/Admin | `users` (+ `department_id` → отдел филиала), `sessions`, `roles`, `role_permissions`, `audit_log`, `visit_log`, `blocked_devices` |
 | MyShop/Mobile | `shop_orders`, `shop_order_items`, `push_subscriptions`, `staff_locations`, `staff_location_history` |
@@ -330,7 +330,7 @@ Frontend зеркало: `client/src/permissions.js`.
 - **Округление:** `avg_cost` пишется с 4 знаками, в справочнике показывается как `0,00`; остаток пишется и показывается с 3 знаками (без `24.400000000000002`)
 - Каталожная `products.price` / «Цена справочника» **не** складская себестоимость. Список товаров: `avg_cost` — средневзвешенная **по филиалу** (без подстановки цены справочника, если склада нет); на карточке — разбивка `department_stock` по отделам. Дашборд «Топ по стоимости» считает `stock × avg_cost`
 - **Отмена** confirmed складского документа и снятие проведения НС запрещены, если по тому же товару/отделу есть **более позднее** confirmed движение (`stockMovementGuard.js`)
-- **Инвентаризация** (`documents.type = inventory`): один отдел (`to_department_id`). Один **черновик** на отдел филиала. «Заполнить по учёту» и добавление строки пишут живой остаток/`avg` отдела в `book_qty` (`suggest_cost` = последний приход, если avg = 0). Черновик хранит этот снимок для подсчёта. **Проведение переснимает учёт** с текущего остатка отдела, затем `diff = факт − живой учёт`: излишек → `receiveDepartmentStock` по текущему avg, иначе `unit_cost` строки, иначе цена последнего прихода в отдел; если ничего нет — ошибка (розничную цену справочника не подставляем); недостача → `issueDepartmentStock(|diff|)`. После проведения остаток = факт. Касса не создаётся. Дата документа не пересчитывает историю — снимок всегда «сейчас»
+- **Инвентаризация** (`documents.type = inventory`): один отдел (`to_department_id`). Один **черновик** на отдел филиала. «Заполнить по учёту» и добавление строки пишут живой остаток/`avg` отдела в `book_qty` (`suggest_cost` = последний приход, если avg = 0). Черновик хранит этот снимок для подсчёта. **Проведение переснимает учёт** с текущего остатка отдела, затем `diff = факт − живой учёт`: излишек → `receiveDepartmentStock` по текущему avg, иначе `unit_cost` строки, иначе цена последнего прихода в отдел; если ничего нет — ошибка (розничную цену справочника не подставляем); недостача → `issueDepartmentStock(|diff|)`. После проведения остаток = факт по строкам документа. Касса не создаётся. Дата документа не пересчитывает историю — снимок всегда «сейчас». **Покрытие** `inventory_coverage`: `partial` (по умолчанию) — склад двигается только по строкам документа (факт = учёт не трогает, SKU вне списка не трогает); `full` — то же по строкам, плюс невыбранный остаток отдела обнуляется автодокументом `remainder` (`source_document_id` = родитель, факт 0). Остаток списания: статья расхода (`article_id`, дефолт «Недостача»), кассы нет; опционально долг на **сотрудника** (`liable_user_id`) или **отдел** (`liable_department_id`), не на клиента. Список инвентаризаций скрывает `remainder`; у родителя `remainder_document`. Отмена родителя откатывает remainder. P&L: пересчитанные расхождения — «Инвентаризация»; remainder — по названию статьи. Погашение долга: `other_income` «Возврат долга» с `document_id` remainder
 - Перемещение: `transferDepartmentStock()` — cost следует за товаром; списывается тот же `stockQty` (нетто×шт). В UI под «Кол-во» — остаток в шт (склад/нетто), под «Нетто» — остаток склада-источника в ед. товара
 
 ### 9.5 Калькуляции
@@ -343,7 +343,7 @@ Frontend зеркало: `client/src/permissions.js`.
 
 - Выручка: confirmed `rashod` + `dish_sale` − возвраты
 - COGS: сумма `cost_amount` по строкам документов
-- Прочие доходы/расходы: кассовые операции + confirmed `inventory` (недостача → расход «Инвентаризация», излишек → доход; без статей кассы)
+- Прочие доходы/расходы: кассовые операции + confirmed `inventory` без `remainder` (недостача → расход «Инвентаризация», излишек → доход) + remainder-списание по `article_id` (не дублировать в «Инвентаризация»)
 
 ### 9.7 MyShop
 
@@ -445,7 +445,7 @@ GET  /api/auth/roles
 |---------|---------------|------------|
 | `/api/products` | catalog.routes.js | Номенклатура, варианты, изображения |
 | `/api/calculations` | catalog.routes.js | Калькуляции |
-| `/api/documents` | documents.routes.js | Складские документы (`date_from`, `date_to`, `counterparty_id`, `product_id`, `variant_id`, type, status); при `type=peremeshchenie` у пользователя с `department_id` — фильтр involving + `direction=in|out`; при `product_id` — JOIN `document_items`…; `GET /api/documents/inventory/stock?department_id=` (+ опционально `product_id`/`variant_id` — одна позиция, в т.ч. с нулевым остатком) |
+| `/api/documents` | documents.routes.js | Складские документы (`date_from`, `date_to`, `counterparty_id`, `product_id`, `variant_id`, type, status); при `type=peremeshchenie` у пользователя с `department_id` — фильтр involving + `direction=in|out`; при `product_id` — JOIN `document_items`…; `GET /api/documents/inventory/stock?department_id=` (+ опционально `product_id`/`variant_id` — одна позиция, в т.ч. с нулевым остатком); `GET /api/documents/inventory/options` — статьи расхода и сотрудники филиала для полной инвентаризации; `type=inventory` скрывает `remainder` (у родителя `remainder_document`) |
 | `/api/supplier-prices` | supplierPrices.routes.js | Прайс-документы поставщика (CRUD + confirm/cancel); `products.view`/`products.edit` |
 | `/api/counterparties` | counterparties.routes.js | Контрагенты, договоры (`/:id/contracts` CRUD), `/:id/firms` — юрлица поставщика (CRUD) |
 | `/api/payments` | finance.routes.js | Оплаты; `GET/POST/PUT/DELETE /api/bank-accounts`; `GET /bank-opening?bank_account_id=`; `DELETE /by-date/:date?bank_account_id=`; import parse/confirm |
@@ -478,7 +478,7 @@ GET  /api/auth/roles
 | `/prihod`, `/rashod`, `/return-*`, `/transfer` | Documents.jsx | documents.*; фильтры: дата С/По, контрагент/поставщик, статус; `?open={id}` открывает документ; приход — вкладки **Товары** / **Доп. расходы** в том же окне (в себестоимость / в расходы; шапка и итоги всегда видны); в строке **Цена** стрелка ▲/▼ (дороже/дешевле vs последний приход; если цена как в последнем — vs предыдущий); в списке товара та же стрелка; перемещение — компактная шапка в один ряд (Дата / Тип / Откуда / Куда), колонка «Нетто» + остаток склада «Откуда» под кол-вом и нетто |
 | `/documents` | Documents.jsx | documents.view; те же фильтры + тип документа |
 | `/razdelka` | Razdelka.jsx | documents.razdelka |
-| `/inventory` | Inventory.jsx | documents.inventory; добавление строки берёт живой `book_qty`/`avg` отдела; проведение переснимает учёт; **телефон:** ☰ + заголовок + филиал + «Новый» в topbar; список карточек (№/статус/дата·отдел/сумма); **2 вкладки** документа; portal Modal |
+| `/inventory` | Inventory.jsx | documents.inventory; **Частичная / Полная** на вкладке «Документ»; полная — статья списания + «В расход» / сотрудник / отдел; remainder связан с родителем; добавление строки берёт живой `book_qty`/`avg` отдела; проведение переснимает учёт; **телефон:** ☰ + заголовок + филиал + «Новый» в topbar; список карточек (№/статус/дата·отдел/сумма); **2 вкладки** документа; portal Modal |
 | `/calculations` | Calculations.jsx | calculations.view |
 | `/dish-sales` | DishSales.jsx | documents.dish_sale |
 | `/cashier` | Cashier.jsx | cashier.* |
@@ -796,6 +796,7 @@ GET  /api/auth/roles
 | 2026-09-01 | Модалка приходов по товару: фильтр даты С/По |
 | 2026-09-01 | Модалка приходов: фильтр Месяц и Год (проставляет С/По) |
 | 2026-09-01 | Инвентаризация: добавление варианта не читает несуществующий `product_variants.unit` |
+| 2026-09-01 | Инвентаризация: частичная vs полная; полное обнуление — remainder-документ, статья, долг сотрудник/отдел |
 
 ---
 

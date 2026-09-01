@@ -332,6 +332,7 @@ export const api = {
     if (opts.variant_id) q.set('variant_id', opts.variant_id);
     return request(`/documents/inventory/stock?${q}`);
   },
+  getInventoryOptions: () => request('/documents/inventory/options'),
 
   getSupplierPrices: () => request('/supplier-prices'),
   getSupplierPrice: (id) => request(`/supplier-prices/${id}`),

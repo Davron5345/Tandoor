@@ -309,3 +309,189 @@ test('inventory snapshot for a variant uses the product unit', async () => {
   assert.equal(snap[0].variant_id, variantId);
   assert.match(snap[0].name, /0\.5/);
 });
+
+test('inventory: partial leaves unlisted stock; full writes off leftovers with article', async () => {
+  const { default: db, initDb } = await import('../db.js');
+  const { initPermissions } = await import('../permissions.js');
+  const { seedDefaultUsers } = await import('../auth.js');
+  const svc = await import('../services.js');
+  const { getDefaultDepartmentId, createDepartment } = await import('../departments.js');
+  const { getDepartmentStockWithCost } = await import('../inventoryCost.js');
+  const { cashArticleId, SHORTAGE_ARTICLE_CODE, DEBT_RETURN_ARTICLE_CODE } = await import('../cashArticleDefaults.js');
+
+  await initDb();
+  initPermissions(db);
+  seedDefaultUsers();
+
+  const deptId = createDepartment({ name: 'Отдел покрытие', branch_id: 'main' }).id;
+  const counted = svc.createProduct({
+    name: 'Инв counted',
+    sku: 'INV-COV-A',
+    unit: 'кг',
+    price: 100,
+    branch_id: 'main',
+  });
+  const leftover = svc.createProduct({
+    name: 'Инв leftover',
+    sku: 'INV-COV-B',
+    unit: 'кг',
+    price: 200,
+    branch_id: 'main',
+  });
+  svc.createDocument({
+    type: 'prihod',
+    date: '2026-08-20',
+    to_department_id: deptId,
+    items: [
+      { product_id: counted.id, quantity: 10, price: 100 },
+      { product_id: leftover.id, quantity: 5, price: 200 },
+    ],
+    status: 'confirmed',
+  }, 'test-user', 'main');
+
+  const partial = svc.createDocument({
+    type: 'inventory',
+    date: '2026-08-27',
+    to_department_id: deptId,
+    inventory_coverage: 'partial',
+    items: [{ product_id: counted.id, book_qty: 10, quantity: 8, unit_cost: 100 }],
+    status: 'confirmed',
+  }, 'test-user', 'main');
+  assert.equal(partial.inventory_coverage, 'partial');
+  assert.equal(getDepartmentStockWithCost(deptId, counted.id).stock, 8);
+  assert.equal(getDepartmentStockWithCost(deptId, leftover.id).stock, 5);
+  assert.equal(partial.remainder_document, null);
+  svc.cancelDocument(partial.id, 'test-user');
+  assert.equal(getDepartmentStockWithCost(deptId, counted.id).stock, 10);
+  assert.equal(getDepartmentStockWithCost(deptId, leftover.id).stock, 5);
+
+  const articleId = cashArticleId('main', SHORTAGE_ARTICLE_CODE);
+  assert.throws(
+    () => svc.createDocument({
+      type: 'inventory',
+      date: '2026-08-28',
+      to_department_id: deptId,
+      inventory_coverage: 'full',
+      items: [{ product_id: counted.id, book_qty: 10, quantity: 10, unit_cost: 100 }],
+      status: 'confirmed',
+    }, 'test-user', 'main'),
+    /статью/,
+  );
+
+  const sklad = db.queryOne("SELECT id FROM users WHERE username = 'sklad'");
+  const full = svc.createDocument({
+    type: 'inventory',
+    date: '2026-08-28',
+    to_department_id: deptId,
+    inventory_coverage: 'full',
+    article_id: articleId,
+    liable_user_id: sklad.id,
+    items: [{ product_id: counted.id, book_qty: 10, quantity: 9, unit_cost: 100 }],
+    status: 'confirmed',
+  }, 'test-user', 'main');
+
+  assert.equal(full.inventory_coverage, 'full');
+  assert.equal(getDepartmentStockWithCost(deptId, counted.id).stock, 9);
+  assert.equal(getDepartmentStockWithCost(deptId, leftover.id).stock, 0);
+  assert.ok(full.remainder_document);
+  assert.equal(full.remainder_document.status, 'confirmed');
+  assert.equal(full.remainder_document.liable_user_id, sklad.id);
+  assert.equal(full.remainder_document.article_id, articleId);
+  assert.equal(full.remainder_document.total_amount, 1000);
+
+  const listed = svc.getDocuments({ branch_id: 'main', type: 'inventory' });
+  assert.ok(listed.some((d) => d.id === full.id));
+  assert.ok(!listed.some((d) => d.id === full.remainder_document.id));
+  assert.equal(listed.find((d) => d.id === full.id)?.remainder_document?.id, full.remainder_document.id);
+
+  const client = svc.createCounterparty({ name: 'Клиент инв', type: 'client', branch_id: 'main' });
+  const debtors = svc.getDebtorsReport('main', true);
+  assert.ok(!debtors.rows.some((r) => r.id === client.id && r.charged > 0));
+
+  const pnl = svc.getPnLReport('main', '2026-08-01', '2026-08-31');
+  const remExp = pnl.operating_expenses.items.find((i) => i.source === 'inventory_remainder');
+  assert.ok(remExp);
+  assert.equal(remExp.amount, 1000);
+  const countedExp = pnl.operating_expenses.items.find((i) => i.source === 'inventory');
+  assert.ok(countedExp);
+  assert.equal(countedExp.amount, 100);
+
+  const returnArticle = cashArticleId('main', DEBT_RETURN_ARTICLE_CODE);
+  const pay = svc.createPayment({
+    type: 'other_income',
+    amount: 400,
+    date: '2026-08-29',
+    article_id: returnArticle,
+    document_id: full.remainder_document.id,
+  }, 'test-user', 'main');
+  assert.equal(pay.document_id, full.remainder_document.id);
+  assert.equal(pay.liable_user_id, sklad.id);
+  const afterPay = svc.getDocument(full.id, 'main');
+  assert.equal(afterPay.remainder_document.paid, 400);
+  assert.equal(afterPay.remainder_document.balance, 600);
+
+  svc.cancelDocument(full.id, 'test-user');
+  assert.equal(getDepartmentStockWithCost(deptId, counted.id).stock, 10);
+  assert.equal(getDepartmentStockWithCost(deptId, leftover.id).stock, 5);
+  const cancelled = svc.getDocument(full.id, 'main');
+  assert.equal(cancelled.status, 'cancelled');
+  assert.equal(cancelled.remainder_document.status, 'cancelled');
+});
+
+test('inventory: full leftover can hang on a department', async () => {
+  const { default: db, initDb } = await import('../db.js');
+  const { initPermissions } = await import('../permissions.js');
+  const { seedDefaultUsers } = await import('../auth.js');
+  const svc = await import('../services.js');
+  const { getDefaultDepartmentId, createDepartment } = await import('../departments.js');
+  const { getDepartmentStockWithCost } = await import('../inventoryCost.js');
+  const { cashArticleId, SHORTAGE_ARTICLE_CODE } = await import('../cashArticleDefaults.js');
+
+  await initDb();
+  initPermissions(db);
+  seedDefaultUsers();
+
+  const deptId = createDepartment({ name: 'Отдел покрытие долг', branch_id: 'main' }).id;
+  const otherDept = createDepartment({ name: 'Кухня инв', branch_id: 'main' });
+  const kept = svc.createProduct({
+    name: 'Инв dept kept',
+    sku: 'INV-DEPT-A',
+    unit: 'кг',
+    price: 50,
+    branch_id: 'main',
+  });
+  const drop = svc.createProduct({
+    name: 'Инв dept drop',
+    sku: 'INV-DEPT-B',
+    unit: 'кг',
+    price: 80,
+    branch_id: 'main',
+  });
+  svc.createDocument({
+    type: 'prihod',
+    date: '2026-08-20',
+    to_department_id: deptId,
+    items: [
+      { product_id: kept.id, quantity: 2, price: 50 },
+      { product_id: drop.id, quantity: 4, price: 80 },
+    ],
+    status: 'confirmed',
+  }, 'test-user', 'main');
+
+  const articleId = cashArticleId('main', SHORTAGE_ARTICLE_CODE);
+  const full = svc.createDocument({
+    type: 'inventory',
+    date: '2026-08-28',
+    to_department_id: deptId,
+    inventory_coverage: 'full',
+    article_id: articleId,
+    liable_department_id: otherDept.id,
+    items: [{ product_id: kept.id, book_qty: 2, quantity: 2, unit_cost: 50 }],
+    status: 'confirmed',
+  }, 'test-user', 'main');
+
+  assert.equal(getDepartmentStockWithCost(deptId, drop.id).stock, 0);
+  assert.equal(full.remainder_document.liable_department_id, otherDept.id);
+  assert.equal(full.remainder_document.liable_user_id, null);
+  assert.equal(full.remainder_document.total_amount, 320);
+});

@@ -54,6 +54,7 @@ export const PG_MIGRATION_SETTINGS_KEYS = [
   'units_v1',
   'users_role_v2',
   'users_department_v1',
+  'inventory_coverage_v1',
   'variant_department_stock_v1',
   'variant_department_stock_v2',
   'demo_seed_done',
@@ -334,6 +335,10 @@ CREATE TABLE IF NOT EXISTS documents (
   to_branch_id TEXT,
   from_department_id TEXT,
   to_department_id TEXT,
+  inventory_coverage TEXT DEFAULT 'partial',
+  article_id TEXT,
+  liable_user_id TEXT,
+  liable_department_id TEXT,
   total_amount DOUBLE PRECISION DEFAULT 0,
   status TEXT DEFAULT 'draft',
   calculation_id TEXT,
@@ -441,7 +446,9 @@ CREATE TABLE IF NOT EXISTS payments (
   import_batch_id TEXT,
   contract_id TEXT,
   firm_id TEXT REFERENCES counterparty_firms(id),
-  bank_account_id TEXT
+  bank_account_id TEXT,
+  liable_user_id TEXT,
+  liable_department_id TEXT
 );
 
 CREATE TABLE IF NOT EXISTS shop_orders (

@@ -546,6 +546,7 @@ function migrateSchema() {
   migrateBankAccounts();
   sanitizeOrphanBranchReferences();
   migrateUsersDepartment();
+  migrateInventoryCoverage();
   addPerformanceIndexes();
 }
 
@@ -562,6 +563,39 @@ function migrateUsersDepartment() {
   const done = queryOne("SELECT value FROM settings WHERE key = 'users_department_v1'");
   if (!done) {
     run("INSERT OR REPLACE INTO settings (key, value) VALUES ('users_department_v1', '1')");
+    saveDb();
+  }
+}
+
+function migrateInventoryCoverage() {
+  const docCols = queryAll('PRAGMA table_info(documents)').map((c) => c.name);
+  if (!docCols.includes('inventory_coverage')) {
+    run("ALTER TABLE documents ADD COLUMN inventory_coverage TEXT DEFAULT 'partial'");
+  }
+  if (!docCols.includes('article_id')) {
+    run('ALTER TABLE documents ADD COLUMN article_id TEXT');
+  }
+  if (!docCols.includes('liable_user_id')) {
+    run('ALTER TABLE documents ADD COLUMN liable_user_id TEXT REFERENCES users(id)');
+  }
+  if (!docCols.includes('liable_department_id')) {
+    run('ALTER TABLE documents ADD COLUMN liable_department_id TEXT REFERENCES departments(id)');
+  }
+  const payCols = queryAll('PRAGMA table_info(payments)').map((c) => c.name);
+  if (!payCols.includes('liable_user_id')) {
+    run('ALTER TABLE payments ADD COLUMN liable_user_id TEXT REFERENCES users(id)');
+  }
+  if (!payCols.includes('liable_department_id')) {
+    run('ALTER TABLE payments ADD COLUMN liable_department_id TEXT REFERENCES departments(id)');
+  }
+  run(`
+    UPDATE documents
+    SET inventory_coverage = 'partial'
+    WHERE type = 'inventory' AND (inventory_coverage IS NULL OR inventory_coverage = '')
+  `);
+  const done = queryOne("SELECT value FROM settings WHERE key = 'inventory_coverage_v1'");
+  if (!done) {
+    run("INSERT OR REPLACE INTO settings (key, value) VALUES ('inventory_coverage_v1', '1')");
     saveDb();
   }
 }

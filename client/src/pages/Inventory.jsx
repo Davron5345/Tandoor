@@ -112,8 +112,20 @@ function emptyForm() {
     comment: '',
     to_department_id: '',
     status: 'draft',
+    inventory_coverage: 'partial',
+    article_id: '',
+    liable_kind: 'none',
+    liable_user_id: '',
+    liable_department_id: '',
+    remainder_document: null,
     items: [],
   };
+}
+
+function liableKindFromDoc(doc) {
+  if (doc?.liable_user_id) return 'user';
+  if (doc?.liable_department_id) return 'department';
+  return 'none';
 }
 
 function lineFact(item) {
@@ -181,9 +193,22 @@ function InventoryDocCard({ doc, canEdit, canDelete, onOpen, onDelete }) {
           <span className="inventory-doc-card-meta-left">
             {formatDate(doc.date)}
             {doc.to_department_name ? ` · ${doc.to_department_name}` : ''}
+            {doc.inventory_coverage === 'full' ? ' · Полная' : ''}
           </span>
           <span className="inventory-doc-card-sum">{formatMoney(doc.total_amount)}</span>
         </div>
+        {doc.remainder_document?.number ? (
+          <div className="inventory-doc-card-remainder">
+            Списание №{doc.remainder_document.number}
+            {doc.remainder_document.liable_user_name
+              ? ` · ${doc.remainder_document.liable_user_name}`
+              : doc.remainder_document.liable_department_name
+                ? ` · ${doc.remainder_document.liable_department_name}`
+                : ''}
+            {' · '}
+            {formatMoney(doc.remainder_document.total_amount)}
+          </div>
+        ) : null}
       </button>
       {showDelete && (
         <div className="inventory-doc-card-actions">
@@ -350,6 +375,7 @@ export default function Inventory() {
   const [addPick, setAddPick] = useState('');
   const [addingLine, setAddingLine] = useState(false);
   const [sheetTab, setSheetTab] = useState('setup'); // setup | items
+  const [invOptions, setInvOptions] = useState({ expense_articles: [], users: [], default_article_id: '' });
   const [showAmount, setShowAmount] = useState(() => {
     try {
       return localStorage.getItem('inventory_show_amount_v1') !== '0';
@@ -417,6 +443,19 @@ export default function Inventory() {
     }
   }, [show, branchId]);
 
+  const loadInvOptions = useCallback(async () => {
+    try {
+      const opts = await api.getInventoryOptions();
+      setInvOptions({
+        expense_articles: opts?.expense_articles || [],
+        users: opts?.users || [],
+        default_article_id: opts?.default_article_id || '',
+      });
+    } catch {
+      setInvOptions({ expense_articles: [], users: [], default_article_id: '' });
+    }
+  }, [branchId]);
+
   const ensureProducts = useCallback(async () => {
     const branchKey = branchId || 'main';
     if (productsReady && productsBranchRef.current === branchKey) return;
@@ -436,7 +475,8 @@ export default function Inventory() {
 
   useEffect(() => {
     loadDepartments();
-  }, [loadDepartments]);
+    loadInvOptions();
+  }, [loadDepartments, loadInvOptions]);
 
   useEffect(() => {
     loadDocs();
@@ -504,6 +544,29 @@ export default function Inventory() {
     ensureProducts();
   };
 
+  const setCoverage = (coverage) => {
+    if (readOnly) return;
+    setForm((prev) => ({
+      ...prev,
+      inventory_coverage: coverage,
+      article_id: coverage === 'full'
+        ? (prev.article_id || invOptions.default_article_id || '')
+        : prev.article_id,
+    }));
+  };
+
+  const setLiableKind = (kind) => {
+    if (readOnly) return;
+    setForm((prev) => ({
+      ...prev,
+      liable_kind: kind,
+      liable_user_id: kind === 'user' ? prev.liable_user_id : '',
+      liable_department_id: kind === 'department'
+        ? (prev.liable_department_id || prev.to_department_id || '')
+        : '',
+    }));
+  };
+
   const selectDepartment = (departmentId) => {
     if (readOnly) return;
     if (departmentId === form.to_department_id) return;
@@ -540,6 +603,12 @@ export default function Inventory() {
         comment: doc.comment || '',
         to_department_id: doc.to_department_id || '',
         status: doc.status,
+        inventory_coverage: doc.inventory_coverage === 'full' ? 'full' : 'partial',
+        article_id: doc.article_id || '',
+        liable_kind: liableKindFromDoc(doc),
+        liable_user_id: doc.liable_user_id || '',
+        liable_department_id: doc.liable_department_id || '',
+        remainder_document: doc.remainder_document || null,
         items: (doc.items || []).map((i) => ({
           product_id: i.product_id,
           variant_id: i.variant_id || null,
@@ -690,6 +759,20 @@ export default function Inventory() {
       show('Выберите отдел', 'error');
       return;
     }
+    if (andConfirm && form.inventory_coverage === 'full') {
+      if (!form.article_id) {
+        show('Для полной инвентаризации выберите статью списания', 'error');
+        return;
+      }
+      if (form.liable_kind === 'user' && !form.liable_user_id) {
+        show('Выберите сотрудника', 'error');
+        return;
+      }
+      if (form.liable_kind === 'department' && !form.liable_department_id) {
+        show('Выберите отдел-должник', 'error');
+        return;
+      }
+    }
     const items = payloadItems();
     if (!items.length) {
       show('Заполните документ по учёту или добавьте товар', 'error');
@@ -707,6 +790,14 @@ export default function Inventory() {
         number: form.number,
         comment: form.comment,
         to_department_id: form.to_department_id,
+        inventory_coverage: form.inventory_coverage === 'full' ? 'full' : 'partial',
+        article_id: form.inventory_coverage === 'full' ? (form.article_id || null) : null,
+        liable_user_id: form.inventory_coverage === 'full' && form.liable_kind === 'user'
+          ? (form.liable_user_id || null)
+          : null,
+        liable_department_id: form.inventory_coverage === 'full' && form.liable_kind === 'department'
+          ? (form.liable_department_id || null)
+          : null,
         items,
         status: andConfirm ? 'confirmed' : 'draft',
       };
@@ -855,7 +946,15 @@ export default function Inventory() {
               ) : docs.map((d) => (
                 <tr key={d.id}>
                   <td>{formatDate(d.date)}</td>
-                  <td>{d.number}</td>
+                  <td>
+                    {d.number}
+                    {d.inventory_coverage === 'full' ? (
+                      <div className="inv-list-sub">Полная</div>
+                    ) : null}
+                    {d.remainder_document?.number ? (
+                      <div className="inv-list-sub">Списание №{d.remainder_document.number}</div>
+                    ) : null}
+                  </td>
                   <td>{d.to_department_name || '—'}</td>
                   <td className="col-num">{formatMoney(d.total_amount)}</td>
                   <td><span className={`badge badge-${d.status}`}>{STATUS_LABELS[d.status]}</span></td>
@@ -1007,6 +1106,126 @@ export default function Inventory() {
                     </div>
                   )}
                 </div>
+
+                <div className="inv-coverage-block">
+                  <div className="inv-dept-label">Покрытие *</div>
+                  <div className="inv-coverage-tabs" role="tablist" aria-label="Тип инвентаризации">
+                    <button
+                      type="button"
+                      className={`btn btn-ghost${form.inventory_coverage !== 'full' ? ' is-active' : ''}`}
+                      disabled={readOnly}
+                      onClick={() => setCoverage('partial')}
+                    >
+                      Частичная
+                    </button>
+                    <button
+                      type="button"
+                      className={`btn btn-ghost${form.inventory_coverage === 'full' ? ' is-active' : ''}`}
+                      disabled={readOnly}
+                      onClick={() => setCoverage('full')}
+                    >
+                      Полная
+                    </button>
+                  </div>
+                  <p className="form-hint inv-coverage-hint">
+                    {form.inventory_coverage === 'full'
+                      ? 'Пересчитанные строки — по факту. Что не в списке, спишется отдельным документом.'
+                      : 'Меняется только то, что изменили в списке. Остальное на складе не трогаем.'}
+                  </p>
+                </div>
+
+                {form.inventory_coverage === 'full' && (
+                  <div className="inv-full-settle">
+                    <div className="form-group">
+                      <label>Статья списания *</label>
+                      <select
+                        value={form.article_id}
+                        disabled={readOnly}
+                        onChange={(e) => setForm({ ...form, article_id: e.target.value })}
+                      >
+                        <option value="">Выберите статью</option>
+                        {invOptions.expense_articles.map((a) => (
+                          <option key={a.id} value={a.id}>{a.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="inv-dept-block">
+                      <div className="inv-dept-label">Кто закрывает сумму</div>
+                      <div className="inv-coverage-tabs" role="tablist" aria-label="Должник">
+                        <button
+                          type="button"
+                          className={`btn btn-ghost${form.liable_kind === 'none' ? ' is-active' : ''}`}
+                          disabled={readOnly}
+                          onClick={() => setLiableKind('none')}
+                        >
+                          В расход
+                        </button>
+                        <button
+                          type="button"
+                          className={`btn btn-ghost${form.liable_kind === 'user' ? ' is-active' : ''}`}
+                          disabled={readOnly}
+                          onClick={() => setLiableKind('user')}
+                        >
+                          Сотрудник
+                        </button>
+                        <button
+                          type="button"
+                          className={`btn btn-ghost${form.liable_kind === 'department' ? ' is-active' : ''}`}
+                          disabled={readOnly}
+                          onClick={() => setLiableKind('department')}
+                        >
+                          Отдел
+                        </button>
+                      </div>
+                    </div>
+                    {form.liable_kind === 'user' && (
+                      <div className="form-group">
+                        <label>Сотрудник *</label>
+                        <select
+                          value={form.liable_user_id}
+                          disabled={readOnly}
+                          onChange={(e) => setForm({ ...form, liable_user_id: e.target.value })}
+                        >
+                          <option value="">Выберите сотрудника</option>
+                          {invOptions.users.map((u) => (
+                            <option key={u.id} value={u.id}>{u.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                    {form.liable_kind === 'department' && (
+                      <div className="form-group">
+                        <label>Отдел-должник *</label>
+                        <select
+                          value={form.liable_department_id}
+                          disabled={readOnly}
+                          onChange={(e) => setForm({ ...form, liable_department_id: e.target.value })}
+                        >
+                          <option value="">Выберите отдел</option>
+                          {branchDepartments.map((d) => (
+                            <option key={d.id} value={d.id}>{d.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {form.remainder_document?.number && (
+                  <div className="inv-remainder-note">
+                    Списание непересчитанного №{form.remainder_document.number}
+                    {' · '}
+                    {form.remainder_document.article_name || 'статья'}
+                    {form.remainder_document.liable_user_name
+                      ? ` · ${form.remainder_document.liable_user_name}`
+                      : form.remainder_document.liable_department_name
+                        ? ` · ${form.remainder_document.liable_department_name}`
+                        : ''}
+                    {' · '}
+                    {formatMoney(form.remainder_document.total_amount)}
+                    {form.remainder_document.status === 'cancelled' ? ' (отменено)' : ''}
+                  </div>
+                )}
 
                 {(!isPhone || commentOpen || form.comment) ? (
                   <div className="form-group form-group-comment">

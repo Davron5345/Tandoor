@@ -70,11 +70,13 @@ function collectStockKeys(doc, extraLines = null) {
   return keys;
 }
 
-function findLaterMovement(doc, key) {
+function findLaterMovement(doc, key, excludeDocumentIds = []) {
   const date = String(doc.date || '').slice(0, 10);
   const created = doc.created_at || '';
   const variant = variantKey(key.variant_id);
   const typePlaceholders = STOCK_DOC_TYPES.map(() => '?').join(',');
+  const excludeIds = [doc.id, ...excludeDocumentIds].filter(Boolean);
+  const excludePlaceholders = excludeIds.map(() => '?').join(',');
 
   const laterDoc = queryOne(`
     SELECT d.number, d.type, d.date, p.name as product_name
@@ -82,7 +84,7 @@ function findLaterMovement(doc, key) {
     JOIN document_items di ON di.document_id = d.id
     JOIN products p ON p.id = di.product_id
     WHERE d.status = 'confirmed'
-      AND d.id != ?
+      AND d.id NOT IN (${excludePlaceholders})
       AND d.type IN (${typePlaceholders})
       AND di.product_id = ?
       AND IFNULL(di.variant_id, '') = ?
@@ -91,7 +93,7 @@ function findLaterMovement(doc, key) {
     ORDER BY d.date ASC, d.created_at ASC
     LIMIT 1
   `, [
-    doc.id,
+    ...excludeIds,
     ...STOCK_DOC_TYPES,
     key.product_id,
     variant,
@@ -129,13 +131,13 @@ function findLaterMovement(doc, key) {
   ]);
 }
 
-export function assertNoLaterStockMovements(doc, extraLines = null) {
+export function assertNoLaterStockMovements(doc, extraLines = null, excludeDocumentIds = []) {
   if (!doc || doc.status !== 'confirmed') return;
   if (doc.type !== 'opening_balance' && !STOCK_DOC_TYPES.includes(doc.type)) return;
 
   const keys = collectStockKeys(doc, extraLines);
   for (const key of keys) {
-    const later = findLaterMovement(doc, key);
+    const later = findLaterMovement(doc, key, excludeDocumentIds);
     if (!later) continue;
     const typeName = TYPE_LABELS[later.type] || later.type;
     const name = later.product_name || 'товар';

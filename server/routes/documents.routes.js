@@ -60,6 +60,14 @@ export function registerDocumentRoutes(app) {
     }
   });
 
+  app.get('/api/documents/inventory/options', requirePermission('documents.inventory'), attachBranch, (req, res) => {
+    try {
+      res.json(svc.getInventoryConfirmOptions(req.branchId));
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
   app.get('/api/documents', requireAnyPermission(...DOC_READ_PERMS), attachBranch, (req, res) => {
     const docs = svc.getDocuments(buildDocumentListFilters(req));
     const filtered = filterTransfersForDepartment(

@@ -111,4 +111,5 @@ export {
   snapshotDocument,
   addHistory,
   getInventoryStockSnapshot,
+  getInventoryConfirmOptions,
 } from './services/documents.js';

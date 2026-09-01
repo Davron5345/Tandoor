@@ -832,10 +832,28 @@ export function getPnLReport(branchId = DEFAULT_BRANCH_ID, dateFrom = null, date
     FROM documents d
     JOIN document_items di ON di.document_id = d.id
     WHERE d.type = 'inventory' AND d.status = 'confirmed' AND d.branch_id = ?
+      AND COALESCE(d.inventory_coverage, 'partial') != 'remainder'
     ${invDateFilter}
   `, invParams);
   const inventoryShortage = Number(inventoryRow?.shortage) || 0;
   const inventorySurplus = Number(inventoryRow?.surplus) || 0;
+
+  const remainderParams = [branchId];
+  const remainderDateFilter = buildDateFilter('d.date', dateFrom, dateTo, remainderParams);
+  const remainderRows = queryAll(`
+    SELECT ca.id as article_id, ca.code, COALESCE(ca.name, 'Недостача') as name,
+           COALESCE(SUM(di.cost_amount), 0) as amount
+    FROM documents d
+    JOIN document_items di ON di.document_id = d.id
+    LEFT JOIN cash_articles ca ON ca.id = d.article_id
+    WHERE d.type = 'inventory' AND d.status = 'confirmed' AND d.branch_id = ?
+      AND d.inventory_coverage = 'remainder'
+      AND di.quantity < COALESCE(di.book_qty, 0)
+    ${remainderDateFilter}
+    GROUP BY ca.id, ca.code, ca.name
+    ORDER BY amount DESC, ca.name ASC
+  `, remainderParams);
+  const remainderShortage = remainderRows.reduce((s, r) => s + (Number(r.amount) || 0), 0);
 
   const sales = (salesRow?.total || 0) + (dishSalesRow?.total || 0);
   const returns = returnsRow?.total || 0;
@@ -843,7 +861,8 @@ export function getPnLReport(branchId = DEFAULT_BRANCH_ID, dateFrom = null, date
   const cogs = (cogsSalesRow?.total || 0) + (cogsDishRow?.total || 0) - (cogsReturnsRow?.total || 0);
   const grossProfit = revenue - cogs;
   const grossMarginPct = revenue > 0 ? Math.round((grossProfit / revenue) * 10000) / 100 : 0;
-  const operatingExpenses = expenseRows.reduce((s, r) => s + (r.amount || 0), 0) + inventoryShortage;
+  const operatingExpenses = expenseRows.reduce((s, r) => s + (r.amount || 0), 0)
+    + inventoryShortage + remainderShortage;
   const otherIncome = incomeRows.reduce((s, r) => s + (r.amount || 0), 0) + inventorySurplus;
   const netProfit = grossProfit - operatingExpenses + otherIncome;
   const missingCostLines = cogsSalesRow?.missing_cost_lines || 0;
@@ -875,6 +894,14 @@ export function getPnLReport(branchId = DEFAULT_BRANCH_ID, dateFrom = null, date
           name: r.name || 'Без статьи',
           amount: r.amount || 0,
         })),
+        ...remainderRows
+          .filter((r) => (Number(r.amount) || 0) > 0)
+          .map((r) => ({
+            code: r.code || 'exp_shortage',
+            name: r.name || 'Недостача',
+            amount: Number(r.amount) || 0,
+            source: 'inventory_remainder',
+          })),
         ...(inventoryShortage > 0
           ? [{ code: 'inventory', name: 'Инвентаризация', amount: inventoryShortage, source: 'inventory' }]
           : []),

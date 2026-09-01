@@ -36,6 +36,8 @@ import {
 } from '../documentExtraCosts.js';
 import { getStockReport } from './reports.js';
 import { assertNoLaterStockMovements } from '../stockMovementGuard.js';
+import { getCashArticle, getCashArticles } from '../cashArticles.js';
+import { SHORTAGE_ARTICLE_CODE, cashArticleId } from '../cashArticleDefaults.js';
 
 const { queryAll, queryOne, run, transaction } = db;
 
@@ -519,7 +521,9 @@ export function getDocuments(filters = {}) {
     SELECT d.*, c.name as counterparty_name, c.type as counterparty_type,
            b.name as branch_name,
            fb.name as from_branch_name, tb.name as to_branch_name,
-           fd.name as from_department_name, td.name as to_department_name
+           fd.name as from_department_name, td.name as to_department_name,
+           lu.name as liable_user_name, ld.name as liable_department_name,
+           ica.name as article_name
            ${byProduct ? ', di.quantity, di.price, di.amount, di.net_weight' : ''}
     FROM documents d
     ${byProduct ? 'JOIN document_items di ON di.document_id = d.id' : ''}
@@ -529,6 +533,9 @@ export function getDocuments(filters = {}) {
     LEFT JOIN branches tb ON tb.id = d.to_branch_id
     LEFT JOIN departments fd ON fd.id = d.from_department_id
     LEFT JOIN departments td ON td.id = d.to_department_id
+    LEFT JOIN users lu ON lu.id = d.liable_user_id
+    LEFT JOIN departments ld ON ld.id = d.liable_department_id
+    LEFT JOIN cash_articles ica ON ica.id = d.article_id
     WHERE 1=1
   `;
   const params = [];
@@ -542,6 +549,13 @@ export function getDocuments(filters = {}) {
   if (filters.type) {
     sql += ' AND d.type = ?';
     params.push(filters.type);
+    if (filters.type === 'inventory' && filters.inventory_coverage !== 'remainder' && !filters.include_remainder) {
+      sql += " AND COALESCE(d.inventory_coverage, 'partial') != 'remainder'";
+    }
+    if (filters.inventory_coverage) {
+      sql += ' AND d.inventory_coverage = ?';
+      params.push(filters.inventory_coverage);
+    }
   } else {
     sql += " AND d.type NOT IN ('supplier_price', 'opening_balance', 'inventory')";
   }
@@ -583,7 +597,11 @@ export function getDocuments(filters = {}) {
   }
 
   sql += ' ORDER BY d.date DESC, d.created_at DESC';
-  return queryAll(sql, params);
+  const rows = queryAll(sql, params);
+  if (filters.type === 'inventory') {
+    return attachRemaindersToDocuments(rows);
+  }
+  return rows;
 }
 
 function assertActiveBranchOwnership(requestedBranchId, activeBranchId) {
@@ -624,7 +642,9 @@ export function getDocument(id, branchId = null) {
            cc.number as contract_number, cc.date as contract_date,
            b.name as branch_name,
            fb.name as from_branch_name, tb.name as to_branch_name,
-           fd.name as from_department_name, td.name as to_department_name
+           fd.name as from_department_name, td.name as to_department_name,
+           lu.name as liable_user_name, ld.name as liable_department_name,
+           ica.name as article_name
     FROM documents d
     LEFT JOIN counterparties c ON c.id = d.counterparty_id
     LEFT JOIN counterparty_contracts cc ON cc.id = d.contract_id
@@ -633,6 +653,9 @@ export function getDocument(id, branchId = null) {
     LEFT JOIN branches tb ON tb.id = d.to_branch_id
     LEFT JOIN departments fd ON fd.id = d.from_department_id
     LEFT JOIN departments td ON td.id = d.to_department_id
+    LEFT JOIN users lu ON lu.id = d.liable_user_id
+    LEFT JOIN departments ld ON ld.id = d.liable_department_id
+    LEFT JOIN cash_articles ica ON ica.id = d.article_id
     WHERE d.id = ?${branchFilter}
   `, params);
 
@@ -707,6 +730,9 @@ export function getDocument(id, branchId = null) {
     ...doc,
     shortage_total: inventoryTotalsOut?.shortage ?? 0,
     surplus_total: inventoryTotalsOut?.surplus ?? 0,
+    remainder_document: doc.type === 'inventory' && doc.inventory_coverage !== 'remainder'
+      ? loadRemainderSummary(id)
+      : null,
     items: doc.type === 'dish_sale' ? sale_items : items,
     input_items,
     output_items,
@@ -807,6 +833,7 @@ function assertNoOpenInventoryDraft(departmentId, branchId, exceptId = null) {
     SELECT number FROM documents
     WHERE type = 'inventory' AND status = 'draft'
       AND to_department_id = ? AND branch_id = ?
+      AND COALESCE(inventory_coverage, 'partial') != 'remainder'
   `;
   if (exceptId) {
     sql += ' AND id != ?';
@@ -816,6 +843,253 @@ function assertNoOpenInventoryDraft(departmentId, branchId, exceptId = null) {
   if (existing) {
     throw new Error(`По этому отделу уже есть черновик инвентаризации №${existing.number}`);
   }
+}
+
+function inventoryLineKey(item) {
+  return `${item.product_id}:${item.variant_id || ''}`;
+}
+
+function normalizeInventoryCoverage(value, existing = null) {
+  const raw = value ?? existing?.inventory_coverage ?? 'partial';
+  const coverage = raw || 'partial';
+  if (coverage === 'remainder') {
+    throw new Error('Документ списания непересчитанного создаётся автоматически');
+  }
+  if (coverage !== 'partial' && coverage !== 'full') {
+    throw new Error('Выберите частичную или полную инвентаризацию');
+  }
+  return coverage;
+}
+
+function assertExpenseArticle(articleId, branchId) {
+  if (!articleId) throw new Error('Выберите статью списания');
+  const article = getCashArticle(articleId, branchId);
+  if (!article || !article.active) throw new Error('Статья не найдена');
+  if (article.direction !== 'expense') throw new Error('Для списания нужна статья расхода');
+  return article;
+}
+
+function normalizeInventoryLiable(data, branchId, existing = null) {
+  const userId = data.liable_user_id !== undefined
+    ? (data.liable_user_id || null)
+    : (existing?.liable_user_id || null);
+  const deptId = data.liable_department_id !== undefined
+    ? (data.liable_department_id || null)
+    : (existing?.liable_department_id || null);
+  if (userId && deptId) {
+    throw new Error('Выберите либо сотрудника, либо отдел');
+  }
+  if (userId) {
+    const user = queryOne('SELECT id, name, branch_id, active FROM users WHERE id = ?', [userId]);
+    if (!user || !user.active) throw new Error('Сотрудник не найден');
+    if (user.branch_id && user.branch_id !== branchId) {
+      throw new Error('Сотрудник принадлежит другому филиалу');
+    }
+  }
+  if (deptId) {
+    assertDepartmentInBranch(deptId, branchId);
+  }
+  return { liable_user_id: userId || null, liable_department_id: deptId || null };
+}
+
+function findInventoryRemainder(parentId) {
+  if (!parentId) return null;
+  return queryOne(`
+    SELECT * FROM documents
+    WHERE type = 'inventory'
+      AND inventory_coverage = 'remainder'
+      AND source_document_id = ?
+    ORDER BY created_at DESC
+    LIMIT 1
+  `, [parentId]);
+}
+
+function remainderPaidAmount(remainderId) {
+  if (!remainderId) return 0;
+  const row = queryOne(
+    `SELECT COALESCE(SUM(amount), 0) as paid
+     FROM payments
+     WHERE document_id = ? AND type = 'other_income'`,
+    [remainderId],
+  );
+  return Number(row?.paid) || 0;
+}
+
+function mapRemainderSummary(row) {
+  if (!row) return null;
+  const paid = remainderPaidAmount(row.id);
+  const total = Number(row.total_amount) || 0;
+  return {
+    id: row.id,
+    number: row.number,
+    status: row.status,
+    date: row.date,
+    total_amount: total,
+    article_id: row.article_id || null,
+    article_name: row.article_name || null,
+    liable_user_id: row.liable_user_id || null,
+    liable_user_name: row.liable_user_name || null,
+    liable_department_id: row.liable_department_id || null,
+    liable_department_name: row.liable_department_name || null,
+    paid,
+    balance: roundMoney(total - paid),
+  };
+}
+
+function loadRemainderSummary(parentId) {
+  if (!parentId) return null;
+  const row = queryOne(`
+    SELECT rem.*,
+           u.name as liable_user_name,
+           dep.name as liable_department_name,
+           ca.name as article_name
+    FROM documents rem
+    LEFT JOIN users u ON u.id = rem.liable_user_id
+    LEFT JOIN departments dep ON dep.id = rem.liable_department_id
+    LEFT JOIN cash_articles ca ON ca.id = rem.article_id
+    WHERE rem.type = 'inventory'
+      AND rem.inventory_coverage = 'remainder'
+      AND rem.source_document_id = ?
+    ORDER BY rem.created_at DESC
+    LIMIT 1
+  `, [parentId]);
+  return mapRemainderSummary(row);
+}
+
+function attachRemaindersToDocuments(docs) {
+  const parents = (docs || []).filter(
+    (d) => d.type === 'inventory' && d.inventory_coverage !== 'remainder',
+  );
+  if (!parents.length) return docs;
+  const ids = parents.map((d) => d.id);
+  const placeholders = ids.map(() => '?').join(',');
+  const rows = queryAll(`
+    SELECT rem.*,
+           u.name as liable_user_name,
+           dep.name as liable_department_name,
+           ca.name as article_name
+    FROM documents rem
+    LEFT JOIN users u ON u.id = rem.liable_user_id
+    LEFT JOIN departments dep ON dep.id = rem.liable_department_id
+    LEFT JOIN cash_articles ca ON ca.id = rem.article_id
+    WHERE rem.type = 'inventory'
+      AND rem.inventory_coverage = 'remainder'
+      AND rem.source_document_id IN (${placeholders})
+    ORDER BY rem.created_at DESC
+  `, ids);
+  const map = new Map();
+  for (const row of rows) {
+    if (!map.has(row.source_document_id)) {
+      map.set(row.source_document_id, mapRemainderSummary(row));
+    }
+  }
+  return docs.map((doc) => (
+    doc.type === 'inventory'
+      ? { ...doc, remainder_document: map.get(doc.id) || null }
+      : doc
+  ));
+}
+
+function collectInventoryLeftovers(departmentId, branchId, countedItems) {
+  const counted = new Set((countedItems || []).map(inventoryLineKey));
+  const rows = getStockReport(branchId, departmentId, true);
+  const leftovers = [];
+  for (const row of rows) {
+    const key = `${row.product_id}:${row.variant_id || ''}`;
+    if (counted.has(key)) continue;
+    const stock = Number(row.stock) || 0;
+    if (stock <= 1e-9) continue;
+    const cost = Number(row.unitCost) || 0;
+    const amount = roundMoney(stock * cost);
+    leftovers.push({
+      product_id: row.product_id,
+      variant_id: row.variant_id || null,
+      quantity: 0,
+      book_qty: stock,
+      price: cost,
+      unit_cost: cost,
+      amount,
+      cost_amount: amount,
+    });
+  }
+  return leftovers;
+}
+
+function reverseInventoryRemainder(parentId, userId = null) {
+  const remainder = findInventoryRemainder(parentId);
+  if (!remainder) return;
+  if (remainder.status === 'confirmed') {
+    updateStock(remainder.id, true);
+  }
+  run(
+    `UPDATE documents SET status='cancelled', updated_at=datetime('now') WHERE id=?`,
+    [remainder.id],
+  );
+  addHistory(remainder.id, 'cancelled', userId);
+}
+
+function createInventoryRemainderWriteoff(parent, countedItems, userId = null) {
+  if (!parent || parent.inventory_coverage !== 'full') return null;
+  const leftovers = collectInventoryLeftovers(
+    parent.to_department_id,
+    parent.branch_id || DEFAULT_BRANCH_ID,
+    countedItems,
+  );
+  if (!leftovers.length) return null;
+  assertExpenseArticle(parent.article_id, parent.branch_id || DEFAULT_BRANCH_ID);
+  validateInventoryShortage(parent.to_department_id, leftovers);
+
+  const id = uuidv4();
+  const branchId = parent.branch_id || DEFAULT_BRANCH_ID;
+  const number = generateDocNumber(branchId, 'inventory');
+  const totals = inventoryTotals(leftovers);
+  const comment = `Списание непересчитанного к инвентаризации №${parent.number}`;
+
+  run(`
+    INSERT INTO documents (
+      id, number, type, counterparty_id, date, comment, from_location, to_location,
+      branch_id, from_branch_id, to_branch_id, from_department_id, to_department_id,
+      source_document_id, total_amount, status,
+      inventory_coverage, article_id, liable_user_id, liable_department_id
+    )
+    VALUES (?, ?, 'inventory', NULL, ?, ?, '', '', ?, NULL, NULL, NULL, ?, ?, ?, 'confirmed',
+      'remainder', ?, ?, ?)
+  `, [
+    id,
+    number,
+    parent.date,
+    comment,
+    branchId,
+    parent.to_department_id,
+    parent.id,
+    totals.net,
+    parent.article_id,
+    parent.liable_user_id || null,
+    parent.liable_department_id || null,
+  ]);
+  persistInventoryItems(id, leftovers);
+  addHistory(id, 'created', userId);
+  const remDoc = queryOne('SELECT * FROM documents WHERE id = ?', [id]);
+  const remItems = queryAll('SELECT * FROM document_items WHERE document_id = ?', [id]);
+  applyInventoryStock(remDoc, remItems, false);
+  addHistory(id, 'confirmed', userId);
+  return id;
+}
+
+export function getInventoryConfirmOptions(branchId = DEFAULT_BRANCH_ID) {
+  const expenseArticles = getCashArticles('expense', branchId);
+  const defaultArticleId = cashArticleId(branchId, SHORTAGE_ARTICLE_CODE);
+  const users = queryAll(`
+    SELECT id, name, department_id
+    FROM users
+    WHERE active = 1 AND branch_id = ?
+    ORDER BY name
+  `, [branchId]);
+  return {
+    expense_articles: expenseArticles,
+    default_article_id: defaultArticleId,
+    users,
+  };
 }
 
 function prihodLineUnitCost(row) {
@@ -1484,6 +1758,9 @@ function persistInventoryDocument(existingId, data, userId, branchId, existing =
   const toDepartmentId = data.to_department_id ?? existing?.to_department_id ?? null;
   if (!toDepartmentId) throw new Error('Выберите отдел для инвентаризации');
   assertDepartmentInBranch(toDepartmentId, docBranchId);
+  if (existing?.inventory_coverage === 'remainder') {
+    throw new Error('Документ списания непересчитанного нельзя редактировать');
+  }
 
   let items = normalizeInventoryItems(data.items);
   const id = existingId || uuidv4();
@@ -1491,11 +1768,22 @@ function persistInventoryDocument(existingId, data, userId, branchId, existing =
   const wasConfirmed = existing?.status === 'confirmed';
   const willConfirm = data.status === 'confirmed' || (wasConfirmed && data.status !== 'draft');
   const status = willConfirm ? 'confirmed' : (data.status || existing?.status || 'draft');
+  const coverage = normalizeInventoryCoverage(data.inventory_coverage, existing);
+  const liable = normalizeInventoryLiable(data, docBranchId, existing);
+  const articleId = data.article_id !== undefined
+    ? (data.article_id || null)
+    : (existing?.article_id || null);
+  if (articleId && (willConfirm || coverage === 'full')) {
+    assertExpenseArticle(articleId, docBranchId);
+  }
 
   assertNoOpenInventoryDraft(toDepartmentId, docBranchId, existingId);
 
   transaction(() => {
-    if (existing && wasConfirmed) updateStock(id, true);
+    if (existing && wasConfirmed) {
+      reverseInventoryRemainder(id, userId);
+      updateStock(id, true);
+    }
 
     if (willConfirm) {
       items = applyInventoryBookSnapshot(toDepartmentId, items);
@@ -1508,7 +1796,9 @@ function persistInventoryDocument(existingId, data, userId, branchId, existing =
       run(`
         UPDATE documents
         SET date=?, comment=?, branch_id=?, to_department_id=?,
-            total_amount=?, status=?, updated_at=datetime('now')
+            total_amount=?, status=?,
+            inventory_coverage=?, article_id=?, liable_user_id=?, liable_department_id=?,
+            updated_at=datetime('now')
         WHERE id=?
       `, [
         data.date ?? existing.date,
@@ -1517,17 +1807,25 @@ function persistInventoryDocument(existingId, data, userId, branchId, existing =
         toDepartmentId,
         totals.net,
         status,
+        coverage,
+        articleId,
+        liable.liable_user_id,
+        liable.liable_department_id,
         id,
       ]);
       run('DELETE FROM document_items WHERE document_id = ?', [id]);
     } else {
       run(`
-        INSERT INTO documents (id, number, type, counterparty_id, date, comment, from_location, to_location,
-          branch_id, from_branch_id, to_branch_id, from_department_id, to_department_id, total_amount, status)
-        VALUES (?, ?, 'inventory', NULL, ?, ?, '', '', ?, NULL, NULL, NULL, ?, ?, ?)
+        INSERT INTO documents (
+          id, number, type, counterparty_id, date, comment, from_location, to_location,
+          branch_id, from_branch_id, to_branch_id, from_department_id, to_department_id,
+          total_amount, status, inventory_coverage, article_id, liable_user_id, liable_department_id
+        )
+        VALUES (?, ?, 'inventory', NULL, ?, ?, '', '', ?, NULL, NULL, NULL, ?, ?, ?, ?, ?, ?, ?)
       `, [
         id, number, data.date, data.comment || '',
         docBranchId, toDepartmentId, totals.net, status,
+        coverage, articleId, liable.liable_user_id, liable.liable_department_id,
       ]);
     }
 
@@ -1537,6 +1835,8 @@ function persistInventoryDocument(existingId, data, userId, branchId, existing =
     if (willConfirm) {
       updateStock(id);
       if (!wasConfirmed) addHistory(id, 'confirmed', userId);
+      const parent = queryOne('SELECT * FROM documents WHERE id = ?', [id]);
+      createInventoryRemainderWriteoff(parent, items, userId);
     }
   });
 
@@ -1990,6 +2290,9 @@ export function confirmDocument(id, userId = null) {
   }
   transaction(() => {
     if (doc.type === 'inventory') {
+      if (doc.inventory_coverage === 'remainder') {
+        throw new Error('Документ списания непересчитанного нельзя проводить отдельно');
+      }
       const snapped = applyInventoryBookSnapshot(doc.to_department_id, items);
       writeInventoryBookSnapshot(snapped);
       validateInventoryShortage(doc.to_department_id, snapped);
@@ -2003,6 +2306,11 @@ export function confirmDocument(id, userId = null) {
     run(`UPDATE documents SET status='confirmed', updated_at=datetime('now') WHERE id=?`, [id]);
     updateStock(id);
     addHistory(id, 'confirmed', userId);
+    if (doc.type === 'inventory') {
+      const parent = queryOne('SELECT * FROM documents WHERE id = ?', [id]);
+      const snappedItems = queryAll('SELECT * FROM document_items WHERE document_id = ?', [id]);
+      createInventoryRemainderWriteoff(parent, snappedItems, userId);
+    }
   });
 
   return getDocument(id, doc.branch_id);
@@ -2067,14 +2375,24 @@ export function cancelDocument(id, userId = null) {
   if (!doc) throw new Error('Документ не найден');
   if (doc.status === 'cancelled') return getDocument(id);
 
+  const remainder = doc.type === 'inventory' && doc.inventory_coverage !== 'remainder'
+    ? findInventoryRemainder(id)
+    : null;
+
   if (doc.status === 'confirmed') {
     assertRazdelkaCanReverse(id, doc);
     const items = queryAll('SELECT * FROM document_items WHERE document_id = ?', [id]);
     assertTransferCanReverse(doc, items);
-    assertNoLaterStockMovements(doc);
+    if (remainder?.status === 'confirmed') {
+      assertNoLaterStockMovements(remainder);
+      assertNoLaterStockMovements(doc, null, [remainder.id]);
+    } else {
+      assertNoLaterStockMovements(doc);
+    }
   }
 
   transaction(() => {
+    if (remainder) reverseInventoryRemainder(id, userId);
     if (doc.status === 'confirmed') updateStock(id, true);
     run(`UPDATE documents SET status='cancelled', updated_at=datetime('now') WHERE id=?`, [id]);
     addHistory(id, 'cancelled', userId);
@@ -2086,9 +2404,23 @@ export function cancelDocument(id, userId = null) {
 export function deleteDocument(id) {
   const doc = queryOne('SELECT * FROM documents WHERE id = ?', [id]);
   if (!doc) throw new Error('Документ не найден');
-  const linkedReturns = queryOne('SELECT COUNT(*) as c FROM documents WHERE source_document_id = ?', [id])?.c || 0;
+  if (doc.inventory_coverage === 'remainder' && doc.status === 'confirmed') {
+    throw new Error('Сначала отмените списание непересчитанного');
+  }
+  const linkedReturns = queryOne(`
+    SELECT COUNT(*) as c FROM documents
+    WHERE source_document_id = ?
+      AND NOT (type = 'inventory' AND inventory_coverage = 'remainder')
+  `, [id])?.c || 0;
   if (linkedReturns > 0) {
     throw new Error('Нельзя удалить документ: к нему привязаны возвраты поставщику.');
+  }
+  const remainder = doc.type === 'inventory' ? findInventoryRemainder(id) : null;
+  if (remainder) {
+    const remPayments = queryOne('SELECT COUNT(*) as c FROM payments WHERE document_id = ?', [remainder.id])?.c || 0;
+    if (remPayments > 0) {
+      throw new Error('Нельзя удалить документ: есть оплаты по списанию непересчитанного.');
+    }
   }
   const linkedPayments = queryOne('SELECT COUNT(*) as c FROM payments WHERE document_id = ?', [id])?.c || 0;
   if (linkedPayments > 0) {
@@ -2097,10 +2429,19 @@ export function deleteDocument(id) {
 
   if (doc.status === 'confirmed') {
     assertRazdelkaCanReverse(id, doc);
-    assertNoLaterStockMovements(doc);
+    if (remainder?.status === 'confirmed') {
+      assertNoLaterStockMovements(remainder);
+      assertNoLaterStockMovements(doc, null, [remainder.id]);
+    } else {
+      assertNoLaterStockMovements(doc);
+    }
   }
 
   transaction(() => {
+    if (remainder) {
+      if (remainder.status === 'confirmed') updateStock(remainder.id, true);
+      run('DELETE FROM documents WHERE id = ?', [remainder.id]);
+    }
     if (doc.status === 'confirmed') {
       updateStock(id, true);
     }
