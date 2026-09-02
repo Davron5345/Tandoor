@@ -1711,29 +1711,35 @@ export default function Inventory() {
 
                 <div className="inv-coverage-block">
                   <div className="inv-dept-label">Покрытие *</div>
-                  <div className="inv-dept-cubes inv-coverage-cubes" role="tablist" aria-label="Тип инвентаризации">
-                    <button
-                      type="button"
-                      className={`inv-dept-cube inv-cube-tone-0${form.inventory_coverage !== 'full' ? ' is-selected' : ''}`}
-                      disabled={readOnly}
-                      aria-pressed={form.inventory_coverage !== 'full'}
-                      onClick={() => setCoverage('partial')}
-                    >
-                      <CubeCheck selected={form.inventory_coverage !== 'full'} />
-                      <span className="inv-dept-cube-name">Частичная</span>
-                      <span className="inv-dept-cube-sub">Только что изменили</span>
-                    </button>
-                    <button
-                      type="button"
-                      className={`inv-dept-cube inv-cube-tone-4${form.inventory_coverage === 'full' ? ' is-selected' : ''}`}
-                      disabled={readOnly}
-                      aria-pressed={form.inventory_coverage === 'full'}
-                      onClick={() => setCoverage('full')}
-                    >
-                      <CubeCheck selected={form.inventory_coverage === 'full'} />
-                      <span className="inv-dept-cube-name">Полная</span>
-                      <span className="inv-dept-cube-sub">Невыбранное спишем</span>
-                    </button>
+                  <div className="inv-coverage-radios" role="radiogroup" aria-label="Тип инвентаризации">
+                    <label className={`inv-coverage-radio${form.inventory_coverage !== 'full' ? ' is-selected' : ''}`}>
+                      <input
+                        type="radio"
+                        name="inventory_coverage"
+                        value="partial"
+                        checked={form.inventory_coverage !== 'full'}
+                        disabled={readOnly}
+                        onChange={() => setCoverage('partial')}
+                      />
+                      <span className="inv-coverage-radio-text">
+                        <span className="inv-coverage-radio-name">Частичная</span>
+                        <span className="inv-coverage-radio-sub">Только что изменили</span>
+                      </span>
+                    </label>
+                    <label className={`inv-coverage-radio${form.inventory_coverage === 'full' ? ' is-selected' : ''}`}>
+                      <input
+                        type="radio"
+                        name="inventory_coverage"
+                        value="full"
+                        checked={form.inventory_coverage === 'full'}
+                        disabled={readOnly}
+                        onChange={() => setCoverage('full')}
+                      />
+                      <span className="inv-coverage-radio-text">
+                        <span className="inv-coverage-radio-name">Полная</span>
+                        <span className="inv-coverage-radio-sub">Невыбранное спишем</span>
+                      </span>
+                    </label>
                   </div>
                 </div>
 
