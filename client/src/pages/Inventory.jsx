@@ -229,6 +229,26 @@ function factQtyFromBook(book, net) {
   return String(b);
 }
 
+function qtyField(value) {
+  if (value == null || value === '') return '';
+  return String(value);
+}
+
+function mapInventoryFormItem(item) {
+  const net = Number(item?.net_weight);
+  return {
+    product_id: item.product_id,
+    variant_id: item.variant_id || null,
+    product_name: item.product_name,
+    variant_name: item.variant_name || null,
+    unit: item.unit,
+    book_qty: Number(item.book_qty) || 0,
+    quantity: qtyField(item.quantity),
+    net_weight: Number.isFinite(net) && net > 0 ? String(net) : qtyField(item.net_weight),
+    unit_cost: Number(item.unit_cost) || Number(item.price) || 0,
+  };
+}
+
 function lineStockHint(item, unit) {
   const net = lineNet(item);
   const qty = lineFact(item);
@@ -652,9 +672,7 @@ export default function Inventory() {
   }), [form, sheetTab, commentOpen, readOnly]);
   useFormDraft(draftKey, draftPayload, Boolean(modal) && !readOnly);
   const isFormDirty = useFormDirty(draftPayload, modal ? `${draftKey}:${savedTick}` : null);
-  const isWorking = Boolean(modal) && !readOnly && (
-    saving || isFormDirty || form.items.length > 0 || Boolean(form.comment)
-  );
+  const isWorking = Boolean(modal) && !readOnly && (saving || isFormDirty);
 
   useEffect(() => {
     writeActiveInventoryModal(modal || '');
@@ -741,7 +759,7 @@ export default function Inventory() {
 
   const ensureProducts = useCallback(async () => {
     const branchKey = branchId || 'main';
-    if (productsReady && productsBranchRef.current === branchKey) return;
+    if (productsReady && productsBranchRef.current === branchKey) return products;
     setProductsLoading(true);
     try {
       const prods = await api.getProducts({ limit: 5000 });
@@ -749,12 +767,14 @@ export default function Inventory() {
       setProducts(list);
       productsBranchRef.current = branchKey;
       setProductsReady(true);
+      return list;
     } catch (e) {
       show(e.message || 'Не удалось загрузить товары', 'error');
+      return products;
     } finally {
       setProductsLoading(false);
     }
-  }, [branchId, productsReady, show]);
+  }, [branchId, productsReady, products, show]);
 
   useEffect(() => {
     if (restoredRef.current) return;
@@ -976,17 +996,7 @@ export default function Inventory() {
         remainder_items: mapRemainderItems(doc),
         counted_amount: Number(doc.counted_amount) || 0,
         stock_amount: Number(doc.stock_amount) || 0,
-        items: (doc.items || []).map((i) => ({
-          product_id: i.product_id,
-          variant_id: i.variant_id || null,
-          product_name: i.product_name,
-          variant_name: i.variant_name || null,
-          unit: i.unit,
-          book_qty: Number(i.book_qty) || 0,
-          quantity: i.quantity,
-          net_weight: i.net_weight != null && i.net_weight !== '' ? i.net_weight : '',
-          unit_cost: Number(i.unit_cost) || Number(i.price) || 0,
-        })),
+        items: (doc.items || []).map(mapInventoryFormItem),
       });
       setLineFilter('all');
       setItemSearch('');
@@ -1035,16 +1045,18 @@ export default function Inventory() {
     }
     setFilling(true);
     try {
+      const catalog = (await ensureProducts()) || [];
       const rows = await api.getInventoryStock(form.to_department_id);
       if (!rows.length) {
         show('В отделе нет позиций с остатком', 'error');
-        setForm({ ...form, items: [] });
+        setForm((prev) => ({ ...prev, items: [] }));
         return;
       }
-      setForm({
-        ...form,
+      setForm((prev) => ({
+        ...prev,
         items: rows.map((row) => {
-          const net = catalogNetValue(row);
+          const product = catalog.find((p) => p.id === row.product_id);
+          const net = catalogNetValue(row) || catalogNetValue(product);
           return {
             product_id: row.product_id,
             variant_id: row.variant_id || null,
@@ -1057,7 +1069,7 @@ export default function Inventory() {
             unit_cost: Number(row.avg_cost) || Number(row.suggest_cost) || 0,
           };
         }),
-      });
+      }));
       setLineFilter('all');
     } catch (e) {
       show(e.message || 'Не удалось заполнить', 'error');
@@ -1161,29 +1173,37 @@ export default function Inventory() {
   };
 
   const updateFact = (idx, value) => {
-    const items = [...form.items];
-    items[idx] = { ...items[idx], quantity: normalizeQuantityInput(value) };
-    setForm({ ...form, items });
+    const quantity = normalizeQuantityInput(value);
+    setForm((prev) => ({
+      ...prev,
+      items: prev.items.map((item, i) => (i === idx ? { ...item, quantity } : item)),
+    }));
   };
 
   const updateNet = (idx, value) => {
-    const items = [...form.items];
-    items[idx] = { ...items[idx], net_weight: normalizeQuantityInput(value) };
-    setForm({ ...form, items });
+    const net_weight = normalizeQuantityInput(value);
+    setForm((prev) => ({
+      ...prev,
+      items: prev.items.map((item, i) => (i === idx ? { ...item, net_weight } : item)),
+    }));
   };
 
   const updateCost = (idx, value) => {
-    const items = [...form.items];
-    items[idx] = {
-      ...items[idx],
-      unit_cost_input: formatPriceInput(value),
-      unit_cost: parsePriceInput(value) ?? 0,
-    };
-    setForm({ ...form, items });
+    const unit_cost_input = formatPriceInput(value);
+    const unit_cost = parsePriceInput(value) ?? 0;
+    setForm((prev) => ({
+      ...prev,
+      items: prev.items.map((item, i) => (
+        i === idx ? { ...item, unit_cost_input, unit_cost } : item
+      )),
+    }));
   };
 
   const removeItem = (idx) => {
-    setForm({ ...form, items: form.items.filter((_, i) => i !== idx) });
+    setForm((prev) => ({
+      ...prev,
+      items: prev.items.filter((_, i) => i !== idx),
+    }));
   };
 
   const payloadItems = () => form.items
@@ -1271,6 +1291,9 @@ export default function Inventory() {
         remainder_items: mapRemainderItems(doc),
         counted_amount: Number(doc.counted_amount) || 0,
         stock_amount: Number(doc.stock_amount) || 0,
+        items: Array.isArray(doc.items) && doc.items.length
+          ? doc.items.map(mapInventoryFormItem)
+          : prev.items,
       }));
       setSavedTick((tick) => tick + 1);
       setModal(doc.id);
@@ -1488,7 +1511,7 @@ export default function Inventory() {
           className={`modal-doc modal-inventory${sheetTab === 'setup' ? ' modal-inventory--setup' : ' modal-inventory--items'}`}
           title={modalTitle}
           footerPlacement="end"
-          dirty={isWorking}
+          dirty={isFormDirty}
           onClose={() => {
             closeInventoryWork(modal);
             setProductModalOpen(false);
@@ -1503,7 +1526,7 @@ export default function Inventory() {
                     Снять проведение
                   </button>
                 )}
-                {canEdit && form.status === 'draft' && form.id && (
+                {canEdit && form.status === 'draft' && (
                   <button type="button" className="btn btn-ghost" onClick={() => save(false)} disabled={saving}>
                     Сохранить
                   </button>

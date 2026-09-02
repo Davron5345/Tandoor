@@ -635,3 +635,77 @@ test('inventory: net_weight fact is net × qty against warehouse book', async ()
   assert.equal(inv.surplus_total, 2000);
   assert.equal(getDepartmentStockWithCost(deptId, product.id).stock, 12);
 });
+
+test('inventory draft keeps entered qty, net_weight and book_qty on save/reopen', async () => {
+  const { default: db, initDb } = await import('../db.js');
+  const { initPermissions } = await import('../permissions.js');
+  const { seedDefaultUsers } = await import('../auth.js');
+  const svc = await import('../services.js');
+  const { createDepartment } = await import('../departments.js');
+  const { getDepartmentStockWithCost } = await import('../inventoryCost.js');
+
+  await initDb();
+  initPermissions(db);
+  seedDefaultUsers();
+
+  const deptId = createDepartment({ name: 'Отдел инв черновик нетто', branch_id: 'main' }).id;
+  const product = svc.createProduct({
+    name: 'Инв черновик нетто',
+    sku: 'INV-NET-DRAFT',
+    unit: 'кг',
+    price: 1000,
+    net_weight: 0.5,
+    branch_id: 'main',
+  });
+  svc.createDocument({
+    type: 'prihod',
+    date: '2026-08-20',
+    to_department_id: deptId,
+    items: [{ product_id: product.id, quantity: 20, price: 500, net_weight: 0.5 }],
+    status: 'confirmed',
+  }, 'test-user', 'main');
+  assert.equal(getDepartmentStockWithCost(deptId, product.id).stock, 10);
+
+  const draft = svc.createDocument({
+    type: 'inventory',
+    date: '2026-08-28',
+    to_department_id: deptId,
+    items: [{
+      product_id: product.id,
+      book_qty: 10,
+      quantity: 18,
+      net_weight: 0.5,
+      unit_cost: 1000,
+    }],
+    status: 'draft',
+  }, 'test-user', 'main');
+
+  assert.equal(draft.status, 'draft');
+  assert.equal(draft.items.length, 1);
+  assert.equal(draft.items[0].quantity, 18);
+  assert.equal(draft.items[0].book_qty, 10);
+  assert.equal(draft.items[0].net_weight, 0.5);
+
+  const updated = svc.updateDocument(draft.id, {
+    type: 'inventory',
+    date: '2026-08-28',
+    to_department_id: deptId,
+    items: [{
+      product_id: product.id,
+      book_qty: 10,
+      quantity: 22,
+      net_weight: 0.4,
+      unit_cost: 1000,
+    }],
+    status: 'draft',
+  }, 'test-user', 'main');
+
+  assert.equal(updated.items[0].quantity, 22);
+  assert.equal(updated.items[0].book_qty, 10);
+  assert.equal(updated.items[0].net_weight, 0.4);
+
+  const reopened = svc.getDocument(updated.id, 'main');
+  assert.equal(reopened.items[0].quantity, 22);
+  assert.equal(reopened.items[0].book_qty, 10);
+  assert.equal(reopened.items[0].net_weight, 0.4);
+});
