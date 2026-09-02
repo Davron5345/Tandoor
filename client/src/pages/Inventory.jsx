@@ -11,7 +11,7 @@ import {
   STATUS_LABELS,
 } from '../api';
 import Modal, { useToast, ModalCancelButton } from '../components/Modal';
-import { IconButton, IconEdit, IconEye, IconPlus, IconTrash } from '../components/ActionIcons';
+import { IconButton, IconCheck, IconEdit, IconEye, IconPlus, IconTrash } from '../components/ActionIcons';
 import { useAuth } from '../AuthContext';
 import { useBranch } from '../BranchContext';
 import BranchChip from '../components/BranchChip';
@@ -168,6 +168,15 @@ function cubeTone(id) {
 
 function cubeClass(id, selected) {
   return `inv-dept-cube inv-cube-tone-${cubeTone(id)}${selected ? ' is-selected' : ''}`;
+}
+
+function CubeCheck({ selected }) {
+  if (!selected) return null;
+  return (
+    <span className="inv-dept-cube-check" aria-hidden="true">
+      <IconCheck />
+    </span>
+  );
 }
 
 function liableKindFromDoc(doc) {
@@ -1700,27 +1709,6 @@ export default function Inventory() {
                   </div>
                 </div>
 
-                <div className="inv-dept-block">
-                  <div className="inv-dept-label">Отдел *</div>
-                  {branchDepartments.length === 0 ? (
-                    <div className="inventory-list-empty">Нет отделов филиала</div>
-                  ) : (
-                    <div className="inv-dept-cubes">
-                      {branchDepartments.map((d) => (
-                        <button
-                          key={d.id}
-                          type="button"
-                          className={cubeClass(d.id, form.to_department_id === d.id)}
-                          disabled={readOnly}
-                          onClick={() => selectDepartment(d.id)}
-                        >
-                          <span className="inv-dept-cube-name">{d.name}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
                 <div className="inv-coverage-block">
                   <div className="inv-dept-label">Покрытие *</div>
                   <div className="inv-dept-cubes inv-coverage-cubes" role="tablist" aria-label="Тип инвентаризации">
@@ -1728,8 +1716,10 @@ export default function Inventory() {
                       type="button"
                       className={`inv-dept-cube inv-cube-tone-0${form.inventory_coverage !== 'full' ? ' is-selected' : ''}`}
                       disabled={readOnly}
+                      aria-pressed={form.inventory_coverage !== 'full'}
                       onClick={() => setCoverage('partial')}
                     >
+                      <CubeCheck selected={form.inventory_coverage !== 'full'} />
                       <span className="inv-dept-cube-name">Частичная</span>
                       <span className="inv-dept-cube-sub">Только что изменили</span>
                     </button>
@@ -1737,12 +1727,40 @@ export default function Inventory() {
                       type="button"
                       className={`inv-dept-cube inv-cube-tone-4${form.inventory_coverage === 'full' ? ' is-selected' : ''}`}
                       disabled={readOnly}
+                      aria-pressed={form.inventory_coverage === 'full'}
                       onClick={() => setCoverage('full')}
                     >
+                      <CubeCheck selected={form.inventory_coverage === 'full'} />
                       <span className="inv-dept-cube-name">Полная</span>
                       <span className="inv-dept-cube-sub">Невыбранное спишем</span>
                     </button>
                   </div>
+                </div>
+
+                <div className="inv-dept-block">
+                  <div className="inv-dept-label">Отдел *</div>
+                  {branchDepartments.length === 0 ? (
+                    <div className="inventory-list-empty">Нет отделов филиала</div>
+                  ) : (
+                    <div className="inv-dept-cubes">
+                      {branchDepartments.map((d) => {
+                        const selected = form.to_department_id === d.id;
+                        return (
+                          <button
+                            key={d.id}
+                            type="button"
+                            className={cubeClass(d.id, selected)}
+                            disabled={readOnly}
+                            aria-pressed={selected}
+                            onClick={() => selectDepartment(d.id)}
+                          >
+                            <CubeCheck selected={selected} />
+                            <span className="inv-dept-cube-name">{d.name}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
 
                 {form.inventory_coverage === 'full' && (
@@ -1767,8 +1785,10 @@ export default function Inventory() {
                           type="button"
                           className={`inv-dept-cube inv-cube-tone-3${form.liable_kind === 'none' ? ' is-selected' : ''}`}
                           disabled={readOnly}
+                          aria-pressed={form.liable_kind === 'none'}
                           onClick={() => setLiableKind('none')}
                         >
+                          <CubeCheck selected={form.liable_kind === 'none'} />
                           <span className="inv-dept-cube-name">В расход</span>
                           <span className="inv-dept-cube-sub">Без должника</span>
                         </button>
@@ -1776,8 +1796,10 @@ export default function Inventory() {
                           type="button"
                           className={`inv-dept-cube inv-cube-tone-6${form.liable_kind === 'user' ? ' is-selected' : ''}`}
                           disabled={readOnly}
+                          aria-pressed={form.liable_kind === 'user'}
                           onClick={() => setLiableKind('user')}
                         >
+                          <CubeCheck selected={form.liable_kind === 'user'} />
                           <span className="inv-dept-cube-name">Сотрудник</span>
                           <span className="inv-dept-cube-sub">Повесить долг</span>
                         </button>
@@ -1785,8 +1807,10 @@ export default function Inventory() {
                           type="button"
                           className={`inv-dept-cube inv-cube-tone-1${form.liable_kind === 'department' ? ' is-selected' : ''}`}
                           disabled={readOnly}
+                          aria-pressed={form.liable_kind === 'department'}
                           onClick={() => setLiableKind('department')}
                         >
+                          <CubeCheck selected={form.liable_kind === 'department'} />
                           <span className="inv-dept-cube-name">Отдел</span>
                           <span className="inv-dept-cube-sub">Повесить долг</span>
                         </button>
@@ -1799,17 +1823,22 @@ export default function Inventory() {
                           <div className="inventory-list-empty">Нет сотрудников филиала</div>
                         ) : (
                           <div className="inv-dept-cubes">
-                            {invOptions.users.map((u) => (
-                              <button
-                                key={u.id}
-                                type="button"
-                                className={cubeClass(u.id, form.liable_user_id === u.id)}
-                                disabled={readOnly}
-                                onClick={() => setForm({ ...form, liable_user_id: u.id })}
-                              >
-                                <span className="inv-dept-cube-name">{u.name}</span>
-                              </button>
-                            ))}
+                            {invOptions.users.map((u) => {
+                              const selected = form.liable_user_id === u.id;
+                              return (
+                                <button
+                                  key={u.id}
+                                  type="button"
+                                  className={cubeClass(u.id, selected)}
+                                  disabled={readOnly}
+                                  aria-pressed={selected}
+                                  onClick={() => setForm({ ...form, liable_user_id: u.id })}
+                                >
+                                  <CubeCheck selected={selected} />
+                                  <span className="inv-dept-cube-name">{u.name}</span>
+                                </button>
+                              );
+                            })}
                           </div>
                         )}
                       </div>
@@ -1821,17 +1850,22 @@ export default function Inventory() {
                           <div className="inventory-list-empty">Нет отделов филиала</div>
                         ) : (
                           <div className="inv-dept-cubes">
-                            {branchDepartments.map((d) => (
-                              <button
-                                key={d.id}
-                                type="button"
-                                className={cubeClass(d.id, form.liable_department_id === d.id)}
-                                disabled={readOnly}
-                                onClick={() => setForm({ ...form, liable_department_id: d.id })}
-                              >
-                                <span className="inv-dept-cube-name">{d.name}</span>
-                              </button>
-                            ))}
+                            {branchDepartments.map((d) => {
+                              const selected = form.liable_department_id === d.id;
+                              return (
+                                <button
+                                  key={d.id}
+                                  type="button"
+                                  className={cubeClass(d.id, selected)}
+                                  disabled={readOnly}
+                                  aria-pressed={selected}
+                                  onClick={() => setForm({ ...form, liable_department_id: d.id })}
+                                >
+                                  <CubeCheck selected={selected} />
+                                  <span className="inv-dept-cube-name">{d.name}</span>
+                                </button>
+                              );
+                            })}
                           </div>
                         )}
                       </div>
