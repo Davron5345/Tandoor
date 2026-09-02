@@ -3147,6 +3147,9 @@ input[type='number']::-webkit-inner-spin-button {
 }
 
 .modal-overlay:has(.modal-inventory) {
+  padding: 0;
+  align-items: stretch;
+  justify-content: stretch;
   overflow: hidden;
   overscroll-behavior: none;
 }
@@ -3190,6 +3193,36 @@ input[type='number']::-webkit-inner-spin-button {
   width: min(100%, 1440px);
   max-height: min(96vh, 96dvh);
   height: min(96vh, 96dvh);
+}
+
+.modal-doc.modal-inventory {
+  width: 100%;
+  max-width: 100%;
+  height: 100%;
+  max-height: 100%;
+  border-radius: 0;
+  margin: 0;
+}
+
+.modal-inventory .modal-header {
+  padding: 12px 20px;
+}
+
+.modal-inventory .modal-header-actions .modal-footer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  width: auto;
+}
+
+.modal-inventory .modal-header-actions .modal-footer-actions .btn {
+  width: auto;
+  min-width: 0;
+  min-height: 40px;
+  padding: 8px 14px;
+  white-space: nowrap;
 }
 
 .modal-doc .modal-body {
@@ -3684,18 +3717,18 @@ input[type='number']::-webkit-inner-spin-button {
   margin-left: auto;
 }
 
-.modal-inventory--setup .modal-footer-actions {
+.modal-inventory--setup .modal-footer .modal-footer-actions {
   display: grid;
   grid-template-columns: 1fr 1.2fr;
   gap: 8px;
   width: 100%;
 }
 
-.modal-inventory--setup .modal-footer-actions > :first-child {
+.modal-inventory--setup .modal-footer .modal-footer-actions > :first-child {
   grid-column: auto;
 }
 
-.modal-inventory--items .modal-footer-actions {
+.modal-inventory--items .modal-footer .modal-footer-actions {
   display: grid;
   grid-template-columns: auto 1fr 1.4fr;
   gap: 8px;
@@ -4132,8 +4165,20 @@ input[type='number']::-webkit-inner-spin-button {
     grid-template-columns: 1fr 1fr;
   }
 
-  .modal-inventory {
-    width: min(100%, 960px);
+  .modal-inventory .modal-header {
+    flex-wrap: wrap;
+  }
+
+  .modal-inventory .modal-header-actions {
+    width: 100%;
+  }
+
+  .modal-inventory .modal-header-actions .modal-footer-actions {
+    width: 100%;
+  }
+
+  .modal-inventory .modal-header-actions .modal-footer-actions .btn {
+    flex: 1 1 auto;
   }
 
   .inv-add-line {

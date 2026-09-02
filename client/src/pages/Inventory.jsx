@@ -1561,7 +1561,7 @@ export default function Inventory() {
         <Modal
           className={`modal-doc modal-inventory${sheetTab === 'setup' ? ' modal-inventory--setup' : ' modal-inventory--items'}`}
           title={modalTitle}
-          footerPlacement="end"
+          footerPlacement={isPhone ? 'end' : 'header'}
           dirty={isFormDirty}
           onClose={() => {
             closeInventoryWork(modal);
