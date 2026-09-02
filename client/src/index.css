@@ -3843,6 +3843,44 @@ input[type='number']::-webkit-inner-spin-button {
   color: var(--danger, #c0392b);
 }
 
+.inventory-items-table th.inv-col-cost,
+.inventory-items-table td.inv-col-cost,
+.inv-col-cost {
+  color: #0f766e;
+  font-variant-numeric: tabular-nums;
+}
+
+.inventory-items-table th.inv-col-amount,
+.inventory-items-table td.inv-col-amount,
+.inv-col-amount {
+  color: #1d4ed8;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.inventory-items-table td.inv-col-cost,
+.inventory-items-table td.inv-col-amount {
+  background: color-mix(in srgb, currentColor 7%, transparent);
+}
+
+.inv-cost-input {
+  color: #0f766e;
+  font-weight: 600;
+}
+
+[data-theme="dark"] .inv-col-cost,
+[data-theme="dark"] .inventory-items-table th.inv-col-cost,
+[data-theme="dark"] .inventory-items-table td.inv-col-cost,
+[data-theme="dark"] .inv-cost-input {
+  color: #5eead4;
+}
+
+[data-theme="dark"] .inv-col-amount,
+[data-theme="dark"] .inventory-items-table th.inv-col-amount,
+[data-theme="dark"] .inventory-items-table td.inv-col-amount {
+  color: #93c5fd;
+}
+
 .inv-row-discrepancy td {
   background: color-mix(in srgb, var(--primary) 5%, transparent);
 }

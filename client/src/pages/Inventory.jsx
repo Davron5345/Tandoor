@@ -449,7 +449,8 @@ function InventoryWriteoffBlock({ items, products, showAmount, isPhone, confirme
                 <th>Ед.</th>
                 <th className="col-num">Учёт</th>
                 <th className="col-num">Факт</th>
-                {showAmount ? <th className="col-num">Сумма</th> : null}
+                {showAmount ? <th className="col-num inv-col-cost">Себест.</th> : null}
+                {showAmount ? <th className="col-num inv-col-amount">Сумма</th> : null}
               </tr>
             </thead>
             <tbody>
@@ -461,7 +462,12 @@ function InventoryWriteoffBlock({ items, products, showAmount, isPhone, confirme
                   <td className="col-num">{formatQty(item.book_qty)}</td>
                   <td className="col-num">0</td>
                   {showAmount ? (
-                    <td className="col-num">{formatMoney(remainderLineAmount(item))}</td>
+                    <td className="col-num inv-col-cost">
+                      {Number(item.unit_cost) > 0 ? formatMoney(item.unit_cost) : '—'}
+                    </td>
+                  ) : null}
+                  {showAmount ? (
+                    <td className="col-num inv-col-amount">{formatMoney(remainderLineAmount(item))}</td>
                   ) : null}
                 </tr>
               ))}
@@ -492,8 +498,10 @@ function InventoryWriteoffBlock({ items, products, showAmount, isPhone, confirme
               </div>
               {showAmount ? (
                 <div className="inventory-line-card-compact-meta">
-                  <span>Сумма</span>
-                  <b>{formatMoney(remainderLineAmount(item))}</b>
+                  <span>Себест.</span>
+                  <b className="inv-col-cost">
+                    {Number(item.unit_cost) > 0 ? formatMoney(item.unit_cost) : '—'}
+                  </b>
                 </div>
               ) : (
                 <div className="inventory-line-card-compact-meta">
@@ -501,6 +509,12 @@ function InventoryWriteoffBlock({ items, products, showAmount, isPhone, confirme
                   <b>{productUnit(products, item)}</b>
                 </div>
               )}
+              {showAmount ? (
+                <div className="inventory-line-card-compact-meta">
+                  <span>Сумма</span>
+                  <b className="inv-col-amount">{formatMoney(remainderLineAmount(item))}</b>
+                </div>
+              ) : null}
             </div>
           </article>
         ))}
@@ -536,18 +550,23 @@ function InventoryLineCard({
   const diff = lineDiff(item);
   const amount = lineAmount(item);
   const unit = productUnit(products, item);
+  const cost = lineCost(item);
   const diffClass = diff > 1e-9 ? 'inv-diff-pos' : diff < -1e-9 ? 'inv-diff-neg' : '';
-  const showCost = !readOnly && needsSurplusCost(item);
-  const costField = showCost ? (
+  const canEditCost = !readOnly && needsSurplusCost(item);
+  const costField = showAmount ? (
     <div className="inventory-line-card-cost">
-      <span>Себест. излишка</span>
-      <input
-        className="input-qty"
-        inputMode="decimal"
-        value={item.unit_cost_input ?? (item.unit_cost ? formatPriceInput(item.unit_cost) : '')}
-        onChange={(e) => onCost(idx, e.target.value)}
-        placeholder="0,00"
-      />
+      <span>{canEditCost ? 'Себест. излишка' : 'Себест.'}</span>
+      {canEditCost ? (
+        <input
+          className="input-qty inv-cost-input"
+          inputMode="decimal"
+          value={item.unit_cost_input ?? (cost ? formatPriceInput(cost) : '')}
+          onChange={(e) => onCost(idx, e.target.value)}
+          placeholder="0,00"
+        />
+      ) : (
+        <b className="inv-col-cost">{cost > 0 ? formatMoney(cost) : '—'}</b>
+      )}
     </div>
   ) : null;
   const netField = (
@@ -592,7 +611,7 @@ function InventoryLineCard({
           {showAmount ? (
             <div className="inventory-line-card-compact-meta">
               <span>Сумма</span>
-              <b>{formatMoney(amount)}</b>
+              <b className="inv-col-amount">{formatMoney(amount)}</b>
             </div>
           ) : null}
         </div>
@@ -651,10 +670,26 @@ function InventoryLineCard({
           <b className={diffClass}>{formatQty(diff)}</b>
         </div>
         {showAmount ? (
-          <div>
-            <span>Сумма</span>
-            <b>{formatMoney(amount)}</b>
-          </div>
+          <>
+            <div>
+              <span>Себест.</span>
+              {canEditCost ? (
+                <input
+                  className="input-qty inv-cost-input"
+                  inputMode="decimal"
+                  value={item.unit_cost_input ?? (cost ? formatPriceInput(cost) : '')}
+                  onChange={(e) => onCost(idx, e.target.value)}
+                  placeholder="0,00"
+                />
+              ) : (
+                <b className="inv-col-cost">{cost > 0 ? formatMoney(cost) : '—'}</b>
+              )}
+            </div>
+            <div>
+              <span>Сумма</span>
+              <b className="inv-col-amount">{formatMoney(amount)}</b>
+            </div>
+          </>
         ) : (
           <div>
             <span>Ед. изм.</span>
@@ -662,7 +697,7 @@ function InventoryLineCard({
           </div>
         )}
       </div>
-      {costField}
+      {canEditCost && !showAmount ? costField : null}
     </article>
   );
 }
@@ -932,8 +967,6 @@ export default function Inventory() {
     }
     return rows;
   }, [form.items, lineFilter, itemSearch, products]);
-
-  const showSurplusCostCol = !readOnly && form.items.some(needsSurplusCost);
 
   const openCreate = async () => {
     const deptId = branchDepartments.length === 1 ? branchDepartments[0].id : '';
@@ -1961,15 +1994,15 @@ export default function Inventory() {
                             <th className="col-num">Учёт</th>
                             <th className="col-num">Факт</th>
                             <th className="col-num">Разница</th>
-                            {showAmount && <th className="col-num">Сумма</th>}
-                            {showSurplusCostCol && <th className="col-num">Себест.</th>}
+                            {showAmount && <th className="col-num inv-col-cost">Себест.</th>}
+                            {showAmount && <th className="col-num inv-col-amount">Сумма</th>}
                             {!readOnly && <th />}
                           </tr>
                         </thead>
                         <tbody>
                           {visibleItems.length === 0 ? (
                             <tr>
-                              <td colSpan={(showAmount ? 8 : 7) + (showSurplusCostCol ? 1 : 0) + (readOnly ? 0 : 1)} className="empty">
+                              <td colSpan={(showAmount ? 9 : 7) + (readOnly ? 0 : 1)} className="empty">
                                 {form.items.length === 0
                                   ? 'Заполните по учёту или добавьте товар'
                                   : itemSearch.trim()
@@ -1980,8 +2013,10 @@ export default function Inventory() {
                           ) : visibleItems.map(({ item, idx }) => {
                             const diff = lineDiff(item);
                             const amount = lineAmount(item);
+                            const cost = lineCost(item);
                             const unit = productUnit(products, item);
                             const diffClass = diff > 1e-9 ? 'inv-diff-pos' : diff < -1e-9 ? 'inv-diff-neg' : '';
+                            const canEditCost = !readOnly && needsSurplusCost(item);
                             return (
                               <tr key={`${item.product_id}:${item.variant_id || ''}:${idx}`} className={diffClass ? 'inv-row-discrepancy' : undefined}>
                                 <td className="inv-row-num">{idx + 1}</td>
@@ -2012,19 +2047,24 @@ export default function Inventory() {
                                   )}
                                 </td>
                                 <td className={`col-num ${diffClass}`}>{formatQty(diff)}</td>
-                                {showAmount && <td className="col-num">{formatMoney(amount)}</td>}
-                                {showSurplusCostCol && (
-                                  <td>
-                                    {needsSurplusCost(item) ? (
+                                {showAmount && (
+                                  <td className="col-num inv-col-cost">
+                                    {canEditCost ? (
                                       <input
-                                        className="input-qty"
+                                        className="input-qty inv-cost-input"
                                         inputMode="decimal"
-                                        value={item.unit_cost_input ?? (item.unit_cost ? formatPriceInput(item.unit_cost) : '')}
+                                        value={item.unit_cost_input ?? (cost ? formatPriceInput(cost) : '')}
                                         onChange={(e) => updateCost(idx, e.target.value)}
                                         placeholder="0,00"
+                                        title="Себестоимость излишка"
                                       />
-                                    ) : '—'}
+                                    ) : (
+                                      cost > 0 ? formatMoney(cost) : '—'
+                                    )}
                                   </td>
+                                )}
+                                {showAmount && (
+                                  <td className="col-num inv-col-amount">{formatMoney(amount)}</td>
                                 )}
                                 {!readOnly && (
                                   <td>
@@ -2078,7 +2118,7 @@ export default function Inventory() {
                 <div className={`doc-modal-totals${showAmount ? '' : ' is-qty-only'}`}>
                   {showAmount ? (
                     <>
-                      <div>Остатки {formatMoney(totals.stock)}</div>
+                      <div className="inv-col-amount">Остатки {formatMoney(totals.stock)}</div>
                       {form.inventory_coverage === 'full' && totals.remainder > 0 ? (
                         <button
                           type="button"
@@ -2091,9 +2131,9 @@ export default function Inventory() {
                           Списание {formatMoney(totals.remainder)}
                         </button>
                       ) : null}
-                      <div>− {formatMoney(totals.shortage)}</div>
-                      <div>+ {formatMoney(totals.surplus)}</div>
-                      <div className="doc-modal-total">
+                      <div className="inv-diff-neg">− {formatMoney(totals.shortage)}</div>
+                      <div className="inv-diff-pos">+ {formatMoney(totals.surplus)}</div>
+                      <div className="doc-modal-total inv-col-amount">
                         <strong>Итого {formatMoney(totals.stockTotal)}</strong>
                       </div>
                     </>
