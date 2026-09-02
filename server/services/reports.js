@@ -827,10 +827,12 @@ export function getPnLReport(branchId = DEFAULT_BRANCH_ID, dateFrom = null, date
   const inventoryRow = queryOne(`
     SELECT
       COALESCE(SUM(CASE
-        WHEN di.quantity < COALESCE(di.book_qty, 0) THEN COALESCE(di.cost_amount, 0)
+        WHEN (CASE WHEN COALESCE(di.net_weight, 0) > 0 THEN di.net_weight * di.quantity ELSE di.quantity END)
+             < COALESCE(di.book_qty, 0) THEN COALESCE(di.cost_amount, 0)
         ELSE 0 END), 0) as shortage,
       COALESCE(SUM(CASE
-        WHEN di.quantity > COALESCE(di.book_qty, 0) THEN COALESCE(di.cost_amount, 0)
+        WHEN (CASE WHEN COALESCE(di.net_weight, 0) > 0 THEN di.net_weight * di.quantity ELSE di.quantity END)
+             > COALESCE(di.book_qty, 0) THEN COALESCE(di.cost_amount, 0)
         ELSE 0 END), 0) as surplus
     FROM documents d
     JOIN document_items di ON di.document_id = d.id

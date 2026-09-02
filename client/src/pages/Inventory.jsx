@@ -249,6 +249,56 @@ function mapInventoryFormItem(item) {
   };
 }
 
+function mergeSavedInventoryItems(serverItems, localItems) {
+  if (!Array.isArray(serverItems) || serverItems.length === 0) return localItems || [];
+  const localByKey = new Map((localItems || []).map((item) => [remainderLineKey(item), item]));
+  return serverItems.map((server) => {
+    const mapped = mapInventoryFormItem(server);
+    const local = localByKey.get(remainderLineKey(server));
+    if (!local) return mapped;
+    const serverNet = lineNet(mapped);
+    const localNet = lineNet(local);
+    return {
+      ...mapped,
+      quantity: mapped.quantity !== '' ? mapped.quantity : qtyField(local.quantity),
+      net_weight: serverNet > 0 ? mapped.net_weight : (localNet > 0 ? qtyField(local.net_weight) : mapped.net_weight),
+      unit_cost: mapped.unit_cost || local.unit_cost,
+      unit_cost_input: local.unit_cost_input,
+      unit: mapped.unit || local.unit,
+      product_name: mapped.product_name || local.product_name,
+      variant_name: mapped.variant_name ?? local.variant_name,
+    };
+  });
+}
+
+function mergeFillInventoryItems(existingItems, rows, catalog) {
+  const existingByKey = new Map((existingItems || []).map((item) => [remainderLineKey(item), item]));
+  const used = new Set();
+  const fromStock = (rows || []).map((row) => {
+    const key = remainderLineKey(row);
+    used.add(key);
+    const existing = existingByKey.get(key);
+    const product = (catalog || []).find((p) => p.id === row.product_id);
+    const catalogNet = catalogNetValue(row) || catalogNetValue(product);
+    const keepNet = existing && lineNet(existing) > 0 ? lineNet(existing) : catalogNet;
+    const hasEnteredFact = existing && existing.quantity !== '' && existing.quantity != null;
+    return {
+      product_id: row.product_id,
+      variant_id: row.variant_id || null,
+      product_name: existing?.product_name || row.name,
+      variant_name: existing?.variant_name ?? row.variant_name ?? null,
+      unit: existing?.unit || row.unit,
+      book_qty: Number(row.book_qty) || 0,
+      quantity: hasEnteredFact ? existing.quantity : factQtyFromBook(row.book_qty, keepNet),
+      net_weight: keepNet > 0 ? String(keepNet) : (existing?.net_weight ?? ''),
+      unit_cost: Number(existing?.unit_cost) || Number(row.avg_cost) || Number(row.suggest_cost) || 0,
+      unit_cost_input: existing?.unit_cost_input,
+    };
+  });
+  const extras = (existingItems || []).filter((item) => !used.has(remainderLineKey(item)));
+  return [...fromStock, ...extras];
+}
+
 function lineStockHint(item, unit) {
   const net = lineNet(item);
   const qty = lineFact(item);
@@ -886,6 +936,15 @@ export default function Inventory() {
   const showSurplusCostCol = !readOnly && form.items.some(needsSurplusCost);
 
   const openCreate = async () => {
+    const deptId = branchDepartments.length === 1 ? branchDepartments[0].id : '';
+    const existingDraft = docs.find((d) => (
+      d.status === 'draft'
+      && (!deptId || d.to_department_id === deptId)
+    ));
+    if (existingDraft && (deptId || docs.filter((d) => d.status === 'draft').length === 1)) {
+      await openDoc(existingDraft.id, false, 'setup');
+      return;
+    }
     const next = emptyForm();
     if (branchDepartments.length === 1) next.to_department_id = branchDepartments[0].id;
     try {
@@ -938,6 +997,15 @@ export default function Inventory() {
   const selectDepartment = (departmentId) => {
     if (readOnly) return;
     if (departmentId === form.to_department_id) return;
+    if (!form.id) {
+      const existingDraft = docs.find((d) => (
+        d.status === 'draft' && d.to_department_id === departmentId
+      ));
+      if (existingDraft) {
+        openDoc(existingDraft.id, false, sheetTab);
+        return;
+      }
+    }
     setForm((prev) => ({
       ...prev,
       to_department_id: departmentId,
@@ -1049,26 +1117,11 @@ export default function Inventory() {
       const rows = await api.getInventoryStock(form.to_department_id);
       if (!rows.length) {
         show('В отделе нет позиций с остатком', 'error');
-        setForm((prev) => ({ ...prev, items: [] }));
         return;
       }
       setForm((prev) => ({
         ...prev,
-        items: rows.map((row) => {
-          const product = catalog.find((p) => p.id === row.product_id);
-          const net = catalogNetValue(row) || catalogNetValue(product);
-          return {
-            product_id: row.product_id,
-            variant_id: row.variant_id || null,
-            product_name: row.name,
-            variant_name: row.variant_name || null,
-            unit: row.unit,
-            book_qty: Number(row.book_qty) || 0,
-            quantity: factQtyFromBook(row.book_qty, net),
-            net_weight: net > 0 ? String(net) : '',
-            unit_cost: Number(row.avg_cost) || Number(row.suggest_cost) || 0,
-          };
-        }),
+        items: mergeFillInventoryItems(prev.items, rows, catalog),
       }));
       setLineFilter('all');
     } catch (e) {
@@ -1291,9 +1344,7 @@ export default function Inventory() {
         remainder_items: mapRemainderItems(doc),
         counted_amount: Number(doc.counted_amount) || 0,
         stock_amount: Number(doc.stock_amount) || 0,
-        items: Array.isArray(doc.items) && doc.items.length
-          ? doc.items.map(mapInventoryFormItem)
-          : prev.items,
+        items: mergeSavedInventoryItems(doc.items, prev.items),
       }));
       setSavedTick((tick) => tick + 1);
       setModal(doc.id);

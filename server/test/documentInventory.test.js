@@ -243,16 +243,50 @@ test('inventory: one draft per department; line snapshot includes zero stock', a
   assert.equal(draft.counted_amount, 400);
   assert.equal(draft.stock_amount, 400);
 
-  assert.throws(
-    () => svc.createDocument({
-      type: 'inventory',
-      date: '2026-08-27',
-      to_department_id: deptId,
-      items: [{ product_id: product.id, book_qty: 4, quantity: 3, unit_cost: 100 }],
-      status: 'draft',
-    }, 'test-user', 'main'),
-    /черновик инвентаризации/,
+  const reused = svc.createDocument({
+    type: 'inventory',
+    date: '2026-08-27',
+    to_department_id: deptId,
+    items: [{ product_id: product.id, book_qty: 4, quantity: 3, unit_cost: 100 }],
+    status: 'draft',
+  }, 'test-user', 'main');
+  assert.equal(reused.id, draft.id);
+  assert.equal(reused.items[0].quantity, 3);
+  assert.equal(
+    svc.getDocuments({ branch_id: 'main', type: 'inventory', status: 'draft' })
+      .filter((d) => d.to_department_id === deptId).length,
+    1,
   );
+
+  const extraProduct = svc.createProduct({
+    name: 'Инв доп',
+    sku: 'INV-KEEP-2',
+    unit: 'кг',
+    price: 50,
+    net_weight: 1,
+    branch_id: 'main',
+  });
+  const merged = svc.createDocument({
+    type: 'inventory',
+    date: '2026-08-27',
+    to_department_id: deptId,
+    items: [{
+      product_id: extraProduct.id,
+      book_qty: 0,
+      quantity: 2,
+      net_weight: 0.5,
+      unit_cost: 50,
+    }],
+    status: 'draft',
+  }, 'test-user', 'main');
+  assert.equal(merged.id, draft.id);
+  const mergedA = merged.items.find((item) => item.product_id === product.id);
+  const mergedB = merged.items.find((item) => item.product_id === extraProduct.id);
+  assert.equal(mergedA.quantity, 3);
+  assert.equal(mergedB.quantity, 2);
+  assert.equal(Number(mergedB.net_weight), 0.5);
+  const reloaded = svc.getDocument(draft.id, 'main');
+  assert.equal(Number(reloaded.items.find((item) => item.product_id === extraProduct.id).net_weight), 0.5);
 
   const otherDraft = svc.createDocument({
     type: 'inventory',
@@ -277,6 +311,13 @@ test('inventory: one draft per department; line snapshot includes zero stock', a
     /уже есть в документе/,
   );
 
+  svc.updateDocument(draft.id, {
+    type: 'inventory',
+    date: '2026-08-27',
+    to_department_id: deptId,
+    items: [{ product_id: product.id, book_qty: 4, quantity: 4, unit_cost: 100 }],
+    status: 'draft',
+  }, 'test-user', 'main');
   svc.confirmDocument(draft.id, 'test-user');
   const nextDraft = svc.createDocument({
     type: 'inventory',

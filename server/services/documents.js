@@ -683,7 +683,9 @@ export function getDocument(id, branchId = null) {
   if (stockDepartmentId) {
     itemsSql = `
       SELECT di.*, p.name as product_name, p.sku, p.unit, pv.name as variant_name,
-             COALESCE(pds.stock, 0) as stock
+             COALESCE(pds.stock, 0) as stock,
+             di.quantity as quantity, di.price as price, di.amount as amount,
+             di.net_weight as net_weight, di.book_qty as book_qty, di.unit_cost as unit_cost
       FROM document_items di
       JOIN products p ON p.id = di.product_id
       LEFT JOIN product_variants pv ON pv.id = di.variant_id
@@ -703,7 +705,9 @@ export function getDocument(id, branchId = null) {
                FROM product_department_stock pds2
                JOIN departments dep ON dep.id = pds2.department_id AND dep.branch_id = ?
                WHERE pds2.product_id = p.id
-             ), COALESCE(pbs.stock, 0)) as stock
+             ), COALESCE(pbs.stock, 0)) as stock,
+             di.quantity as quantity, di.price as price, di.amount as amount,
+             di.net_weight as net_weight, di.book_qty as book_qty, di.unit_cost as unit_cost
       FROM document_items di
       JOIN products p ON p.id = di.product_id
       LEFT JOIN product_variants pv ON pv.id = di.variant_id
@@ -851,11 +855,11 @@ function normalizeInventoryItems(items) {
   });
 }
 
-function assertNoOpenInventoryDraft(departmentId, branchId, exceptId = null) {
-  if (!departmentId) return;
+function findOpenInventoryDraft(departmentId, branchId, exceptId = null) {
+  if (!departmentId) return null;
   const params = [departmentId, branchId];
   let sql = `
-    SELECT number FROM documents
+    SELECT * FROM documents
     WHERE type = 'inventory' AND status = 'draft'
       AND to_department_id = ? AND branch_id = ?
       AND COALESCE(inventory_coverage, 'partial') != 'remainder'
@@ -864,7 +868,11 @@ function assertNoOpenInventoryDraft(departmentId, branchId, exceptId = null) {
     sql += ' AND id != ?';
     params.push(exceptId);
   }
-  const existing = queryOne(sql, params);
+  return queryOne(sql, params) || null;
+}
+
+function assertNoOpenInventoryDraft(departmentId, branchId, exceptId = null) {
+  const existing = findOpenInventoryDraft(departmentId, branchId, exceptId);
   if (existing) {
     throw new Error(`По этому отделу уже есть черновик инвентаризации №${existing.number}`);
   }
@@ -872,6 +880,32 @@ function assertNoOpenInventoryDraft(departmentId, branchId, exceptId = null) {
 
 function inventoryLineKey(item) {
   return `${item.product_id}:${item.variant_id || ''}`;
+}
+
+function inventoryItemFromStoredRow(row) {
+  const net = Number(row.net_weight);
+  return {
+    product_id: row.product_id,
+    variant_id: row.variant_id || null,
+    quantity: Number(row.quantity) || 0,
+    book_qty: Number(row.book_qty) || 0,
+    net_weight: Number.isFinite(net) && net > 0 ? net : null,
+    unit_cost: Number(row.unit_cost ?? row.price) || 0,
+    price: Number(row.price ?? row.unit_cost) || 0,
+    amount: Number(row.amount) || 0,
+    cost_amount: Number(row.cost_amount ?? row.amount) || 0,
+  };
+}
+
+function mergeNormalizedInventoryItems(baseItems, incomingItems) {
+  const byKey = new Map();
+  for (const item of baseItems || []) {
+    byKey.set(inventoryLineKey(item), item);
+  }
+  for (const item of incomingItems || []) {
+    byKey.set(inventoryLineKey(item), item);
+  }
+  return [...byKey.values()];
 }
 
 function normalizeInventoryCoverage(value, existing = null) {
@@ -1976,7 +2010,22 @@ function persistInventoryDocument(existingId, data, userId, branchId, existing =
   }
 
   let items = normalizeInventoryItems(data.items);
-  const id = existingId || uuidv4();
+  let id = existingId || uuidv4();
+  if (!existing) {
+    const openDraft = findOpenInventoryDraft(toDepartmentId, docBranchId);
+    if (openDraft) {
+      id = openDraft.id;
+      existing = openDraft;
+      existingId = openDraft.id;
+      const stored = queryAll(
+        `SELECT * FROM document_items
+         WHERE document_id = ?
+         ORDER BY COALESCE(sort_order, 0) ASC, id ASC`,
+        [id],
+      ).map(inventoryItemFromStoredRow);
+      items = mergeNormalizedInventoryItems(stored, items);
+    }
+  }
   const number = data.number || existing?.number || generateDocNumber(docBranchId, 'inventory');
   const wasConfirmed = existing?.status === 'confirmed';
   const willConfirm = data.status === 'confirmed' || (wasConfirmed && data.status !== 'draft');
