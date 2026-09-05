@@ -10,6 +10,7 @@ import { IconNavCashier, IconNavMoon, IconNavSun } from '../components/NavIcons'
 import BranchChip from '../components/BranchChip';
 import { todayLocalIso } from '../utils/date';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
+import { textMatchesSearch } from '../utils/searchNormalize';
 import CounterpartySearchSelect from '../components/CounterpartySearchSelect';
 
 const emptySideForm = {
@@ -18,6 +19,9 @@ const emptySideForm = {
   counterparty_id: '',
   comment: '',
 };
+
+const RECONCILE_ARTICLE_CODES = new Set(['inc_surplus', 'exp_shortage']);
+const CASH_OP_TYPES = new Set(['other_income', 'other_expense', 'supplier_payment', 'customer_income']);
 
 function prefsKey(branchId) {
   return `cashier:prefs:${branchId || 'main'}`;
@@ -42,6 +46,10 @@ function isIncomeType(type) {
 
 function todayIso() {
   return todayLocalIso();
+}
+
+function everydayArticles(articles) {
+  return articles.filter((article) => !RECONCILE_ARTICLE_CODES.has(article.code));
 }
 
 function SortHeader({ label, sortKey, activeKey, direction, onSort, className = '' }) {
@@ -116,9 +124,39 @@ function counterpartyKindForArticle(articleId, { purchaseArticleId, clientDebtAr
   return null;
 }
 
-function CashierSideForm({
+function recentCounterparties(payments, items, limit = 5) {
+  if (!items.length) return [];
+  const allowed = new Set(items.map((item) => item.id));
+  const byId = new Map(items.map((item) => [item.id, item]));
+  const seen = new Set();
+  const result = [];
+  for (const payment of payments) {
+    const id = payment.counterparty_id;
+    if (!id || seen.has(id) || !allowed.has(id)) continue;
+    seen.add(id);
+    result.push(byId.get(id));
+    if (result.length >= limit) break;
+  }
+  return result;
+}
+
+function sortArticlesByUse(articles, payments) {
+  if (!articles.length) return articles;
+  const counts = new Map();
+  for (const payment of payments) {
+    if (!payment.article_id) continue;
+    counts.set(payment.article_id, (counts.get(payment.article_id) || 0) + 1);
+  }
+  return [...articles].sort((a, b) => {
+    const diff = (counts.get(b.id) || 0) - (counts.get(a.id) || 0);
+    if (diff) return diff;
+    return (a.sort_order || 0) - (b.sort_order || 0);
+  });
+}
+
+function CashierEntry({
   side,
-  title,
+  onSideChange,
   articles,
   suppliers = [],
   clients = [],
@@ -132,6 +170,9 @@ function CashierSideForm({
   purchaseArticleId,
   clientDebtArticleId,
   debtReturnArticleId,
+  recentItems,
+  lastPayment,
+  onRepeatLast,
 }) {
   const counterpartyKind = counterpartyKindForArticle(form.article_id, {
     purchaseArticleId,
@@ -159,22 +200,43 @@ function CashierSideForm({
     window.requestAnimationFrame(() => {
       if (nextKind && !next.counterparty_id) {
         counterpartySearchRef?.current?.focus();
+      } else {
+        amountRef?.current?.focus();
       }
     });
   };
 
   const disabled = !canEdit || saving;
+  const ready = Boolean(form.amountInput && form.article_id && (!counterpartyKind || form.counterparty_id));
 
   return (
     <form
-      className={`card cashier-panel cashier-panel-${side}`}
+      className={`card cashier-panel cashier-entry cashier-panel-${side}`}
       onSubmit={onSubmit}
     >
-      <div className="cashier-panel-head">
-        <h2>{title}</h2>
-        {form.amountInput && form.article_id && (!counterpartyKind || form.counterparty_id) && (
-          <span className="cashier-panel-ready">готово к проведению</span>
-        )}
+      <div className="cashier-side-toggle" role="tablist" aria-label="Сторона кассы">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={side === 'income'}
+          className={`cashier-side-btn${side === 'income' ? ' is-active' : ''}`}
+          data-side="income"
+          disabled={disabled}
+          onClick={() => onSideChange('income')}
+        >
+          Приход
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={side === 'expense'}
+          className={`cashier-side-btn${side === 'expense' ? ' is-active' : ''}`}
+          data-side="expense"
+          disabled={disabled}
+          onClick={() => onSideChange('expense')}
+        >
+          Расход
+        </button>
       </div>
 
       <label className="cashier-amount-field">
@@ -183,7 +245,8 @@ function CashierSideForm({
           <input
             ref={amountRef}
             type="text"
-            inputMode="numeric"
+            inputMode="decimal"
+            enterKeyHint="done"
             autoComplete="off"
             className="cashier-amount-input"
             placeholder="0"
@@ -202,7 +265,7 @@ function CashierSideForm({
       </label>
 
       <div className="cashier-field">
-        <span>{side === 'income' ? 'Статья прихода' : 'Статья расхода'} *</span>
+        <span>Статья *</span>
         <ArticleChips
           side={side}
           articles={articles}
@@ -210,28 +273,36 @@ function CashierSideForm({
           onChange={selectArticle}
           disabled={disabled}
         />
-        <select
-          className="cashier-article-select"
-          value={form.article_id}
-          onChange={(e) => selectArticle(e.target.value)}
-          disabled={disabled}
-          required
-          aria-label={side === 'income' ? 'Статья прихода' : 'Статья расхода'}
-        >
-          <option value="">— выберите —</option>
-          {articles.map((article) => (
-            <option key={article.id} value={article.id}>{article.name}</option>
-          ))}
-        </select>
       </div>
 
       {counterpartyKind && (
         <div className="cashier-field cashier-field-supplier">
           <span>{counterpartyKind === 'supplier' ? 'Поставщик' : 'Клиент'} *</span>
+          {recentItems.length > 0 && (
+            <div className="cashier-supplier-chips cashier-supplier-recent">
+              {recentItems.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={`cashier-supplier-chip${form.counterparty_id === item.id ? ' selected' : ''}`}
+                  disabled={disabled}
+                  onClick={() => {
+                    setForm({ ...form, counterparty_id: item.id });
+                    amountRef?.current?.focus();
+                  }}
+                >
+                  {item.name}
+                </button>
+              ))}
+            </div>
+          )}
           <CounterpartySearchSelect
             items={counterpartyItems}
             value={form.counterparty_id}
-            onChange={(counterparty_id) => setForm({ ...form, counterparty_id })}
+            onChange={(counterparty_id) => {
+              setForm({ ...form, counterparty_id });
+              amountRef?.current?.focus();
+            }}
             disabled={disabled}
             placeholder={counterpartyKind === 'supplier' ? 'Найти поставщика…' : 'Найти клиента…'}
             inputRef={counterpartySearchRef}
@@ -269,13 +340,26 @@ function CashierSideForm({
       </div>
 
       <div className="cashier-form-actions">
+        {lastPayment && (
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm cashier-repeat-btn"
+            disabled={disabled}
+            onClick={onRepeatLast}
+          >
+            Повторить последнюю
+          </button>
+        )}
         <button
           type="submit"
           className={`btn btn-primary cashier-submit btn-${side}`}
           disabled={disabled || !form.article_id || (counterpartyKind && !form.counterparty_id)}
         >
-          {saving ? 'Сохранение…' : (side === 'income' ? 'Провести приход' : 'Провести расход')}
+          {saving
+            ? 'Сохранение…'
+            : (side === 'income' ? 'Провести приход' : 'Провести расход')}
         </button>
+        {ready && <span className="cashier-form-hint">Enter — провести</span>}
       </div>
     </form>
   );
@@ -389,25 +473,6 @@ function CashierEditModal({
             }}
             disabled={false}
           />
-          <select
-            className="cashier-article-select cashier-article-select-visible"
-            value={form.article_id}
-            onChange={(e) => {
-              const article_id = e.target.value;
-              const prevKind = counterpartyKindForArticle(form.article_id, articleCtx);
-              const nextKind = counterpartyKindForArticle(article_id, articleCtx);
-              setForm({
-                ...form,
-                article_id,
-                counterparty_id: nextKind && nextKind === prevKind ? form.counterparty_id : '',
-              });
-            }}
-          >
-            <option value="">— выберите —</option>
-            {articles.map((article) => (
-              <option key={article.id} value={article.id}>{article.name}</option>
-            ))}
-          </select>
         </div>
         {counterpartyKind && (
           <div className="form-group full">
@@ -424,7 +489,7 @@ function CashierEditModal({
           <label>Сумма *</label>
           <input
             type="text"
-            inputMode="numeric"
+            inputMode="decimal"
             value={form.amountInput}
             onChange={(e) => setForm({ ...form, amountInput: formatPriceInput(e.target.value) })}
           />
@@ -522,7 +587,7 @@ function CashReconciliationModal({
           <span>Фактически в кассе</span>
           <input
             type="text"
-            inputMode="numeric"
+            inputMode="decimal"
             value={countedInput}
             onChange={(e) => setCountedInput(formatPriceInput(e.target.value))}
             placeholder="0"
@@ -538,6 +603,25 @@ function CashReconciliationModal({
         )}
       </div>
     </Modal>
+  );
+}
+
+function PaymentActions({ payment, canEdit, canDelete, canModify, onEdit, onRemove }) {
+  const isCashOp = CASH_OP_TYPES.has(payment.type);
+  if (!(canModify && isCashOp)) return null;
+  return (
+    <>
+      {canEdit && (
+        <IconButton title="Изменить" onClick={() => onEdit(payment)}>
+          <IconEdit />
+        </IconButton>
+      )}
+      {canDelete && (
+        <IconButton title="Удалить" danger onClick={() => onRemove(payment)}>
+          <IconTrash />
+        </IconButton>
+      )}
+    </>
   );
 }
 
@@ -557,12 +641,15 @@ export default function Cashier() {
   const [suppliers, setSuppliers] = useState([]);
   const [clients, setClients] = useState([]);
   const [shiftDate, setShiftDate] = useState(todayIso());
+  const [activeSide, setActiveSide] = useState('income');
   const [incomeForm, setIncomeForm] = useState(emptySideForm);
   const [expenseForm, setExpenseForm] = useState(emptySideForm);
   const [savingSide, setSavingSide] = useState(null);
   const [editingPayment, setEditingPayment] = useState(null);
   const [sortKey, setSortKey] = useState('number');
   const [sortDir, setSortDir] = useState('desc');
+  const [listQuery, setListQuery] = useState('');
+  const [listSide, setListSide] = useState('all');
   const incomeAmountRef = useRef(null);
   const expenseAmountRef = useRef(null);
   const incomeCounterpartySearchRef = useRef(null);
@@ -578,6 +665,10 @@ export default function Cashier() {
   const canWriteShift = canWriteCashierShift(user, shiftDate);
   const minShiftDate = canEditPast ? undefined : getCashierViewMinDate();
   const maxShiftDate = todayIso();
+  const activeForm = activeSide === 'income' ? incomeForm : expenseForm;
+  const setActiveForm = activeSide === 'income' ? setIncomeForm : setExpenseForm;
+  const activeAmountRef = activeSide === 'income' ? incomeAmountRef : expenseAmountRef;
+  const activeCounterpartyRef = activeSide === 'income' ? incomeCounterpartySearchRef : expenseSupplierSearchRef;
 
   const handleShiftDateChange = (value) => {
     if (!value) return;
@@ -589,6 +680,9 @@ export default function Cashier() {
 
   const applySavedPrefs = useCallback(() => {
     const prefs = loadPrefs(branchId);
+    if (prefs.activeSide === 'income' || prefs.activeSide === 'expense') {
+      setActiveSide(prefs.activeSide);
+    }
     setIncomeForm((prev) => ({
       ...prev,
       article_id: prefs.incomeArticle || prev.article_id,
@@ -606,7 +700,10 @@ export default function Cashier() {
       setPaymentsLoaded(false);
     }
     try {
-      const p = await api.getPayments();
+      const p = await api.getPayments({
+        date_from: minShiftDate || undefined,
+        date_to: maxShiftDate,
+      });
       setPayments(p);
       setPaymentsLoadError('');
       setPaymentsLoaded(true);
@@ -619,7 +716,7 @@ export default function Cashier() {
       setPaymentsLoaded(true);
       throw err;
     }
-  }, [branchId]);
+  }, [branchId, minShiftDate, maxShiftDate]);
 
   const loadShiftSummary = useCallback(async () => {
     try {
@@ -673,25 +770,31 @@ export default function Cashier() {
     applySavedPrefs();
   }, [applySavedPrefs]);
 
+  const switchSide = useCallback((side) => {
+    setActiveSide(side);
+    savePrefs(branchId, { activeSide: side });
+  }, [branchId]);
+
   useEffect(() => {
-    if (canEdit) incomeAmountRef.current?.focus();
-  }, [canEdit, branchId]);
+    if (!canEdit) return;
+    (activeSide === 'income' ? incomeAmountRef : expenseAmountRef).current?.focus();
+  }, [canEdit, branchId, activeSide]);
 
   useEffect(() => {
     const onKeyDown = (e) => {
       if (!e.altKey || e.ctrlKey || e.metaKey) return;
       if (e.key === '1') {
         e.preventDefault();
-        incomeAmountRef.current?.focus();
+        switchSide('income');
       }
       if (e.key === '2') {
         e.preventDefault();
-        expenseAmountRef.current?.focus();
+        switchSide('expense');
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, []);
+  }, [switchSide]);
 
   const purchaseArticleId = useMemo(
     () => expenseArticles.find((a) => a.code === 'exp_purchase')?.id ?? null,
@@ -708,10 +811,24 @@ export default function Cashier() {
     [incomeArticles],
   );
 
-  const todayPayments = useMemo(
-    () => payments.filter((p) => p.date === shiftDate),
-    [payments, shiftDate],
+  const cashPayments = useMemo(
+    () => payments.filter((p) => !p.bank_account_id),
+    [payments],
   );
+
+  const todayPayments = useMemo(
+    () => cashPayments.filter((p) => p.date === shiftDate),
+    [cashPayments, shiftDate],
+  );
+  const otherDatesCount = useMemo(
+    () => cashPayments.filter((p) => p.date !== shiftDate).length,
+    [cashPayments, shiftDate],
+  );
+  const latestOtherDate = useMemo(() => {
+    const dates = [...new Set(cashPayments.map((p) => p.date).filter((d) => d && d !== shiftDate))];
+    dates.sort((a, b) => b.localeCompare(a));
+    return dates[0] || null;
+  }, [cashPayments, shiftDate]);
 
   const handleSort = (key) => {
     if (sortKey === key) {
@@ -722,11 +839,62 @@ export default function Cashier() {
     setSortDir(['number', 'amount'].includes(key) ? 'desc' : 'asc');
   };
 
+  const filteredPayments = useMemo(() => {
+    let list = todayPayments;
+    if (listSide === 'income') list = list.filter((p) => isIncomeType(p.type));
+    if (listSide === 'expense') list = list.filter((p) => !isIncomeType(p.type));
+    const q = listQuery.trim();
+    if (q) {
+      list = list.filter((p) => (
+        textMatchesSearch(String(p.number || ''), q)
+        || textMatchesSearch(p.article_name || '', q)
+        || textMatchesSearch(p.counterparty_name || '', q)
+        || textMatchesSearch(p.comment || '', q)
+        || textMatchesSearch(String(p.amount || ''), q)
+      ));
+    }
+    return list;
+  }, [todayPayments, listSide, listQuery]);
+
   const sortedPayments = useMemo(() => {
-    const list = [...todayPayments];
+    const list = [...filteredPayments];
     list.sort((a, b) => comparePayments(a, b, sortKey, sortDir));
     return list;
-  }, [todayPayments, sortKey, sortDir]);
+  }, [filteredPayments, sortKey, sortDir]);
+
+  const incomeArticlesForEntry = useMemo(
+    () => sortArticlesByUse(everydayArticles(incomeArticles), todayPayments),
+    [incomeArticles, todayPayments],
+  );
+
+  const expenseArticlesForEntry = useMemo(
+    () => sortArticlesByUse(everydayArticles(expenseArticles), todayPayments),
+    [expenseArticles, todayPayments],
+  );
+
+  const recentForActive = useMemo(() => {
+    const kind = counterpartyKindForArticle(activeForm.article_id, {
+      purchaseArticleId,
+      clientDebtArticleId,
+      debtReturnArticleId,
+    });
+    if (!kind) return [];
+    const items = kind === 'supplier' ? suppliers : clients;
+    return recentCounterparties(todayPayments, items);
+  }, [
+    activeForm.article_id,
+    purchaseArticleId,
+    clientDebtArticleId,
+    debtReturnArticleId,
+    suppliers,
+    clients,
+    todayPayments,
+  ]);
+
+  const lastPaymentForSide = useMemo(
+    () => todayPayments.find((p) => paymentSide(p) === activeSide) || null,
+    [todayPayments, activeSide],
+  );
 
   const focusAmount = (side) => {
     window.requestAnimationFrame(() => {
@@ -742,7 +910,7 @@ export default function Cashier() {
 
   const rememberPrefs = (side, form) => {
     if (side === 'income') {
-      const patch = { incomeArticle: form.article_id };
+      const patch = { incomeArticle: form.article_id, activeSide: side };
       if (form.counterparty_id && debtReturnArticleId && form.article_id === debtReturnArticleId) {
         patch.counterpartyId = form.counterparty_id;
         patch.clientId = form.counterparty_id;
@@ -750,7 +918,7 @@ export default function Cashier() {
       savePrefs(branchId, patch);
       return;
     }
-    const patch = { expenseArticle: form.article_id };
+    const patch = { expenseArticle: form.article_id, activeSide: side };
     if (form.counterparty_id) {
       patch.counterpartyId = form.counterparty_id;
       const kind = counterpartyKindForArticle(form.article_id, {
@@ -824,6 +992,18 @@ export default function Cashier() {
     }
   };
 
+  const repeatLast = () => {
+    if (!lastPaymentForSide) return;
+    const payment = lastPaymentForSide;
+    setActiveForm({
+      amountInput: formatPriceInput(String(payment.amount || '')),
+      article_id: payment.article_id || '',
+      counterparty_id: payment.counterparty_id || '',
+      comment: payment.comment || '',
+    });
+    focusAmount(activeSide);
+  };
+
   const saveEditedPayment = async (payload, errorMessage) => {
     if (errorMessage) {
       show(errorMessage, 'error');
@@ -852,15 +1032,6 @@ export default function Cashier() {
   };
 
   const isToday = shiftDate === todayIso();
-  const otherDatesCount = useMemo(
-    () => payments.filter((p) => p.date !== shiftDate).length,
-    [payments, shiftDate],
-  );
-  const latestOtherDate = useMemo(() => {
-    const dates = [...new Set(payments.map((p) => p.date).filter((d) => d && d !== shiftDate))];
-    dates.sort((a, b) => b.localeCompare(a));
-    return dates[0] || null;
-  }, [payments, shiftDate]);
 
   const shiftToolbar = (
     <>
@@ -900,7 +1071,7 @@ export default function Cashier() {
           <span className="value">{formatMoney(shiftSummary.expense)}</span>
         </div>
         <div className="cashier-kpi-pill cashier-kpi-balance">
-          <span className="label">На конец</span>
+          <span className="label">В кассе</span>
           <span className="value">{formatMoney(shiftSummary.closing_balance)}</span>
         </div>
         {canWriteShift && (
@@ -909,11 +1080,277 @@ export default function Cashier() {
             className="btn btn-ghost btn-sm cashier-reconcile-btn"
             onClick={() => setReconcileOpen(true)}
           >
-            Сверка кассы
+            Сверка
           </button>
         )}
       </div>
     </>
+  );
+
+  const historyCard = (
+    <div className="card cashier-history">
+      <div className="card-header cashier-history-header">
+        <div className="cashier-history-title">
+          <strong>Операции за {formatDate(shiftDate)}</strong>
+          <span className="report-meta">{todayPayments.length} записей</span>
+        </div>
+        <div className="cashier-history-tools">
+          <input
+            type="search"
+            className="cashier-history-search"
+            value={listQuery}
+            onChange={(e) => setListQuery(e.target.value)}
+            placeholder="Поиск…"
+            aria-label="Поиск по операциям"
+          />
+          <div className="cashier-list-side" role="group" aria-label="Фильтр стороны">
+            <button
+              type="button"
+              className={listSide === 'all' ? 'is-active' : ''}
+              onClick={() => setListSide('all')}
+            >
+              Все
+            </button>
+            <button
+              type="button"
+              className={listSide === 'income' ? 'is-active' : ''}
+              onClick={() => setListSide('income')}
+            >
+              Приход
+            </button>
+            <button
+              type="button"
+              className={listSide === 'expense' ? 'is-active' : ''}
+              onClick={() => setListSide('expense')}
+            >
+              Расход
+            </button>
+          </div>
+        </div>
+      </div>
+      {!canEditPast && !isToday && (
+        <p className="cashier-history-hint">
+          Просмотр за последние 3 дня. Ввод и редактирование — только за сегодня. Для прошлых дат обратитесь к бухгалтеру или администратору.
+        </p>
+      )}
+      {paymentsLoadError && (
+        <p className="cashier-history-hint cashier-history-error">
+          {paymentsLoadError}. Проверьте право «Касса → Смотреть» и перезайдите в систему.
+          {' '}
+          <button type="button" className="btn btn-ghost btn-sm" onClick={load}>Повторить</button>
+        </p>
+      )}
+      {!paymentsLoadError && paymentsLoaded && todayPayments.length === 0 && otherDatesCount > 0 && latestOtherDate && (
+        <p className="cashier-history-hint">
+          На {formatDate(shiftDate)} операций нет, но в филиале есть {otherDatesCount} за другие даты.
+          {' '}
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            onClick={() => setShiftDate(latestOtherDate)}
+          >
+            Открыть {formatDate(latestOtherDate)}
+          </button>
+        </p>
+      )}
+
+      <ul className="cashier-ops-cards">
+        {sortedPayments.map((p) => {
+          const income = isIncomeType(p.type);
+          const canModify = canModifyPaymentDate(user, p.date);
+          return (
+            <li key={p.id} className={`cashier-op-card${income ? ' is-income' : ' is-expense'}`}>
+              <div className="cashier-op-card-top">
+                <span className={`badge ${income ? 'badge-prihod' : 'badge-rashod'}`}>
+                  {income ? 'Приход' : 'Расход'}
+                </span>
+                <strong className={income ? 'text-income' : 'text-expense'}>
+                  {income ? '+' : '−'}{formatMoney(p.amount)}
+                </strong>
+              </div>
+              <div className="cashier-op-card-meta">
+                <span>{p.article_name || '—'}</span>
+                {p.counterparty_name && <span>{p.counterparty_name}</span>}
+              </div>
+              {p.comment ? <div className="cashier-op-card-comment">{p.comment}</div> : null}
+              <div className="cashier-op-card-foot">
+                <span className="muted">№{p.number}</span>
+                <div className="cashier-row-actions">
+                  <PaymentActions
+                    payment={p}
+                    canEdit={canEdit}
+                    canDelete={canDelete}
+                    canModify={canModify}
+                    onEdit={setEditingPayment}
+                    onRemove={removePayment}
+                  />
+                </div>
+              </div>
+            </li>
+          );
+        })}
+        {sortedPayments.length === 0 && (
+          <li className="cashier-op-card cashier-op-card-empty">
+            {paymentsLoadError
+              ? 'Операции не загружены'
+              : paymentsLoaded && cashPayments.length === 0
+                ? `В филиале «${branchName}» ещё нет кассовых операций`
+                : listQuery || listSide !== 'all'
+                  ? 'Ничего не найдено'
+                  : 'Операций за выбранную дату нет'}
+          </li>
+        )}
+      </ul>
+
+      <div className="table-wrap cashier-table-wrap">
+        <table className="cashier-table">
+          <colgroup>
+            <col className="col-num-short" />
+            <col className="col-side" />
+            <col className="col-article" />
+            <col className="col-counterparty" />
+            <col className="col-comment" />
+            <col className="col-amount" />
+            {(canEdit || canDelete) && <col className="col-actions" />}
+          </colgroup>
+          <thead>
+            <tr>
+              <SortHeader
+                label="№"
+                sortKey="number"
+                activeKey={sortKey}
+                direction={sortDir}
+                onSort={handleSort}
+              />
+              <SortHeader
+                label="Сторона"
+                sortKey="side"
+                activeKey={sortKey}
+                direction={sortDir}
+                onSort={handleSort}
+              />
+              <SortHeader
+                label="Статья"
+                sortKey="article_name"
+                activeKey={sortKey}
+                direction={sortDir}
+                onSort={handleSort}
+              />
+              <SortHeader
+                label="Контрагент"
+                sortKey="counterparty_name"
+                activeKey={sortKey}
+                direction={sortDir}
+                onSort={handleSort}
+              />
+              <SortHeader
+                label="Комментарий"
+                sortKey="comment"
+                activeKey={sortKey}
+                direction={sortDir}
+                onSort={handleSort}
+              />
+              <SortHeader
+                label="Сумма"
+                sortKey="amount"
+                activeKey={sortKey}
+                direction={sortDir}
+                onSort={handleSort}
+                className="col-num"
+              />
+              {(canEdit || canDelete) && <th className="col-actions">Действия</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {sortedPayments.map((p) => {
+              const income = isIncomeType(p.type);
+              const canModify = canModifyPaymentDate(user, p.date);
+              return (
+                <tr key={p.id} className={income ? 'cashier-row-income' : 'cashier-row-expense'}>
+                  <td className="muted">{p.number}</td>
+                  <td>
+                    <span className={`badge ${income ? 'badge-prihod' : 'badge-rashod'}`}>
+                      {income ? 'Приход' : 'Расход'}
+                    </span>
+                  </td>
+                  <td className="cashier-cell-article">{p.article_name || '—'}</td>
+                  <td className="muted">{p.counterparty_name || '—'}</td>
+                  <td className="muted cashier-cell-comment">{p.comment || '—'}</td>
+                  <td className={`col-num strong${income ? ' text-income' : ' text-expense'}`}>
+                    {income ? '+' : '−'}{formatMoney(p.amount)}
+                  </td>
+                  {(canEdit || canDelete) && (
+                    <td className="cashier-row-actions">
+                      <PaymentActions
+                        payment={p}
+                        canEdit={canEdit}
+                        canDelete={canDelete}
+                        canModify={canModify}
+                        onEdit={setEditingPayment}
+                        onRemove={removePayment}
+                      />
+                    </td>
+                  )}
+                </tr>
+              );
+            })}
+            {sortedPayments.length === 0 && (
+              <tr>
+                <td colSpan={(canEdit || canDelete) ? 7 : 6} className="empty">
+                  {paymentsLoadError
+                    ? 'Операции не загружены'
+                    : paymentsLoaded && cashPayments.length === 0
+                      ? `В филиале «${branchName}» ещё нет кассовых операций — проведите первую операцию или выберите другой филиал`
+                      : listQuery || listSide !== 'all'
+                        ? 'Ничего не найдено'
+                        : 'Операций за выбранную дату нет'}
+                </td>
+              </tr>
+            )}
+          </tbody>
+          {todayPayments.length > 0 && (
+            <tfoot>
+              <tr className="report-total-row">
+                <td colSpan={5}>
+                  На начало {formatMoney(shiftSummary.opening_balance)}
+                  {' · '}
+                  приход +{formatMoney(shiftSummary.income)}
+                  {' · '}
+                  расход −{formatMoney(shiftSummary.expense)}
+                </td>
+                <td className="col-num">
+                  В кассе {formatMoney(shiftSummary.closing_balance)}
+                </td>
+                {(canEdit || canDelete) && <td />}
+              </tr>
+            </tfoot>
+          )}
+        </table>
+      </div>
+    </div>
+  );
+
+  const entryPanel = canEdit && canWriteShift && (
+    <CashierEntry
+      side={activeSide}
+      onSideChange={switchSide}
+      articles={activeSide === 'income' ? incomeArticlesForEntry : expenseArticlesForEntry}
+      suppliers={suppliers}
+      clients={clients}
+      form={activeForm}
+      setForm={setActiveForm}
+      saving={savingSide === activeSide}
+      canEdit={canWriteShift}
+      onSubmit={submitSide(activeSide)}
+      amountRef={activeAmountRef}
+      counterpartySearchRef={activeCounterpartyRef}
+      purchaseArticleId={purchaseArticleId}
+      clientDebtArticleId={clientDebtArticleId}
+      debtReturnArticleId={debtReturnArticleId}
+      recentItems={recentForActive}
+      lastPayment={lastPaymentForSide}
+      onRepeatLast={repeatLast}
+    />
   );
 
   return (
@@ -948,7 +1385,6 @@ export default function Cashier() {
               </button>
             </div>
           </header>
-          <span className="cashier-hotkeys cashier-unified-hotkeys">Alt+1 приход · Alt+2 расход · Enter — провести</span>
         </>
       ) : (
         <div className="cashier-top">
@@ -963,207 +1399,21 @@ export default function Cashier() {
         </div>
       )}
 
-      {canEdit ? (
-        canWriteShift ? (
-        <div className="cashier-split">
-          <CashierSideForm
-            side="income"
-            title="Кассовый приход"
-            articles={incomeArticles}
-            clients={clients}
-            form={incomeForm}
-            setForm={setIncomeForm}
-            saving={savingSide === 'income'}
-            canEdit={canWriteShift}
-            onSubmit={submitSide('income')}
-            amountRef={incomeAmountRef}
-            counterpartySearchRef={incomeCounterpartySearchRef}
-            debtReturnArticleId={debtReturnArticleId}
-          />
-          <CashierSideForm
-            side="expense"
-            title="Кассовый расход"
-            articles={expenseArticles}
-            suppliers={suppliers}
-            clients={clients}
-            form={expenseForm}
-            setForm={setExpenseForm}
-            saving={savingSide === 'expense'}
-            canEdit={canWriteShift}
-            onSubmit={submitSide('expense')}
-            amountRef={expenseAmountRef}
-            counterpartySearchRef={expenseSupplierSearchRef}
-            purchaseArticleId={purchaseArticleId}
-            clientDebtArticleId={clientDebtArticleId}
-          />
-        </div>
-        ) : (
-          <div className="card cashier-shift-notice">
-            <div className="empty">
-              Ввод операций за {formatDate(shiftDate)} недоступен. Кассир может проводить операции только за сегодня.
-            </div>
+      {canEdit && !canWriteShift && (
+        <div className="card cashier-shift-notice">
+          <div className="empty">
+            Ввод операций за {formatDate(shiftDate)} недоступен. Кассир может проводить операции только за сегодня.
           </div>
-        )
-      ) : (
+        </div>
+      )}
+
+      {!canEdit && (
         <div className="card"><div className="empty">Нет прав на ввод кассовых операций</div></div>
       )}
 
-      <div className="card cashier-history">
-        <div className="card-header">
-          <strong>Операции за {formatDate(shiftDate)}</strong>
-          <span className="report-meta">{todayPayments.length} записей</span>
-        </div>
-        {!canEditPast && !isToday && (
-          <p className="cashier-history-hint">
-            Просмотр за последние 3 дня. Ввод и редактирование — только за сегодня. Для прошлых дат обратитесь к бухгалтеру или администратору.
-          </p>
-        )}
-        {paymentsLoadError && (
-          <p className="cashier-history-hint cashier-history-error">
-            {paymentsLoadError}. Проверьте право «Касса → Смотреть» и перезайдите в систему.
-            {' '}
-            <button type="button" className="btn btn-ghost btn-sm" onClick={load}>Повторить</button>
-          </p>
-        )}
-        {!paymentsLoadError && paymentsLoaded && todayPayments.length === 0 && otherDatesCount > 0 && latestOtherDate && (
-          <p className="cashier-history-hint">
-            На {formatDate(shiftDate)} операций нет, но в филиале есть {otherDatesCount} за другие даты.
-            {' '}
-            <button
-              type="button"
-              className="btn btn-ghost btn-sm"
-              onClick={() => setShiftDate(latestOtherDate)}
-            >
-              Открыть {formatDate(latestOtherDate)}
-            </button>
-          </p>
-        )}
-        <div className="table-wrap cashier-table-wrap">
-          <table className="cashier-table">
-            <colgroup>
-              <col className="col-num-short" />
-              <col className="col-side" />
-              <col className="col-article" />
-              <col className="col-counterparty" />
-              <col className="col-comment" />
-              <col className="col-amount" />
-              {(canEdit || canDelete) && <col className="col-actions" />}
-            </colgroup>
-            <thead>
-              <tr>
-                <SortHeader
-                  label="№"
-                  sortKey="number"
-                  activeKey={sortKey}
-                  direction={sortDir}
-                  onSort={handleSort}
-                />
-                <SortHeader
-                  label="Сторона"
-                  sortKey="side"
-                  activeKey={sortKey}
-                  direction={sortDir}
-                  onSort={handleSort}
-                />
-                <SortHeader
-                  label="Статья"
-                  sortKey="article_name"
-                  activeKey={sortKey}
-                  direction={sortDir}
-                  onSort={handleSort}
-                />
-                <SortHeader
-                  label="Контрагент"
-                  sortKey="counterparty_name"
-                  activeKey={sortKey}
-                  direction={sortDir}
-                  onSort={handleSort}
-                />
-                <SortHeader
-                  label="Комментарий"
-                  sortKey="comment"
-                  activeKey={sortKey}
-                  direction={sortDir}
-                  onSort={handleSort}
-                />
-                <SortHeader
-                  label="Сумма"
-                  sortKey="amount"
-                  activeKey={sortKey}
-                  direction={sortDir}
-                  onSort={handleSort}
-                  className="col-num"
-                />
-                {(canEdit || canDelete) && <th className="col-actions">Действия</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {sortedPayments.map((p) => {
-                const income = isIncomeType(p.type);
-                const canModify = canModifyPaymentDate(user, p.date);
-                const isCashOp = ['other_income', 'other_expense', 'supplier_payment'].includes(p.type);
-                return (
-                  <tr key={p.id} className={income ? 'cashier-row-income' : 'cashier-row-expense'}>
-                    <td className="muted">{p.number}</td>
-                    <td>
-                      <span className={`badge ${income ? 'badge-prihod' : 'badge-rashod'}`}>
-                        {income ? 'Приход' : 'Расход'}
-                      </span>
-                    </td>
-                    <td className="cashier-cell-article">{p.article_name || '—'}</td>
-                    <td className="muted">{p.counterparty_name || '—'}</td>
-                    <td className="muted cashier-cell-comment">{p.comment || '—'}</td>
-                    <td className={`col-num strong${income ? ' text-income' : ' text-expense'}`}>
-                      {income ? '+' : '−'}{formatMoney(p.amount)}
-                    </td>
-                    {(canEdit || canDelete) && (
-                      <td className="cashier-row-actions">
-                        {canEdit && canModify && isCashOp && (
-                          <IconButton title="Изменить" onClick={() => setEditingPayment(p)}>
-                            <IconEdit />
-                          </IconButton>
-                        )}
-                        {canDelete && canModify && isCashOp && (
-                          <IconButton title="Удалить" danger onClick={() => removePayment(p)}>
-                            <IconTrash />
-                          </IconButton>
-                        )}
-                      </td>
-                    )}
-                  </tr>
-                );
-              })}
-              {todayPayments.length === 0 && (
-                <tr>
-                  <td colSpan={(canEdit || canDelete) ? 7 : 6} className="empty">
-                    {paymentsLoadError
-                      ? 'Операции не загружены'
-                      : paymentsLoaded && payments.length === 0
-                        ? `В филиале «${branchName}» ещё нет кассовых операций — проведите первую операцию выше или выберите другой филиал в меню`
-                        : 'Операций за выбранную дату нет'}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-            {todayPayments.length > 0 && (
-              <tfoot>
-                <tr className="report-total-row">
-                  <td colSpan={5}>
-                    На начало {formatMoney(shiftSummary.opening_balance)}
-                    {' · '}
-                    приход +{formatMoney(shiftSummary.income)}
-                    {' · '}
-                    расход −{formatMoney(shiftSummary.expense)}
-                  </td>
-                  <td className="col-num">
-                    На конец {formatMoney(shiftSummary.closing_balance)}
-                  </td>
-                  {(canEdit || canDelete) && <td />}
-                </tr>
-              </tfoot>
-            )}
-          </table>
-        </div>
+      <div className={`cashier-workspace${entryPanel ? '' : ' is-journal-only'}`}>
+        {entryPanel}
+        {historyCard}
       </div>
 
       {reconcileOpen && (

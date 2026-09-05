@@ -10286,6 +10286,7 @@ tr.product-row-highlight td:first-child {
   flex-direction: column;
   gap: 12px;
   width: 100%;
+  min-height: 0;
   overflow: visible;
 }
 
@@ -10297,18 +10298,26 @@ tr.product-row-highlight td:first-child {
   margin-left: 0;
   width: 100%;
   max-width: none;
-  padding: 10px clamp(10px, 1.5vw, 20px) 16px;
+  height: 100%;
+  min-height: 0;
+  padding: 10px clamp(10px, 1.5vw, 20px) 12px;
 }
 
 .app-cashier-mode .main-content {
   width: 100%;
   max-width: none;
   margin: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding-top: 0;
 }
 
-.app-cashier-mode .cashier-page {
+.app-cashier-mode .main-content > .cashier-page {
+  flex: 1;
+  min-height: 0;
   width: 100%;
-  gap: 6px;
+  gap: 8px;
 }
 
 .cashier-unified-bar {
@@ -10367,7 +10376,7 @@ tr.product-row-highlight td:first-child {
 
 .cashier-unified-bar .cashier-kpi-inline {
   align-items: center;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
 }
 
 .cashier-unified-bar .cashier-kpi-pill {
@@ -10408,8 +10417,9 @@ tr.product-row-highlight td:first-child {
   align-items: stretch;
 }
 
-.app-cashier-mode .cashier-split {
-  gap: 14px;
+.app-cashier-mode .cashier-workspace {
+  flex: 1;
+  min-height: 0;
 }
 
 .app-cashier-mode .cashier-panel {
@@ -10449,16 +10459,8 @@ tr.product-row-highlight td:first-child {
 }
 
 @media (min-width: 1500px) {
-  .app-cashier-mode .cashier-split {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  }
-
-  .app-cashier-mode .cashier-form-grid {
-    grid-template-columns: minmax(140px, 200px) minmax(0, 1fr);
-  }
-
-  .app-cashier-mode .cashier-form-grid.has-supplier {
-    grid-template-columns: minmax(140px, 200px) minmax(0, 1fr) minmax(0, 1fr);
+  .app-cashier-mode .cashier-workspace {
+    grid-template-columns: minmax(360px, 440px) minmax(0, 1fr);
   }
 }
 
@@ -10518,6 +10520,12 @@ tr.product-row-highlight td:first-child {
 
 .cashier-table-wrap {
   overflow: visible;
+}
+
+.cashier-history .cashier-table-wrap {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
 }
 
 .cashier-history-hint {
@@ -10743,15 +10751,26 @@ tr.product-row-highlight td:first-child {
   color: var(--text);
 }
 
-.cashier-kpi-balance .value {
-  color: var(--primary);
+.cashier-kpi-balance {
+  background: color-mix(in srgb, var(--primary) 10%, var(--surface));
+  border-color: color-mix(in srgb, var(--primary) 28%, var(--border));
 }
 
-.cashier-split {
+.cashier-kpi-balance .value {
+  color: var(--primary);
+  font-size: 17px;
+}
+
+.cashier-workspace {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(320px, 400px) minmax(0, 1fr);
   gap: 12px;
   align-items: stretch;
+  min-height: min(68vh, 720px);
+}
+
+.cashier-workspace.is-journal-only {
+  grid-template-columns: 1fr;
 }
 
 .cashier-panel {
@@ -10759,8 +10778,60 @@ tr.product-row-highlight td:first-child {
   flex-direction: column;
   gap: 10px;
   padding: 14px 16px;
-  min-height: 100%;
+  min-height: 0;
   overflow: visible;
+}
+
+.cashier-entry {
+  height: auto;
+  align-self: start;
+  width: 100%;
+}
+
+.cashier-side-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 12px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+}
+
+.cashier-side-btn {
+  min-height: 44px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.cashier-side-btn:hover:not(:disabled):not(.is-active) {
+  color: var(--text);
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+}
+
+.cashier-side-btn.is-active[data-side="income"] {
+  background: color-mix(in srgb, var(--prihod) 16%, var(--surface));
+  color: var(--prihod);
+}
+
+.cashier-side-btn.is-active[data-side="expense"] {
+  background: color-mix(in srgb, var(--rashod) 16%, var(--surface));
+  color: var(--rashod);
+}
+
+.cashier-side-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.cashier-repeat-btn {
+  width: 100%;
 }
 
 .cashier-panel-income {
@@ -10981,6 +11052,10 @@ tr.product-row-highlight td:first-child {
   flex: 1;
   min-width: 0;
   font-variant-numeric: tabular-nums;
+  font-size: 28px;
+  font-weight: 700;
+  min-height: 56px;
+  padding: 10px 14px;
 }
 
 .cashier-amount-suffix {
@@ -10996,15 +11071,18 @@ tr.product-row-highlight td:first-child {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+  max-height: 148px;
+  overflow-y: auto;
 }
 
 .cashier-article-chip {
-  padding: 5px 11px;
+  padding: 8px 12px;
+  min-height: 40px;
   border: 1px solid var(--border);
   border-radius: 999px;
   background: var(--surface2);
   color: var(--text);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 500;
   cursor: pointer;
   transition: border-color 0.15s, background 0.15s, color 0.15s;
@@ -11035,6 +11113,144 @@ tr.product-row-highlight td:first-child {
 
 .cashier-article-select {
   display: none;
+}
+
+.cashier-history {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.cashier-history-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+
+.cashier-history-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.cashier-history-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.cashier-history-search {
+  width: min(220px, 100%);
+  min-height: 36px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+}
+
+.cashier-list-side {
+  display: inline-flex;
+  padding: 3px;
+  gap: 2px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface2);
+}
+
+.cashier-list-side button {
+  min-height: 32px;
+  padding: 4px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.cashier-list-side button.is-active {
+  background: var(--surface);
+  color: var(--text);
+}
+
+.cashier-ops-cards {
+  display: none;
+  list-style: none;
+  margin: 0;
+  padding: 0 12px 12px;
+  gap: 8px;
+}
+
+.cashier-op-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+}
+
+.cashier-op-card.is-income {
+  border-color: color-mix(in srgb, var(--prihod) 28%, var(--border));
+}
+
+.cashier-op-card.is-expense {
+  border-color: color-mix(in srgb, var(--rashod) 28%, var(--border));
+}
+
+.cashier-op-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.cashier-op-card-top strong {
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
+.cashier-op-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.cashier-op-card-comment {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.cashier-op-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.cashier-op-card-empty {
+  text-align: center;
+  color: var(--text-muted);
+  border-style: dashed;
+}
+
+.cashier-history .table-wrap {
+  flex: 1;
+  min-height: 0;
 }
 
 .cashier-field-hint {
@@ -11163,12 +11379,103 @@ tr.product-row-highlight td:first-child {
 }
 
 @media (max-width: 900px) {
-  .cashier-split {
+  .cashier-workspace {
+    display: flex;
+    flex-direction: column;
     grid-template-columns: 1fr;
+    min-height: 0;
+  }
+
+  .cashier-entry {
+    height: auto;
+    flex: 0 0 auto;
+  }
+
+  .cashier-history {
+    flex: 1 1 auto;
   }
 
   .cashier-form-grid.has-supplier {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .cashier-unified-bar-center {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+  }
+
+  .cashier-page .cashier-unified-bar .cashier-kpi-inline,
+  .app-cashier-mode .cashier-unified-bar .cashier-kpi-inline {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
+    flex-wrap: unset;
+  }
+
+  .cashier-unified-bar .cashier-kpi-pill {
+    min-width: 0;
+  }
+
+  .cashier-page .cashier-unified-bar .cashier-kpi-balance,
+  .app-cashier-mode .cashier-unified-bar .cashier-kpi-balance {
+    grid-column: auto;
+  }
+
+  .cashier-unified-bar .cashier-reconcile-btn {
+    grid-column: 1 / -1;
+  }
+
+  .cashier-ops-cards {
+    display: flex;
+    flex-direction: column;
+    overflow: auto;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .cashier-history .cashier-table-wrap {
+    display: none;
+  }
+
+  .cashier-history-header {
+    align-items: stretch;
+  }
+
+  .cashier-history-tools {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .cashier-history-search {
+    flex: 1;
+    width: auto;
+    min-height: 44px;
+  }
+
+  .cashier-list-side {
+    width: 100%;
+  }
+
+  .cashier-list-side button {
+    flex: 1;
+    min-height: 40px;
+  }
+
+  .cashier-entry {
+    gap: 8px;
+    padding: 12px;
+  }
+
+  .cashier-amount-input {
+    font-size: 24px;
+    min-height: 48px;
+  }
+
+  .cashier-panel .cashier-form-actions {
+    padding-top: 4px;
   }
 }
 
@@ -11190,12 +11497,25 @@ tr.product-row-highlight td:first-child {
     flex: 1 1 100px;
   }
 
+  .cashier-kpi-balance {
+    flex: 1 1 100%;
+  }
+
   .cashier-article-select {
-    display: block;
+    display: none;
   }
 
   .cashier-article-chips {
-    display: none;
+    display: flex;
+  }
+
+  .cashier-article-chip {
+    min-height: 44px;
+  }
+
+  .cashier-submit {
+    min-height: 48px;
+    font-size: 16px;
   }
 }
 
