@@ -1,7 +1,7 @@
 import { scryptSync, randomBytes, timingSafeEqual } from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import db from './db.js';
-import { getUserPayload, roleExists, assertRoleMatchesBranch } from './permissions.js';
+import { getUserPayload, roleExists, assertRoleMatchesBranch, phoneHomePath } from './permissions.js';
 import { getBranch, canViewAllBranches } from './branches.js';
 import { getDepartment } from './departments.js';
 import {
@@ -41,8 +41,65 @@ export function verifyPassword(password, stored) {
   return timingSafeEqual(hashBuf, testBuf);
 }
 
+function generateLoginToken() {
+  return randomBytes(18).toString('base64url');
+}
+
+function uniqueLoginToken() {
+  for (let i = 0; i < 8; i += 1) {
+    const token = generateLoginToken();
+    const clash = queryOne('SELECT id FROM users WHERE login_token = ?', [token]);
+    if (!clash) return token;
+  }
+  throw new Error('Не удалось выдать ссылку входа');
+}
+
+export function ensureAllLoginTokens() {
+  const rows = queryAll("SELECT id FROM users WHERE login_token IS NULL OR login_token = ''");
+  for (const row of rows) {
+    run('UPDATE users SET login_token = ? WHERE id = ?', [uniqueLoginToken(), row.id]);
+  }
+}
+
+function loginPathFor(token) {
+  return token ? `/e/${encodeURIComponent(token)}` : null;
+}
+
 function cleanSessions() {
   cleanExpiredSessions();
+}
+
+function assertCanManageUser(requester, user) {
+  if (!requester || requester.role === 'admin') return;
+  if (user.branch_id && requester.branch_id && user.branch_id !== requester.branch_id) {
+    throw new Error('Нельзя редактировать сотрудников другого филиала');
+  }
+}
+
+export function rotateUserLoginToken(userId, requester = null) {
+  const user = queryOne('SELECT * FROM users WHERE id = ?', [userId]);
+  if (!user) throw new Error('Сотрудник не найден');
+  assertCanManageUser(requester, user);
+  run('UPDATE users SET login_token = ? WHERE id = ?', [uniqueLoginToken(), userId]);
+  return mapUserRow(queryOne(userSelectSql(), [userId]));
+}
+
+export function loginByLink(loginToken, options = {}) {
+  cleanSessions();
+  const token = String(loginToken || '').trim();
+  if (!token || token.length < 16) {
+    throw new Error('Ссылка недействительна');
+  }
+  const user = queryOne('SELECT * FROM users WHERE login_token = ? AND active = 1', [token]);
+  if (!user) {
+    throw new Error('Ссылка недействительна или сотрудник отключён');
+  }
+
+  const remember = options.remember !== false;
+  const sessionToken = uuidv4();
+  createSession(user, sessionToken, { req: options.req, remember });
+  const payload = getUserPayload(user);
+  return { token: sessionToken, user: payload, home: phoneHomePath(payload) };
 }
 
 /** Отдел должен принадлежать филиалу сотрудника; admin без филиала — без отдела. */
@@ -62,7 +119,7 @@ export function resolveUserDepartmentId(departmentId, branchId, role) {
 function userSelectSql(where = 'WHERE u.id = ?') {
   return `
     SELECT u.id, u.username, u.name, u.role, u.active, u.created_at, u.branch_id, u.department_id,
-           b.name as branch_name, d.name as department_name
+           u.login_token, b.name as branch_name, d.name as department_name
     FROM users u
     LEFT JOIN branches b ON b.id = u.branch_id
     LEFT JOIN departments d ON d.id = u.department_id
@@ -72,13 +129,16 @@ function userSelectSql(where = 'WHERE u.id = ?') {
 
 function mapUserRow(u) {
   if (!u) return null;
+  const { login_token: loginToken, ...rest } = u;
+  delete rest.password_hash;
   return {
-    ...u,
+    ...rest,
     roleLabel: getUserPayload(u).roleLabel,
     active: !!u.active,
     protected: isProtectedAdmin(u.username),
     department_id: u.department_id || null,
     department_name: u.department_name || null,
+    login_path: loginPathFor(loginToken),
   };
 }
 
@@ -140,7 +200,7 @@ export function changePassword(userId, currentPassword, newPassword, keepToken =
 export function getUsers(requester, branchId = null, { allBranches = false } = {}) {
   let sql = `
     SELECT u.id, u.username, u.name, u.role, u.active, u.created_at, u.branch_id, u.department_id,
-           b.name as branch_name, d.name as department_name
+           u.login_token, b.name as branch_name, d.name as department_name
     FROM users u
     LEFT JOIN branches b ON b.id = u.branch_id
     LEFT JOIN departments d ON d.id = u.department_id
@@ -189,8 +249,8 @@ export function createUser(data, requester = null) {
 
   const id = uuidv4();
   run(`
-    INSERT INTO users (id, username, password_hash, name, role, active, branch_id, department_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO users (id, username, password_hash, name, role, active, branch_id, department_id, login_token)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, [
     id,
     username,
@@ -200,6 +260,7 @@ export function createUser(data, requester = null) {
     data.active !== false ? 1 : 0,
     branchId,
     departmentId,
+    uniqueLoginToken(),
   ]);
 
   return mapUserRow(queryOne(userSelectSql(), [id]));
@@ -338,9 +399,9 @@ export function seedDefaultUsers() {
     const existing = queryOne('SELECT id FROM users WHERE LOWER(username) = ?', [username]);
     if (!existing) {
       run(`
-        INSERT INTO users (id, username, password_hash, name, role, active)
-        VALUES (?, ?, ?, ?, ?, 1)
-      `, [uuidv4(), username, hashPassword(password), name, role]);
+        INSERT INTO users (id, username, password_hash, name, role, active, login_token)
+        VALUES (?, ?, ?, ?, ?, 1, ?)
+      `, [uuidv4(), username, hashPassword(password), name, role, uniqueLoginToken()]);
     }
   }
 
@@ -359,6 +420,7 @@ export function seedDefaultUsers() {
   }
 
   run("UPDATE users SET branch_id = 'main' WHERE role != 'admin' AND (branch_id IS NULL OR branch_id = '')");
+  ensureAllLoginTokens();
 }
 
 /** Главный admin всегда существует, активен и с ролью admin */

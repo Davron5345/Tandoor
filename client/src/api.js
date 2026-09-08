@@ -83,6 +83,31 @@ export const api = {
     if (data.token) setNativeSessionToken(data.token);
     return data;
   },
+  loginByLink: async (token) => {
+    const native = isNativeApp();
+    let res;
+    try {
+      res = await fetch(`${getApiBaseUrl()}/api/auth/login-link`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(native ? { 'X-Native-Client': '1' } : {}),
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          token,
+          remember: true,
+          native,
+        }),
+      });
+    } catch {
+      throw new Error('Сервер недоступен. Проверьте подключение к интернету.');
+    }
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Ссылка недействительна');
+    if (data.token) setNativeSessionToken(data.token);
+    return data;
+  },
   logout: async () => {
     try {
       if (isNativeApp()) {
@@ -115,6 +140,7 @@ export const api = {
   createUser: (data) => request('/users', { method: 'POST', body: JSON.stringify(data) }),
   updateUser: (id, data) => request(`/users/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteUser: (id) => request(`/users/${id}`, { method: 'DELETE' }),
+  rotateUserLoginLink: (id) => request(`/users/${id}/login-link`, { method: 'POST' }),
 
   getBranches: () => request('/branches'),
   createBranch: (data) => request('/branches', { method: 'POST', body: JSON.stringify(data) }),

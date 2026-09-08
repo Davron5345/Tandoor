@@ -101,6 +101,17 @@ function isCashierRoleId(role) {
   return false;
 }
 
+/** Куда открывать телефон после входа по личной ссылке. */
+export function phoneHomePath(user) {
+  if (!user) return '/';
+  if (isCashierOnlyLayout(user)) return '/cashier';
+  if (hasPermission(user, 'shop_orders.view')) return '/warehouse/orders';
+  if (hasPermission(user, 'documents.prihod')) return '/warehouse/prihod';
+  if (hasPermission(user, 'documents.transfer') && user.department_id) return '/warehouse/transfer';
+  if (hasPermission(user, 'cashier.view')) return '/cashier';
+  return '/';
+}
+
 /** Упрощённый интерфейс кассы без бокового меню (встроенная и кастомные кассовые роли). */
 export function isCashierOnlyLayout(user) {
   if (!user) return false;

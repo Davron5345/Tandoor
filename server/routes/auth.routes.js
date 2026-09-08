@@ -1,4 +1,4 @@
-import { login, logout, changePassword } from '../auth.js';
+import { login, logout, changePassword, loginByLink } from '../auth.js';
 import { getRolesForBranch } from '../permissions.js';
 import { attachBranch } from '../middleware.js';
 import { canViewAllBranches } from '../branches.js';
@@ -87,6 +87,31 @@ export function registerAuthRoutes(app, { authRequired }) {
         return res.status(403).json({ error: e.message });
       }
       logVisit(req, 'auth.login_failed', { username, success: false });
+      return res.status(401).json({ error: e.message });
+    }
+  });
+
+  app.post('/api/auth/login-link', loginRateLimit, (req, res) => {
+    const { token, remember } = req.body || {};
+    try {
+      const rememberSession = remember !== false;
+      const result = loginByLink(token, { remember: rememberSession, req });
+      setSessionCookie(res, result.token, { remember: rememberSession });
+      const device = extractRequestDevice(req);
+      logAudit({ user: result.user, headers: req.headers, socket: req.socket }, 'auth.login_link', {
+        meta: { username: result.user.username, device_label: device.deviceLabel, ip: device.ip },
+      });
+      logVisit(req, 'auth.login', { username: result.user.username, user_id: result.user.id, success: true, meta: { via: 'link' } });
+      const wantsNativeToken = req.headers['x-native-client'] === '1' || !!req.body?.native;
+      res.json(wantsNativeToken
+        ? { user: result.user, token: result.token, home: result.home }
+        : { user: result.user, home: result.home });
+    } catch (e) {
+      if (e.code === 'DEVICE_BLOCKED') {
+        logVisit(req, 'auth.login_blocked', { success: false, meta: { via: 'link' } });
+        return res.status(403).json({ error: e.message });
+      }
+      logVisit(req, 'auth.login_failed', { success: false, meta: { via: 'link' } });
       return res.status(401).json({ error: e.message });
     }
   });

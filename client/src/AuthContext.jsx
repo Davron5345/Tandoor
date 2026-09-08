@@ -26,6 +26,13 @@ export function AuthProvider({ children }) {
     return data.user;
   };
 
+  const loginByLink = useCallback(async (token) => {
+    const data = await api.loginByLink(token);
+    setUser(data.user);
+    setLoading(false);
+    return data;
+  }, []);
+
   const logout = async () => {
     try {
       await api.logout();
@@ -36,7 +43,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, reload: loadUser }}>
+    <AuthContext.Provider value={{ user, loading, login, loginByLink, logout, reload: loadUser }}>
       {children}
     </AuthContext.Provider>
   );

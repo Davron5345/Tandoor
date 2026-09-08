@@ -1,5 +1,5 @@
 import * as svc from '../services.js';
-import { getUsers, createUser, updateUser, deleteUser } from '../auth.js';
+import { getUsers, createUser, updateUser, deleteUser, rotateUserLoginToken } from '../auth.js';
 import { requirePermission, requireAdmin, attachBranch } from '../middleware.js';
 import * as branches from '../branches.js';
 import * as departments from '../departments.js';
@@ -167,6 +167,16 @@ export function registerOrgRoutes(app) {
   app.put('/api/users/:id', requirePermission('users.edit'), attachBranch, (req, res) => {
     try {
       res.json(updateUser(req.params.id, req.body, req.user));
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
+  app.post('/api/users/:id/login-link', requirePermission('users.edit'), attachBranch, (req, res) => {
+    try {
+      const user = rotateUserLoginToken(req.params.id, req.user);
+      logAudit(req, 'users.login_link_rotate', { entity_type: 'user', entity_id: req.params.id, meta: { username: user.username } });
+      res.json(user);
     } catch (e) {
       res.status(400).json({ error: e.message });
     }

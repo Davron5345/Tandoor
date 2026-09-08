@@ -881,6 +881,24 @@ export function hasAnyPermission(role, permissions) {
   return permissions.some((p) => hasPermission(role, p));
 }
 
+function isCashierRoleId(role) {
+  if (!role || role === 'admin' || role === 'accountant' || role === 'warehouse') return false;
+  if (role === 'cashier' || role === 'kassa_mahalla') return true;
+  return role.startsWith('cashier_') || role.startsWith('kassa_');
+}
+
+/** Куда открывать телефон после входа по личной ссылке. */
+export function phoneHomePath(user) {
+  if (!user) return '/';
+  const role = user.role;
+  if (isCashierRoleId(role)) return '/cashier';
+  if (hasPermission(role, 'shop_orders.view')) return '/warehouse/orders';
+  if (hasPermission(role, 'documents.prihod')) return '/warehouse/prihod';
+  if (hasPermission(role, 'documents.transfer') && user.department_id) return '/warehouse/transfer';
+  if (hasPermission(role, 'cashier.view')) return '/cashier';
+  return '/';
+}
+
 export function getUserPayload(user) {
   const branch = user.branch_id
     ? db.queryOne('SELECT id, name FROM branches WHERE id = ?', [user.branch_id])

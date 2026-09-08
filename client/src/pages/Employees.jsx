@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../api';
 import Modal, { useToast } from '../components/Modal';
+import { IconButton, IconCopy, IconEdit, IconTrash } from '../components/ActionIcons';
 import { useAuth } from '../AuthContext';
 import { useBranch } from '../BranchContext';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
@@ -9,6 +10,42 @@ import { hasPermission } from '../permissions';
 const emptyUser = {
   username: '', password: '', name: '', role: 'warehouse', branch_id: 'main', department_id: '', active: true,
 };
+
+function employeeLoginUrl(user) {
+  if (!user?.login_path) return '';
+  return `${window.location.origin}${user.login_path}`;
+}
+
+function groupUsersByDepartment(users) {
+  const groups = new Map();
+  const withoutDept = [];
+  for (const user of users) {
+    if (user.department_id) {
+      const key = `${user.branch_id || ''}::${user.department_id}`;
+      if (!groups.has(key)) {
+        groups.set(key, {
+          key,
+          title: user.department_name || 'Отдел',
+          subtitle: user.branch_name || '',
+          users: [],
+        });
+      }
+      groups.get(key).users.push(user);
+    } else {
+      withoutDept.push(user);
+    }
+  }
+  const sections = [...groups.values()].sort((a, b) => a.title.localeCompare(b.title, 'ru'));
+  if (withoutDept.length) {
+    sections.push({
+      key: 'none',
+      title: 'Без отдела',
+      subtitle: 'Касса, офис и роли без привязки к складу',
+      users: withoutDept,
+    });
+  }
+  return sections;
+}
 
 export default function Employees() {
   const { user } = useAuth();
@@ -39,6 +76,8 @@ export default function Employees() {
       }),
     );
   }, [roles, userForm.branch_id, userForm.role, branchId, isHeadquarters]);
+
+  const sections = useMemo(() => groupUsersByDepartment(users), [users]);
 
   const load = () => {
     api.getUsers().then(setUsers).catch(console.error);
@@ -122,6 +161,32 @@ export default function Employees() {
     }
   };
 
+  const copyLoginLink = async (u) => {
+    const url = employeeLoginUrl(u);
+    if (!url) {
+      show('Ссылка ещё не создана — сохраните сотрудника', 'error');
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      show('Ссылка скопирована. Откройте её на телефоне сотрудника.');
+    } catch {
+      window.prompt('Ссылка для входа с телефона', url);
+    }
+  };
+
+  const rotateLoginLink = async (u) => {
+    if (!window.confirm(`Старая ссылка «${u.name}» перестанет работать. Выдать новую?`)) return;
+    try {
+      const updated = await api.rotateUserLoginLink(u.id);
+      show('Новая ссылка готова');
+      load();
+      await copyLoginLink(updated);
+    } catch (e) {
+      show(e.message, 'error');
+    }
+  };
+
   return (
     <div>
       {Toast}
@@ -131,60 +196,92 @@ export default function Employees() {
           <button type="button" className="btn btn-primary" onClick={openCreateUser}>+ Добавить сотрудника</button>
         )}
       </div>
+      <p className="form-hint" style={{ marginBottom: 12 }}>
+        У каждого сотрудника своя ссылка для входа с телефона. Роль может быть разной: кассир откроет кассу, кладовщик — снабжение или перемещение.
+      </p>
       {!isHeadquarters && (
         <p className="form-hint" style={{ marginBottom: 12 }}>
           Показаны сотрудники филиала «{branchName}». Переключите на Asosiy, чтобы видеть всех.
         </p>
       )}
 
-      <div className="card">
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Имя</th>
-                <th>Логин</th>
-                <th>Роль</th>
-                <th>Филиал</th>
-                <th>Отдел</th>
-                <th>Статус</th>
-                {canEdit && <th></th>}
-              </tr>
-            </thead>
-            <tbody>
-              {users.map((u) => (
-                <tr key={u.id}>
-                  <td>{u.name}</td>
-                  <td>{u.username}</td>
-                  <td>
-                    <span className="badge badge-supplier">
-                      {roles[u.role]?.label || u.role}
-                      {u.protected && ' ★'}
-                    </span>
-                  </td>
-                  <td>{u.role === 'admin' ? 'Все филиалы' : (u.branch_name || '—')}</td>
-                  <td>{u.department_name || '—'}</td>
-                  <td>
-                    <span className={`badge badge-${u.active ? 'confirmed' : 'cancelled'}`}>
-                      {u.active ? 'Активен' : 'Отключён'}
-                    </span>
-                  </td>
-                  {canEdit && (
+      {sections.map((section) => (
+        <div className="card" key={section.key} style={{ marginBottom: 16 }}>
+          <div className="card-header">
+            <strong>{section.title}</strong>
+            {section.subtitle && <span className="report-meta">{section.subtitle}</span>}
+          </div>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Имя</th>
+                  <th>Логин</th>
+                  <th>Роль</th>
+                  <th>Филиал</th>
+                  <th>Статус</th>
+                  <th>Вход с телефона</th>
+                  {canEdit && <th></th>}
+                </tr>
+              </thead>
+              <tbody>
+                {section.users.map((u) => (
+                  <tr key={u.id}>
+                    <td>{u.name}</td>
+                    <td>{u.username}</td>
+                    <td>
+                      <span className="badge badge-supplier">
+                        {roles[u.role]?.label || u.roleLabel || u.role}
+                        {u.protected && ' ★'}
+                      </span>
+                    </td>
+                    <td>{u.role === 'admin' ? 'Все филиалы' : (u.branch_name || '—')}</td>
+                    <td>
+                      <span className={`badge badge-${u.active ? 'confirmed' : 'cancelled'}`}>
+                        {u.active ? 'Активен' : 'Отключён'}
+                      </span>
+                    </td>
                     <td>
                       <div className="btn-group">
-                        <button className="btn btn-ghost btn-sm" onClick={() => openEditUser(u)}>Изменить</button>
-                        {!(u.protected || u.username === 'admin') && (
-                          <button className="btn btn-danger btn-sm" onClick={() => removeUser(u)}>Удалить</button>
+                        <IconButton title="Скопировать ссылку входа" onClick={() => copyLoginLink(u)} disabled={!u.login_path}>
+                          <IconCopy />
+                        </IconButton>
+                        {canEdit && (
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-sm"
+                            onClick={() => rotateLoginLink(u)}
+                            title="Выдать новую ссылку"
+                          >
+                            Новая
+                          </button>
                         )}
                       </div>
                     </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                    {canEdit && (
+                      <td>
+                        <div className="btn-group">
+                          <IconButton title="Изменить" onClick={() => openEditUser(u)}>
+                            <IconEdit />
+                          </IconButton>
+                          {!(u.protected || u.username === 'admin') && (
+                            <IconButton title="Удалить" danger onClick={() => removeUser(u)}>
+                              <IconTrash />
+                            </IconButton>
+                          )}
+                        </div>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      ))}
+      {users.length === 0 && (
+        <div className="card"><div className="empty">Сотрудников пока нет</div></div>
+      )}
 
       {userModal && (
         <Modal
@@ -256,6 +353,7 @@ export default function Employees() {
                     <option key={d.id} value={d.id}>{d.name}</option>
                   ))}
                 </select>
+                <span className="form-hint">Для кладовщика отдела нужен отдел — тогда с телефона откроется перемещение.</span>
               </div>
             )}
             <div className="form-group">
@@ -272,6 +370,11 @@ export default function Employees() {
                 <option value="1">Активен</option>
                 <option value="0">Отключён</option>
               </select>
+            </div>
+            <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+              <p className="form-hint">
+                После сохранения у сотрудника появится уникальная ссылка. Её можно скопировать из списка и открыть на телефоне — вход без логина и пароля, сразу в раздел по роли.
+              </p>
             </div>
           </div>
         </Modal>

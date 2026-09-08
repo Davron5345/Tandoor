@@ -546,6 +546,7 @@ function migrateSchema() {
   migrateBankAccounts();
   sanitizeOrphanBranchReferences();
   migrateUsersDepartment();
+  migrateUserLoginTokens();
   migrateInventoryCoverage();
   addPerformanceIndexes();
 }
@@ -563,6 +564,23 @@ function migrateUsersDepartment() {
   const done = queryOne("SELECT value FROM settings WHERE key = 'users_department_v1'");
   if (!done) {
     run("INSERT OR REPLACE INTO settings (key, value) VALUES ('users_department_v1', '1')");
+    saveDb();
+  }
+}
+
+function migrateUserLoginTokens() {
+  const cols = queryAll('PRAGMA table_info(users)').map((c) => c.name);
+  if (!cols.includes('login_token')) {
+    run('ALTER TABLE users ADD COLUMN login_token TEXT');
+  }
+  try {
+    run('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_login_token ON users(login_token)');
+  } catch {
+    // ignore
+  }
+  const done = queryOne("SELECT value FROM settings WHERE key = 'users_login_token_v1'");
+  if (!done) {
+    run("INSERT OR REPLACE INTO settings (key, value) VALUES ('users_login_token_v1', '1')");
     saveDb();
   }
 }

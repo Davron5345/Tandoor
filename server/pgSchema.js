@@ -54,6 +54,7 @@ export const PG_MIGRATION_SETTINGS_KEYS = [
   'units_v1',
   'users_role_v2',
   'users_department_v1',
+  'users_login_token_v1',
   'inventory_coverage_v1',
   'variant_department_stock_v1',
   'variant_department_stock_v2',
@@ -104,7 +105,8 @@ CREATE TABLE IF NOT EXISTS users (
   created_at TEXT DEFAULT (${NOW}),
   branch_id TEXT REFERENCES branches(id),
   department_id TEXT,
-  must_change_password INTEGER DEFAULT 0
+  must_change_password INTEGER DEFAULT 0,
+  login_token TEXT UNIQUE
 );
 
 CREATE TABLE IF NOT EXISTS sessions (

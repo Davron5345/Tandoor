@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-09-05 (касса: рабочий стол кассира)
+**Последнее обновление документации:** 2026-09-08 (личные ссылки входа сотрудников)
 
 ---
 
@@ -171,7 +171,7 @@ npm run db:reset-operations    # Сброс операционных данны�
 | Контрагенты | `counterparties`, `counterparty_firms` (юрлица: ИНН, bank_account, mfo), `counterparty_contracts` (title, number, date, end_date, direction, amount, `firm_id`) |
 | Финансы | `payments` (+ `external_ref`, `import_batch_id`, `contract_id`, `firm_id`, `bank_account_id`, `liable_user_id` / `liable_department_id` для возврата долга по remainder-инвентаризации), `bank_accounts`, `cash_articles`, `branch_opening_balances` |
 | Калькуляции | `calculations`, `calculation_items`, `calculation_sources` |
-| Auth/Admin | `users` (+ `department_id` → отдел филиала), `sessions`, `roles`, `role_permissions`, `audit_log`, `visit_log`, `blocked_devices` |
+| Auth/Admin | `users` (+ `department_id` → отдел филиала, `login_token` — уникальная ссылка входа с телефона `/e/{token}`), `sessions`, `roles`, `role_permissions`, `audit_log`, `visit_log`, `blocked_devices` |
 | MyShop/Mobile | `shop_orders`, `shop_order_items`, `push_subscriptions`, `staff_locations`, `staff_location_history` |
 | Прочее | `telegram_messages`, `settings`, `branches` |
 
@@ -185,6 +185,7 @@ npm run db:reset-operations    # Сброс операционных данны�
 |------|-----------|------|
 | `/shop/:branchId` | `PublicShop` | Нет |
 | `/shop/:branchId/dept/:departmentId` | `PublicShop` | Нет |
+| `/e/:token` | `EmployeeLogin` | Нет (публичная ссылка → сессия по `users.login_token`) |
 | `/warehouse/orders`, `/snab` | `ShopOrdersMobile` | Да (mobile snab) |
 | `/warehouse/prihod` | `PrihodMobile` | Да (mobile приход) |
 | `/warehouse/transfer` | `TransferMobile` | Да (mobile перемещение по отделам; нужен `users.department_id`) |
@@ -226,10 +227,11 @@ Sidebar строится динамически по `hasPermission()`. В са�
 ### 7.1 Сессии
 
 - Cookie: `warehouse_session` (HttpOnly)
-- Native: Bearer token в ответе `/api/auth/login`
+- Native: Bearer token в ответе `/api/auth/login` и `/api/auth/login-link` (заголовок `X-Native-Client: 1`)
 - Срок: 12 часов (или 7 дней с `remember`)
 - Пароли: `crypto.scryptSync`
 - Production admin: принудительный `must_change_password`
+- **Личная ссылка с телефона:** у каждого сотрудника `users.login_token` (base64url, уникальный). URL `/e/:token` → `POST /api/auth/login-link` (публичный, rate-limit, **до** `authRequired`) ставит cookie `remember=true` (7 дней). Недействительный/отключённый → 401. Роль может быть любой (кассир, склад, кастомная). После входа `phoneHomePath`: кассир → `/cashier`; `shop_orders.view` → `/warehouse/orders`; `documents.prihod` → `/warehouse/prihod`; `documents.transfer` + отдел → `/warehouse/transfer`; иначе `/`. Отдел не обязателен (кассир часто без отдела). Смена ссылки: `POST /api/users/:id/login-link` (`users.edit`) — старый URL умирает, сессии не трогаем. API отдаёт `login_path` (`/e/{token}`), сам токен в JSON не светит.
 
 ### 7.2 Роли (встроенные)
 
@@ -433,6 +435,7 @@ POST /api/push/subscribe             # Web Push или FCM { type: 'fcm', token 
 
 ```
 POST /api/auth/login
+POST /api/auth/login-link            # публичный: { token, remember } → cookie + { user, home }
 GET  /api/auth/me
 POST /api/auth/logout
 POST /api/auth/change-password
@@ -451,7 +454,7 @@ GET  /api/auth/roles
 | `/api/payments` | finance.routes.js | Оплаты; `GET/POST/PUT/DELETE /api/bank-accounts`; `GET /bank-opening?bank_account_id=`; `DELETE /by-date/:date?bank_account_id=`; import parse/confirm |
 | `/api/cash-articles` | finance.routes.js | Статьи кассы |
 | `/api/stats`, `/api/reports/*` | org.routes.js | Отчёты, дашборд; `/api/reports/supplier-debts` (`supplier_ids` через запятую или `supplier_id`); `/api/reports/cash-articles?date_from&date_to` — обороты по статьям **только** `req.branchId` (платежи + JOIN статей по `ca.branch_id`) |
-| `/api/branches`, `/api/departments`, `/api/users` | org.routes.js | Оргструктура |
+| `/api/branches`, `/api/departments`, `/api/users` | org.routes.js | Оргструктура; `POST /api/users/:id/login-link` — новая ссылка входа (`users.edit`); в списке сотрудников `login_path` |
 | `/api/roles` | org.routes.js | Роли и права |
 | `/api/shop-orders` | shopOrders.routes.js | Заявки MyShop |
 | `/api/opening-balance` | openingBalance.routes.js | Начальное сальдо |
@@ -490,7 +493,8 @@ GET  /api/auth/roles
 | `/myshop/constructor` | MyShopConstructor.jsx | myshop.edit |
 | `/shop-orders` | ShopOrders.jsx | shop_orders.view |
 | `/telegram` | Telegram.jsx | telegram.view |
-| `/employees` | Employees.jsx | users.view; поле **Отдел** (`department_id` филиала сотрудника) |
+| `/e/:token` | EmployeeLogin.jsx | публично; вход по личной ссылке, редирект на `home` по роли |
+| `/employees` | Employees.jsx | users.view; список **по отделам**; у каждого копирование ссылки `/e/…` и «Новая» (`users.edit`); поле **Отдел** (`department_id`); роль может отличаться |
 | `/roles` | Roles.jsx | admin |
 | `/branches` | Branches.jsx | admin |
 | `/departments` | Departments.jsx | admin |
@@ -815,6 +819,7 @@ GET  /api/auth/roles
 | 2026-09-02 | Инвентаризация: «Покрытие» выше отделов; выбранный кубик с галочкой сверху справа |
 | 2026-09-02 | Инвентаризация: покрытие — радиокнопки ○ Частичная / ○ Полная, не кубики |
 | 2026-09-05 | Касса: рабочий стол (ввод слева / журнал справа), переключатель Приход/Расход, чипы на телефоне, карточки операций, поиск, повтор последней |
+| 2026-09-08 | Сотрудники: уникальная ссылка входа с телефона `/e/:token` на каждого (роль любая); копирование/ротация в `/employees`; `POST /api/auth/login-link` |
 
 ---
 
