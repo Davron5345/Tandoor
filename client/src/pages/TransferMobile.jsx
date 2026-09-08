@@ -22,6 +22,7 @@ import {
   resolvePickFromProducts,
 } from '../utils/productVariants';
 import { todayLocalIso } from '../utils/date';
+import PhoneAppSetupBanner from '../components/PhoneAppSetupBanner';
 
 const emptyItem = { product_id: '', variant_id: null, quantity: '1', price: 0, net_weight: '' };
 
@@ -287,6 +288,10 @@ export default function TransferMobile() {
           <span>{notice}</span>
           <button type="button" onClick={() => setNotice('')} aria-label="Закрыть">×</button>
         </div>
+      )}
+
+      {view === 'list' && (
+        <PhoneAppSetupBanner startUrl="/warehouse/transfer" appLabel="Перемещение" />
       )}
 
       {view === 'list' && (

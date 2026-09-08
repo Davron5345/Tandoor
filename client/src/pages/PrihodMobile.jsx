@@ -27,6 +27,7 @@ import {
 import { todayLocalIso } from '../utils/date';
 import { PriceWithTrend, pickPriceTrend, prihodLinePriceTrend } from '../components/PriceTrendMark';
 import { allocateExtraCosts, extraCostsTotal, capitalizedExtraTotal } from '../utils/documentExtraCosts';
+import PhoneAppSetupBanner from '../components/PhoneAppSetupBanner';
 
 const DEFAULT_CONTRACT_ID = '__default__';
 const emptyItem = { product_id: '', variant_id: null, quantity: '1', price: 0, net_weight: '' };
@@ -440,6 +441,10 @@ export default function PrihodMobile() {
           <span>{notice}</span>
           <button type="button" onClick={() => setNotice('')} aria-label="Закрыть">×</button>
         </div>
+      )}
+
+      {view === 'list' && (
+        <PhoneAppSetupBanner startUrl="/warehouse/prihod" appLabel="Приход" />
       )}
 
       {view === 'list' && (

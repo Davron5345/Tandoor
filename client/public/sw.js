@@ -3,18 +3,18 @@ self.addEventListener('push', (event) => {
   try {
     payload = event.data ? event.data.json() : {};
   } catch {
-    payload = { body: event.data?.text() || 'Новая заявка' };
+    payload = { body: event.data?.text() || 'Новое уведомление' };
   }
 
-  const title = payload.title || 'Новая заявка';
+  const title = payload.title || 'Mahalla';
   const options = {
     body: payload.body || '',
-    icon: '/icons/icon-192.svg',
-    badge: '/icons/icon-192.svg',
-    tag: payload.tag || 'shop-order',
+    icon: '/icons/icon-192.png',
+    badge: '/icons/icon-192.png',
+    tag: payload.tag || 'mahalla',
     renotify: true,
     data: {
-      url: payload.url || '/warehouse/orders',
+      url: payload.url || '/',
     },
   };
 
@@ -23,7 +23,7 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const targetPath = event.notification.data?.url || '/snab';
+  const targetPath = event.notification.data?.url || '/';
   const targetUrl = targetPath.startsWith('http')
     ? targetPath
     : new URL(targetPath, self.location.origin).href;

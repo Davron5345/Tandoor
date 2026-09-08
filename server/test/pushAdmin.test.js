@@ -124,3 +124,33 @@ test('fcm subscription can be saved when FCM_SERVER_KEY is set', async () => {
   assert.equal(res.status, 200);
   delete process.env.FCM_SERVER_KEY;
 });
+
+test('cashier can subscribe to web push', async () => {
+  const loginRes = await fetch(`${baseUrl}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: 'kassir', password: 'kassir123' }),
+  });
+  assert.equal(loginRes.status, 200);
+  const cookie = loginRes.headers.get('set-cookie')?.split(';')[0];
+  const res = await fetch(`${baseUrl}/api/push/subscribe`, {
+    method: 'POST',
+    headers: { cookie, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      subscription: {
+        endpoint: 'https://push.example/cashier-sub',
+        keys: { p256dh: 'dGVzdA', auth: 'dGVzdA' },
+      },
+    }),
+  });
+  assert.equal(res.status, 200, await res.text());
+});
+
+test('web manifest returns role start_url', async () => {
+  const res = await fetch(`${baseUrl}/api/app/web-manifest?start=/cashier`);
+  assert.equal(res.status, 200);
+  const data = await res.json();
+  assert.equal(data.start_url, '/cashier');
+  assert.match(data.short_name, /Касса|Mahalla/);
+  assert.ok(Array.isArray(data.icons));
+});

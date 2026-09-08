@@ -11,6 +11,7 @@ import ChangePassword from './ChangePassword';
 import ShopOrderItem from '../components/ShopOrderItem';
 import { IconNavWarehouse, IconNavLogout, IconNavSun, IconNavMoon, IconNavRefresh, IconNavUser } from '../components/NavIcons';
 import SnabProfileView from '../components/SnabProfileView';
+import PhoneAppSetupBanner from '../components/PhoneAppSetupBanner';
 import {
   getPushSubscriptionState,
   isPushSupported,
@@ -413,6 +414,10 @@ export default function ShopOrdersMobile() {
           <span>{notice}</span>
           <button type="button" onClick={() => setNotice('')} aria-label="Закрыть">×</button>
         </div>
+      )}
+
+      {view === 'list' && (
+        <PhoneAppSetupBanner startUrl="/warehouse/orders" appLabel="Снабжение" />
       )}
 
       {view === 'list' && (

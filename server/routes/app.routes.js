@@ -7,6 +7,7 @@ import { requirePermission } from '../middleware.js';
 import { getAppVersion } from '../appVersion.js';
 import { getSnabUpdateInfo } from '../snabAppVersion.js';
 import { dataDir } from '../dbBackup.js';
+import { buildWebManifest, isAllowedManifestStart } from '../pwaManifest.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const GITHUB_APK_BUILD_URL = 'https://github.com/Davron5345/Tandoor/actions/workflows/android-apk.yml';
@@ -40,7 +41,31 @@ function sendApkFile(res, apkPath) {
   return res.sendFile(apkPath);
 }
 
+function sendWebManifest(req, res) {
+  const startRaw = String(req.query.start || '/');
+  const startUrl = isAllowedManifestStart(startRaw) ? startRaw : '/';
+  const labels = {
+    '/cashier': { name: 'Mahalla Касса', shortName: 'Касса' },
+    '/warehouse/orders': { name: 'Mahalla Снабжение', shortName: 'Снабжение' },
+    '/snab': { name: 'Mahalla Снабжение', shortName: 'Снабжение' },
+    '/warehouse/prihod': { name: 'Mahalla Приход', shortName: 'Приход' },
+    '/warehouse/transfer': { name: 'Mahalla Перемещение', shortName: 'Перемещение' },
+  };
+  const label = labels[startUrl] || { name: 'Mahalla', shortName: 'Mahalla' };
+  res.setHeader('Content-Type', 'application/manifest+json; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-store');
+  res.json(buildWebManifest({
+    startUrl,
+    name: label.name,
+    shortName: label.shortName,
+  }));
+}
+
 export function registerAppRoutes(app) {
+  app.get('/api/app/web-manifest', sendWebManifest);
+  /** Чтобы Vite/prod без старого static-manifest тоже отдавали динамику при прямом запросе. */
+  app.get('/manifest.webmanifest', sendWebManifest);
+
   app.get('/downloads/snabzenie.apk', (req, res) => {
     res.redirect(302, process.env.SNAB_APK_URL || DEFAULT_GITHUB_APK_URL);
   });

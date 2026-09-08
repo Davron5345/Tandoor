@@ -23,6 +23,33 @@ export function isStandaloneApp() {
     || window.navigator.standalone === true;
 }
 
+const ALLOWED_MANIFEST_START = new Set([
+  '/',
+  '/cashier',
+  '/warehouse/orders',
+  '/warehouse/prihod',
+  '/warehouse/transfer',
+  '/snab',
+]);
+
+/** Меняет start_url манифеста, чтобы установленное приложение открывало нужный экран. */
+export function setPwaManifestStartUrl(startUrl = '/') {
+  if (typeof document === 'undefined') return;
+  const start = ALLOWED_MANIFEST_START.has(startUrl) ? startUrl : '/';
+  const href = `/api/app/web-manifest?start=${encodeURIComponent(start)}`;
+  let link = document.querySelector('link[rel="manifest"]');
+  if (!link) {
+    link = document.createElement('link');
+    link.rel = 'manifest';
+    document.head.appendChild(link);
+  }
+  if (link.getAttribute('href') !== href) {
+    link.setAttribute('href', href);
+  }
+  const appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+  if (appleTitle) appleTitle.setAttribute('content', 'Mahalla');
+}
+
 export function isPushSupported() {
   if (isNativeApp()) return true;
   return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
@@ -67,7 +94,7 @@ async function subscribeWebPush(api) {
   return subscription;
 }
 
-export async function subscribeToOrderPush(api, installedBuild = 0) {
+export async function subscribeToPush(api, installedBuild = 0) {
   if (isNativeApp()) {
     const blockReason = getNativePushBlockReason(installedBuild);
     if (blockReason) throw new Error(blockReason);
@@ -77,10 +104,9 @@ export async function subscribeToOrderPush(api, installedBuild = 0) {
     if (isPushSupported()) {
       await subscribeWebPush(api);
       markNativePushSubscribed();
-      return null;
+    } else {
+      markNativePushSubscribed();
     }
-
-    markNativePushSubscribed();
     return null;
   }
 
@@ -96,6 +122,11 @@ export async function subscribeToOrderPush(api, installedBuild = 0) {
   }
 
   return subscribeWebPush(api);
+}
+
+/** @deprecated используйте subscribeToPush */
+export async function subscribeToOrderPush(api, installedBuild = 0) {
+  return subscribeToPush(api, installedBuild);
 }
 
 export { resumeNativePushIfNeeded } from './nativePush';

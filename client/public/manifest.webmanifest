@@ -1,8 +1,8 @@
 {
-  "name": "Mahalla 90 — Снабжение",
-  "short_name": "Mahalla Снабжение",
-  "description": "Мобильное приложение снабженца для приёма заявок",
-  "start_url": "/warehouse/orders",
+  "name": "Mahalla",
+  "short_name": "Mahalla",
+  "description": "Учёт, касса и снабжение Mahalla — вход с телефона",
+  "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait-primary",

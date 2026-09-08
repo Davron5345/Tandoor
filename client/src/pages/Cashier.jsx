@@ -8,6 +8,7 @@ import { useTheme } from '../ThemeContext';
 import { useBranch } from '../BranchContext';
 import { IconNavCashier, IconNavMoon, IconNavSun } from '../components/NavIcons';
 import BranchChip from '../components/BranchChip';
+import PhoneAppSetupBanner from '../components/PhoneAppSetupBanner';
 import { todayLocalIso } from '../utils/date';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import { textMatchesSearch } from '../utils/searchNormalize';
@@ -1385,6 +1386,11 @@ export default function Cashier() {
               </button>
             </div>
           </header>
+          <PhoneAppSetupBanner
+            startUrl="/cashier"
+            enabled={cashierOnly}
+            appLabel="Касса"
+          />
         </>
       ) : (
         <div className="cashier-top">

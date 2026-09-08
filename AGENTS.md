@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-09-08 (личные ссылки входа сотрудников)
+**Последнее обновление документации:** 2026-09-08 (PWA + push после входа по ссылке)
 
 ---
 
@@ -232,6 +232,7 @@ Sidebar строится динамически по `hasPermission()`. В са�
 - Пароли: `crypto.scryptSync`
 - Production admin: принудительный `must_change_password`
 - **Личная ссылка с телефона:** у каждого сотрудника `users.login_token` (base64url, уникальный). URL `/e/:token` → `POST /api/auth/login-link` (публичный, rate-limit, **до** `authRequired`) ставит cookie `remember=true` (7 дней). Недействительный/отключённый → 401. Роль может быть любой (кассир, склад, кастомная). После входа `phoneHomePath`: кассир → `/cashier`; `shop_orders.view` → `/warehouse/orders`; `documents.prihod` → `/warehouse/prihod`; `documents.transfer` + отдел → `/warehouse/transfer`; иначе `/`. Отдел не обязателен (кассир часто без отдела). Смена ссылки: `POST /api/users/:id/login-link` (`users.edit`) — старый URL умирает, сессии не трогаем. API отдаёт `login_path` (`/e/{token}`), сам токен в JSON не светит.
+- **PWA на телефонных экранах:** баннер `PhoneAppSetupBanner` (установка на домашний экран + Web Push) на `/cashier` (режим кассира), `/warehouse/orders`, `/warehouse/prihod`, `/warehouse/transfer`. Динамический манифест `GET /api/app/web-manifest?start=…` (и `/manifest.webmanifest`) задаёт `start_url` и имя под роль; SW `client/public/sw.js`. Подписка `POST /api/push/subscribe` доступна ролям с `shop_orders.view` / `cashier.view|edit` / `documents.prihod|transfer|view` (не только снабжение). iOS: Share → «На экран Домой» (нет `beforeinstallprompt`).
 
 ### 7.2 Роли (встроенные)
 
@@ -420,15 +421,18 @@ GET  /api/public/shop/:branchId/catalog
 POST /api/public/shop/:branchId/orders
 GET  /api/push/vapid-public-key
 GET  /api/app/snab-update
+GET  /api/app/web-manifest?start=…   # динамический PWA-манифест (start_url по роли)
+GET  /manifest.webmanifest           # то же (публичный alias)
 GET  /api/public/snab-apk
 GET  /downloads/snabzenie.apk        → 302 на GitHub Releases
 ```
 
-### Auth (дополнительно для снабжения)
+### Auth (дополнительно для снабжения / телефона)
 
 ```
 GET  /api/app/snab-install           # shop_orders.view — ссылки APK/PWA
-POST /api/push/subscribe             # Web Push или FCM { type: 'fcm', token }
+POST /api/push/subscribe             # Web Push или FCM; права: снабжение / касса / приход / перемещение / documents.view
+POST /api/push/unsubscribe
 ```
 
 ### Auth
@@ -484,7 +488,7 @@ GET  /api/auth/roles
 | `/inventory` | Inventory.jsx | documents.inventory; на вкладке Документ сверху **Покрытие** радиокнопками (○ Частичная / ○ Полная), затем отдел квадратными кубиками с **галочкой** у выбранного; полная — статья списания + «В расход» / сотрудник / отдел кубиками; remainder связан с родителем; добавление строки берёт живой `book_qty`/`avg` отдела; колонки **Ед.** и **Нетто** как в приходе (факт — шт, на склад `net × qty` если нетто > 0); при «Сумма» — колонки **Себест.** (бирюза) и **Сумма** (синий); излишек без avg — поле ввода себестоимости; **«+»** у выбора товара — `ProductCreateModal` как в приходе (`products.edit`); без вариантов сразу в документ, несколько вариантов — выбрать в списке; в строках **№** и **товар — вариант**; «Новый» / выбор отдела открывает существующий черновик; повторный create пишет в него и **не затирает** уже посчитанные строки; **Заполнить по учёту** не чистит введённый факт/нетто и ручные позиции; черновик **Сохранить** пишет факт/нетто/учёт/вариант как введены и сразу подтягивает сохранённые строки с сервера (окно не закрывается); черновик в `sessionStorage` — после обновления страницы окно восстанавливается; **Сохранить и провести**; проведение переснимает учёт; **карандаш** в списке (как НС): черновик открыть, проведённый — снять проведение → снова черновик; глаз — просмотр; список — **сумма остатков** (складской факт × складская средняя + списание непересчитанного у полной) и **Итого** под таблицей; в карточке полной — список **непересчитанных** позиций (клик по «Списание»); **телефон:** ☰ + заголовок + филиал + «Новый» в topbar; список карточек (№/статус/дата·отдел/сумма); **2 вкладки** документа; desktop — **на весь экран**, кнопки Сохранить/Провести в шапке (телефон — снизу); portal Modal |
 | `/calculations` | Calculations.jsx | calculations.view |
 | `/dish-sales` | DishSales.jsx | documents.dish_sale |
-| `/cashier` | Cashier.jsx | cashier.*; рабочий стол: слева ввод (переключатель Приход/Расход, крупная сумма, чипы статей, недавние контрагенты), справа журнал смены всегда на экране; поиск и фильтр Все/Приход/Расход; «Повторить последнюю»; KPI «В кассе»; журнал без банковских операций (`bank_account_id`); **телефон:** чипы статей (не select), карточки операций |
+| `/cashier` | Cashier.jsx | cashier.*; рабочий стол: слева ввод (переключатель Приход/Расход, крупная сумма, чипы статей, недавние контрагенты), справа журнал смены всегда на экране; поиск и фильтр Все/Приход/Расход; «Повторить последнюю»; KPI «В кассе»; журнал без банковских операций (`bank_account_id`); **телефон:** чипы статей (не select), карточки операций; в режиме кассира — баннер PWA/push (`PhoneAppSetupBanner`) |
 | `/payments` | Payments.jsx | payments.view; справочник счетов («Основной»); список по датам (шапка колонок fixed pin при скролле); под поставщиком — фирма, под клиентом — канал (Payme/Click/Терминал/Инкассо); выбор столбцов; импорт AccReferenceReport |
 | `/cash-articles` | CashArticles.jsx | cash_articles.view |
 | `/reports/*` | Reports.jsx | reports.view; `/reports/supplier-debts` — долги поставщикам (мультивыбор + **шаблоны** набора в `localStorage` `supplier_debt_templates_v1` по филиалу); `/reports/cash-articles` — по статьям (изоляция филиала); акт сверки — фильтр «Фирма» |
@@ -501,9 +505,9 @@ GET  /api/auth/roles
 | `/tracking` | StaffTracking.jsx | admin: трекинг снабженцев с картой маршрута |
 | `/security` | SecurityAdmin.jsx | admin: сеансы, трекинг, push (`AdminPushTab.jsx`), блокировки |
 | `/audit-log` | AuditLog.jsx | admin |
-| `/warehouse/orders` | ShopOrdersMobile.jsx | shop_orders (mobile); табы Приход / Перемещение при правах |
-| `/warehouse/prihod` | PrihodMobile.jsx | documents.prihod / documents.view (mobile приход); у цены ▲/▼ как в десктопном приходе |
-| `/warehouse/transfer` | TransferMobile.jsx | documents.transfer + `user.department_id`; входящие/исходящие; отправка с проведением |
+| `/warehouse/orders` | ShopOrdersMobile.jsx | shop_orders (mobile); табы Приход / Перемещение при правах; баннер PWA/push |
+| `/warehouse/prihod` | PrihodMobile.jsx | documents.prihod / documents.view (mobile приход); у цены ▲/▼ как в десктопном приходе; баннер PWA/push |
+| `/warehouse/transfer` | TransferMobile.jsx | documents.transfer + `user.department_id`; входящие/исходящие; отправка с проведением; баннер PWA/push |
 
 ---
 
@@ -539,10 +543,10 @@ GET  /api/auth/roles
 | Канал | Где | Как |
 |-------|-----|-----|
 | **FCM (Android APK)** | `client/src/utils/nativePush.js` | `PushNotifications.requestPermissions()` → токен → `POST /api/push/subscribe` с `{ type: 'fcm', token }` |
-| **Web Push (PWA/браузер)** | `client/src/utils/pwaPush.js` | Service Worker + VAPID |
+| **Web Push (PWA/браузер)** | `client/src/utils/pwaPush.js`, `PhoneAppSetupBanner`, `usePhoneAppSetup` | Service Worker + VAPID; баннер установки/подписки на телефонных экранах после `/e/:token` |
 | **Админ-рассылка** | `AdminPushTab.jsx`, `POST /api/admin/push/send` | Всем / по филиалу / выбранным; `GET /api/admin/push/subscribers` |
 
-Сервер (`server/push.js`): endpoint `fcm:<token>` для native; обычный Web Push endpoint для браузера. Отправка FCM через `FCM_SERVER_KEY` (Legacy HTTP API).
+Сервер (`server/push.js`): endpoint `fcm:<token>` для native; обычный Web Push endpoint для браузера. Отправка FCM через `FCM_SERVER_KEY` (Legacy HTTP API). Динамический манифест: `server/pwaManifest.js`.
 
 **Настройка FCM (один раз):**
 1. Firebase Console → Android app `com.tandoor.snab` → `google-services.json` → `android/app/`
@@ -820,6 +824,7 @@ GET  /api/auth/roles
 | 2026-09-02 | Инвентаризация: покрытие — радиокнопки ○ Частичная / ○ Полная, не кубики |
 | 2026-09-05 | Касса: рабочий стол (ввод слева / журнал справа), переключатель Приход/Расход, чипы на телефоне, карточки операций, поиск, повтор последней |
 | 2026-09-08 | Сотрудники: уникальная ссылка входа с телефона `/e/:token` на каждого (роль любая); копирование/ротация в `/employees`; `POST /api/auth/login-link` |
+| 2026-09-08 | Телефон после `/e/:token`: PWA-установка + Web Push (баннер на кассе/снабжении/приходе/перемещении); `GET /api/app/web-manifest`; subscribe для кассира и склада |
 
 ---
 
