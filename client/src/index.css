@@ -15839,6 +15839,10 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
   align-items: stretch;
 }
 
+.phone-app-setup-actions.is-single {
+  grid-template-columns: 1fr;
+}
+
 .phone-app-setup-actions:has(> :only-child) {
   grid-template-columns: 1fr;
 }
