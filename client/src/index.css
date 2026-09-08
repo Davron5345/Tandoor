@@ -15756,60 +15756,126 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
 
 /* Phone PWA install + push banner (login link /e/:token) */
 .phone-app-setup {
+  position: relative;
+  flex: none;
+  z-index: 5;
+  padding: 8px 12px 0;
+}
+
+.phone-app-setup-sheet {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 8px 12px 4px;
+  gap: 10px;
+  padding: 12px 12px 12px;
+  border: 1px solid color-mix(in srgb, var(--primary) 30%, var(--border));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--primary) 9%, var(--surface));
 }
 
-.phone-app-setup-card {
+.phone-app-setup-dismiss {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 2;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.phone-app-setup-dismiss:active {
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+}
+
+.phone-app-setup-row {
   display: flex;
-  flex-wrap: wrap;
   align-items: flex-start;
-  justify-content: space-between;
-  gap: 10px 12px;
-  padding: 12px 14px;
-  border: 1px solid color-mix(in srgb, var(--primary) 28%, var(--border));
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--primary) 10%, var(--surface));
+  gap: 10px;
+  padding-right: 28px;
 }
 
-.phone-app-setup-text {
-  flex: 1 1 180px;
+.phone-app-setup-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--primary) 18%, var(--surface));
+  color: var(--primary);
+}
+
+.phone-app-setup-copy {
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
 }
 
-.phone-app-setup-text strong {
-  display: block;
-  font-size: 14px;
-  margin-bottom: 4px;
+.phone-app-setup-copy strong {
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.25;
+  color: var(--text);
 }
 
-.phone-app-setup-text p {
+.phone-app-setup-copy p {
   margin: 0;
   font-size: 12px;
-  line-height: 1.4;
+  line-height: 1.35;
   color: var(--text-muted);
 }
 
 .phone-app-setup-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  align-items: center;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: stretch;
 }
 
-.phone-app-setup-notice {
-  margin: 8px 12px 0;
-  padding: 8px 12px;
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--success) 14%, var(--surface));
+.phone-app-setup-actions:has(> :only-child) {
+  grid-template-columns: 1fr;
+}
+
+.phone-app-setup-primary {
+  min-height: 44px;
+  width: 100%;
+  font-weight: 650;
+}
+
+.phone-app-setup-later {
+  min-height: 44px;
+  min-width: 100px;
+  padding-inline: 12px;
+  white-space: nowrap;
+}
+
+.phone-app-setup-toast {
+  margin: 0 0 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--success) 16%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--success) 28%, transparent);
   color: var(--success);
   font-size: 13px;
   font-weight: 600;
+  text-align: center;
 }
 
 .cashier-page > .phone-app-setup {
   padding-left: 0;
   padding-right: 0;
+  margin-bottom: 8px;
 }
+
+.warehouse-orders-mobile-shell > .phone-app-setup {
+  padding-top: max(8px, env(safe-area-inset-top, 0px));
+}
+
+

@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-09-08 (PWA + push после входа по ссылке)
+**Последнее обновление документации:** 2026-09-08 (баннер PWA/push компактнее)
 
 ---
 
@@ -232,7 +232,7 @@ Sidebar строится динамически по `hasPermission()`. В са�
 - Пароли: `crypto.scryptSync`
 - Production admin: принудительный `must_change_password`
 - **Личная ссылка с телефона:** у каждого сотрудника `users.login_token` (base64url, уникальный). URL `/e/:token` → `POST /api/auth/login-link` (публичный, rate-limit, **до** `authRequired`) ставит cookie `remember=true` (7 дней). Недействительный/отключённый → 401. Роль может быть любой (кассир, склад, кастомная). После входа `phoneHomePath`: кассир → `/cashier`; `shop_orders.view` → `/warehouse/orders`; `documents.prihod` → `/warehouse/prihod`; `documents.transfer` + отдел → `/warehouse/transfer`; иначе `/`. Отдел не обязателен (кассир часто без отдела). Смена ссылки: `POST /api/users/:id/login-link` (`users.edit`) — старый URL умирает, сессии не трогаем. API отдаёт `login_path` (`/e/{token}`), сам токен в JSON не светит.
-- **PWA на телефонных экранах:** баннер `PhoneAppSetupBanner` (установка на домашний экран + Web Push) на `/cashier` (режим кассира), `/warehouse/orders`, `/warehouse/prihod`, `/warehouse/transfer`. Динамический манифест `GET /api/app/web-manifest?start=…` (и `/manifest.webmanifest`) задаёт `start_url` и имя под роль; SW `client/public/sw.js`. Подписка `POST /api/push/subscribe` доступна ролям с `shop_orders.view` / `cashier.view|edit` / `documents.prihod|transfer|view` (не только снабжение). iOS: Share → «На экран Домой» (нет `beforeinstallprompt`).
+- **PWA на телефонных экранах:** компактный баннер `PhoneAppSetupBanner` (один шаг: сначала на домашний экран, потом Web Push) на `/cashier` (режим кассира), `/warehouse/orders`, `/warehouse/prihod`, `/warehouse/transfer`. Динамический манифест `GET /api/app/web-manifest?start=…` (и `/manifest.webmanifest`) задаёт `start_url` и имя под роль; SW `client/public/sw.js`. Подписка `POST /api/push/subscribe` доступна ролям с `shop_orders.view` / `cashier.view|edit` / `documents.prihod|transfer|view`. На iOS push только после установки на экран; «Не сейчас» скрывает на сессию. iOS: Share → «На экран Домой» (нет `beforeinstallprompt`).
 
 ### 7.2 Роли (встроенные)
 
@@ -825,6 +825,7 @@ GET  /api/auth/roles
 | 2026-09-05 | Касса: рабочий стол (ввод слева / журнал справа), переключатель Приход/Расход, чипы на телефоне, карточки операций, поиск, повтор последней |
 | 2026-09-08 | Сотрудники: уникальная ссылка входа с телефона `/e/:token` на каждого (роль любая); копирование/ротация в `/employees`; `POST /api/auth/login-link` |
 | 2026-09-08 | Телефон после `/e/:token`: PWA-установка + Web Push (баннер на кассе/снабжении/приходе/перемещении); `GET /api/app/web-manifest`; subscribe для кассира и склада |
+| 2026-09-08 | Баннер PWA/push: один шаг за раз, компактная карточка, на iOS push только после установки на экран; «Не сейчас» на сессию |
 
 ---
 
