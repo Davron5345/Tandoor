@@ -48,6 +48,21 @@ import { useFormDirty } from '../hooks/useFormDirty';
 const DEFAULT_CONTRACT_ID = '__default__';
 const RETURN_SUPPLIER_TYPE = 'return_supplier';
 const RETURN_CUSTOMER_TYPE = 'return_customer';
+const DOCS_PHONE_MQ = '(max-width: 768px)';
+
+function useDocsPhone() {
+  const [isPhone, setIsPhone] = useState(() => (
+    typeof window !== 'undefined' && window.matchMedia(DOCS_PHONE_MQ).matches
+  ));
+  useEffect(() => {
+    const mq = window.matchMedia(DOCS_PHONE_MQ);
+    const apply = () => setIsPhone(mq.matches);
+    apply();
+    mq.addEventListener('change', apply);
+    return () => mq.removeEventListener('change', apply);
+  }, []);
+  return isPhone;
+}
 
 function hasRealSupplierContracts(contracts = []) {
   return contracts.some((c) => c.id !== DEFAULT_CONTRACT_ID && !c.virtual);
@@ -141,6 +156,7 @@ const emptyDoc = {
 };
 
 export default function Documents({ defaultType }) {
+  const isPhone = useDocsPhone();
   const [docs, setDocs] = useState([]);
   const [products, setProducts] = useState([]);
   const [counterparties, setCounterparties] = useState([]);
@@ -1462,7 +1478,67 @@ export default function Documents({ defaultType }) {
         )}
       </div>
 
-      <div className="card">
+      <div className="card docs-list-card">
+        {isPhone ? (
+          <div className="docs-list-cards">
+            {visibleDocs.map((d) => (
+              <article key={d.id} className="docs-doc-card">
+                <button
+                  type="button"
+                  className="docs-doc-card-main"
+                  onClick={() => openEdit(d.id, d.type)}
+                >
+                  <div className="docs-doc-card-top">
+                    <strong>№{d.number}</strong>
+                    <span className={`badge badge-${d.status}`}>{STATUS_LABELS[d.status]}</span>
+                  </div>
+                  <div className="docs-doc-card-meta">
+                    <span className="docs-doc-card-meta-left">
+                      {formatDate(d.date)}
+                      {!defaultType ? ` · ${typeLabel(d.type)}` : ''}
+                    </span>
+                    <span className="docs-doc-card-sum">{formatMoney(d.total_amount)}</span>
+                  </div>
+                  <div className="docs-doc-card-party">
+                    {d.counterparty_name || docBranchLabel(d) || '—'}
+                  </div>
+                </button>
+                <div className="docs-doc-card-actions">
+                  <IconButton
+                    title={isReadOnly ? 'Просмотр' : 'Открыть'}
+                    onClick={() => openEdit(d.id, d.type)}
+                  >
+                    <IconEye />
+                  </IconButton>
+                  {canTransfer && d.status === 'confirmed' && d.type === 'prihod' && (
+                    <IconButton title="Перемещение" onClick={() => openTransferFromDoc(d)}>
+                      <IconTransfer />
+                    </IconButton>
+                  )}
+                  {canPay && d.status === 'confirmed'
+                    && (d.type === 'prihod' || d.type === 'rashod')
+                    && d.counterparty_id
+                    && getDocRemaining(d) > 0 && (
+                    <IconButton title="Оплатить" onClick={() => openPay(d)}>
+                      <IconWallet />
+                    </IconButton>
+                  )}
+                  <div className="doc-actions-more">
+                    <IconButton
+                      title="Ещё"
+                      onClick={(e) => toggleActionsMenu(d.id, e.currentTarget.closest('.doc-actions-more'))}
+                    >
+                      <IconMore />
+                    </IconButton>
+                  </div>
+                </div>
+              </article>
+            ))}
+            {docs.length === 0 && (
+              <div className="empty docs-list-empty">Нет документов</div>
+            )}
+          </div>
+        ) : (
         <div className="table-wrap">
           <table>
             <thead>
@@ -1528,6 +1604,7 @@ export default function Documents({ defaultType }) {
             </tbody>
           </table>
         </div>
+        )}
         {docPages > 1 && (
           <div className="table-pagination" style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '12px 16px', justifyContent: 'flex-end' }}>
             <span style={{ color: 'var(--text-muted)', fontSize: 14 }}>

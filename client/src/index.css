@@ -15926,16 +15926,21 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
     --ones-yellow-soft: #fff6cc;
     --ones-ink: #1a1a1a;
     --ones-muted: #6b7280;
-    --ones-border: #e5e7eb;
+    --ones-border: #c8ccd0;
+    --ones-border-strong: #9aa0a6;
     --ones-surface: #ffffff;
-    --ones-bg: #f3f4f6;
+    --ones-bg: #eceff1;
     --ones-teal: #1a9b8e;
+    --ones-field: #ffffff;
     --surface: var(--ones-surface);
     --surface-2: var(--ones-bg);
     --bg: var(--ones-bg);
     --text: var(--ones-ink);
     --text-muted: var(--ones-muted);
     --border: var(--ones-border);
+    --control-bg: var(--ones-field);
+    --control-border: var(--ones-border-strong);
+    --control-radius: 2px;
     --primary: var(--ones-yellow);
     --primary-text: var(--ones-ink);
     color: var(--ones-ink);
@@ -15955,6 +15960,11 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
     background: var(--ones-yellow);
     color: var(--ones-ink);
     border-bottom: 1px solid color-mix(in srgb, #000 10%, var(--ones-yellow));
+  }
+
+  .app-mobile-admin .main-topbar-spacer {
+    width: 44px;
+    height: 44px;
   }
 
   .app-mobile-admin .main-topbar-mobile .sidebar-menu-btn {
@@ -16310,12 +16320,71 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
   .app-mobile-admin .filters,
   .app-mobile-admin .report-filters,
   .app-mobile-admin .filter-panel-row {
-    gap: 8px;
+    gap: 10px;
+    padding: 12px;
+    margin-bottom: 12px;
+    background: var(--ones-surface);
+    border: 1px solid var(--ones-border-strong);
+    border-radius: 2px;
+    box-shadow: none;
+  }
+
+  .app-mobile-admin .filters .filter-field-caption,
+  .app-mobile-admin .filter-field-caption {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ones-muted);
+  }
+
+  .app-mobile-admin .filters select,
+  .app-mobile-admin .filters input[type="search"],
+  .app-mobile-admin .filters input[type="date"],
+  .app-mobile-admin .filters input[type="text"],
+  .app-mobile-admin .report-filters input,
+  .app-mobile-admin .report-filters select,
+  .app-mobile-admin .filter-field select,
+  .app-mobile-admin .filter-field input,
+  .app-mobile-admin input,
+  .app-mobile-admin select,
+  .app-mobile-admin textarea {
+    width: 100%;
+    min-height: 40px;
+    padding: 8px 10px;
+    border: 1px solid var(--ones-border-strong) !important;
+    border-radius: 2px !important;
+    background: var(--ones-field) !important;
+    color: var(--ones-ink) !important;
+    box-shadow: none;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
+  .app-mobile-admin .filters input[type="date"] {
+    -webkit-appearance: none;
+    appearance: none;
+    min-height: 40px;
+    line-height: 1.2;
+  }
+
+  .app-mobile-admin .filters input[type="date"]::-webkit-date-and-time-value {
+    text-align: left;
+    min-height: 1.2em;
+  }
+
+  .app-mobile-admin .filters select:focus,
+  .app-mobile-admin .filters input:focus,
+  .app-mobile-admin .filter-field input:focus,
+  .app-mobile-admin .filter-field select:focus {
+    outline: none;
+    border-color: #6b7280 !important;
+    box-shadow: inset 0 0 0 1px #6b7280;
   }
 
   .app-mobile-admin .card {
-    border-radius: 8px;
-    border-color: var(--ones-border);
+    border-radius: 2px;
+    border: 1px solid var(--ones-border-strong);
     background: var(--ones-surface);
     box-shadow: none;
   }
@@ -16334,7 +16403,8 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
   .app-mobile-admin button.btn.primary,
   .app-mobile-admin .btn.btn-primary {
     background: var(--ones-yellow);
-    border-color: color-mix(in srgb, #000 12%, var(--ones-yellow));
+    border: 1px solid color-mix(in srgb, #000 18%, var(--ones-yellow));
+    border-radius: 2px;
     color: var(--ones-ink);
   }
 
@@ -16343,18 +16413,244 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
     filter: brightness(0.96);
   }
 
-  .app-mobile-admin input,
-  .app-mobile-admin select,
-  .app-mobile-admin textarea {
-    border-radius: 6px;
-    border-color: var(--ones-border);
-    background: var(--ones-surface);
-    color: var(--ones-ink);
+  .app-mobile-admin .page-header .btn-primary {
+    border-radius: 2px;
+    min-height: 44px;
   }
 
   .app-mobile-admin .empty,
   .app-mobile-admin .muted {
     color: var(--ones-muted);
+  }
+
+  /* Документы: карточки вместо широкой таблицы */
+  .docs-list-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .docs-doc-card {
+    display: flex;
+    flex-direction: column;
+    border-bottom: 1px solid var(--ones-border, #c8ccd0);
+    background: var(--ones-surface, #fff);
+  }
+
+  .docs-doc-card:last-child {
+    border-bottom: 0;
+  }
+
+  .docs-doc-card-main {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 100%;
+    padding: 12px 12px 8px;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    text-align: left;
+    font: inherit;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .docs-doc-card-main:active {
+    background: var(--ones-yellow-soft, #fff6cc);
+  }
+
+  .docs-doc-card-top,
+  .docs-doc-card-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .docs-doc-card-top strong {
+    font-size: 15px;
+    font-weight: 700;
+  }
+
+  .docs-doc-card-meta {
+    font-size: 13px;
+    color: var(--ones-muted, #6b7280);
+  }
+
+  .docs-doc-card-meta-left {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .docs-doc-card-sum {
+    flex: none;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--ones-ink, #1a1a1a);
+  }
+
+  .docs-doc-card-party {
+    font-size: 13px;
+    line-height: 1.3;
+    color: var(--ones-ink, #1a1a1a);
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+
+  .docs-doc-card-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0 8px 10px;
+  }
+
+  .docs-list-empty {
+    padding: 28px 16px;
+    text-align: center;
+  }
+
+  .app-mobile-admin .docs-list-card {
+    padding: 0;
+    overflow: hidden;
+  }
+
+  .app-mobile-admin .docs-list-card .table-pagination {
+    border-top: 1px solid var(--ones-border);
+    justify-content: center !important;
+    flex-wrap: wrap;
+  }
+
+  /* Лист «Ещё» вместо сайдбара */
+  .mobile-more-root {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+  }
+
+  .mobile-more-backdrop {
+    position: absolute;
+    inset: 0;
+    border: 0;
+    background: rgba(0, 0, 0, 0.4);
+    cursor: pointer;
+  }
+
+  .mobile-more-sheet {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    max-height: min(78vh, 640px);
+    padding: 8px 0 max(12px, env(safe-area-inset-bottom, 0px));
+    background: var(--ones-surface, #fff);
+    border-radius: 12px 12px 0 0;
+    border: 1px solid var(--ones-border-strong, #9aa0a6);
+    border-bottom: 0;
+    box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.18);
+  }
+
+  .mobile-more-handle {
+    width: 36px;
+    height: 4px;
+    margin: 4px auto 10px;
+    border-radius: 999px;
+    background: #c8ccd0;
+  }
+
+  .mobile-more-account {
+    padding: 0 16px 12px;
+    border-bottom: 1px solid var(--ones-border, #c8ccd0);
+  }
+
+  .mobile-more-branch {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ones-muted);
+  }
+
+  .mobile-more-branch select {
+    min-height: 40px;
+    padding: 8px 10px;
+    border: 1px solid var(--ones-border-strong);
+    border-radius: 2px;
+    background: #fff;
+    color: var(--ones-ink);
+    font-size: 15px;
+  }
+
+  .mobile-more-branch-name {
+    margin-bottom: 6px;
+    font-size: 13px;
+    color: var(--ones-muted);
+  }
+
+  .mobile-more-user {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .mobile-more-user strong {
+    font-size: 15px;
+  }
+
+  .mobile-more-user span {
+    font-size: 12px;
+    color: var(--ones-muted);
+  }
+
+  .mobile-more-nav {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 8px 0;
+  }
+
+  .mobile-more-group-title {
+    padding: 10px 16px 4px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--ones-muted);
+  }
+
+  .mobile-more-link {
+    display: block;
+    padding: 12px 16px;
+    color: var(--ones-ink);
+    text-decoration: none;
+    font-size: 15px;
+    border-bottom: 1px solid color-mix(in srgb, var(--ones-border, #c8ccd0) 70%, transparent);
+  }
+
+  .mobile-more-link:active,
+  .mobile-more-link.active {
+    background: var(--ones-yellow-soft, #fff6cc);
+  }
+
+  .mobile-more-logout {
+    margin: 8px 16px 0;
+    min-height: 44px;
+    border: 1px solid var(--ones-border-strong);
+    border-radius: 2px;
+    background: var(--ones-bg, #eceff1);
+    color: var(--ones-ink);
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
   }
 }
 

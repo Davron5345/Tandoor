@@ -1,5 +1,6 @@
 import { Routes, Route, NavLink, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import Dashboard from './pages/Dashboard';
 import Products from './pages/Products';
 import ProductCategories from './pages/ProductCategories';
@@ -265,13 +266,105 @@ function MobileDock({ items, onOpenMenu }) {
         type="button"
         className="mobile-dock-item mobile-dock-more"
         onClick={onOpenMenu}
-        aria-label="Все разделы"
+        aria-label="Ещё"
       >
         <span className="mobile-dock-icon" aria-hidden><IconNavMenu /></span>
         <span className="mobile-dock-label">Ещё</span>
       </button>
     </nav>
   );
+}
+
+/** Нижний лист «Ещё» вместо бокового сайдбара на телефоне */
+function MobileMoreSheet({
+  open,
+  onClose,
+  sections,
+  canViewDashboard,
+  canViewTelegram,
+  telegramOnline,
+  user,
+  branches,
+  branchId,
+  branchName,
+  isBranchAdmin,
+  setActiveBranchId,
+  onLogout,
+}) {
+  if (!open) return null;
+  const sheet = (
+    <div className="mobile-more-root">
+      <button type="button" className="mobile-more-backdrop" aria-label="Закрыть" onClick={onClose} />
+      <div className="mobile-more-sheet" role="dialog" aria-modal="true" aria-label="Разделы">
+        <div className="mobile-more-handle" aria-hidden />
+        <div className="mobile-more-account">
+          {isBranchAdmin && branches.length > 0 ? (
+            <label className="mobile-more-branch">
+              <span>Филиал</span>
+              <select
+                value={branchId || ''}
+                onChange={(e) => setActiveBranchId(e.target.value)}
+              >
+                {branches.filter((b) => b.active).map((b) => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            <div className="mobile-more-branch-name">{branchName || '—'}</div>
+          )}
+          <div className="mobile-more-user">
+            <strong>{user?.name}</strong>
+            {user?.roleLabel && user.roleLabel !== user.name && (
+              <span>{user.roleLabel}</span>
+            )}
+          </div>
+        </div>
+        <nav className="mobile-more-nav">
+          {canViewDashboard && (
+            <NavLink
+              to="/"
+              end
+              className={({ isActive }) => `mobile-more-link${isActive ? ' active' : ''}`}
+              onClick={onClose}
+            >
+              Главная
+            </NavLink>
+          )}
+          {sections.map((section) => (
+            section.items.length > 0 ? (
+              <div key={section.id} className="mobile-more-group">
+                <div className="mobile-more-group-title">{section.label}</div>
+                {section.items.map((item) => (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    className={({ isActive }) => `mobile-more-link${isActive ? ' active' : ''}`}
+                    onClick={onClose}
+                  >
+                    {item.label}
+                  </NavLink>
+                ))}
+              </div>
+            ) : null
+          ))}
+          {canViewTelegram && (
+            <NavLink
+              to="/telegram"
+              className={({ isActive }) => `mobile-more-link${isActive ? ' active' : ''}`}
+              onClick={onClose}
+            >
+              Telegram{telegramOnline ? '' : ' · выкл'}
+            </NavLink>
+          )}
+        </nav>
+        <button type="button" className="mobile-more-logout" onClick={() => { onClose(); onLogout(); }}>
+          Выйти
+        </button>
+      </div>
+    </div>
+  );
+  return createPortal(sheet, document.body);
 }
 
 function SidebarFavorites({
@@ -529,6 +622,7 @@ function AppContent() {
   const [accountOpen, setAccountOpen] = useState(readSidebarAccountOpen);
   const [navFavorites, setNavFavorites] = useState(readNavFavorites);
   const [isMobileNav, setIsMobileNav] = useState(isMobileNavViewport);
+  const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
   const { theme, toggleTheme } = useTheme();
   const { user, loading, logout } = useAuth();
   const { branches, branchId, branchName, setActiveBranchId, isAdmin: isBranchAdmin } = useBranch();
@@ -747,17 +841,20 @@ function AppContent() {
   const mobileDockItems = useMobileChrome ? buildMobileDockItems(user) : [];
 
   const openWorkspaceMenu = () => {
-    setAccountOpen(true);
-    setSidebarCollapsed(false);
+    setMobileMoreOpen(true);
   };
 
   const openAllSectionsMenu = () => {
-    setSidebarCollapsed(false);
+    setMobileMoreOpen(true);
   };
+
+  useEffect(() => {
+    setMobileMoreOpen(false);
+  }, [location.pathname]);
 
   return (
     <div className={`app${sidebarCollapsed ? ' sidebar-collapsed' : ''}${accountOpen ? ' sidebar-account-open' : ''}${isCashierLayout ? ' app-cashier-mode' : ''}${isMyShopStore ? ' app-myshop-mode' : ''}${isMyShopConstructor ? ' app-myshop-constructor-mode' : ''}${useMobileChrome ? ' app-mobile-admin' : ''}${isWorkspaceHome ? ' app-workspace-home' : ''}`}>
-      {!isCashierLayout && !sidebarCollapsed && (
+      {!isCashierLayout && !useMobileChrome && !sidebarCollapsed && (
         <button
           type="button"
           className="mobile-nav-backdrop"
@@ -765,7 +862,7 @@ function AppContent() {
           onClick={() => setSidebarCollapsed(true)}
         />
       )}
-      {!isCashierLayout && (
+      {!isCashierLayout && !useMobileChrome && (
       <aside className="sidebar">
         <div className="sidebar-panel">
         <div className="sidebar-header">
@@ -923,19 +1020,21 @@ function AppContent() {
       <main className="main">
         {!isCashierLayout && (
         <div className={`main-topbar${useMobileChrome ? ' main-topbar-mobile' : ''}`}>
-          <button
-            type="button"
-            className="sidebar-menu-btn"
-            onClick={toggleSidebar}
-            title={sidebarCollapsed ? 'Показать меню' : 'Скрыть меню'}
-            aria-label={sidebarCollapsed ? 'Показать меню' : 'Скрыть меню'}
-            aria-expanded={!sidebarCollapsed}
-          >
-            <IconNavMenu />
-            {!useMobileChrome && (
+          {useMobileChrome ? (
+            <span className="main-topbar-spacer" aria-hidden />
+          ) : (
+            <button
+              type="button"
+              className="sidebar-menu-btn"
+              onClick={toggleSidebar}
+              title={sidebarCollapsed ? 'Показать меню' : 'Скрыть меню'}
+              aria-label={sidebarCollapsed ? 'Показать меню' : 'Скрыть меню'}
+              aria-expanded={!sidebarCollapsed}
+            >
+              <IconNavMenu />
               <span className="sidebar-menu-btn-label">{sidebarCollapsed ? 'Меню' : 'Свернуть'}</span>
-            )}
-          </button>
+            </button>
+          )}
           {useMobileChrome && (
             <h1 className="main-topbar-title">{mobilePageTitle}</h1>
           )}
@@ -947,8 +1046,8 @@ function AppContent() {
                     type="button"
                     className="main-topbar-more"
                     onClick={openWorkspaceMenu}
-                    aria-label="Профиль и настройки"
-                    title="Профиль и настройки"
+                    aria-label="Профиль и разделы"
+                    title="Профиль и разделы"
                   >
                     <span aria-hidden>⋮</span>
                   </button>
@@ -1017,6 +1116,23 @@ function AppContent() {
         </div>
         {useMobileChrome && !isWorkspaceHome && (
           <MobileDock items={mobileDockItems} onOpenMenu={openAllSectionsMenu} />
+        )}
+        {useMobileChrome && (
+          <MobileMoreSheet
+            open={mobileMoreOpen}
+            onClose={() => setMobileMoreOpen(false)}
+            sections={appNav.sections}
+            canViewDashboard={canViewDashboard}
+            canViewTelegram={canViewTelegram}
+            telegramOnline={telegramOnline}
+            user={user}
+            branches={branches}
+            branchId={branchId}
+            branchName={branchName}
+            isBranchAdmin={isBranchAdmin}
+            setActiveBranchId={setActiveBranchId}
+            onLogout={logout}
+          />
         )}
       </main>
     </div>
