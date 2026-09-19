@@ -183,12 +183,14 @@ export function buildProductRowNumbers(rows, startProductIndex = 0) {
   return numbers;
 }
 
-export function productPickMeta(product, variant = null) {
+export function productPickMeta(product, variant = null, { showPrice = true } = {}) {
   const parts = [];
   const stock = getPickStock(product, variant);
   if (stock != null) parts.push(`ост: ${formatQty(stock)} ${product?.unit || 'шт'}`);
-  const price = getPickPrice(product, variant);
-  if (price != null) parts.push(formatMoney(price));
+  if (showPrice) {
+    const price = getPickPrice(product, variant);
+    if (price != null) parts.push(formatMoney(price));
+  }
   if (!variant && product?.category_name) parts.push(product.category_name);
   return parts.join(' · ');
 }

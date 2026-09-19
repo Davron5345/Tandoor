@@ -15,9 +15,11 @@ import {
   resolvePickFromProducts,
 } from '../utils/productVariants';
 
-function ProductThumb({ product, variant = null, className = '', compact = false }) {
+function ProductThumb({ product, variant = null, className = '', compact = false, size = null }) {
   const image = variant ? getVariantPrimaryImage(variant) : product?.primary_image;
-  const sizeClass = compact ? ' product-select-thumb-sm' : '';
+  const sizeClass = size === 'lg'
+    ? ' product-select-thumb-lg'
+    : (compact ? ' product-select-thumb-sm' : '');
 
   if (!image) {
     return (
@@ -38,16 +40,20 @@ function ProductThumb({ product, variant = null, className = '', compact = false
   );
 }
 
-function OptionMeta({ product, variant = null }) {
+export { ProductThumb };
+
+function OptionMeta({ product, variant = null, showPrice = true }) {
   const { stock, unit, price } = getPickMetaParts(product, variant);
-  const trend = pickPriceTrend(product, variant);
+  const trend = showPrice ? pickPriceTrend(product, variant) : null;
   return (
     <span className="product-select-option-side">
       <span className="product-select-option-stock">{stock} {unit}</span>
-      <span className="product-select-option-price">
-        {formatMoney(price)}
-        <PriceTrendMark trend={trend} />
-      </span>
+      {showPrice && (
+        <span className="product-select-option-price">
+          {formatMoney(price)}
+          <PriceTrendMark trend={trend} />
+        </span>
+      )}
     </span>
   );
 }
@@ -63,6 +69,8 @@ export default function ProductSelect({
   placeholder = 'Выберите товар...',
   searchPlaceholder = 'Поиск по названию, артикулу...',
   className = '',
+  showPrice = true,
+  sheet = false,
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -95,6 +103,19 @@ export default function ProductSelect({
 
   const updateDropdownPosition = () => {
     if (!triggerRef.current) return;
+    if (sheet) {
+      setDropdownStyle({
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        width: '100%',
+        maxHeight: '100%',
+        zIndex: 1300,
+      });
+      return;
+    }
     const rect = triggerRef.current.getBoundingClientRect();
     const dropdownHeight = Math.min(480, Math.max(240, window.innerHeight * 0.45));
     const spaceBelow = window.innerHeight - rect.bottom - 12;
@@ -193,7 +214,7 @@ export default function ProductSelect({
       window.removeEventListener('resize', onScrollOrResize);
       window.removeEventListener('scroll', onScrollOrResize, true);
     };
-  }, [open]);
+  }, [open, sheet]);
 
   useLayoutEffect(() => {
     if (!open || !dropdownStyle) return;
@@ -223,7 +244,7 @@ export default function ProductSelect({
 
   return (
     <div
-      className={`product-select${open ? ' product-select-open' : ''}${disabled ? ' product-select-disabled' : ''}${className ? ` ${className}` : ''}`}
+      className={`product-select${open ? ' product-select-open' : ''}${disabled ? ' product-select-disabled' : ''}${sheet ? ' product-select-sheet-mode' : ''}${className ? ` ${className}` : ''}`}
     >
       <button
         ref={triggerRef}
@@ -243,13 +264,13 @@ export default function ProductSelect({
       >
         {selected.product ? (
           <>
-            <ProductThumb product={selected.product} variant={selected.variant} compact />
+            <ProductThumb product={selected.product} variant={selected.variant} size={sheet ? 'lg' : null} compact={!sheet} />
             <span className="product-select-value">
               <span className="product-select-name">
                 {getPickDisplayName(selected.product, selected.variant)}
               </span>
               <span className="product-select-meta">
-                {productPickMeta(selected.product, selected.variant)}
+                {productPickMeta(selected.product, selected.variant, { showPrice })}
               </span>
             </span>
           </>
@@ -260,11 +281,24 @@ export default function ProductSelect({
       </button>
 
       {open && dropdownStyle && createPortal(
-        <div ref={dropdownRef} className="product-select-dropdown" style={dropdownStyle}>
+        <div
+          ref={dropdownRef}
+          className={`product-select-dropdown${sheet ? ' product-select-dropdown-sheet' : ''}`}
+          style={dropdownStyle}
+        >
+          {sheet && (
+            <div className="product-select-sheet-head">
+              <button type="button" className="btn btn-icon btn-ghost product-select-sheet-close" onClick={close} aria-label="Закрыть">
+                ←
+              </button>
+              <span className="product-select-sheet-title">Выбор товара</span>
+            </div>
+          )}
           <div className="product-select-search-wrap">
             <input
               ref={searchRef}
               type="search"
+              enterKeyHint="search"
               className="product-select-search"
               placeholder={searchPlaceholder}
               value={search}
@@ -282,7 +316,7 @@ export default function ProductSelect({
                 <li key={group.id} className="product-select-group">
                   {isGrouped && (
                     <div className="product-select-group-header">
-                      <ProductThumb product={group.product} compact />
+                      <ProductThumb product={group.product} size={sheet ? 'lg' : null} compact={!sheet} />
                       <span className="product-select-group-title">
                         {search.trim() ? (
                           <SearchHighlight text={group.product.name} query={search} />
@@ -324,7 +358,12 @@ export default function ProductSelect({
                             onClick={() => pick(option.key)}
                           >
                             {!isGrouped && (
-                              <ProductThumb product={option.product} variant={option.variant} compact />
+                              <ProductThumb
+                                product={option.product}
+                                variant={option.variant}
+                                size={sheet ? 'lg' : null}
+                                compact={!sheet}
+                              />
                             )}
                             <span className="product-select-option-text">
                               <span className="product-select-name">
@@ -335,7 +374,7 @@ export default function ProductSelect({
                                 )}
                               </span>
                             </span>
-                            <OptionMeta product={option.product} variant={option.variant} />
+                            <OptionMeta product={option.product} variant={option.variant} showPrice={showPrice} />
                           </button>
                           {onEditProduct && !isGrouped && (
                             <button
@@ -360,7 +399,7 @@ export default function ProductSelect({
             )}
           </ul>
 
-          {flatOptions.length > 0 && (
+          {flatOptions.length > 0 && !sheet && (
             <div className="product-select-footer">
               {flatOptions.length} {flatOptions.length === 1 ? 'позиция' : flatOptions.length < 5 ? 'позиции' : 'позиций'}
               <span className="product-select-footer-hint">↑↓ Enter</span>
