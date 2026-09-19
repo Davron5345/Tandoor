@@ -148,7 +148,7 @@ const emptyDoc = {
   to_branch_id: '',
   from_department_id: '',
   to_department_id: '',
-  transfer_mode: 'branch',
+  transfer_mode: 'department',
   date: todayLocalIso(),
   comment: '',
   status: 'draft',
@@ -793,6 +793,7 @@ export default function Documents({ defaultType }) {
   };
 
   const handleTypeChange = (type) => {
+    const branch = form.from_branch_id || branchId || 'main';
     setForm({
       ...form,
       type,
@@ -801,6 +802,9 @@ export default function Documents({ defaultType }) {
       contract_id: '',
       to_department_id: '',
       from_department_id: '',
+      transfer_mode: type === 'peremeshchenie' ? 'department' : form.transfer_mode,
+      from_branch_id: type === 'peremeshchenie' ? branch : form.from_branch_id,
+      to_branch_id: type === 'peremeshchenie' ? branch : form.to_branch_id,
       items: [{ ...emptyItem }],
       extra_costs: type === 'prihod' ? [] : [],
     });
@@ -824,8 +828,8 @@ export default function Documents({ defaultType }) {
       ...emptyDoc,
       type: docType,
       from_branch_id: branchId || 'main',
-      to_branch_id: '',
-      transfer_mode: docType === 'peremeshchenie' ? 'branch' : 'branch',
+      to_branch_id: docType === 'peremeshchenie' ? (branchId || 'main') : '',
+      transfer_mode: 'department',
       items: [{ ...emptyItem }],
     }));
     setPrihodBodyTab('items');
@@ -839,9 +843,9 @@ export default function Documents({ defaultType }) {
     setForm(applyDocumentDraft('transfer', {
       ...emptyDoc,
       type: 'peremeshchenie',
-      transfer_mode: 'branch',
+      transfer_mode: 'department',
       from_branch_id: sourceBranch,
-      to_branch_id: '',
+      to_branch_id: sourceBranch,
       from_department_id: '',
       to_department_id: '',
       date: todayLocalIso(),
@@ -2015,12 +2019,12 @@ export default function Documents({ defaultType }) {
                     <div className="form-group form-group-transfer-mode">
                       <label>Тип перемещения</label>
                       <select
-                        value={form.transfer_mode || 'branch'}
+                        value={form.transfer_mode || 'department'}
                         disabled={isReadOnly}
                         onChange={(e) => handleTransferModeChange(e.target.value)}
                       >
-                        <option value="branch">Между филиалами</option>
                         <option value="department">Между отделами</option>
+                        <option value="branch">Между филиалами</option>
                       </select>
                     </div>
                     {isDepartmentTransfer ? (
