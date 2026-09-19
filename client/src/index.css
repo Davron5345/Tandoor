@@ -16198,7 +16198,7 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
     display: flex;
     flex-direction: column;
     flex: 1 0 auto;
-    min-height: min-content;
+    min-height: 100%;
     background: var(--ones-surface);
   }
 
@@ -16206,7 +16206,7 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
     display: flex;
     flex-direction: column;
     flex: 1 0 auto;
-    min-height: min-content;
+    min-height: 100%;
     background: var(--ones-surface);
   }
 
