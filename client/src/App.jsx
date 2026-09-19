@@ -45,6 +45,7 @@ import {
   IconNavReports,
   IconNavTelegram,
   IconNavAdmin,
+  IconNavCashier,
   IconNavSun,
   IconNavMoon,
   IconNavChevronLeft,
@@ -201,6 +202,76 @@ function findNavItemForPath(items, pathname) {
   const matches = items.filter((item) => pathname === item.to || pathname.startsWith(`${item.to}/`));
   if (!matches.length) return null;
   return matches.sort((a, b) => b.to.length - a.to.length)[0];
+}
+
+function resolveMobilePageTitle(pathname, sections, allItems) {
+  if (pathname === '/' || pathname === '') return 'Рабочий стол';
+  if (pathname.startsWith('/telegram')) return 'Telegram';
+  if (pathname.startsWith('/reports')) {
+    const reportItem = findNavItemForPath(allItems, pathname);
+    return reportItem?.label || 'Отчёты';
+  }
+  const item = findNavItemForPath(allItems, pathname);
+  if (item) return item.label;
+  const section = findActiveSection(pathname, sections);
+  return section?.label || 'Mahalla';
+}
+
+function buildMobileDockItems(user) {
+  const items = [
+    { to: '/', label: 'Стол', Icon: IconNavHome, end: true },
+  ];
+  if (hasPermission(user, 'documents.prihod')) {
+    items.push({ to: '/prihod', label: 'Приход', Icon: IconNavPurchases });
+  }
+  if (hasAnyPermission(user, ['cashier.view', 'cashier.edit'])) {
+    items.push({ to: '/cashier', label: 'Касса', Icon: IconNavCashier });
+  } else if (hasPermission(user, 'payments.view')) {
+    items.push({ to: '/payments', label: 'Банк', Icon: IconNavMoney });
+  }
+  if (hasPermission(user, 'products.view')) {
+    items.push({ to: '/products', label: 'Товары', Icon: IconNavCatalog });
+  } else if (hasPermission(user, 'counterparties.view')) {
+    items.push({ to: '/counterparties', label: 'Контрагенты', Icon: IconNavShop });
+  } else if (hasPermission(user, 'shop_orders.view')) {
+    items.push({ to: '/shop-orders', label: 'Заявки', Icon: IconNavShop });
+  }
+  return items.slice(0, 4);
+}
+
+function MobileDock({ items, onOpenMenu }) {
+  const cols = items.length + 1;
+  return (
+    <nav
+      className="mobile-dock"
+      aria-label="Быстрое меню"
+      style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
+    >
+      {items.map((item) => {
+        const Icon = item.Icon;
+        return (
+          <NavLink
+            key={item.to}
+            to={item.to}
+            end={item.end}
+            className={({ isActive }) => `mobile-dock-item${isActive ? ' is-active' : ''}`}
+          >
+            <span className="mobile-dock-icon" aria-hidden><Icon /></span>
+            <span className="mobile-dock-label">{item.label}</span>
+          </NavLink>
+        );
+      })}
+      <button
+        type="button"
+        className="mobile-dock-item mobile-dock-more"
+        onClick={onOpenMenu}
+        aria-label="Все разделы"
+      >
+        <span className="mobile-dock-icon" aria-hidden><IconNavMenu /></span>
+        <span className="mobile-dock-label">Ещё</span>
+      </button>
+    </nav>
+  );
 }
 
 function SidebarFavorites({
@@ -658,14 +729,28 @@ function AppContent() {
   };
 
   const isWorkspaceHome = isMobileNav && location.pathname === '/' && canViewDashboard;
+  const useMobileChrome = isMobileNav
+    && !isCashierLayout
+    && !isMyShopStore
+    && !isMyShopConstructor;
+  const mobilePageTitle = resolveMobilePageTitle(
+    location.pathname,
+    appNav.sections,
+    allSubNavItems,
+  );
+  const mobileDockItems = useMobileChrome ? buildMobileDockItems(user) : [];
 
   const openWorkspaceMenu = () => {
     setAccountOpen(true);
     setSidebarCollapsed(false);
   };
 
+  const openAllSectionsMenu = () => {
+    setSidebarCollapsed(false);
+  };
+
   return (
-    <div className={`app${sidebarCollapsed ? ' sidebar-collapsed' : ''}${accountOpen ? ' sidebar-account-open' : ''}${isCashierLayout ? ' app-cashier-mode' : ''}${isMyShopStore ? ' app-myshop-mode' : ''}${isMyShopConstructor ? ' app-myshop-constructor-mode' : ''}${isWorkspaceHome ? ' app-workspace-home' : ''}`}>
+    <div className={`app${sidebarCollapsed ? ' sidebar-collapsed' : ''}${accountOpen ? ' sidebar-account-open' : ''}${isCashierLayout ? ' app-cashier-mode' : ''}${isMyShopStore ? ' app-myshop-mode' : ''}${isMyShopConstructor ? ' app-myshop-constructor-mode' : ''}${useMobileChrome ? ' app-mobile-admin' : ''}${isWorkspaceHome ? ' app-workspace-home' : ''}`}>
       {!isCashierLayout && !sidebarCollapsed && (
         <button
           type="button"
@@ -831,7 +916,7 @@ function AppContent() {
 
       <main className="main">
         {!isCashierLayout && (
-        <div className={`main-topbar${isWorkspaceHome ? ' main-topbar-workspace' : ''}`}>
+        <div className={`main-topbar${useMobileChrome ? ' main-topbar-mobile' : ''}`}>
           <button
             type="button"
             className="sidebar-menu-btn"
@@ -841,23 +926,36 @@ function AppContent() {
             aria-expanded={!sidebarCollapsed}
           >
             <IconNavMenu />
-            {!isWorkspaceHome && (
+            {!useMobileChrome && (
               <span className="sidebar-menu-btn-label">{sidebarCollapsed ? 'Меню' : 'Свернуть'}</span>
             )}
           </button>
-          {isWorkspaceHome && (
-            <h1 className="main-topbar-title">Рабочий стол</h1>
+          {useMobileChrome && (
+            <h1 className="main-topbar-title">{mobilePageTitle}</h1>
           )}
-          {isWorkspaceHome && (
-            <button
-              type="button"
-              className="main-topbar-more"
-              onClick={openWorkspaceMenu}
-              aria-label="Профиль и настройки"
-              title="Профиль и настройки"
-            >
-              <span aria-hidden>⋮</span>
-            </button>
+          {useMobileChrome && (
+            <div className="main-topbar-end" data-mobile-topbar-end>
+              {isWorkspaceHome ? (
+                <button
+                  type="button"
+                  className="main-topbar-more"
+                  onClick={openWorkspaceMenu}
+                  aria-label="Профиль и настройки"
+                  title="Профиль и настройки"
+                >
+                  <span aria-hidden>⋮</span>
+                </button>
+              ) : (
+                <NavLink
+                  to="/"
+                  className="main-topbar-home"
+                  aria-label="Рабочий стол"
+                  title="Рабочий стол"
+                >
+                  <IconNavHome />
+                </NavLink>
+              )}
+            </div>
           )}
         </div>
         )}
@@ -909,6 +1007,9 @@ function AppContent() {
         </Routes>
         )}
         </div>
+        {useMobileChrome && (
+          <MobileDock items={mobileDockItems} onOpenMenu={openAllSectionsMenu} />
+        )}
       </main>
     </div>
   );

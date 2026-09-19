@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import {
   api,
   formatDate,
@@ -749,7 +748,6 @@ export default function Inventory() {
       return true;
     }
   });
-  const [topbarEl, setTopbarEl] = useState(null);
   const { listRef, isPhone } = useInventoryPhoneShell(Boolean(modal));
   const productsBranchRef = useRef(null);
   const modalRef = useRef(modal);
@@ -791,27 +789,6 @@ export default function Inventory() {
       return next;
     });
   };
-
-  useEffect(() => {
-    if (!isPhone) {
-      setTopbarEl(null);
-      return undefined;
-    }
-    let cancelled = false;
-    const find = () => {
-      const el = document.querySelector('.main-topbar');
-      if (!cancelled && el) setTopbarEl(el);
-      return Boolean(el);
-    };
-    if (find()) return undefined;
-    const raf = requestAnimationFrame(() => { find(); });
-    const timer = setTimeout(() => { find(); }, 100);
-    return () => {
-      cancelled = true;
-      cancelAnimationFrame(raf);
-      clearTimeout(timer);
-    };
-  }, [isPhone]);
 
   const loadDocs = useCallback(async () => {
     if (!modalRef.current) setLoading(true);
@@ -1435,21 +1412,6 @@ export default function Inventory() {
   return (
     <div className={`inventory-page${canEdit ? ' inventory-page--fab' : ''}`}>
       {Toast}
-      {isPhone && topbarEl && createPortal(
-        <>
-          <div className="inventory-topbar-heading">
-            <h1>Инвентаризация</h1>
-            <BranchChip>{branchName}</BranchChip>
-          </div>
-          {canEdit && (
-            <button type="button" className="inventory-topbar-new" onClick={openCreate}>
-              <IconPlus />
-              <span>Новый</span>
-            </button>
-          )}
-        </>,
-        topbarEl,
-      )}
 
       <div className="page-header inventory-page-header">
         <div className="inventory-page-heading">
