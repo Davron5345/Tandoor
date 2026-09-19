@@ -745,6 +745,10 @@ function AppContent() {
     };
   }, [phoneViewportLock]);
 
+  useEffect(() => {
+    setMobileMoreOpen(false);
+  }, [location.pathname]);
+
   if (loading) {
     return (
       <div className="login-page app-boot-screen">
