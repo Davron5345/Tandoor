@@ -212,6 +212,9 @@ export default function Documents({ defaultType }) {
   const { user } = useAuth();
   const { branches, branchId } = useBranch();
   const activeBranches = branches.filter((b) => b.active);
+  const myDeptId = user?.department_id || null;
+  const myDeptName = user?.department_name || 'Мой отдел';
+  const isDeptScoped = Boolean(myDeptId);
   const canEdit = hasPermission(user, 'documents.edit');
   const canCreateSupplier = hasPermission(user, 'counterparties.edit');
   const canCreateProduct = hasPermission(user, 'products.edit');
@@ -419,6 +422,29 @@ export default function Documents({ defaultType }) {
     setDocPage(1);
   }, [defaultType]);
 
+  // Сотрудник отдела: «Откуда» всегда свой отдел, только перемещение между отделами
+  useEffect(() => {
+    if (!modal || !isDeptScoped || form.type !== 'peremeshchenie') return;
+    const branch = branchId || form.from_branch_id || 'main';
+    if (
+      form.transfer_mode === 'department'
+      && form.from_department_id === myDeptId
+      && form.from_branch_id === branch
+      && form.to_branch_id === branch
+      && form.to_department_id !== myDeptId
+    ) {
+      return;
+    }
+    setForm((prev) => ({
+      ...prev,
+      transfer_mode: 'department',
+      from_department_id: myDeptId,
+      from_branch_id: branch,
+      to_branch_id: branch,
+      to_department_id: prev.to_department_id === myDeptId ? '' : prev.to_department_id,
+    }));
+  }, [modal, isDeptScoped, myDeptId, form.type, branchId]);
+
   useEffect(() => {
     setDocPage(1);
   }, [filterType, filterStatus, filterDateFrom, filterDateTo, filterCounterpartyId, branchId]);
@@ -593,12 +619,20 @@ export default function Documents({ defaultType }) {
   const isDepartmentTransfer = form.type === 'peremeshchenie' && form.transfer_mode === 'department';
   const docBranchForDept = branchId || 'main';
   const transferBranchId = form.from_branch_id || docBranchForDept;
-  const branchDepartments = departments.filter(
-    (d) => d.active && d.branch_id === transferBranchId,
-  );
-  const prihodDepartments = departments.filter(
-    (d) => d.active && d.branch_id === docBranchForDept,
-  );
+  const isDeptActive = (d) => d && d.active !== false && d.active !== 0;
+  const branchDepartments = departments.filter((d) => (
+    isDeptActive(d) && (!d.branch_id || d.branch_id === transferBranchId)
+  ));
+  const prihodDepartments = departments.filter((d) => (
+    isDeptActive(d) && (!d.branch_id || d.branch_id === docBranchForDept)
+  ));
+  const transferToDepartments = branchDepartments.filter((d) => {
+    const fromId = isDeptScoped ? myDeptId : form.from_department_id;
+    return !fromId || d.id !== fromId;
+  });
+  const fromDeptLabel = isDeptScoped
+    ? (myDeptName || branchDepartments.find((d) => d.id === myDeptId)?.name || 'Мой отдел')
+    : (branchDepartments.find((d) => d.id === form.from_department_id)?.name || '— общий склад —');
 
   const getDocPaid = (docId) => payments
     .filter((p) => p.document_id === docId)
@@ -607,6 +641,7 @@ export default function Documents({ defaultType }) {
   const getDocRemaining = (doc) => Math.max(0, (doc.total_amount || 0) - getDocPaid(doc.id));
 
   const handleTransferModeChange = (mode) => {
+    if (isDeptScoped) return;
     if (mode === 'department') {
       const branch = form.from_branch_id || branchId || 'main';
       setForm({
@@ -794,6 +829,7 @@ export default function Documents({ defaultType }) {
 
   const handleTypeChange = (type) => {
     const branch = form.from_branch_id || branchId || 'main';
+    const isTransfer = type === 'peremeshchenie';
     setForm({
       ...form,
       type,
@@ -801,10 +837,10 @@ export default function Documents({ defaultType }) {
       source_document_id: '',
       contract_id: '',
       to_department_id: '',
-      from_department_id: '',
-      transfer_mode: type === 'peremeshchenie' ? 'department' : form.transfer_mode,
-      from_branch_id: type === 'peremeshchenie' ? branch : form.from_branch_id,
-      to_branch_id: type === 'peremeshchenie' ? branch : form.to_branch_id,
+      from_department_id: isTransfer && isDeptScoped ? myDeptId : '',
+      transfer_mode: isTransfer ? 'department' : form.transfer_mode,
+      from_branch_id: isTransfer ? branch : form.from_branch_id,
+      to_branch_id: isTransfer ? branch : form.to_branch_id,
       items: [{ ...emptyItem }],
       extra_costs: type === 'prihod' ? [] : [],
     });
@@ -824,12 +860,16 @@ export default function Documents({ defaultType }) {
   const openCreate = (type) => {
     if (isReadOnly) return;
     const docType = type || defaultType || 'prihod';
+    const branch = branchId || 'main';
+    const isTransfer = docType === 'peremeshchenie';
     setForm(applyDocumentDraft('create', {
       ...emptyDoc,
       type: docType,
-      from_branch_id: branchId || 'main',
-      to_branch_id: docType === 'peremeshchenie' ? (branchId || 'main') : '',
+      from_branch_id: branch,
+      to_branch_id: isTransfer ? branch : '',
       transfer_mode: 'department',
+      from_department_id: isTransfer && isDeptScoped ? myDeptId : '',
+      to_department_id: '',
       items: [{ ...emptyItem }],
     }));
     setPrihodBodyTab('items');
@@ -846,7 +886,7 @@ export default function Documents({ defaultType }) {
       transfer_mode: 'department',
       from_branch_id: sourceBranch,
       to_branch_id: sourceBranch,
-      from_department_id: '',
+      from_department_id: isDeptScoped ? myDeptId : '',
       to_department_id: '',
       date: todayLocalIso(),
       comment: `Перемещение по документу №${full.number}`,
@@ -2018,60 +2058,98 @@ export default function Documents({ defaultType }) {
                     </div>
                     <div className="form-group form-group-transfer-mode">
                       <label>Тип перемещения</label>
-                      <select
-                        value={form.transfer_mode || 'department'}
-                        disabled={isReadOnly}
-                        onChange={(e) => handleTransferModeChange(e.target.value)}
-                      >
-                        <option value="department">Между отделами</option>
-                        <option value="branch">Между филиалами</option>
-                      </select>
+                      {isDeptScoped ? (
+                        <input value="Между отделами" disabled />
+                      ) : (
+                        <select
+                          value={form.transfer_mode || 'department'}
+                          disabled={isReadOnly}
+                          onChange={(e) => handleTransferModeChange(e.target.value)}
+                        >
+                          <option value="department">Между отделами</option>
+                          <option value="branch">Между филиалами</option>
+                        </select>
+                      )}
                     </div>
                     {isDepartmentTransfer ? (
                       <>
-                        <div className="form-group form-group-transfer-branch">
-                          <label>Филиал *</label>
-                          <select
-                            value={form.from_branch_id || ''}
-                            onChange={(e) => setForm({
-                              ...form,
-                              from_branch_id: e.target.value,
-                              to_branch_id: e.target.value,
-                              from_department_id: '',
-                              to_department_id: '',
-                            })}
-                            disabled={isReadOnly}
-                          >
-                            {activeBranches.map((b) => (
-                              <option key={b.id} value={b.id}>{b.name}</option>
-                            ))}
-                          </select>
-                        </div>
+                        {!isDeptScoped && (
+                          <div className="form-group form-group-transfer-branch">
+                            <label>Филиал *</label>
+                            <select
+                              value={form.from_branch_id || ''}
+                              onChange={(e) => setForm({
+                                ...form,
+                                from_branch_id: e.target.value,
+                                to_branch_id: e.target.value,
+                                from_department_id: '',
+                                to_department_id: '',
+                              })}
+                              disabled={isReadOnly}
+                            >
+                              {activeBranches.map((b) => (
+                                <option key={b.id} value={b.id}>{b.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
                         <div className="form-group">
                           <label>Откуда (отдел)</label>
-                          <select
-                            value={form.from_department_id || ''}
-                            onChange={(e) => setForm({ ...form, from_department_id: e.target.value })}
-                            disabled={isReadOnly}
-                          >
-                            <option value="">— общий склад —</option>
-                            {branchDepartments.map((d) => (
-                              <option key={d.id} value={d.id}>{d.name}</option>
-                            ))}
-                          </select>
+                          {isDeptScoped ? (
+                            <input value={fromDeptLabel} disabled />
+                          ) : (
+                            <select
+                              value={form.from_department_id || ''}
+                              onChange={(e) => setForm({
+                                ...form,
+                                from_department_id: e.target.value,
+                                to_department_id: form.to_department_id === e.target.value
+                                  ? ''
+                                  : form.to_department_id,
+                              })}
+                              disabled={isReadOnly}
+                            >
+                              <option value="">— общий склад —</option>
+                              {branchDepartments.map((d) => (
+                                <option key={d.id} value={d.id}>{d.name}</option>
+                              ))}
+                            </select>
+                          )}
                         </div>
-                        <div className="form-group">
-                          <label>Куда (отдел) *</label>
-                          <select
-                            value={form.to_department_id || ''}
-                            onChange={(e) => setForm({ ...form, to_department_id: e.target.value })}
-                            disabled={isReadOnly}
-                          >
-                            <option value="">— выберите —</option>
-                            {branchDepartments.map((d) => (
-                              <option key={d.id} value={d.id}>{d.name}</option>
-                            ))}
-                          </select>
+                        <div className={`form-group${isPhone || isDeptScoped ? ' form-group-span-2' : ''}`}>
+                          <label>Куда (склад) *</label>
+                          {isPhone || isDeptScoped ? (
+                            <div className="transfer-dept-cubes" role="listbox" aria-label="Куда">
+                              {transferToDepartments.length === 0 && (
+                                <p className="transfer-dept-empty">Нет других отделов в филиале</p>
+                              )}
+                              {transferToDepartments.map((d) => (
+                                <button
+                                  key={d.id}
+                                  type="button"
+                                  role="option"
+                                  aria-selected={form.to_department_id === d.id}
+                                  className={`transfer-dept-cube${form.to_department_id === d.id ? ' is-active' : ''}`}
+                                  disabled={isReadOnly}
+                                  onClick={() => setForm({ ...form, to_department_id: d.id })}
+                                >
+                                  {d.name}
+                                </button>
+                              ))}
+                            </div>
+                          ) : (
+                            <select
+                              value={form.to_department_id || ''}
+                              onChange={(e) => setForm({ ...form, to_department_id: e.target.value })}
+                              disabled={isReadOnly}
+                              required
+                            >
+                              <option value="">— выберите —</option>
+                              {transferToDepartments.map((d) => (
+                                <option key={d.id} value={d.id}>{d.name}</option>
+                              ))}
+                            </select>
+                          )}
                         </div>
                       </>
                     ) : (
