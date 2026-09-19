@@ -244,7 +244,8 @@ export function getProducts(filters = {}) {
           OR COALESCE(p.has_variants, 0) = 1 AND pds_all.variant_id IS NOT NULL AND pds_all.variant_id != ''
         )
     ), 0) as avg_cost`;
-    stockJoin = `INNER JOIN product_branches pb ON pb.product_id = p.id AND pb.branch_id = ? AND pb.visible = 1`;
+    // Документы по отделу: не требуем visible=1 (витрина MyShop) — нужен складской каталог филиала
+    stockJoin = `INNER JOIN product_branches pb ON pb.product_id = p.id AND pb.branch_id = ?`;
     params = [departmentId, departmentId, branchId];
   } else {
     stockSelect = `COALESCE((
@@ -357,6 +358,12 @@ export function getProducts(filters = {}) {
     archived: !!p.archived,
     last_price: lastMap ? lastPriceForItem(lastMap, p.id) : null,
   }));
+
+  // Только позиции с остатком в отделе/филиале (для перемещения/расхода)
+  const inStockOnly = filters.in_stock === '1' || filters.in_stock === 1 || filters.in_stock === true;
+  if (inStockOnly) {
+    result = result.filter((p) => Number(p.stock) > 0);
+  }
 
   if (filters.sort_by) {
     result = sortProductList(result, filters.sort_by, filters.sort_dir);

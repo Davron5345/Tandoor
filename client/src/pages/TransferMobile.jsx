@@ -104,10 +104,53 @@ export default function TransferMobile() {
     try {
       const [depts, prods] = await Promise.all([
         api.getDepartments({ active: 1 }),
-        api.getProducts({ limit: 5000 }),
+        myDeptId
+          ? api.getProducts({ department_id: myDeptId, in_stock: '1', limit: 5000 })
+          : api.getProducts({ limit: 5000 }),
       ]);
       setDepartments(Array.isArray(depts) ? depts : []);
-      setProducts(Array.isArray(prods) ? prods : (prods?.items || []));
+      let list = Array.isArray(prods) ? prods : (prods?.items || []);
+      if (myDeptId && list.length === 0) {
+        try {
+          const [allProds, snap] = await Promise.all([
+            api.getProducts({ limit: 5000 }),
+            api.getInventoryStock(myDeptId),
+          ]);
+          const all = Array.isArray(allProds) ? allProds : (allProds?.items || []);
+          const byId = new Map(all.map((p) => [p.id, p]));
+          const merged = [];
+          for (const row of (Array.isArray(snap) ? snap : [])) {
+            const qty = Number(row.book_qty) || 0;
+            if (qty <= 0) continue;
+            const base = byId.get(row.product_id);
+            if (!base) continue;
+            if (row.variant_id && base.has_variants) {
+              const existing = merged.find((p) => p.id === base.id);
+              const variants = (base.variants || []).map((v) => (
+                v.id === row.variant_id
+                  ? { ...v, stock: qty, avg_cost: Number(row.avg_cost) || v.avg_cost || 0 }
+                  : (existing?.variants || []).find((x) => x.id === v.id) || v
+              ));
+              if (existing) {
+                existing.variants = variants;
+                existing.stock = variants.reduce((s, v) => s + (Number(v.stock) || 0), 0);
+              } else {
+                merged.push({
+                  ...base,
+                  variants,
+                  stock: variants.reduce((s, v) => s + (Number(v.stock) || 0), 0),
+                });
+              }
+            } else if (!merged.some((p) => p.id === base.id)) {
+              merged.push({ ...base, stock: qty, avg_cost: Number(row.avg_cost) || base.avg_cost || 0 });
+            }
+          }
+          list = merged;
+        } catch {
+          /* keep empty */
+        }
+      }
+      setProducts(list);
       if (myDeptId) {
         try {
           const snap = await api.getInventoryStock(myDeptId);

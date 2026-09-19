@@ -69,7 +69,16 @@ export function registerCatalogRoutes(app, { productImageUpload }) {
     res.json(svc.getProductKindCounts(req.query));
   });
 
-  app.get('/api/products', requireAnyPermission('products.view', 'myshop.view', 'myshop.edit'), attachBranch, (req, res) => {
+  app.get('/api/products', requireAnyPermission(
+    'products.view',
+    'myshop.view',
+    'myshop.edit',
+    'documents.transfer',
+    'documents.prihod',
+    'documents.rashod',
+    'documents.view',
+    'documents.inventory',
+  ), attachBranch, (req, res) => {
     res.json(svc.getProducts({ ...req.query, branch_id: req.branchId }));
   });
 

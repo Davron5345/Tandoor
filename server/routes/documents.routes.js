@@ -47,7 +47,13 @@ export function registerDocumentRoutes(app) {
     }
   });
 
-  app.get('/api/documents/inventory/stock', requirePermission('documents.inventory'), attachBranch, (req, res) => {
+  app.get('/api/documents/inventory/stock', requireAnyPermission(
+    'documents.inventory',
+    'documents.transfer',
+    'documents.rashod',
+    'documents.prihod',
+    'documents.view',
+  ), attachBranch, (req, res) => {
     try {
       res.json(svc.getInventoryStockSnapshot(
         req.query.department_id,

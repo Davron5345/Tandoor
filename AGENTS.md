@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-09-19 (Куда — выпадающий список)
+**Последнее обновление документации:** 2026-09-19 (товары отдела в перемещении)
 
 ---
 
@@ -450,9 +450,9 @@ GET  /api/auth/roles
 
 | Префикс | Файл маршрутов | Назначение |
 |---------|---------------|------------|
-| `/api/products` | catalog.routes.js | Номенклатура, варианты, изображения |
+| `/api/products` | catalog.routes.js | Номенклатура, варианты, изображения; `department_id` — остатки отдела; `in_stock=1` — только остаток > 0; при `department_id` без требования `visible` (склад); права также transfer/prihod/rashod/view/inventory |
 | `/api/calculations` | catalog.routes.js | Калькуляции |
-| `/api/documents` | documents.routes.js | Складские документы (`date_from`, `date_to`, `counterparty_id`, `product_id`, `variant_id`, type, status); при `type=peremeshchenie` у пользователя с `department_id` — фильтр involving + `direction=in|out`; при `product_id` — JOIN `document_items`…; `GET /api/documents/inventory/stock?department_id=` (+ опционально `product_id`/`variant_id` — одна позиция, в т.ч. с нулевым остатком; в снимке `net_weight` из каталога); `GET /api/documents/inventory/options` — статьи расхода и сотрудники филиала для полной инвентаризации; `type=inventory` скрывает `remainder` (у родителя `remainder_document`); `GET /api/documents/:id` у полной — `remainder_items` (товар, учёт, сумма); у строк документов — `variant_name`; у инвентаризации — `net_weight` |
+| `/api/documents` | documents.routes.js | Складские документы (`date_from`, `date_to`, `counterparty_id`, `product_id`, `variant_id`, type, status); при `type=peremeshchenie` у пользователя с `department_id` — фильтр involving + `direction=in|out`; при `product_id` — JOIN `document_items`…; `GET /api/documents/inventory/stock?department_id=` (+ опционально `product_id`/`variant_id` — одна позиция, в т.ч. с нулевым остатком; в снимке `net_weight` из каталога) — права inventory/transfer/rashod/prihod/documents.view; `GET /api/documents/inventory/options` — статьи расхода и сотрудники филиала для полной инвентаризации; `type=inventory` скрывает `remainder` (у родителя `remainder_document`); `GET /api/documents/:id` у полной — `remainder_items` (товар, учёт, сумма); у строк документов — `variant_name`; у инвентаризации — `net_weight` |
 | `/api/supplier-prices` | supplierPrices.routes.js | Прайс-документы поставщика (CRUD + confirm/cancel); `products.view`/`products.edit` |
 | `/api/counterparties` | counterparties.routes.js | Контрагенты, договоры (`/:id/contracts` CRUD), `/:id/firms` — юрлица поставщика (CRUD) |
 | `/api/payments` | finance.routes.js | Оплаты; `GET/POST/PUT/DELETE /api/bank-accounts`; `GET /bank-opening?bank_account_id=`; `DELETE /by-date/:date?bank_account_id=`; import parse/confirm |
@@ -845,6 +845,7 @@ GET  /api/auth/roles
 | 2026-09-19 | Fix отделов в перемещении: отдельная загрузка departments, select+кубики, без обрезки шапки |
 | 2026-09-19 | Fix пустого «Куда»: не дублировать `branch_id` в API (qs→массив); `attachBranch` нормализует массив; склады без фильтра active |
 | 2026-09-19 | Перемещение «Куда»: выпадающий список вместо кубиков (`Documents.jsx`, `TransferMobile.jsx`) |
+| 2026-09-19 | Перемещение: товары отдела с остатком (`in_stock`, без MyShop visible; inventory/stock для transfer; fallback снимок остатков) |
 
 ---
 

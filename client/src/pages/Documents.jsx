@@ -238,17 +238,92 @@ export default function Documents({ defaultType }) {
       params.counterparty_id = counterpartyId;
     }
     if (departmentId) params.department_id = departmentId;
-    api.getProducts(params).then(setDocProducts).catch(console.error);
+    // Перемещение/расход: товары с остатком в отделе «Откуда»
+    const needDeptStock = Boolean(departmentId) && (
+      type === 'peremeshchenie' || isOutgoingDocType(type)
+    );
+    if (needDeptStock) params.in_stock = '1';
+
+    const applyList = (data) => {
+      const list = Array.isArray(data) ? data : (data?.items || []);
+      setDocProducts(list);
+    };
+
+    api.getProducts(params)
+      .then(async (data) => {
+        let list = Array.isArray(data) ? data : (data?.items || []);
+        // Если по каталогу пусто — подтянуть снимок остатков отдела и слить с номенклатурой
+        if (needDeptStock && list.length === 0) {
+          try {
+            const [catalog, snap] = await Promise.all([
+              api.getProducts({ limit: 5000 }),
+              api.getInventoryStock(departmentId),
+            ]);
+            const all = Array.isArray(catalog) ? catalog : (catalog?.items || []);
+            const byId = new Map(all.map((p) => [p.id, p]));
+            const merged = [];
+            const seen = new Set();
+            for (const row of (Array.isArray(snap) ? snap : [])) {
+              const qty = Number(row.book_qty) || 0;
+              if (qty <= 0) continue;
+              const base = byId.get(row.product_id);
+              if (!base) continue;
+              const key = `${row.product_id}::${row.variant_id || ''}`;
+              if (seen.has(key)) continue;
+              seen.add(key);
+              if (row.variant_id && base.has_variants) {
+                const variants = (base.variants || []).map((v) => (
+                  v.id === row.variant_id
+                    ? { ...v, stock: qty, avg_cost: Number(row.avg_cost) || v.avg_cost || 0 }
+                    : v
+                ));
+                const existing = merged.find((p) => p.id === base.id);
+                if (existing) {
+                  existing.variants = (existing.variants || []).map((v) => {
+                    const upd = variants.find((x) => x.id === v.id);
+                    return upd || v;
+                  });
+                  existing.stock = (existing.variants || []).reduce((s, v) => s + (Number(v.stock) || 0), 0);
+                } else {
+                  merged.push({
+                    ...base,
+                    variants,
+                    stock: variants.reduce((s, v) => s + (Number(v.stock) || 0), 0),
+                    avg_cost: Number(row.avg_cost) || base.avg_cost || 0,
+                  });
+                }
+              } else {
+                merged.push({
+                  ...base,
+                  stock: qty,
+                  avg_cost: Number(row.avg_cost) || base.avg_cost || 0,
+                });
+              }
+            }
+            list = merged;
+          } catch (err) {
+            console.error(err);
+          }
+        }
+        applyList(list);
+      })
+      .catch((err) => {
+        console.error(err);
+        setDocProducts([]);
+      });
   };
 
   useEffect(() => {
     if (!modal) return;
+    const sourceDeptId = (form.type === 'peremeshchenie' || isOutgoingDocType(form.type))
+      ? (form.from_department_id || (isDeptScoped ? myDeptId : '') || null)
+      : null;
     const departmentId = isOutgoingDocType(form.type)
-      ? form.from_department_id
+      ? sourceDeptId
       : form.type === 'prihod'
         ? form.to_department_id
         : form.type === 'peremeshchenie' && form.transfer_mode === 'department'
-          ? form.from_department_id
+          ? sourceDeptId
           : null;
     loadDocProducts(form.type, form.counterparty_id, departmentId);
   }, [
@@ -258,6 +333,8 @@ export default function Documents({ defaultType }) {
     form.from_department_id,
     form.to_department_id,
     form.transfer_mode,
+    isDeptScoped,
+    myDeptId,
   ]);
 
   useEffect(() => {
@@ -654,6 +731,13 @@ export default function Documents({ defaultType }) {
       : docProducts),
     [form.type, returnSourceDocBlocked, returnSourceProductOptions, docProducts],
   );
+  // Для перемещения/расхода выбор только из товаров с остатком отдела (не весь каталог)
+  const pickAllProducts = useMemo(() => {
+    if (isAnyReturnType(form.type) || form.type === 'peremeshchenie' || isOutgoingDocType(form.type)) {
+      return selectableProducts.length ? selectableProducts : products;
+    }
+    return products;
+  }, [form.type, selectableProducts, products]);
   const isDepartmentTransfer = form.type === 'peremeshchenie' && form.transfer_mode === 'department';
   const docBranchForDept = branchId || 'main';
   const transferBranchId = form.from_branch_id || docBranchForDept;
@@ -2342,9 +2426,7 @@ export default function Documents({ defaultType }) {
                           sheet
                           showPrice={!hideDocMoney}
                           products={selectableProducts}
-                          allProducts={isAnyReturnType(form.type)
-                            ? (selectableProducts.length ? selectableProducts : products)
-                            : products}
+                          allProducts={pickAllProducts}
                           value=""
                           onChange={addProductPick}
                           placeholder="Найти товар…"
@@ -2396,9 +2478,7 @@ export default function Documents({ defaultType }) {
                                     sheet
                                     showPrice={!hideDocMoney}
                                     products={selectableProducts}
-                                    allProducts={isAnyReturnType(form.type)
-                                      ? (selectableProducts.length ? selectableProducts : products)
-                                      : products}
+                                    allProducts={pickAllProducts}
                                     value={pickValue}
                                     onChange={(nextPick) => updateItemProductPick(idx, nextPick)}
                                     onEditProduct={
@@ -2549,7 +2629,9 @@ export default function Documents({ defaultType }) {
                       <div className="doc-items-phone-empty">
                         {itemsBlocked
                           ? 'Сначала заполните шапку документа'
-                          : 'Найдите товар сверху и добавьте в документ'}
+                          : form.type === 'peremeshchenie' && selectableProducts.length === 0
+                            ? 'В отделе нет товаров с остатком'
+                            : 'Найдите товар сверху и добавьте в документ'}
                       </div>
                     )}
                   </div>
@@ -2597,9 +2679,7 @@ export default function Documents({ defaultType }) {
                           <div className="quick-add-control">
                             <ProductSelect
                               products={selectableProducts}
-                              allProducts={isAnyReturnType(form.type)
-                                ? (selectableProducts.length ? selectableProducts : products)
-                                : products}
+                              allProducts={pickAllProducts}
                               value={pickValue}
                               onChange={(nextPick) => updateItemProductPick(idx, nextPick)}
                               onEditProduct={
