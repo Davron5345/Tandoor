@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-09-19 (fix React #310 hooks)
+**Последнее обновление документации:** 2026-09-19 (React #310 — дубль useEffect)
 
 ---
 
@@ -834,6 +834,7 @@ GET  /api/auth/roles
 | 2026-09-19 | PWA/home screen: светлый splash (`#eceff1` / `#f5c518`), status-bar `default`, на телефоне принудительно light — убран чёрный экран |
 | 2026-09-19 | Fix белый экран PWA: ThemeContext больше не импортирует Capacitor через pwaPush; высота phone-lock не схлопывается |
 | 2026-09-19 | Fix React #310: `useEffect` закрытия mobile-more перенесён выше early return (hooks order) |
+| 2026-09-19 | Fix React #310 до конца: удалён дубль `useEffect` после `if (loading)`; ErrorBoundary поясняет #310 |
 
 ---
 

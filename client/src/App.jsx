@@ -746,6 +746,7 @@ function AppContent() {
   }, [phoneViewportLock]);
 
   useEffect(() => {
+    // Всегда до early return: иначе после входа появляется лишний hook → React #310
     setMobileMoreOpen(false);
   }, [location.pathname]);
 
@@ -855,10 +856,6 @@ function AppContent() {
   const openAllSectionsMenu = () => {
     setMobileMoreOpen(true);
   };
-
-  useEffect(() => {
-    setMobileMoreOpen(false);
-  }, [location.pathname]);
 
   return (
     <div className={`app${sidebarCollapsed ? ' sidebar-collapsed' : ''}${accountOpen ? ' sidebar-account-open' : ''}${isCashierLayout ? ' app-cashier-mode' : ''}${isMyShopStore ? ' app-myshop-mode' : ''}${isMyShopConstructor ? ' app-myshop-constructor-mode' : ''}${useMobileChrome ? ' app-mobile-admin' : ''}${isWorkspaceHome ? ' app-workspace-home' : ''}`}>
