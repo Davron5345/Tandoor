@@ -1376,12 +1376,7 @@ export default function Documents({ defaultType }) {
       ? (docTypeCreateLabel[form.type] || docTypeCreateLabel[defaultType] || 'Новый документ')
       : (isReadOnly ? 'Просмотр документа' : 'Редактирование документа');
 
-  const phoneModalTitle = (() => {
-    const typeLabel = DOC_TYPE_LABELS[form.type] || 'Документ';
-    if (modal === 'create' || modal === 'transfer') return `${typeLabel} (новый)`;
-    if (isReadOnly) return `${typeLabel} (просмотр)`;
-    return typeLabel;
-  })();
+  const phoneModalTitle = DOC_TYPE_LABELS[form.type] || 'Документ';
 
   const phoneDateLabel = form.date
     ? new Date(`${form.date}T12:00:00`).toLocaleDateString('ru-RU', {

@@ -8953,7 +8953,16 @@ html.inventory-phone-lock.inventory-modal-open .inventory-topbar-new {
   }
 
   .modal-doc:not(.modal-inventory) .modal-header h2 {
-    flex: 0 1 auto;
+    flex: 1 1 auto;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    word-break: normal;
+  }
+
+  .modal-doc:not(.modal-inventory) .modal-header-actions {
+    width: auto;
   }
 
   .modal-doc:not(.modal-inventory) .modal-body {
@@ -9007,22 +9016,49 @@ html.inventory-phone-lock.inventory-modal-open .inventory-topbar-new {
   }
 
   .modal-doc.modal-doc-phone .modal-header {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: flex-start;
     background: var(--ones-yellow, #f5c518);
     color: var(--ones-ink, #1a1a1a);
     border-bottom: 1px solid color-mix(in srgb, #000 12%, var(--ones-yellow, #f5c518));
-    padding: 8px 6px;
-    gap: 4px;
+    padding: 0 4px;
+    gap: 2px;
+    height: 48px;
     min-height: 48px;
+    max-height: 48px;
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+
+  .modal-doc.modal-doc-phone .modal-header-leading,
+  .modal-doc.modal-doc-phone .modal-header-actions {
+    display: flex;
+    align-items: center;
+    flex: 0 0 auto;
+    width: auto;
+    max-width: none;
   }
 
   .modal-doc.modal-doc-phone .modal-header h2 {
     flex: 1 1 auto;
+    min-width: 0;
+    max-width: none;
+    width: auto;
+    margin: 0;
+    padding: 0 4px;
     text-align: center;
     font-size: 15px;
     font-weight: 700;
+    line-height: 1.2;
     color: var(--ones-ink, #1a1a1a);
-    margin: 0;
-    line-height: 1.25;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    word-break: normal;
+    overflow-wrap: normal;
   }
 
   .modal-doc.modal-doc-phone .modal-doc-back,
@@ -9035,6 +9071,7 @@ html.inventory-phone-lock.inventory-modal-open .inventory-topbar-new {
     color: var(--ones-ink, #1a1a1a);
     border: none;
     background: transparent;
+    flex-shrink: 0;
   }
 
   .modal-doc.modal-doc-phone .modal-doc-save svg {
