@@ -402,18 +402,40 @@ export default function Documents({ defaultType }) {
   }, [defaultType, filterType, filterStatus, filterDateFrom, filterDateTo, filterCounterpartyId, docPage, branchId]);
 
   useEffect(() => {
-    Promise.all([
-      api.getProducts(),
-      api.getCounterparties(),
-      api.getDepartments({ active: '1' }),
-      hasPermission(user, 'payments.view') ? api.getPayments() : Promise.resolve([]),
-    ])
-      .then(([p, c, d, pay]) => {
-        setProducts(p);
-        setCounterparties(c);
-        setDepartments(d);
-        setPayments(pay);
-      });
+    let cancelled = false;
+    const loadCatalog = async () => {
+      try {
+        const depts = await api.getDepartments({ active: '1' });
+        if (!cancelled) setDepartments(Array.isArray(depts) ? depts : []);
+      } catch (err) {
+        console.error(err);
+        if (!cancelled) setDepartments([]);
+      }
+      try {
+        const [p, c] = await Promise.all([
+          api.getProducts(),
+          api.getCounterparties(),
+        ]);
+        if (!cancelled) {
+          setProducts(Array.isArray(p) ? p : []);
+          setCounterparties(Array.isArray(c) ? c : []);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+      if (hasPermission(user, 'payments.view')) {
+        try {
+          const pay = await api.getPayments();
+          if (!cancelled) setPayments(Array.isArray(pay) ? pay : (pay?.items || []));
+        } catch (err) {
+          console.error(err);
+        }
+      } else if (!cancelled) {
+        setPayments([]);
+      }
+    };
+    loadCatalog();
+    return () => { cancelled = true; };
   }, [branchId, user]);
 
   useEffect(() => {
@@ -619,19 +641,27 @@ export default function Documents({ defaultType }) {
   const isDepartmentTransfer = form.type === 'peremeshchenie' && form.transfer_mode === 'department';
   const docBranchForDept = branchId || 'main';
   const transferBranchId = form.from_branch_id || docBranchForDept;
-  const isDeptActive = (d) => d && d.active !== false && d.active !== 0;
-  const branchDepartments = departments.filter((d) => (
-    isDeptActive(d) && (!d.branch_id || d.branch_id === transferBranchId)
-  ));
-  const prihodDepartments = departments.filter((d) => (
-    isDeptActive(d) && (!d.branch_id || d.branch_id === docBranchForDept)
-  ));
-  const transferToDepartments = branchDepartments.filter((d) => {
-    const fromId = isDeptScoped ? myDeptId : form.from_department_id;
-    return !fromId || d.id !== fromId;
+  const isDeptActive = (d) => d && d.active !== false && d.active !== 0 && d.active !== '0';
+  // API уже отдаёт отделы активного филиала (не-admin). Админу фильтруем по филиалу перемещения.
+  const branchDepartments = departments.filter((d) => {
+    if (!isDeptActive(d)) return false;
+    if (!d.branch_id) return true;
+    if (user?.role === 'admin') return d.branch_id === transferBranchId;
+    return true;
   });
+  const prihodDepartments = departments.filter((d) => {
+    if (!isDeptActive(d)) return false;
+    if (!d.branch_id) return true;
+    if (user?.role === 'admin') return d.branch_id === docBranchForDept;
+    return true;
+  });
+  const transferFromId = isDeptScoped ? myDeptId : (form.from_department_id || '');
+  const transferToDepartments = branchDepartments.filter((d) => !transferFromId || d.id !== transferFromId);
   const fromDeptLabel = isDeptScoped
-    ? (myDeptName || branchDepartments.find((d) => d.id === myDeptId)?.name || 'Мой отдел')
+    ? (myDeptName
+      || branchDepartments.find((d) => d.id === myDeptId)?.name
+      || departments.find((d) => d.id === myDeptId)?.name
+      || 'Мой отдел')
     : (branchDepartments.find((d) => d.id === form.from_department_id)?.name || '— общий склад —');
 
   const getDocPaid = (docId) => payments
@@ -2116,39 +2146,46 @@ export default function Documents({ defaultType }) {
                             </select>
                           )}
                         </div>
-                        <div className={`form-group${isPhone || isDeptScoped ? ' form-group-span-2' : ''}`}>
+                        <div className={`form-group form-group-transfer-to${isPhone || isDeptScoped ? ' form-group-span-2' : ''}`}>
                           <label>Куда (склад) *</label>
-                          {isPhone || isDeptScoped ? (
-                            <div className="transfer-dept-cubes" role="listbox" aria-label="Куда">
-                              {transferToDepartments.length === 0 && (
-                                <p className="transfer-dept-empty">Нет других отделов в филиале</p>
-                              )}
-                              {transferToDepartments.map((d) => (
-                                <button
-                                  key={d.id}
-                                  type="button"
-                                  role="option"
-                                  aria-selected={form.to_department_id === d.id}
-                                  className={`transfer-dept-cube${form.to_department_id === d.id ? ' is-active' : ''}`}
-                                  disabled={isReadOnly}
-                                  onClick={() => setForm({ ...form, to_department_id: d.id })}
-                                >
-                                  {d.name}
-                                </button>
-                              ))}
-                            </div>
+                          {transferToDepartments.length === 0 ? (
+                            <p className="transfer-dept-empty">
+                              {departments.length === 0
+                                ? 'Отделы не загрузились. Обновите страницу.'
+                                : 'Нет других отделов в этом филиале'}
+                            </p>
                           ) : (
-                            <select
-                              value={form.to_department_id || ''}
-                              onChange={(e) => setForm({ ...form, to_department_id: e.target.value })}
-                              disabled={isReadOnly}
-                              required
-                            >
-                              <option value="">— выберите —</option>
-                              {transferToDepartments.map((d) => (
-                                <option key={d.id} value={d.id}>{d.name}</option>
-                              ))}
-                            </select>
+                            <>
+                              {(isPhone || isDeptScoped) && (
+                                <div className="transfer-dept-cubes" role="listbox" aria-label="Куда">
+                                  {transferToDepartments.map((d) => (
+                                    <button
+                                      key={d.id}
+                                      type="button"
+                                      role="option"
+                                      aria-selected={form.to_department_id === d.id}
+                                      className={`transfer-dept-cube${form.to_department_id === d.id ? ' is-active' : ''}`}
+                                      disabled={isReadOnly}
+                                      onClick={() => setForm({ ...form, to_department_id: d.id })}
+                                    >
+                                      {d.name}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                              <select
+                                className={(isPhone || isDeptScoped) ? 'transfer-to-select-fallback' : undefined}
+                                value={form.to_department_id || ''}
+                                onChange={(e) => setForm({ ...form, to_department_id: e.target.value })}
+                                disabled={isReadOnly}
+                                required
+                              >
+                                <option value="">— выберите склад —</option>
+                                {transferToDepartments.map((d) => (
+                                  <option key={d.id} value={d.id}>{d.name}</option>
+                                ))}
+                              </select>
+                            </>
                           )}
                         </div>
                       </>

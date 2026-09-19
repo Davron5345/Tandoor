@@ -9280,13 +9280,47 @@ html.inventory-phone-lock.inventory-modal-open .inventory-topbar-new {
 
   .modal-doc.modal-doc-phone .doc-modal-fields {
     flex: none;
-    max-height: 38vh;
+    max-height: none;
     overflow-x: hidden;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
+    overflow-y: visible;
     padding: 0;
     background: var(--ones-surface, #fff);
     border-bottom: 1px solid var(--ones-border, #c8ccd0);
+  }
+
+  .modal-doc.modal-doc-phone .doc-modal-fields .form-group-transfer-to {
+    background: var(--ones-surface, #fff);
+  }
+
+  .modal-doc.modal-doc-phone .transfer-dept-cubes {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin: 4px 0 8px;
+  }
+
+  .modal-doc.modal-doc-phone .transfer-dept-cube {
+    min-height: 48px;
+    border-radius: 0;
+    font-size: 14px;
+    border: 1px solid var(--ones-border-strong, #9aa0a6);
+    background: var(--ones-field, #fff);
+  }
+
+  .modal-doc.modal-doc-phone .transfer-dept-cube.is-active {
+    border-color: #2e7d32;
+    background: #e8f5e9;
+    color: #1b5e20;
+  }
+
+  .modal-doc.modal-doc-phone .transfer-to-select-fallback {
+    margin-top: 4px;
+  }
+
+  .modal-doc.modal-doc-phone .transfer-dept-empty {
+    padding: 8px 0;
+    color: #c62828;
+    font-size: 13px;
   }
 
   .modal-doc.modal-doc-phone .doc-modal-fields .alert {
