@@ -315,7 +315,7 @@ Frontend зеркало: `client/src/permissions.js`.
 | `inventory` | Инвентаризация | факт − живой учёт отдела на момент проведения; ±остаток по avg_cost; P&L без кассы; один черновик на отдел |
 | `opening_balance` | Начальное сальдо | стартовые остатки/долги/касса |
 
-**Dept-scoped перемещение:** у `users.department_id` сотрудник видит только transfers, где его отдел = from или to (`direction=in|out` в `GET /api/documents`); создавать/проводить/менять может только как **отправитель** (`from_department_id` принудительно = свой отдел, только внутри филиала). Получатель только смотрит список. Mobile: `/warehouse/transfer` (`TransferMobile.jsx`).
+**Dept-scoped перемещение:** у `users.department_id` сотрудник видит только transfers, где его отдел = from или to (`direction=in|out` в `GET /api/documents`); создавать/проводить/менять может только как **отправитель** (`from_department_id` принудительно = свой отдел, только внутри филиала). В UI (`Documents.jsx` / `TransferMobile.jsx`): **Откуда** зафиксирован (название отдела без выбора), **Куда** — выбор других складов филиала. Получатель только смотрит список. Mobile: `/warehouse/transfer` (`TransferMobile.jsx`).
 
 ### 9.3 Статусы документов
 
