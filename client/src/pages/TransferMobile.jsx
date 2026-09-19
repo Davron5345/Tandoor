@@ -423,23 +423,22 @@ export default function TransferMobile() {
                     onChange={(e) => setForm((p) => ({ ...p, date: e.target.value }))}
                   />
                 </label>
-                <div className="transfer-dept-cubes" role="listbox" aria-label="Отдел назначения">
-                  {targetDepartments.map((d) => (
-                    <button
-                      key={d.id}
-                      type="button"
-                      role="option"
-                      aria-selected={form.to_department_id === d.id}
-                      className={`transfer-dept-cube${form.to_department_id === d.id ? ' is-active' : ''}`}
-                      onClick={() => setForm((p) => ({ ...p, to_department_id: d.id }))}
-                    >
-                      {d.name}
-                    </button>
-                  ))}
+                <label className="warehouse-orders-mobile-field">
+                  <span>Куда (склад) *</span>
+                  <select
+                    value={form.to_department_id || ''}
+                    onChange={(e) => setForm((p) => ({ ...p, to_department_id: e.target.value }))}
+                    required
+                  >
+                    <option value="">— выберите склад —</option>
+                    {targetDepartments.map((d) => (
+                      <option key={d.id} value={d.id}>{d.name}</option>
+                    ))}
+                  </select>
                   {targetDepartments.length === 0 && (
                     <p className="form-hint">Нет других отделов в филиале</p>
                   )}
-                </div>
+                </label>
                 <label className="warehouse-orders-mobile-field">
                   <span>Комментарий</span>
                   <input
