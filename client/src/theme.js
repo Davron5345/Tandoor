@@ -16,10 +16,15 @@ export function applyTheme(theme) {
   root.style.colorScheme = safeTheme;
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) {
-    /* На телефоне/PWA — жёлтая 1С; desktop dark — тёмный chrome */
-    const phone = window.matchMedia('(max-width: 768px)').matches;
-    const standalone = window.matchMedia('(display-mode: standalone)').matches
-      || window.navigator.standalone === true;
+    let phone = false;
+    let standalone = false;
+    try {
+      phone = window.matchMedia('(max-width: 768px)').matches;
+      standalone = window.matchMedia('(display-mode: standalone)').matches
+        || window.navigator.standalone === true;
+    } catch {
+      /* ignore */
+    }
     if (phone || standalone || safeTheme === 'light') {
       meta.setAttribute('content', '#f5c518');
     } else {

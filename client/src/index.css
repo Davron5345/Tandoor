@@ -7727,12 +7727,27 @@ html.app-phone-lock .app {
   width: 100%;
   max-width: 100%;
   height: 100%;
-  min-height: 0;
+  min-height: 100%;
+  min-height: -webkit-fill-available;
   max-height: 100%;
   overflow: hidden;
   overflow-x: hidden;
   touch-action: pan-y;
   background: #eceff1;
+  display: flex;
+  flex-direction: column;
+}
+
+html.app-phone-lock .app {
+  flex: 1;
+  min-height: 0;
+}
+
+html.app-phone-lock .login-page,
+html.app-phone-lock .app-boot-screen {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
 }
 
 /* PWA / установленное на домашний экран — всегда светлый фон (не чёрный splash) */
@@ -7787,11 +7802,14 @@ html.inventory-phone-lock.inventory-modal-open .inventory-topbar-new {
     width: 100%;
     max-width: 100%;
     height: 100%;
-    min-height: 0;
+    min-height: 100%;
+    min-height: -webkit-fill-available;
     max-height: 100%;
     overflow: hidden;
     overflow-x: hidden;
     touch-action: pan-y;
+    display: flex;
+    flex-direction: column;
   }
 
   .main-topbar {
@@ -15976,7 +15994,12 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
   }
 
   .app-mobile-admin .main {
-    background: var(--ones-bg);
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    max-width: 100%;
+    margin-left: 0;
+    background: var(--ones-bg, #eceff1);
   }
 
   .app-mobile-admin .main-topbar-mobile {

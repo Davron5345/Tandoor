@@ -1,18 +1,21 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { applyTheme, getStoredTheme } from './theme';
-import { isStandaloneApp } from './utils/pwaPush';
 
 const ThemeContext = createContext(null);
 
-function resolveInitialTheme() {
+function isPhoneOrStandalone() {
+  if (typeof window === 'undefined') return false;
   try {
-    if (isStandaloneApp() || window.matchMedia('(max-width: 768px)').matches) {
-      /* Телефон / PWA: всегда светлая 1С — тёмный фон давал чёрный экран */
-      return 'light';
-    }
+    return window.matchMedia('(max-width: 768px)').matches
+      || window.matchMedia('(display-mode: standalone)').matches
+      || window.navigator.standalone === true;
   } catch {
-    /* ignore */
+    return false;
   }
+}
+
+function resolveInitialTheme() {
+  if (isPhoneOrStandalone()) return 'light';
   return getStoredTheme();
 }
 
@@ -25,9 +28,7 @@ export function ThemeProvider({ children }) {
 
   useEffect(() => {
     const syncPhoneLight = () => {
-      if (isStandaloneApp() || window.matchMedia('(max-width: 768px)').matches) {
-        setThemeState('light');
-      }
+      if (isPhoneOrStandalone()) setThemeState('light');
     };
     syncPhoneLight();
     const mq = window.matchMedia('(max-width: 768px)');
