@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   api,
   formatDate,
@@ -748,6 +749,7 @@ export default function Inventory() {
       return true;
     }
   });
+  const [topbarEndEl, setTopbarEndEl] = useState(null);
   const { listRef, isPhone } = useInventoryPhoneShell(Boolean(modal));
   const productsBranchRef = useRef(null);
   const modalRef = useRef(modal);
@@ -789,6 +791,32 @@ export default function Inventory() {
       return next;
     });
   };
+
+  useEffect(() => {
+    if (!isPhone || !canEdit) {
+      setTopbarEndEl(null);
+      return undefined;
+    }
+    let cancelled = false;
+    let tries = 0;
+    const find = () => {
+      const el = document.querySelector('[data-mobile-topbar-end]');
+      if (!cancelled && el) {
+        setTopbarEndEl(el);
+        return true;
+      }
+      return false;
+    };
+    if (find()) return undefined;
+    const timer = setInterval(() => {
+      tries += 1;
+      if (find() || tries > 20) clearInterval(timer);
+    }, 50);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [isPhone, canEdit]);
 
   const loadDocs = useCallback(async () => {
     if (!modalRef.current) setLoading(true);
@@ -1412,6 +1440,13 @@ export default function Inventory() {
   return (
     <div className={`inventory-page${canEdit ? ' inventory-page--fab' : ''}`}>
       {Toast}
+      {isPhone && canEdit && topbarEndEl && createPortal(
+        <button type="button" className="inventory-topbar-new" onClick={openCreate}>
+          <IconPlus />
+          <span>Новый</span>
+        </button>,
+        topbarEndEl,
+      )}
 
       <div className="page-header inventory-page-header">
         <div className="inventory-page-heading">
@@ -2156,7 +2191,7 @@ export default function Inventory() {
         onClose={() => setProductModalOpen(false)}
         onCreated={onQuickProductCreated}
       />
-      {canEdit && !isPhone && (
+      {canEdit && (
         <button type="button" className="inventory-fab" onClick={openCreate}>
           <IconPlus /> Новый
         </button>

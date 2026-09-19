@@ -7982,7 +7982,7 @@ html.inventory-phone-lock.inventory-modal-open .inventory-topbar-new {
     overflow-y: auto;
     overscroll-behavior: none;
     overscroll-behavior-x: none;
-    -webkit-overflow-scrolling: auto;
+    -webkit-overflow-scrolling: touch;
     padding: 8px 12px max(12px, env(safe-area-inset-bottom, 0px));
   }
 
@@ -8199,7 +8199,7 @@ html.inventory-phone-lock.inventory-modal-open .inventory-topbar-new {
   }
 
   .inventory-page--fab .inventory-list-cards {
-    padding-bottom: max(16px, calc(env(safe-area-inset-bottom, 0px) + 12px));
+    padding-bottom: max(88px, calc(env(safe-area-inset-bottom, 0px) + 72px));
   }
 
   .inventory-list-empty {
@@ -8276,6 +8276,32 @@ html.inventory-phone-lock.inventory-modal-open .inventory-topbar-new {
 
   .inventory-fab {
     display: none !important;
+  }
+
+  .app-mobile-admin .inventory-fab {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    position: fixed;
+    right: max(12px, env(safe-area-inset-right, 0px));
+    bottom: calc(66px + env(safe-area-inset-bottom, 0px));
+    z-index: 85;
+    min-height: 48px;
+    padding: 0 16px;
+    border: 0;
+    border-radius: 999px;
+    background: #f5c518;
+    color: #1a1a1a;
+    font-size: 15px;
+    font-weight: 700;
+    box-shadow: 0 6px 18px color-mix(in srgb, #000 28%, transparent);
+    touch-action: manipulation;
+  }
+
+  .app-mobile-admin .inventory-fab svg {
+    width: 18px;
+    height: 18px;
   }
 
   /* Inventory modal: portaled fullscreen sheet — list must get remaining height */
@@ -15937,9 +15963,35 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
   .app-mobile-admin .main-topbar-end {
     display: flex;
     align-items: center;
-    justify-content: center;
-    width: 44px;
+    justify-content: flex-end;
+    min-width: 44px;
     height: 44px;
+  }
+
+  .app-mobile-admin .main-topbar-end:has(.inventory-topbar-new) .main-topbar-end-default {
+    display: none;
+  }
+
+  .app-mobile-admin .main-topbar-end .inventory-topbar-new {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    min-height: 40px;
+    padding: 8px 12px;
+    border: none;
+    border-radius: 10px;
+    background: #1a1a1a;
+    color: #f5c518;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+
+  .app-mobile-admin .main-topbar-end .inventory-topbar-new svg {
+    width: 16px;
+    height: 16px;
   }
 
   .app-mobile-admin .main-topbar-more,
@@ -16000,12 +16052,17 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
     display: none;
   }
 
+  /* Dock уже в flex-колонке main — лишний padding-bottom давал пустоту и ломал ощущение скролла */
   .app-mobile-admin .main-content {
     background: var(--surface);
+    min-height: 0;
+    overflow: hidden;
   }
 
   .app-mobile-admin .main-content > div {
-    padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: 12px;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
   }
 
   .app-workspace-home .main-content {
@@ -16014,8 +16071,9 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
   }
 
   .app-workspace-home .main-content > div {
-    padding: 0;
-    padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+    padding: 0 0 12px;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
   }
 
   .app-mobile-admin .page-header > h1,
@@ -16030,14 +16088,15 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
   }
 
   .dashboard-page-mobile {
-    min-height: 100%;
+    min-height: 0;
+    flex: 1;
     background: var(--surface);
   }
 
   .mobile-workspace {
     display: flex;
     flex-direction: column;
-    min-height: 100%;
+    min-height: min-content;
     background: var(--surface);
   }
 
@@ -16118,7 +16177,7 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
     align-items: center;
     justify-content: center;
     gap: 10px;
-    margin: 18px 16px 12px;
+    margin: 16px 16px 8px;
     min-height: 48px;
     padding: 12px 20px;
     border-radius: 999px;
@@ -16142,6 +16201,7 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
   .app-mobile-admin .mobile-dock {
     display: grid;
     flex: none;
+    flex-shrink: 0;
     position: relative;
     z-index: 80;
     min-height: 58px;
@@ -16194,10 +16254,6 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-  }
-
-  .app-mobile-admin .inventory-fab {
-    bottom: calc(72px + env(safe-area-inset-bottom, 0px));
   }
 
   .app-mobile-admin .filters,

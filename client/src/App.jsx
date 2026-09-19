@@ -557,6 +557,12 @@ function AppContent() {
     if (isMobileNavViewport()) setSidebarCollapsed(true);
   }, [location.pathname]);
 
+  useEffect(() => {
+    if (!isMobileNav) return;
+    const scroller = document.querySelector('.app-mobile-admin .main-content > div');
+    if (scroller) scroller.scrollTop = 0;
+  }, [location.pathname, isMobileNav]);
+
   const isCashierLayoutPreview = Boolean(user && isCashierOnlyLayout(user));
   const isMyShopStorePreview = location.pathname === '/myshop';
   const isMyShopConstructorPreview = location.pathname === '/myshop/constructor';
@@ -935,26 +941,28 @@ function AppContent() {
           )}
           {useMobileChrome && (
             <div className="main-topbar-end" data-mobile-topbar-end>
-              {isWorkspaceHome ? (
-                <button
-                  type="button"
-                  className="main-topbar-more"
-                  onClick={openWorkspaceMenu}
-                  aria-label="Профиль и настройки"
-                  title="Профиль и настройки"
-                >
-                  <span aria-hidden>⋮</span>
-                </button>
-              ) : (
-                <NavLink
-                  to="/"
-                  className="main-topbar-home"
-                  aria-label="Рабочий стол"
-                  title="Рабочий стол"
-                >
-                  <IconNavHome />
-                </NavLink>
-              )}
+              <span className="main-topbar-end-default">
+                {isWorkspaceHome ? (
+                  <button
+                    type="button"
+                    className="main-topbar-more"
+                    onClick={openWorkspaceMenu}
+                    aria-label="Профиль и настройки"
+                    title="Профиль и настройки"
+                  >
+                    <span aria-hidden>⋮</span>
+                  </button>
+                ) : (
+                  <NavLink
+                    to="/"
+                    className="main-topbar-home"
+                    aria-label="Рабочий стол"
+                    title="Рабочий стол"
+                  >
+                    <IconNavHome />
+                  </NavLink>
+                )}
+              </span>
             </div>
           )}
         </div>
