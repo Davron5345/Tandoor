@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-09-19 (React #310 — дубль useEffect)
+**Последнее обновление документации:** 2026-09-19 (fix скролла списков на телефоне)
 
 ---
 
@@ -835,6 +835,7 @@ GET  /api/auth/roles
 | 2026-09-19 | Fix белый экран PWA: ThemeContext больше не импортирует Capacitor через pwaPush; высота phone-lock не схлопывается |
 | 2026-09-19 | Fix React #310: `useEffect` закрытия mobile-more перенесён выше early return (hooks order) |
 | 2026-09-19 | Fix React #310 до конца: удалён дубль `useEffect` после `if (loading)`; ErrorBoundary поясняет #310 |
+| 2026-09-19 | Fix mobile scroll: `main-content > div` снова `overflow-y: auto` + `min-height: 0` (списки документов/стол) |
 
 ---
 
