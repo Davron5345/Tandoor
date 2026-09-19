@@ -1015,7 +1015,7 @@ function AppContent() {
         </Routes>
         )}
         </div>
-        {useMobileChrome && (
+        {useMobileChrome && !isWorkspaceHome && (
           <MobileDock items={mobileDockItems} onOpenMenu={openAllSectionsMenu} />
         )}
       </main>

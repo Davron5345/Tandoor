@@ -59,7 +59,7 @@ export function buildMobileQuickLinks(user) {
     },
     {
       to: '/return-supplier',
-      label: 'Возврат поставщику',
+      label: 'Возврат',
       perm: 'documents.rashod',
       tone: 'teal',
       Icon: IconNavDocuments,

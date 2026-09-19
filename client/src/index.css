@@ -15910,7 +15910,7 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
 
 
 
-/* Mobile admin shell: единая шапка + нижний dock */
+/* Mobile admin: стиль 1С (жёлтая шапка, светлые поверхности, плотная сетка) */
 .mobile-workspace {
   display: none;
 }
@@ -15920,15 +15920,41 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
 }
 
 @media (max-width: 768px) {
+  /* Палитра 1С — всегда светлая на телефоне (даже при тёмной теме desktop) */
+  .app-mobile-admin {
+    --ones-yellow: #f5c518;
+    --ones-yellow-soft: #fff6cc;
+    --ones-ink: #1a1a1a;
+    --ones-muted: #6b7280;
+    --ones-border: #e5e7eb;
+    --ones-surface: #ffffff;
+    --ones-bg: #f3f4f6;
+    --ones-teal: #1a9b8e;
+    --surface: var(--ones-surface);
+    --surface-2: var(--ones-bg);
+    --bg: var(--ones-bg);
+    --text: var(--ones-ink);
+    --text-muted: var(--ones-muted);
+    --border: var(--ones-border);
+    --primary: var(--ones-yellow);
+    --primary-text: var(--ones-ink);
+    color: var(--ones-ink);
+    background: var(--ones-bg);
+  }
+
+  .app-mobile-admin .main {
+    background: var(--ones-bg);
+  }
+
   .app-mobile-admin .main-topbar-mobile {
     display: grid;
     grid-template-columns: 44px 1fr 44px;
     align-items: center;
     gap: 4px;
     padding: max(8px, env(safe-area-inset-top, 0px)) 10px 10px;
-    background: #f5c518;
-    color: #1a1a1a;
-    border-bottom: 1px solid color-mix(in srgb, #000 8%, #f5c518);
+    background: var(--ones-yellow);
+    color: var(--ones-ink);
+    border-bottom: 1px solid color-mix(in srgb, #000 10%, var(--ones-yellow));
   }
 
   .app-mobile-admin .main-topbar-mobile .sidebar-menu-btn {
@@ -15937,10 +15963,10 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
     padding: 0;
     justify-content: center;
     border: 0;
-    border-radius: 10px;
+    border-radius: 8px;
     background: transparent;
     box-shadow: none;
-    color: #1a1a1a;
+    color: var(--ones-ink);
   }
 
   .app-mobile-admin .main-topbar-mobile .sidebar-menu-btn:hover,
@@ -15951,10 +15977,10 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
   .app-mobile-admin .main-topbar-title {
     margin: 0;
     text-align: center;
-    font-size: 1.1rem;
+    font-size: 1.12rem;
     font-weight: 700;
     line-height: 1.2;
-    color: #1a1a1a;
+    color: var(--ones-ink);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -15980,9 +16006,9 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
     min-height: 40px;
     padding: 8px 12px;
     border: none;
-    border-radius: 10px;
-    background: #1a1a1a;
-    color: #f5c518;
+    border-radius: 8px;
+    background: var(--ones-ink);
+    color: var(--ones-yellow);
     font-size: 14px;
     font-weight: 700;
     cursor: pointer;
@@ -16001,9 +16027,9 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
     width: 44px;
     height: 44px;
     border: 0;
-    border-radius: 10px;
+    border-radius: 8px;
     background: transparent;
-    color: #1a1a1a;
+    color: var(--ones-ink);
     font-size: 22px;
     font-weight: 700;
     line-height: 1;
@@ -16022,8 +16048,8 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
   }
 
   .app-mobile-admin .section-tabs-bar {
-    background: color-mix(in srgb, var(--text) 4%, var(--surface));
-    border-bottom: 1px solid var(--border);
+    background: var(--ones-surface);
+    border-bottom: 1px solid var(--ones-border);
     padding: 0;
   }
 
@@ -16035,16 +16061,17 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
   .app-mobile-admin .section-tab {
     min-height: 36px;
     padding: 6px 12px;
-    border-radius: 999px;
-    background: var(--surface);
-    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--ones-bg);
+    border: 1px solid var(--ones-border);
+    color: var(--ones-ink);
     font-size: 13px;
   }
 
   .app-mobile-admin .section-tab.is-active {
-    background: #f5c518;
-    border-color: color-mix(in srgb, #000 12%, #f5c518);
-    color: #1a1a1a;
+    background: var(--ones-yellow);
+    border-color: color-mix(in srgb, #000 12%, var(--ones-yellow));
+    color: var(--ones-ink);
     font-weight: 700;
   }
 
@@ -16052,9 +16079,8 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
     display: none;
   }
 
-  /* Dock уже в flex-колонке main — лишний padding-bottom давал пустоту и ломал ощущение скролла */
   .app-mobile-admin .main-content {
-    background: var(--surface);
+    background: var(--ones-bg);
     min-height: 0;
     overflow: hidden;
   }
@@ -16065,13 +16091,17 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
     overscroll-behavior-y: contain;
   }
 
+  /* Рабочий стол: без dock, Telegram прижат вниз */
   .app-workspace-home .main-content {
     padding: 0;
-    background: var(--surface);
+    background: var(--ones-surface);
   }
 
   .app-workspace-home .main-content > div {
-    padding: 0 0 12px;
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    min-height: 100%;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-y: contain;
   }
@@ -16088,56 +16118,67 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
   }
 
   .dashboard-page-mobile {
-    min-height: 0;
+    display: flex;
+    flex-direction: column;
     flex: 1;
-    background: var(--surface);
+    min-height: 100%;
+    background: var(--ones-surface);
   }
 
   .mobile-workspace {
     display: flex;
     flex-direction: column;
-    min-height: min-content;
-    background: var(--surface);
+    flex: 1;
+    min-height: 100%;
+    background: var(--ones-surface);
   }
 
   .mobile-workspace-subheader {
-    padding: 10px 16px;
-    font-size: 13px;
+    flex: none;
+    padding: 9px 16px;
+    font-size: 12px;
     font-weight: 500;
-    color: var(--text-muted);
-    background: color-mix(in srgb, var(--text) 4%, var(--surface));
-    border-bottom: 1px solid var(--border);
+    letter-spacing: 0.01em;
+    color: var(--ones-muted);
+    background: var(--ones-bg);
+    border-bottom: 1px solid var(--ones-border);
     text-align: center;
   }
 
   .mobile-workspace-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    background: var(--surface);
+    flex: none;
+    background: var(--ones-surface);
+    border-bottom: 1px solid var(--ones-border);
   }
 
   .mobile-workspace-item {
     display: flex;
     align-items: center;
     gap: 10px;
-    min-height: 56px;
-    padding: 12px 14px;
+    min-height: 52px;
+    padding: 11px 12px;
     text-decoration: none;
-    color: var(--text);
-    border-bottom: 1px solid var(--border);
+    color: var(--ones-ink);
+    border-bottom: 1px solid var(--ones-border);
     -webkit-tap-highlight-color: transparent;
   }
 
   .mobile-workspace-item:nth-child(odd) {
-    border-right: 1px solid var(--border);
+    border-right: 1px solid var(--ones-border);
+  }
+
+  .mobile-workspace-item:nth-last-child(-n+2) {
+    border-bottom: 0;
   }
 
   .mobile-workspace-item.is-highlight {
-    background: color-mix(in srgb, #f5c518 18%, var(--surface));
+    background: var(--ones-yellow-soft);
   }
 
   .mobile-workspace-item:active {
-    background: color-mix(in srgb, var(--primary) 10%, var(--surface));
+    background: color-mix(in srgb, var(--ones-yellow) 22%, #fff);
   }
 
   .mobile-workspace-icon {
@@ -16172,21 +16213,30 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
     -webkit-box-orient: vertical;
   }
 
+  .mobile-workspace-footer {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding: 20px 16px max(16px, env(safe-area-inset-bottom, 0px));
+    background: var(--ones-surface);
+  }
+
   .mobile-workspace-telegram {
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 10px;
-    margin: 16px 16px 8px;
+    width: 100%;
     min-height: 48px;
     padding: 12px 20px;
     border-radius: 999px;
-    background: #1a9b8e;
+    background: var(--ones-teal);
     color: #fff;
     text-decoration: none;
     font-size: 16px;
     font-weight: 650;
-    box-shadow: 0 4px 14px color-mix(in srgb, #1a9b8e 35%, transparent);
+    box-shadow: 0 4px 14px color-mix(in srgb, var(--ones-teal) 32%, transparent);
   }
 
   .mobile-workspace-telegram svg {
@@ -16204,11 +16254,11 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
     flex-shrink: 0;
     position: relative;
     z-index: 80;
-    min-height: 58px;
+    min-height: 56px;
     padding: 4px 4px max(4px, env(safe-area-inset-bottom, 0px));
-    background: var(--surface);
-    border-top: 1px solid var(--border);
-    box-shadow: 0 -4px 16px color-mix(in srgb, var(--text) 6%, transparent);
+    background: var(--ones-surface);
+    border-top: 1px solid var(--ones-border);
+    box-shadow: 0 -2px 10px color-mix(in srgb, #000 5%, transparent);
   }
 
   .mobile-dock-item {
@@ -16217,12 +16267,12 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
     align-items: center;
     justify-content: center;
     gap: 2px;
-    min-height: 50px;
+    min-height: 48px;
     padding: 4px 2px;
     border: 0;
-    border-radius: 12px;
+    border-radius: 8px;
     background: transparent;
-    color: var(--text-muted);
+    color: var(--ones-muted);
     text-decoration: none;
     font: inherit;
     cursor: pointer;
@@ -16230,8 +16280,8 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
   }
 
   .mobile-dock-item.is-active {
-    color: #1a1a1a;
-    background: color-mix(in srgb, #f5c518 28%, transparent);
+    color: var(--ones-ink);
+    background: color-mix(in srgb, var(--ones-yellow) 36%, transparent);
     font-weight: 650;
   }
 
@@ -16256,6 +16306,7 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
     white-space: nowrap;
   }
 
+  /* Списки / карточки / кнопки — компактный 1С */
   .app-mobile-admin .filters,
   .app-mobile-admin .report-filters,
   .app-mobile-admin .filter-panel-row {
@@ -16263,7 +16314,15 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
   }
 
   .app-mobile-admin .card {
-    border-radius: 12px;
+    border-radius: 8px;
+    border-color: var(--ones-border);
+    background: var(--ones-surface);
+    box-shadow: none;
+  }
+
+  .app-mobile-admin .table-wrap {
+    border-color: var(--ones-border);
+    background: var(--ones-surface);
   }
 
   .app-mobile-admin .btn,
@@ -16271,18 +16330,77 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
     touch-action: manipulation;
   }
 
-  [data-theme="dark"] .app-mobile-admin .main-topbar-mobile {
-    background: #d4a017;
-    border-bottom-color: color-mix(in srgb, #000 20%, #d4a017);
+  .app-mobile-admin .btn-primary,
+  .app-mobile-admin button.btn.primary,
+  .app-mobile-admin .btn.btn-primary {
+    background: var(--ones-yellow);
+    border-color: color-mix(in srgb, #000 12%, var(--ones-yellow));
+    color: var(--ones-ink);
   }
 
-  [data-theme="dark"] .app-mobile-admin .section-tab.is-active,
-  [data-theme="dark"] .mobile-dock-item.is-active {
-    background: color-mix(in srgb, #f5c518 22%, var(--surface));
-    color: var(--text);
+  .app-mobile-admin .btn-primary:active,
+  .app-mobile-admin button.btn.primary:active {
+    filter: brightness(0.96);
   }
 
-  [data-theme="dark"] .mobile-workspace-item.is-highlight {
-    background: color-mix(in srgb, #f5c518 14%, var(--surface));
+  .app-mobile-admin input,
+  .app-mobile-admin select,
+  .app-mobile-admin textarea {
+    border-radius: 6px;
+    border-color: var(--ones-border);
+    background: var(--ones-surface);
+    color: var(--ones-ink);
+  }
+
+  .app-mobile-admin .empty,
+  .app-mobile-admin .muted {
+    color: var(--ones-muted);
+  }
+}
+
+/* Узкие телефоны: чуть плотнее */
+@media (max-width: 380px) {
+  .app-mobile-admin .mobile-workspace-item {
+    min-height: 48px;
+    padding: 9px 10px;
+    gap: 8px;
+  }
+
+  .app-mobile-admin .mobile-workspace-label {
+    font-size: 13px;
+  }
+
+  .app-mobile-admin .mobile-workspace-icon svg {
+    width: 22px;
+    height: 22px;
+  }
+}
+
+/* Широкий телефон / small tablet portrait — 3 колонки на рабочем столе */
+@media (min-width: 540px) and (max-width: 768px) {
+  .app-mobile-admin .mobile-workspace-grid {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+
+  .app-mobile-admin .mobile-workspace-item:nth-child(odd) {
+    border-right: 1px solid var(--ones-border, #e5e7eb);
+  }
+
+  .app-mobile-admin .mobile-workspace-item:nth-child(3n) {
+    border-right: 0;
+  }
+
+  .app-mobile-admin .mobile-workspace-item:nth-last-child(-n+2) {
+    border-bottom: 1px solid var(--ones-border, #e5e7eb);
+  }
+
+  .app-mobile-admin .mobile-workspace-item:nth-last-child(-n+3) {
+    border-bottom: 0;
+  }
+
+  .app-mobile-admin .mobile-workspace-footer {
+    max-width: 420px;
+    margin: 0 auto;
+    width: 100%;
   }
 }

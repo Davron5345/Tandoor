@@ -2,11 +2,11 @@ import { Link } from 'react-router-dom';
 import { IconNavTelegram } from './NavIcons';
 
 /**
- * Мобильный рабочий стол: сетка быстрого доступа + Telegram (как в примере).
+ * Мобильный рабочий стол в стиле 1С: сетка «Быстрый доступ» + Telegram.
  */
 export default function MobileWorkspaceHome({ links, showTelegram = false }) {
   return (
-    <div className="mobile-workspace">
+    <div className="mobile-workspace ones-c">
       <div className="mobile-workspace-subheader">Быстрый доступ</div>
 
       <nav className="mobile-workspace-grid" aria-label="Быстрый доступ">
@@ -27,12 +27,14 @@ export default function MobileWorkspaceHome({ links, showTelegram = false }) {
         })}
       </nav>
 
-      {showTelegram && (
-        <Link to="/telegram" className="mobile-workspace-telegram">
-          <IconNavTelegram />
-          <span>Telegram</span>
-        </Link>
-      )}
+      <div className="mobile-workspace-footer">
+        {showTelegram && (
+          <Link to="/telegram" className="mobile-workspace-telegram">
+            <IconNavTelegram />
+            <span>Telegram</span>
+          </Link>
+        )}
+      </div>
     </div>
   );
 }
