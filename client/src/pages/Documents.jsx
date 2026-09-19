@@ -2174,37 +2174,17 @@ export default function Documents({ defaultType }) {
                                   : 'Нет доступных складов для перемещения'}
                             </p>
                           ) : (
-                            <>
-                              {(isPhone || isDeptScoped) && (
-                                <div className="transfer-dept-cubes" role="listbox" aria-label="Куда">
-                                  {transferToDepartments.map((d) => (
-                                    <button
-                                      key={d.id}
-                                      type="button"
-                                      role="option"
-                                      aria-selected={form.to_department_id === d.id}
-                                      className={`transfer-dept-cube${form.to_department_id === d.id ? ' is-active' : ''}`}
-                                      disabled={isReadOnly}
-                                      onClick={() => setForm({ ...form, to_department_id: d.id })}
-                                    >
-                                      {d.name}
-                                    </button>
-                                  ))}
-                                </div>
-                              )}
-                              <select
-                                className={(isPhone || isDeptScoped) ? 'transfer-to-select-fallback' : undefined}
-                                value={form.to_department_id || ''}
-                                onChange={(e) => setForm({ ...form, to_department_id: e.target.value })}
-                                disabled={isReadOnly}
-                                required
-                              >
-                                <option value="">— выберите склад —</option>
-                                {transferToDepartments.map((d) => (
-                                  <option key={d.id} value={d.id}>{d.name}</option>
-                                ))}
-                              </select>
-                            </>
+                            <select
+                              value={form.to_department_id || ''}
+                              onChange={(e) => setForm({ ...form, to_department_id: e.target.value })}
+                              disabled={isReadOnly}
+                              required
+                            >
+                              <option value="">— выберите склад —</option>
+                              {transferToDepartments.map((d) => (
+                                <option key={d.id} value={d.id}>{d.name}</option>
+                              ))}
+                            </select>
                           )}
                         </div>
                       </>
