@@ -457,6 +457,7 @@ function AppContent() {
   ));
   const [accountOpen, setAccountOpen] = useState(readSidebarAccountOpen);
   const [navFavorites, setNavFavorites] = useState(readNavFavorites);
+  const [isMobileNav, setIsMobileNav] = useState(isMobileNavViewport);
   const { theme, toggleTheme } = useTheme();
   const { user, loading, logout } = useAuth();
   const { branches, branchId, branchName, setActiveBranchId, isAdmin: isBranchAdmin } = useBranch();
@@ -472,6 +473,7 @@ function AppContent() {
   useEffect(() => {
     const mq = window.matchMedia(MOBILE_NAV_MQ);
     const apply = () => {
+      setIsMobileNav(mq.matches);
       if (mq.matches) setSidebarCollapsed(true);
       else setSidebarCollapsed(readSidebarCollapsed());
     };
@@ -655,8 +657,15 @@ function AppContent() {
     });
   };
 
+  const isWorkspaceHome = isMobileNav && location.pathname === '/' && canViewDashboard;
+
+  const openWorkspaceMenu = () => {
+    setAccountOpen(true);
+    setSidebarCollapsed(false);
+  };
+
   return (
-    <div className={`app${sidebarCollapsed ? ' sidebar-collapsed' : ''}${accountOpen ? ' sidebar-account-open' : ''}${isCashierLayout ? ' app-cashier-mode' : ''}${isMyShopStore ? ' app-myshop-mode' : ''}${isMyShopConstructor ? ' app-myshop-constructor-mode' : ''}`}>
+    <div className={`app${sidebarCollapsed ? ' sidebar-collapsed' : ''}${accountOpen ? ' sidebar-account-open' : ''}${isCashierLayout ? ' app-cashier-mode' : ''}${isMyShopStore ? ' app-myshop-mode' : ''}${isMyShopConstructor ? ' app-myshop-constructor-mode' : ''}${isWorkspaceHome ? ' app-workspace-home' : ''}`}>
       {!isCashierLayout && !sidebarCollapsed && (
         <button
           type="button"
@@ -822,7 +831,7 @@ function AppContent() {
 
       <main className="main">
         {!isCashierLayout && (
-        <div className="main-topbar">
+        <div className={`main-topbar${isWorkspaceHome ? ' main-topbar-workspace' : ''}`}>
           <button
             type="button"
             className="sidebar-menu-btn"
@@ -832,8 +841,24 @@ function AppContent() {
             aria-expanded={!sidebarCollapsed}
           >
             <IconNavMenu />
-            <span className="sidebar-menu-btn-label">{sidebarCollapsed ? 'Меню' : 'Свернуть'}</span>
+            {!isWorkspaceHome && (
+              <span className="sidebar-menu-btn-label">{sidebarCollapsed ? 'Меню' : 'Свернуть'}</span>
+            )}
           </button>
+          {isWorkspaceHome && (
+            <h1 className="main-topbar-title">Рабочий стол</h1>
+          )}
+          {isWorkspaceHome && (
+            <button
+              type="button"
+              className="main-topbar-more"
+              onClick={openWorkspaceMenu}
+              aria-label="Профиль и настройки"
+              title="Профиль и настройки"
+            >
+              <span aria-hidden>⋮</span>
+            </button>
+          )}
         </div>
         )}
         {!isCashierLayout && (

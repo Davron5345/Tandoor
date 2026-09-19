@@ -1,12 +1,16 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { api, formatMoney } from '../api';
-import { DOC_TYPE_LABELS } from '../permissions';
+import { DOC_TYPE_LABELS, hasPermission } from '../permissions';
 import { useBranch } from '../BranchContext';
+import { useAuth } from '../AuthContext';
 import BranchChip from '../components/BranchChip';
+import MobileWorkspaceHome from '../components/MobileWorkspaceHome';
+import { buildMobileQuickLinks } from '../mobileQuickLinks';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
 
 const MONTHS = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+const MOBILE_MQ = '(max-width: 768px)';
 
 const TYPE_COLORS = {
   prihod: 'var(--prihod)',
@@ -85,16 +89,39 @@ function DonutChart({ segments, emptyLabel }) {
   );
 }
 
+function useIsMobileViewport() {
+  const [isMobile, setIsMobile] = useState(() => (
+    typeof window !== 'undefined' && window.matchMedia(MOBILE_MQ).matches
+  ));
+
+  useEffect(() => {
+    const mq = window.matchMedia(MOBILE_MQ);
+    const sync = () => setIsMobile(mq.matches);
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
+  }, []);
+
+  return isMobile;
+}
+
 export default function Dashboard() {
   const [stats, setStats] = useState(null);
   const { branchId, branchName } = useBranch();
+  const { user } = useAuth();
+  const isMobile = useIsMobileViewport();
+  const quickLinks = useMemo(() => buildMobileQuickLinks(user), [user]);
+  const showTelegram = hasPermission(user, 'telegram.view');
 
   const load = useCallback(() => {
     api.getStats().then(setStats).catch(console.error);
   }, [branchId]);
 
-  useEffect(() => { load(); }, [load, branchId]);
-  useAutoRefresh(load, [load, branchId]);
+  useEffect(() => {
+    if (isMobile) return;
+    load();
+  }, [load, branchId, isMobile]);
+  useAutoRefresh(load, [load, branchId], { enabled: !isMobile });
 
   const monthly = useMemo(
     () => buildMonthlySeries(stats?.monthlyActivity),
@@ -138,6 +165,14 @@ export default function Dashboard() {
     () => Math.max(...(stats?.topProducts || []).map((p) => p.value), 1),
     [stats?.topProducts],
   );
+
+  if (isMobile) {
+    return (
+      <div className="dashboard-page dashboard-page-mobile">
+        <MobileWorkspaceHome links={quickLinks} showTelegram={showTelegram} />
+      </div>
+    );
+  }
 
   if (!stats) return <div className="empty">Загрузка...</div>;
 
@@ -309,11 +344,11 @@ export default function Dashboard() {
             <span className="dash-panel-note">≤ 10 ед.</span>
           </div>
           {(stats.lowStock || []).length === 0 ? (
-            <div className="dash-chart-empty dash-chart-empty-ok">Критичных остатков нет</div>
+            <div className="dash-chart-empty">Всё в норме</div>
           ) : (
-            <ul className="dash-alert-list">
+            <ul className="dash-low-list">
               {(stats.lowStock || []).map((p) => (
-                <li key={`${p.name}-${p.stock}`}>
+                <li key={p.id}>
                   <span>{p.name}</span>
                   <strong>{p.stock} {p.unit || 'шт'}</strong>
                 </li>
