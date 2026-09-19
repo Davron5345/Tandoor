@@ -61,7 +61,9 @@ export function requireAdmin(req, res, next) {
 
 export function attachBranch(req, res, next) {
   try {
-    const requested = req.query.branch_id || req.headers['x-branch-id'];
+    let requested = req.query.branch_id || req.headers['x-branch-id'];
+    // qs: branch_id=a&branch_id=a → массив; иначе resolveBranchId ломается
+    if (Array.isArray(requested)) requested = requested[0];
     req.branchId = resolveBranchId(req.user, requested);
     next();
   } catch (e) {

@@ -33,9 +33,13 @@ async function request(path, options = {}) {
   if (nativeToken) headers.Authorization = `Bearer ${nativeToken}`;
 
   let url = `${getApiBaseUrl()}/api${path}`;
+  // Не дублировать branch_id: qs превращает branch_id=a&branch_id=a в массив → пустые выборки
   if (activeBranchId && !options.skipBranch) {
-    const sep = url.includes('?') ? '&' : '?';
-    url += `${sep}branch_id=${encodeURIComponent(activeBranchId)}`;
+    const hasBranch = /[?&]branch_id=/.test(url);
+    if (!hasBranch) {
+      const sep = url.includes('?') ? '&' : '?';
+      url += `${sep}branch_id=${encodeURIComponent(activeBranchId)}`;
+    }
   }
 
   const res = await fetch(url, { credentials: 'include', ...options, headers }).catch(() => {

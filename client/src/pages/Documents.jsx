@@ -405,7 +405,8 @@ export default function Documents({ defaultType }) {
     let cancelled = false;
     const loadCatalog = async () => {
       try {
-        const depts = await api.getDepartments({ active: '1' });
+        // branch_id уже добавляет api.request — не дублировать (иначе qs → массив и пустой список)
+        const depts = await api.getDepartments();
         if (!cancelled) setDepartments(Array.isArray(depts) ? depts : []);
       } catch (err) {
         console.error(err);
@@ -437,6 +438,21 @@ export default function Documents({ defaultType }) {
     loadCatalog();
     return () => { cancelled = true; };
   }, [branchId, user]);
+
+  // При открытии перемещения — обновить список отделов активного филиала
+  useEffect(() => {
+    if (!modal || form.type !== 'peremeshchenie') return undefined;
+    let cancelled = false;
+    api.getDepartments()
+      .then((depts) => {
+        if (cancelled) return;
+        setDepartments(Array.isArray(depts) ? depts : []);
+      })
+      .catch((err) => {
+        console.error(err);
+      });
+    return () => { cancelled = true; };
+  }, [modal, form.type, branchId]);
 
   useEffect(() => {
     setFilterType(defaultType || '');
@@ -641,25 +657,26 @@ export default function Documents({ defaultType }) {
   const isDepartmentTransfer = form.type === 'peremeshchenie' && form.transfer_mode === 'department';
   const docBranchForDept = branchId || 'main';
   const transferBranchId = form.from_branch_id || docBranchForDept;
-  const isDeptActive = (d) => d && d.active !== false && d.active !== 0 && d.active !== '0';
-  // API уже отдаёт отделы активного филиала (не-admin). Админу фильтруем по филиалу перемещения.
+  const myDeptRecord = myDeptId
+    ? (departments.find((d) => d.id === myDeptId) || null)
+    : null;
+  // Филиал складов: сначала филиал отдела сотрудника, иначе филиал документа
+  const deptsBranchId = myDeptRecord?.branch_id || transferBranchId || docBranchForDept;
   const branchDepartments = departments.filter((d) => {
-    if (!isDeptActive(d)) return false;
+    if (!d?.id) return false;
     if (!d.branch_id) return true;
-    if (user?.role === 'admin') return d.branch_id === transferBranchId;
-    return true;
+    return d.branch_id === deptsBranchId;
   });
   const prihodDepartments = departments.filter((d) => {
-    if (!isDeptActive(d)) return false;
+    if (!d?.id) return false;
     if (!d.branch_id) return true;
-    if (user?.role === 'admin') return d.branch_id === docBranchForDept;
-    return true;
+    return d.branch_id === docBranchForDept;
   });
   const transferFromId = isDeptScoped ? myDeptId : (form.from_department_id || '');
   const transferToDepartments = branchDepartments.filter((d) => !transferFromId || d.id !== transferFromId);
   const fromDeptLabel = isDeptScoped
     ? (myDeptName
-      || branchDepartments.find((d) => d.id === myDeptId)?.name
+      || myDeptRecord?.name
       || departments.find((d) => d.id === myDeptId)?.name
       || 'Мой отдел')
     : (branchDepartments.find((d) => d.id === form.from_department_id)?.name || '— общий склад —');
@@ -2152,7 +2169,9 @@ export default function Documents({ defaultType }) {
                             <p className="transfer-dept-empty">
                               {departments.length === 0
                                 ? 'Отделы не загрузились. Обновите страницу.'
-                                : 'Нет других отделов в этом филиале'}
+                                : branchDepartments.length <= 1
+                                  ? `В филиале только «${fromDeptLabel}». Добавьте склады: Администрирование → Отделы.`
+                                  : 'Нет доступных складов для перемещения'}
                             </p>
                           ) : (
                             <>

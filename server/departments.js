@@ -17,7 +17,8 @@ export function getDepartments(branchId = null, activeOnly = false) {
     params.push(branchId);
   }
   if (activeOnly) {
-    where.push('d.active = 1');
+    // SQLite INTEGER / PG: active может быть 1/true; не отбрасываем из‑за диалекта
+    where.push('COALESCE(d.active, 1) != 0');
   }
   if (where.length) sql += ` WHERE ${where.join(' AND ')}`;
   sql += ' ORDER BY b.name, d.name';

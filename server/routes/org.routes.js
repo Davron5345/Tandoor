@@ -118,8 +118,11 @@ export function registerOrgRoutes(app) {
 
   app.get('/api/departments', attachBranch, (req, res) => {
     let branchFilter = null;
-    if (req.query.branch_id) {
-      branchFilter = req.query.branch_id;
+    const rawBranch = req.query.branch_id;
+    // qs: дублирующий branch_id → массив; берём первую строку
+    const queryBranch = Array.isArray(rawBranch) ? rawBranch[0] : rawBranch;
+    if (queryBranch) {
+      branchFilter = String(queryBranch);
     } else if (req.user?.role !== 'admin') {
       branchFilter = req.branchId;
     }
