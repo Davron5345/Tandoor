@@ -8,6 +8,7 @@ import ProductSelect from '../components/ProductSelect';
 import CounterpartyCreateModal from '../components/CounterpartyCreateModal';
 import ProductCreateModal from '../components/ProductCreateModal';
 import ContractSelect from '../components/ContractSelect';
+import PhoneDateInput from '../components/PhoneDateInput';
 import { amountInWordsCapitalized } from '../utils/amountInWords';
 import { allocateExtraCosts, extraCostsTotal, capitalizedExtraTotal } from '../utils/documentExtraCosts';
 import { useAuth } from '../AuthContext';
@@ -1378,13 +1379,9 @@ export default function Documents({ defaultType }) {
 
   const phoneModalTitle = DOC_TYPE_LABELS[form.type] || 'Документ';
 
-  const phoneDateLabel = form.date
-    ? new Date(`${form.date}T12:00:00`).toLocaleDateString('ru-RU', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-    })
-    : '—';
+  const phoneDateMin = isAnyReturnType(form.type)
+    ? (selectedReturnSourceDoc?.date?.slice(0, 10) || undefined)
+    : undefined;
 
   const phoneTotalAmount = form.type === 'prihod' ? total + extrasCapitalized : total;
 
@@ -1695,7 +1692,13 @@ export default function Documents({ defaultType }) {
           <div className="doc-modal">
             {isPhone && (
               <div className="doc-modal-phone-summary">
-                <span className="doc-modal-phone-date">{phoneDateLabel}</span>
+                <PhoneDateInput
+                  className="doc-modal-phone-date"
+                  value={form.date}
+                  min={phoneDateMin}
+                  disabled={isReadOnly}
+                  onChange={(date) => setForm({ ...form, date })}
+                />
                 <span className="doc-modal-phone-total">
                   Итого <strong>{formatMoney(phoneTotalAmount)}</strong>
                 </span>
@@ -1785,13 +1788,22 @@ export default function Documents({ defaultType }) {
                   <>
                     <div className="form-group form-group-date">
                       <label>Дата</label>
-                      <input
-                        type="date"
-                        value={form.date}
-                        min={isAnyReturnType(form.type) ? (selectedReturnSourceDoc?.date?.slice(0, 10) || undefined) : undefined}
-                        onChange={(e) => setForm({ ...form, date: e.target.value })}
-                        disabled={isReadOnly}
-                      />
+                      {isPhone ? (
+                        <PhoneDateInput
+                          value={form.date}
+                          min={isAnyReturnType(form.type) ? (selectedReturnSourceDoc?.date?.slice(0, 10) || undefined) : undefined}
+                          disabled={isReadOnly}
+                          onChange={(date) => setForm({ ...form, date })}
+                        />
+                      ) : (
+                        <input
+                          type="date"
+                          value={form.date}
+                          min={isAnyReturnType(form.type) ? (selectedReturnSourceDoc?.date?.slice(0, 10) || undefined) : undefined}
+                          onChange={(e) => setForm({ ...form, date: e.target.value })}
+                          disabled={isReadOnly}
+                        />
+                      )}
                     </div>
                     <div className="form-group form-group-number">
                       <label>Номер</label>
@@ -1924,13 +1936,22 @@ export default function Documents({ defaultType }) {
                   <>
                     <div className="form-group form-group-date">
                       <label>Дата</label>
-                      <input
-                        type="date"
-                        value={form.date}
-                        min={form.type === RETURN_SUPPLIER_TYPE ? (selectedReturnSourceDoc?.date || undefined) : undefined}
-                        onChange={(e) => setForm({ ...form, date: e.target.value })}
-                        disabled={isReadOnly}
-                      />
+                      {isPhone ? (
+                        <PhoneDateInput
+                          value={form.date}
+                          min={form.type === RETURN_SUPPLIER_TYPE ? (selectedReturnSourceDoc?.date || undefined) : undefined}
+                          disabled={isReadOnly}
+                          onChange={(date) => setForm({ ...form, date })}
+                        />
+                      ) : (
+                        <input
+                          type="date"
+                          value={form.date}
+                          min={form.type === RETURN_SUPPLIER_TYPE ? (selectedReturnSourceDoc?.date || undefined) : undefined}
+                          onChange={(e) => setForm({ ...form, date: e.target.value })}
+                          disabled={isReadOnly}
+                        />
+                      )}
                     </div>
                     <div className="form-group form-group-transfer-mode">
                       <label>Тип перемещения</label>
@@ -2023,9 +2044,17 @@ export default function Documents({ defaultType }) {
                   </>
                 ) : (
                   <>
-                    <div className="form-group">
+                    <div className="form-group form-group-date">
                       <label>Дата</label>
-                      <input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} disabled={isReadOnly} />
+                      {isPhone ? (
+                        <PhoneDateInput
+                          value={form.date}
+                          disabled={isReadOnly}
+                          onChange={(date) => setForm({ ...form, date })}
+                        />
+                      ) : (
+                        <input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} disabled={isReadOnly} />
+                      )}
                     </div>
                     <div className="form-group">
                       <label>{isSupplierReturnType(form.type) ? 'Поставщик' : 'Клиент'}</label>
