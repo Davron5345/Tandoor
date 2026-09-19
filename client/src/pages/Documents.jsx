@@ -1376,6 +1376,23 @@ export default function Documents({ defaultType }) {
       ? (docTypeCreateLabel[form.type] || docTypeCreateLabel[defaultType] || 'Новый документ')
       : (isReadOnly ? 'Просмотр документа' : 'Редактирование документа');
 
+  const phoneModalTitle = (() => {
+    const typeLabel = DOC_TYPE_LABELS[form.type] || 'Документ';
+    if (modal === 'create' || modal === 'transfer') return `${typeLabel} (новый)`;
+    if (isReadOnly) return `${typeLabel} (просмотр)`;
+    return typeLabel;
+  })();
+
+  const phoneDateLabel = form.date
+    ? new Date(`${form.date}T12:00:00`).toLocaleDateString('ru-RU', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    })
+    : '—';
+
+  const phoneTotalAmount = form.type === 'prihod' ? total + extrasCapitalized : total;
+
   const visibleDocs = defaultType
     ? docs.filter((d) => d.type === defaultType)
     : docs;
@@ -1622,8 +1639,8 @@ export default function Documents({ defaultType }) {
 
       {modal && (
         <Modal
-          className="modal-doc"
-          title={modalTitle}
+          className={`modal-doc${isPhone ? ' modal-doc-phone' : ''}`}
+          title={isPhone ? phoneModalTitle : modalTitle}
           dirty={isFormDirty}
           footerPlacement="end"
           onClose={() => {
@@ -1631,14 +1648,49 @@ export default function Documents({ defaultType }) {
             setPrihodBodyTab('items');
             setModal(null);
           }}
+          headerLeading={isPhone ? (
+            <ModalCancelButton
+              className="btn btn-icon btn-ghost modal-doc-back"
+              aria-label="Назад"
+              title="Назад"
+            >
+              <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+                <path
+                  d="M15 18l-6-6 6-6"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </ModalCancelButton>
+          ) : null}
+          headerTrailing={isPhone && canEdit ? (
+            <button
+              type="button"
+              className="btn btn-icon btn-ghost modal-doc-save"
+              title="Сохранить"
+              aria-label="Сохранить"
+              onClick={() => save(false)}
+              disabled={hasTransferStockOverflow}
+            >
+              <IconCheck />
+            </button>
+          ) : null}
           footer={
             <>
-              <ModalCancelButton>Закрыть</ModalCancelButton>
+              {!isPhone && <ModalCancelButton>Закрыть</ModalCancelButton>}
               {canEdit && (
                 <>
-                  <button className="btn btn-ghost" onClick={() => save(false)} disabled={hasTransferStockOverflow}>Сохранить</button>
+                  {!isPhone && (
+                    <button className="btn btn-ghost" onClick={() => save(false)} disabled={hasTransferStockOverflow}>Сохранить</button>
+                  )}
                   {form.status === 'draft' && canConfirm && (
                     <button className="btn btn-success" onClick={() => save(true)} disabled={hasTransferStockOverflow}>Провести</button>
+                  )}
+                  {isPhone && !(form.status === 'draft' && canConfirm) && (
+                    <button className="btn btn-primary" onClick={() => save(false)} disabled={hasTransferStockOverflow}>Сохранить</button>
                   )}
                 </>
               )}
@@ -1646,6 +1698,14 @@ export default function Documents({ defaultType }) {
           }
         >
           <div className="doc-modal">
+            {isPhone && (
+              <div className="doc-modal-phone-summary">
+                <span className="doc-modal-phone-date">{phoneDateLabel}</span>
+                <span className="doc-modal-phone-total">
+                  Итого <strong>{formatMoney(phoneTotalAmount)}</strong>
+                </span>
+              </div>
+            )}
             <div className="doc-modal-fields">
               {form.type === 'prihod' && !form.counterparty_id && !isReadOnly && (
                 <div className="alert alert-error" style={{ marginBottom: 12 }}>
@@ -2072,6 +2132,208 @@ export default function Documents({ defaultType }) {
                 </div>
               )}
               {(form.type !== 'prihod' || prihodBodyTab === 'items') && (
+                isPhone ? (
+                  <div className="doc-items-phone doc-modal-items-scroll">
+                    {canEdit && !isReadOnly && (
+                      <div className="doc-items-phone-bar">
+                        <button
+                          type="button"
+                          className="doc-items-phone-add"
+                          title="Добавить товар"
+                          aria-label="Добавить товар"
+                          onClick={() => addItemAfter(form.items.length - 1)}
+                          disabled={itemsBlocked}
+                        >
+                          <IconPlus />
+                        </button>
+                        <span className="doc-items-phone-bar-label">Товары</span>
+                        <span className="doc-items-phone-bar-hint">
+                          {form.items.filter((it) => it.product_id).length} поз.
+                        </span>
+                      </div>
+                    )}
+                    {form.items.map((item, idx) => {
+                      const rowTransferWarning = transferStockWarnings.find((w) => w.idx === idx);
+                      const pickValue = encodeProductPick(item.product_id, item.variant_id);
+                      let resolvedItem = resolvePickFromProducts(
+                        selectableProducts.length ? selectableProducts : products,
+                        pickValue,
+                      );
+                      if (!resolvedItem.product && selectableProducts.length) {
+                        resolvedItem = resolvePickFromProducts(products, pickValue);
+                      }
+                      const itemUnit = resolvedItem.product?.unit || '';
+                      const lineAmount = lineAmountOf(item);
+                      const sourceStock = form.type === 'peremeshchenie' && resolvedItem.product
+                        ? getPickStock(resolvedItem.product, resolvedItem.variant)
+                        : null;
+                      const netVal = Number(item.net_weight) || 0;
+                      const showTransferRemain = form.type === 'peremeshchenie' && !!item.product_id && sourceStock != null;
+                      const pieceRemain = showTransferRemain && netVal > 0 ? sourceStock / netVal : sourceStock;
+                      const overStock = !!(rowTransferWarning || (
+                        showTransferRemain && lineStockQty(item) > sourceStock + 1e-9
+                      ));
+                      const qty = parseQuantityInput(item.quantity) ?? 0;
+                      const stockTotal = netVal > 0 && qty > 0 ? netVal * qty : null;
+                      const showPrihodHint = form.type === 'prihod' && stockTotal != null;
+                      return (
+                        <div
+                          key={idx}
+                          className={`doc-items-phone-card${overStock ? ' is-overstock' : ''}`}
+                        >
+                          <div className="doc-items-phone-card-head">
+                            <span className="doc-items-phone-num">{idx + 1}</span>
+                            <div className="quick-add-control doc-items-phone-product">
+                              <ProductSelect
+                                products={selectableProducts}
+                                allProducts={isAnyReturnType(form.type)
+                                  ? (selectableProducts.length ? selectableProducts : products)
+                                  : products}
+                                value={pickValue}
+                                onChange={(nextPick) => updateItemProductPick(idx, nextPick)}
+                                onEditProduct={
+                                  form.type === 'prihod'
+                                    && form.counterparty_id
+                                    && canCreateProduct
+                                    && !isReadOnly
+                                    ? (product) => openEditProduct(idx, product.id, 'variants')
+                                    : null
+                                }
+                                disabled={itemsBlocked || isReadOnly}
+                                placeholder={
+                                  prihodNeedsSupplier
+                                    ? 'Сначала выберите поставщика'
+                                    : returnNeedsSupplier
+                                      ? 'Сначала выберите поставщика для возврата'
+                                      : returnSourceDocBlocked
+                                        ? 'Сначала выберите приходный документ'
+                                        : prihodNeedsDepartment
+                                          ? 'Сначала выберите отдел'
+                                          : rashodNeedsDepartment
+                                            ? 'Сначала выберите отдел'
+                                            : 'Название или артикул...'
+                                }
+                              />
+                              {form.type === 'prihod'
+                                && form.counterparty_id
+                                && canCreateProduct
+                                && !isReadOnly && (
+                                <button
+                                  type="button"
+                                  className="btn btn-icon btn-ghost quick-add-button"
+                                  title="Создать новый товар"
+                                  aria-label="Создать новый товар"
+                                  onClick={() => openQuickProduct(idx)}
+                                >
+                                  <IconPlus />
+                                </button>
+                              )}
+                            </div>
+                            {canEdit && (
+                              <IconButton
+                                title="Удалить"
+                                danger
+                                onClick={() => removeItem(idx)}
+                                disabled={form.items.length <= 1}
+                              >
+                                <IconTrash />
+                              </IconButton>
+                            )}
+                          </div>
+                          {isAnyReturnType(form.type) && item.product_id && (
+                            <div className="razdelka-stock-row-warning">
+                              по приходу:{' '}
+                              {returnSourceProductMap[encodeProductPick(item.product_id, item.variant_id || null)] || 0}
+                            </div>
+                          )}
+                          <div className="doc-items-phone-grid">
+                            <label className="doc-items-phone-field">
+                              <span>Кол-во{itemUnit ? ` (${itemUnit})` : ''}</span>
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                value={item.quantity}
+                                disabled={isReadOnly}
+                                onChange={(e) => updateItem(idx, 'quantity', normalizeQuantityInput(e.target.value))}
+                              />
+                              {showTransferRemain && (
+                                <TransferStockHint
+                                  value={pieceRemain}
+                                  unit={netVal > 0 ? 'шт' : (itemUnit || 'шт')}
+                                  over={overStock}
+                                />
+                              )}
+                            </label>
+                            {hasNetColumn(form.type) && (
+                              <label className="doc-items-phone-field">
+                                <span>Нетто</span>
+                                <input
+                                  type="text"
+                                  inputMode="decimal"
+                                  value={item.net_weight ?? ''}
+                                  disabled={isReadOnly}
+                                  placeholder="на 1 шт"
+                                  onChange={(e) => updateItem(idx, 'net_weight', normalizeQuantityInput(e.target.value))}
+                                />
+                                {showPrihodHint && (
+                                  <span className="doc-items-net-hint">
+                                    на склад: {stockTotal}{itemUnit ? ` ${itemUnit}` : ''}
+                                  </span>
+                                )}
+                                {showTransferRemain && (
+                                  <TransferStockHint
+                                    value={sourceStock}
+                                    unit={itemUnit || 'шт'}
+                                    over={overStock}
+                                  />
+                                )}
+                              </label>
+                            )}
+                            <label className="doc-items-phone-field">
+                              <span>Цена</span>
+                              {form.type === 'prihod' ? (
+                                <PriceWithTrend
+                                  trend={prihodLinePriceTrend(item, resolvedItem.product, resolvedItem.variant)}
+                                >
+                                  <input
+                                    type="text"
+                                    inputMode="decimal"
+                                    value={formatPriceInput(item.price)}
+                                    disabled={isReadOnly}
+                                    onChange={(e) => updateItem(idx, 'price', formatPriceInput(e.target.value))}
+                                  />
+                                </PriceWithTrend>
+                              ) : (
+                                <input
+                                  type="text"
+                                  inputMode="decimal"
+                                  value={formatPriceInput(item.price)}
+                                  disabled={isReadOnly}
+                                  onChange={(e) => updateItem(idx, 'price', formatPriceInput(e.target.value))}
+                                />
+                              )}
+                            </label>
+                            <label className="doc-items-phone-field">
+                              <span>Сумма</span>
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                value={item.amount_input ?? formatPriceInput(item.amount ?? lineAmount)}
+                                disabled={isReadOnly}
+                                onChange={(e) => updateItemAmount(idx, e.target.value)}
+                              />
+                              {form.type === 'prihod' && extraAllocations[idx] > 0 && (
+                                <span className="doc-items-net-hint">
+                                  с доставкой: {formatMoney(lineAmount + extraAllocations[idx])}
+                                </span>
+                              )}
+                            </label>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
                 <div className="table-wrap items-table doc-items-table doc-items-table-numbered doc-modal-items-scroll">
                 <table>
                   <thead>
@@ -2291,6 +2553,7 @@ export default function Documents({ defaultType }) {
                   </tbody>
                 </table>
                 </div>
+                )
               )}
 
               {form.type === 'prihod' && prihodBodyTab === 'extras' && (
@@ -2346,7 +2609,7 @@ export default function Documents({ defaultType }) {
 
             <div className="doc-modal-footer">
               <div className="doc-modal-footer-comment">
-                <label>Комментарий</label>
+                {!isPhone && <label>Комментарий</label>}
                 <textarea
                   rows={1}
                   value={form.comment}
@@ -2355,17 +2618,19 @@ export default function Documents({ defaultType }) {
                   placeholder="Примечание к документу..."
                 />
               </div>
-              <div className="doc-modal-totals">
-                {form.type === 'prihod' ? (
-                  <>
-                    <div>Товары: {formatMoney(total)}</div>
-                    <div>Доп. расходы: {formatMoney(extrasTotal)}</div>
-                    <div className="doc-modal-total">На склад: {formatMoney(total + extrasCapitalized)}</div>
-                  </>
-                ) : (
-                  <div className="doc-modal-total">Итого: {formatMoney(total)}</div>
-                )}
-              </div>
+              {!isPhone && (
+                <div className="doc-modal-totals">
+                  {form.type === 'prihod' ? (
+                    <>
+                      <div>Товары: {formatMoney(total)}</div>
+                      <div>Доп. расходы: {formatMoney(extrasTotal)}</div>
+                      <div className="doc-modal-total">На склад: {formatMoney(total + extrasCapitalized)}</div>
+                    </>
+                  ) : (
+                    <div className="doc-modal-total">Итого: {formatMoney(total)}</div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </Modal>

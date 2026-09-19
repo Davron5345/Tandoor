@@ -47,6 +47,8 @@ export default function Modal({
   className = '',
   dirty = false,
   closeOnBackdrop = false,
+  headerLeading = null,
+  headerTrailing = null,
 }) {
   const [closePrompt, setClosePrompt] = useState(false);
   const sizeClass = wide ? ' modal-wide' : '';
@@ -116,10 +118,16 @@ export default function Modal({
             </div>
           )}
           <div className="modal-header">
+            {headerLeading && (
+              <div className="modal-header-leading">{headerLeading}</div>
+            )}
             <h2>{title}</h2>
-            {footer && footerPlacement !== 'end' && (
+            {(headerTrailing || (footer && footerPlacement !== 'end')) && (
               <div className="modal-header-actions">
-                <div className="modal-footer-actions">{footer}</div>
+                {headerTrailing}
+                {footer && footerPlacement !== 'end' && (
+                  <div className="modal-footer-actions">{footer}</div>
+                )}
               </div>
             )}
           </div>
