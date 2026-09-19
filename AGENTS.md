@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-09-19 (мобильные документы + без сайдбара)
+**Последнее обновление документации:** 2026-09-19 (PWA без чёрного экрана)
 
 ---
 
@@ -232,7 +232,7 @@ Sidebar строится динамически по `hasPermission()`. В са�
 - Пароли: `crypto.scryptSync`
 - Production admin: принудительный `must_change_password`
 - **Личная ссылка с телефона:** у каждого сотрудника `users.login_token` (base64url, уникальный). URL `/e/:token` → `POST /api/auth/login-link` (публичный, rate-limit, **до** `authRequired`) ставит cookie `remember=true` (7 дней). Недействительный/отключённый → 401. Роль может быть любой (кассир, склад, кастомная). После входа `phoneHomePath`: кассир → `/cashier`; `shop_orders.view` → `/warehouse/orders`; `documents.prihod` → `/warehouse/prihod`; `documents.transfer` + отдел → `/warehouse/transfer`; иначе `/`. Отдел не обязателен (кассир часто без отдела). Смена ссылки: `POST /api/users/:id/login-link` (`users.edit`) — старый URL умирает, сессии не трогаем. API отдаёт `login_path` (`/e/{token}`), сам токен в JSON не светит.
-- **PWA на телефонных экранах:** компактный баннер `PhoneAppSetupBanner` (один шаг: сначала на домашний экран, потом Web Push) на `/cashier` (режим кассира), `/warehouse/orders`, `/warehouse/prihod`, `/warehouse/transfer`. Динамический манифест `GET /api/app/web-manifest?start=…` (и `/manifest.webmanifest`) задаёт `start_url` и имя под роль; SW `client/public/sw.js`. Подписка `POST /api/push/subscribe` доступна ролям с `shop_orders.view` / `cashier.view|edit` / `documents.prihod|transfer|view`. На iOS push только после установки на экран; «Не сейчас» скрывает на сессию. iOS: Share → «На экран Домой» (нет `beforeinstallprompt`).
+- **PWA на телефонных экранах:** компактный баннер `PhoneAppSetupBanner` (один шаг: сначала на домашний экран, потом Web Push) на `/cashier` (режим кассира), `/warehouse/orders`, `/warehouse/prihod`, `/warehouse/transfer`. Динамический манифест `GET /api/app/web-manifest?start=…` (и `/manifest.webmanifest`) задаёт `start_url` и имя под роль; **splash:** `background_color=#eceff1`, `theme_color=#f5c518`; `apple-mobile-web-app-status-bar-style=default`; на телефоне/standalone принудительно **light** (иначе чёрный экран из тёмного body). SW `client/public/sw.js`. Подписка `POST /api/push/subscribe` доступна ролям с `shop_orders.view` / `cashier.view|edit` / `documents.prihod|transfer|view`. На iOS push только после установки на экран; «Не сейчас» скрывает на сессию. iOS: Share → «На экран Домой» (нет `beforeinstallprompt`).
 
 ### 7.2 Роли (встроенные)
 
@@ -830,6 +830,8 @@ GET  /api/auth/roles
 | 2026-09-19 | Единый mobile admin: жёлтая шапка на всех экранах, заголовок страницы, нижний dock (Стол/Приход/Касса/Товары/Ещё), вкладки-чипы |
 | 2026-09-19 | Mobile audit: убран лишний padding под dock (ломал скролл), FAB «Новый» в инвентаризации снова на телефоне, скролл reset при навигации |
 | 2026-09-19 | Мобильный UI в стиле 1С: `--ones-*` палитра, светлый shell, dock скрыт на Главной, Telegram прижат вниз, сетка 2/3 кол., жёлтые primary |
+| 2026-09-19 | Mobile: убран сайдбар/☰; «Ещё» — нижний лист; документы — карточки без side-scroll; фильтры с явными рамками 1С |
+| 2026-09-19 | PWA/home screen: светлый splash (`#eceff1` / `#f5c518`), status-bar `default`, на телефоне принудительно light — убран чёрный экран |
 
 ---
 

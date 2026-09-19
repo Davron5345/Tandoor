@@ -153,4 +153,6 @@ test('web manifest returns role start_url', async () => {
   assert.equal(data.start_url, '/cashier');
   assert.match(data.short_name, /Касса|Mahalla/);
   assert.ok(Array.isArray(data.icons));
+  assert.equal(data.background_color, '#eceff1');
+  assert.equal(data.theme_color, '#f5c518');
 });

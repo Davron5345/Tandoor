@@ -16,7 +16,15 @@ export function applyTheme(theme) {
   root.style.colorScheme = safeTheme;
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) {
-    meta.setAttribute('content', safeTheme === 'dark' ? '#0f1419' : '#2563eb');
+    /* На телефоне/PWA — жёлтая 1С; desktop dark — тёмный chrome */
+    const phone = window.matchMedia('(max-width: 768px)').matches;
+    const standalone = window.matchMedia('(display-mode: standalone)').matches
+      || window.navigator.standalone === true;
+    if (phone || standalone || safeTheme === 'light') {
+      meta.setAttribute('content', '#f5c518');
+    } else {
+      meta.setAttribute('content', '#0f1419');
+    }
   }
   try {
     localStorage.setItem(STORAGE_KEY, safeTheme);

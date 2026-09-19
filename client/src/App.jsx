@@ -746,7 +746,11 @@ function AppContent() {
   }, [phoneViewportLock]);
 
   if (loading) {
-    return <div className="login-page"><div className="empty">Загрузка...</div></div>;
+    return (
+      <div className="login-page app-boot-screen">
+        <div className="empty">Загрузка...</div>
+      </div>
+    );
   }
 
   if (!user) {

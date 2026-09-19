@@ -7709,13 +7709,17 @@ html.app-phone-lock body {
   width: 100%;
   max-width: 100%;
   height: 100%;
-  min-height: 0;
+  min-height: 100%;
+  min-height: -webkit-fill-available;
   max-height: 100%;
   overflow: hidden;
   overflow-x: hidden;
   overscroll-behavior: none;
   touch-action: pan-y;
+  background: #eceff1 !important;
+  background-image: none !important;
   background-attachment: scroll;
+  color-scheme: light;
 }
 
 html.app-phone-lock #root,
@@ -7728,6 +7732,17 @@ html.app-phone-lock .app {
   overflow: hidden;
   overflow-x: hidden;
   touch-action: pan-y;
+  background: #eceff1;
+}
+
+/* PWA / установленное на домашний экран — всегда светлый фон (не чёрный splash) */
+@media (display-mode: standalone), (display-mode: fullscreen) {
+  html,
+  body,
+  #root {
+    background: #eceff1 !important;
+    background-image: none !important;
+  }
 }
 
 /* Inventory phone: one flex scroll lane, no absolute shell (avoids Safari clip/shift) */
@@ -7755,12 +7770,15 @@ html.inventory-phone-lock.inventory-modal-open .inventory-topbar-new {
     width: 100%;
     max-width: 100%;
     height: 100%;
-    min-height: 0;
+    min-height: 100%;
+    min-height: -webkit-fill-available;
     max-height: 100%;
     overflow: hidden;
     overflow-x: hidden;
     overscroll-behavior: none;
     touch-action: pan-y;
+    background: #eceff1 !important;
+    background-image: none !important;
     background-attachment: scroll;
   }
 
@@ -9273,12 +9291,22 @@ html.inventory-phone-lock.inventory-modal-open .inventory-topbar-new {
 
 .login-page {
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 24px;
   background: var(--bg);
   position: relative;
+}
+
+.app-boot-screen {
+  background: #eceff1 !important;
+  color: #1a1a1a;
+}
+
+.app-boot-screen .empty {
+  color: #6b7280;
 }
 
 .login-theme-toggle {

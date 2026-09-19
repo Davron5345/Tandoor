@@ -17,8 +17,8 @@ export function buildWebManifest({ startUrl = '/', name = 'Mahalla', shortName =
     scope: '/',
     display: 'standalone',
     orientation: 'portrait-primary',
-    background_color: '#0f172a',
-    theme_color: '#2563eb',
+    background_color: '#eceff1',
+    theme_color: '#f5c518',
     lang: 'ru',
     icons: [
       {

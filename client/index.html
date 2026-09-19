@@ -3,22 +3,45 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#2563eb" />
+    <meta name="theme-color" content="#f5c518" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <!-- default = светлая полоса статуса; black-translucent давал чёрный экран при старте PWA -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Mahalla" />
     <link rel="manifest" href="/api/app/web-manifest" />
     <link rel="apple-touch-icon" href="/icons/icon-192.png" />
     <title>Учёт прихода и расхода</title>
+    <style>
+      /* Ранний светлый фон до CSS — иначе PWA/standalone мигает чёрным */
+      html, body {
+        margin: 0;
+        background: #eceff1;
+        color: #1a1a1a;
+      }
+      #root {
+        min-height: 100vh;
+        min-height: 100dvh;
+        background: #eceff1;
+      }
+    </style>
     <script>
       try {
-        var t = localStorage.getItem('warehouse-theme') || 'dark';
-        if (t !== 'light' && t !== 'dark') t = 'dark';
+        var standalone = window.matchMedia('(display-mode: standalone)').matches
+          || window.navigator.standalone === true;
+        var phone = window.matchMedia('(max-width: 768px)').matches;
+        var t = localStorage.getItem('warehouse-theme');
+        if (t !== 'light' && t !== 'dark') t = null;
+        /* Установленное приложение и телефон — всегда светлая тема 1С */
+        if (standalone || phone) t = 'light';
+        if (!t) t = 'dark';
         document.documentElement.setAttribute('data-theme', t);
         document.documentElement.style.colorScheme = t;
+        if (standalone || phone) {
+          document.documentElement.style.background = '#eceff1';
+        }
       } catch (e) {
-        document.documentElement.setAttribute('data-theme', 'dark');
+        document.documentElement.setAttribute('data-theme', 'light');
       }
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
