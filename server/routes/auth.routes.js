@@ -119,6 +119,7 @@ export function registerAuthRoutes(app, { authRequired }) {
   app.use('/api', (req, res, next) => {
     if (
       req.path.startsWith('/public/')
+      || req.path.startsWith('/integrations/')
       || req.path === '/app/snab-update'
       || req.path === '/app/web-manifest'
     ) {

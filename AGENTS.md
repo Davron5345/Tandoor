@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-09-19 (товары отдела в перемещении)
+**Последнее обновление документации:** 2026-09-20 (интеграция Face ID + зарплата на кассе)
 
 ---
 
@@ -173,6 +173,7 @@ npm run db:reset-operations    # Сброс операционных данны�
 | Калькуляции | `calculations`, `calculation_items`, `calculation_sources` |
 | Auth/Admin | `users` (+ `department_id` → отдел филиала, `login_token` — уникальная ссылка входа с телефона `/e/{token}`), `sessions`, `roles`, `role_permissions`, `audit_log`, `visit_log`, `blocked_devices` |
 | MyShop/Mobile | `shop_orders`, `shop_order_items`, `push_subscriptions`, `staff_locations`, `staff_location_history` |
+| Зарплата / Face ID | `payroll_employees` (синк из Face ID, `balance` = долг к выплате), `payroll_attendance` (приход/уход), `payroll_ledger` (начисление/выплата); настройки в `settings` ключ `faceid_config_{branchId}` |
 | Прочее | `telegram_messages`, `settings`, `branches` |
 
 ---
@@ -406,6 +407,16 @@ Frontend зеркало: `client/src/permissions.js`.
 - При **проведении прихода**: автосоздание/обновление прайса на ту же дату+поставщика (цены из строк прихода мержатся в документ)
 - История цен = сами прайс-документы + строки приходов; отдельной history-таблицы цен нет
 
+### 9.12 Face ID и зарплата на кассе
+
+- Внешний сервис: `https://faceid.up.railway.app` (Swagger `/docs`). Авторизация к Face ID: заголовок `X-Device-Key`.
+- Настройки филиала в `settings.faceid_config_{branchId}`: `enabled`, `base_url`, `device_key`, `webhook_secret`. UI: Касса → Зарплата → «Face ID» (admin).
+- Синхронизация: `POST /api/faceid/sync/employees` → `GET /api/integration/employees`; `POST /api/faceid/sync/attendance` → `GET /api/integration/attendance`.
+- Входящие отметки (push): публичный `POST /api/integrations/faceid/events?branch_id=` с `X-Device-Key` или `X-Webhook-Secret`; тело — одно событие или `{ events: [...] }` (`type` in/out/auto, `employeeId`/`tabNo`/`fullName`, `timestamp`). CSRF для `/api/integrations/*` отключён.
+- Сотрудники зарплаты: `payroll_employees` (по отделам Face ID), баланс `balance` = сколько ещё должны выплатить.
+- Выплата на кассе: кнопка **Зарплата** → список по отделам → «Выплатить»: поля **Начислить** + **Выплатить**; остаток (`balance + accrue − pay`) копится как долг. Создаётся кассовый `other_expense` со статьёй `exp_salary`.
+- API: `GET /api/payroll/employees`, `POST .../accrue`, `POST .../pay`, `GET .../ledger`, `GET /api/payroll/attendance/recent`.
+
 ---
 
 ## 10. API (сводка)
@@ -456,6 +467,7 @@ GET  /api/auth/roles
 | `/api/supplier-prices` | supplierPrices.routes.js | Прайс-документы поставщика (CRUD + confirm/cancel); `products.view`/`products.edit` |
 | `/api/counterparties` | counterparties.routes.js | Контрагенты, договоры (`/:id/contracts` CRUD), `/:id/firms` — юрлица поставщика (CRUD) |
 | `/api/payments` | finance.routes.js | Оплаты; `GET/POST/PUT/DELETE /api/bank-accounts`; `GET /bank-opening?bank_account_id=`; `DELETE /by-date/:date?bank_account_id=`; import parse/confirm |
+| `/api/payroll`, `/api/faceid` | faceid.routes.js | Зарплата + Face ID: settings (admin), sync employees/attendance, список сотрудников по отделам, accrue/pay, recent attendance |
 | `/api/cash-articles` | finance.routes.js | Статьи кассы |
 | `/api/stats`, `/api/reports/*` | org.routes.js | Отчёты, дашборд; `/api/reports/supplier-debts` (`supplier_ids` через запятую или `supplier_id`); `/api/reports/cash-articles?date_from&date_to` — обороты по статьям **только** `req.branchId` (платежи + JOIN статей по `ca.branch_id`) |
 | `/api/branches`, `/api/departments`, `/api/users` | org.routes.js | Оргструктура; `POST /api/users/:id/login-link` — новая ссылка входа (`users.edit`); в списке сотрудников `login_path` |
@@ -488,7 +500,7 @@ GET  /api/auth/roles
 | `/inventory` | Inventory.jsx | documents.inventory; на вкладке Документ сверху **Покрытие** радиокнопками (○ Частичная / ○ Полная), затем отдел квадратными кубиками с **галочкой** у выбранного; полная — статья списания + «В расход» / сотрудник / отдел кубиками; remainder связан с родителем; добавление строки берёт живой `book_qty`/`avg` отдела; колонки **Ед.** и **Нетто** как в приходе (факт — шт, на склад `net × qty` если нетто > 0); при «Сумма» — колонки **Себест.** (бирюза) и **Сумма** (синий); излишек без avg — поле ввода себестоимости; **«+»** у выбора товара — `ProductCreateModal` как в приходе (`products.edit`); без вариантов сразу в документ, несколько вариантов — выбрать в списке; в строках **№** и **товар — вариант**; «Новый» / выбор отдела открывает существующий черновик; повторный create пишет в него и **не затирает** уже посчитанные строки; **Заполнить по учёту** не чистит введённый факт/нетто и ручные позиции; черновик **Сохранить** пишет факт/нетто/учёт/вариант как введены и сразу подтягивает сохранённые строки с сервера (окно не закрывается); черновик в `sessionStorage` — после обновления страницы окно восстанавливается; **Сохранить и провести**; проведение переснимает учёт; **карандаш** в списке (как НС): черновик открыть, проведённый — снять проведение → снова черновик; глаз — просмотр; список — **сумма остатков** (складской факт × складская средняя + списание непересчитанного у полной) и **Итого** под таблицей; в карточке полной — список **непересчитанных** позиций (клик по «Списание»); **телефон:** ☰ + заголовок + филиал + «Новый» в topbar; список карточек (№/статус/дата·отдел/сумма); **2 вкладки** документа; desktop — **на весь экран**, кнопки Сохранить/Провести в шапке (телефон — снизу); portal Modal |
 | `/calculations` | Calculations.jsx | calculations.view |
 | `/dish-sales` | DishSales.jsx | documents.dish_sale |
-| `/cashier` | Cashier.jsx | cashier.*; рабочий стол: слева ввод (переключатель Приход/Расход, крупная сумма, чипы статей, недавние контрагенты), справа журнал смены всегда на экране; поиск и фильтр Все/Приход/Расход; «Повторить последнюю»; KPI «В кассе»; журнал без банковских операций (`bank_account_id`); **телефон:** чипы статей (не select), карточки операций; в режиме кассира — баннер PWA/push (`PhoneAppSetupBanner`) |
+| `/cashier` | Cashier.jsx | cashier.*; рабочий стол: слева ввод (переключатель Приход/Расход, крупная сумма, чипы статей, недавние контрагенты), справа журнал смены всегда на экране; поиск и фильтр Все/Приход/Расход; «Повторить последнюю»; KPI «В кассе»; кнопка **Зарплата** (`CashierSalaryModal`) — сотрудники Face ID по отделам, начисление/выплата, долг копится; журнал без банковских операций (`bank_account_id`); **телефон:** чипы статей (не select), карточки операций; в режиме кассира — баннер PWA/push (`PhoneAppSetupBanner`) |
 | `/payments` | Payments.jsx | payments.view; справочник счетов («Основной»); список по датам (шапка колонок fixed pin при скролле); под поставщиком — фирма, под клиентом — канал (Payme/Click/Терминал/Инкассо); выбор столбцов; импорт AccReferenceReport |
 | `/cash-articles` | CashArticles.jsx | cash_articles.view |
 | `/reports/*` | Reports.jsx | reports.view; `/reports/supplier-debts` — долги поставщикам (мультивыбор + **шаблоны** набора в `localStorage` `supplier_debt_templates_v1` по филиалу); `/reports/cash-articles` — по статьям (изоляция филиала); акт сверки — фильтр «Фирма» |
@@ -846,6 +858,7 @@ GET  /api/auth/roles
 | 2026-09-19 | Fix пустого «Куда»: не дублировать `branch_id` в API (qs→массив); `attachBranch` нормализует массив; склады без фильтра active |
 | 2026-09-19 | Перемещение «Куда»: выпадающий список вместо кубиков (`Documents.jsx`, `TransferMobile.jsx`) |
 | 2026-09-19 | Перемещение: товары отдела с остатком (`in_stock`, без MyShop visible; inventory/stock для transfer; fallback снимок остатков) |
+| 2026-09-20 | Face ID + зарплата: webhook/sync отметок, payroll_employees/ledger, кнопка «Зарплата» на кассе (начисление/частичная выплата, долг) |
 
 ---
 

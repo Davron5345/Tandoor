@@ -390,6 +390,35 @@ export const api = {
   updateBankAccount: (id, data) => request(`/bank-accounts/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteBankAccount: (id) => request(`/bank-accounts/${id}`, { method: 'DELETE' }),
   getCashShiftSummary: (date) => request(`/payments/shift-summary?date=${encodeURIComponent(date)}`),
+  getPayrollEmployees: (params = {}) => {
+    const q = new URLSearchParams(
+      Object.fromEntries(Object.entries(params).filter(([, v]) => v != null && v !== '')),
+    ).toString();
+    return request(`/payroll/employees${q ? `?${q}` : ''}`);
+  },
+  getPayrollRecentAttendance: (params = {}) => {
+    const q = new URLSearchParams(params).toString();
+    return request(`/payroll/attendance/recent${q ? `?${q}` : ''}`);
+  },
+  getPayrollLedger: (id, params = {}) => {
+    const q = new URLSearchParams(params).toString();
+    return request(`/payroll/employees/${encodeURIComponent(id)}/ledger${q ? `?${q}` : ''}`);
+  },
+  accruePayrollEmployee: (id, data) => request(`/payroll/employees/${encodeURIComponent(id)}/accrue`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
+  payPayrollEmployee: (id, data) => request(`/payroll/employees/${encodeURIComponent(id)}/pay`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
+  getFaceIdSettings: () => request('/faceid/settings'),
+  saveFaceIdSettings: (data) => request('/faceid/settings', { method: 'PUT', body: JSON.stringify(data) }),
+  syncFaceIdEmployees: () => request('/faceid/sync/employees', { method: 'POST', body: '{}' }),
+  syncFaceIdAttendance: (data = {}) => request('/faceid/sync/attendance', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
   getCashArticles: (params = {}) => {
     const q = new URLSearchParams(params).toString();
     return request(`/cash-articles${q ? `?${q}` : ''}`);

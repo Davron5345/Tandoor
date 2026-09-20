@@ -43,6 +43,8 @@ const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 function csrfOriginCheck(req, res, next) {
   if (!MUTATING_METHODS.has(req.method)) return next();
+  // Внешние интеграции (Face ID webhook) без браузерного Origin
+  if (req.path.startsWith('/api/integrations/')) return next();
   const publicUrl = process.env.APP_PUBLIC_URL || process.env.RAILWAY_PUBLIC_DOMAIN;
   if (!publicUrl) return next(); // dev / no config — skip
   const origin = req.headers.origin || req.headers.referer || '';

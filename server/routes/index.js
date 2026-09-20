@@ -13,10 +13,12 @@ import { registerSupplierPriceRoutes } from './supplierPrices.routes.js';
 import { registerPublicPushRoutes, registerPushRoutes } from './push.routes.js';
 import { registerStaffRoutes } from './staff.routes.js';
 import { registerAppRoutes } from './app.routes.js';
+import { registerPublicFaceIdRoutes, registerFaceIdPayrollRoutes } from './faceid.routes.js';
 
 export function registerApiRoutes(app, deps = {}) {
   registerPublicShopRoutes(app);
   registerPublicPushRoutes(app);
+  registerPublicFaceIdRoutes(app);
   registerAuthRoutes(app, deps);
   registerAdminRoutes(app);
   registerOrgRoutes(app);
@@ -31,6 +33,7 @@ export function registerApiRoutes(app, deps = {}) {
   registerOpeningBalanceRoutes(app);
   registerSupplierPriceRoutes(app);
   registerTelegramRoutes(app);
+  registerFaceIdPayrollRoutes(app);
 }
 
 export {

@@ -189,6 +189,7 @@ export async function initDb() {
     pgInit(process.env.DATABASE_URL, dataDir);
     bootstrapPostgresSeeds();
     migrateCashArticlesBankService();
+    migratePayrollFaceId();
     try {
       const { ensureRetailClientSetup } = await import('./services/retailAcquiring.js');
       const branches = queryAll('SELECT id FROM branches');
@@ -548,7 +549,67 @@ function migrateSchema() {
   migrateUsersDepartment();
   migrateUserLoginTokens();
   migrateInventoryCoverage();
+  migratePayrollFaceId();
   addPerformanceIndexes();
+}
+
+function migratePayrollFaceId() {
+  run(`
+    CREATE TABLE IF NOT EXISTS payroll_employees (
+      id TEXT PRIMARY KEY,
+      branch_id TEXT NOT NULL,
+      faceid_id TEXT,
+      tab_no TEXT,
+      full_name TEXT NOT NULL,
+      department TEXT,
+      position TEXT,
+      active INTEGER DEFAULT 1,
+      balance REAL DEFAULT 0,
+      base_salary REAL DEFAULT 0,
+      last_event_type TEXT,
+      last_event_at TEXT,
+      synced_at TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+  run(`
+    CREATE TABLE IF NOT EXISTS payroll_attendance (
+      id TEXT PRIMARY KEY,
+      branch_id TEXT NOT NULL,
+      employee_id TEXT NOT NULL,
+      event_type TEXT NOT NULL,
+      event_at TEXT NOT NULL,
+      external_id TEXT,
+      source TEXT,
+      raw_json TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+  run(`
+    CREATE TABLE IF NOT EXISTS payroll_ledger (
+      id TEXT PRIMARY KEY,
+      branch_id TEXT NOT NULL,
+      employee_id TEXT NOT NULL,
+      entry_type TEXT NOT NULL,
+      amount REAL NOT NULL,
+      balance_after REAL NOT NULL,
+      date TEXT NOT NULL,
+      comment TEXT,
+      created_by TEXT,
+      payment_id TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+  try { run('CREATE INDEX IF NOT EXISTS idx_payroll_emp_branch ON payroll_employees(branch_id, department)'); } catch { /* */ }
+  try { run('CREATE INDEX IF NOT EXISTS idx_payroll_emp_faceid ON payroll_employees(branch_id, faceid_id)'); } catch { /* */ }
+  try { run('CREATE INDEX IF NOT EXISTS idx_payroll_att_branch ON payroll_attendance(branch_id, event_at)'); } catch { /* */ }
+  try { run('CREATE UNIQUE INDEX IF NOT EXISTS idx_payroll_att_ext ON payroll_attendance(branch_id, external_id)'); } catch { /* */ }
+  try { run('CREATE INDEX IF NOT EXISTS idx_payroll_ledger_emp ON payroll_ledger(employee_id, date)'); } catch { /* */ }
+  const done = queryOne("SELECT value FROM settings WHERE key = 'payroll_faceid_v1'");
+  if (!done) {
+    run("INSERT OR REPLACE INTO settings (key, value) VALUES ('payroll_faceid_v1', '1')");
+    saveDb();
+  }
 }
 
 function migrateUsersDepartment() {

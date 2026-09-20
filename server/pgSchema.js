@@ -453,6 +453,56 @@ CREATE TABLE IF NOT EXISTS payments (
   liable_department_id TEXT
 );
 
+CREATE TABLE IF NOT EXISTS payroll_employees (
+  id TEXT PRIMARY KEY,
+  branch_id TEXT NOT NULL REFERENCES branches(id),
+  faceid_id TEXT,
+  tab_no TEXT,
+  full_name TEXT NOT NULL,
+  department TEXT,
+  position TEXT,
+  active INTEGER DEFAULT 1,
+  balance DOUBLE PRECISION DEFAULT 0,
+  base_salary DOUBLE PRECISION DEFAULT 0,
+  last_event_type TEXT,
+  last_event_at TEXT,
+  synced_at TEXT,
+  created_at TEXT DEFAULT (${NOW})
+);
+
+CREATE TABLE IF NOT EXISTS payroll_attendance (
+  id TEXT PRIMARY KEY,
+  branch_id TEXT NOT NULL REFERENCES branches(id),
+  employee_id TEXT NOT NULL REFERENCES payroll_employees(id),
+  event_type TEXT NOT NULL,
+  event_at TEXT NOT NULL,
+  external_id TEXT,
+  source TEXT,
+  raw_json TEXT,
+  created_at TEXT DEFAULT (${NOW})
+);
+
+CREATE TABLE IF NOT EXISTS payroll_ledger (
+  id TEXT PRIMARY KEY,
+  branch_id TEXT NOT NULL REFERENCES branches(id),
+  employee_id TEXT NOT NULL REFERENCES payroll_employees(id),
+  entry_type TEXT NOT NULL,
+  amount DOUBLE PRECISION NOT NULL,
+  balance_after DOUBLE PRECISION NOT NULL,
+  date TEXT NOT NULL,
+  comment TEXT,
+  created_by TEXT,
+  payment_id TEXT,
+  created_at TEXT DEFAULT (${NOW})
+);
+
+CREATE INDEX IF NOT EXISTS idx_payroll_emp_branch ON payroll_employees (branch_id, department);
+CREATE INDEX IF NOT EXISTS idx_payroll_emp_faceid ON payroll_employees (branch_id, faceid_id);
+CREATE INDEX IF NOT EXISTS idx_payroll_att_branch ON payroll_attendance (branch_id, event_at);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_payroll_att_ext ON payroll_attendance (branch_id, COALESCE(external_id, id));
+CREATE INDEX IF NOT EXISTS idx_payroll_ledger_emp ON payroll_ledger (employee_id, date);
+
+
 CREATE TABLE IF NOT EXISTS shop_orders (
   id TEXT PRIMARY KEY,
   branch_id TEXT NOT NULL REFERENCES branches(id),
@@ -636,6 +686,9 @@ export const PG_TABLE_IMPORT_ORDER = [
   'opening_balance_lines',
   'branch_opening_balances',
   'payments',
+  'payroll_employees',
+  'payroll_attendance',
+  'payroll_ledger',
   'shop_orders',
   'shop_order_items',
   'telegram_messages',

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, formatDate, formatMoney, formatPriceInput, parsePriceInput } from '../api';
 import Modal, { useToast } from '../components/Modal';
 import { IconButton, IconEdit, IconTrash } from '../components/ActionIcons';
-import { canModifyPaymentDate, canWriteCashierShift, getCashierViewMinDate, hasAnyPermission, isCashierOnlyLayout } from '../permissions';
+import { canModifyPaymentDate, canWriteCashierShift, getCashierViewMinDate, hasAnyPermission, hasPermission, isCashierOnlyLayout } from '../permissions';
 import { useAuth } from '../AuthContext';
 import { useTheme } from '../ThemeContext';
 import { useBranch } from '../BranchContext';
@@ -13,6 +13,7 @@ import { todayLocalIso } from '../utils/date';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import { textMatchesSearch } from '../utils/searchNormalize';
 import CounterpartySearchSelect from '../components/CounterpartySearchSelect';
+import CashierSalaryModal from '../components/CashierSalaryModal';
 
 const emptySideForm = {
   amountInput: '',
@@ -631,6 +632,7 @@ export default function Cashier() {
   const [paymentsLoadError, setPaymentsLoadError] = useState('');
   const [paymentsLoaded, setPaymentsLoaded] = useState(false);
   const [reconcileOpen, setReconcileOpen] = useState(false);
+  const [salaryOpen, setSalaryOpen] = useState(false);
   const [shiftSummary, setShiftSummary] = useState({
     opening_balance: 0,
     income: 0,
@@ -664,6 +666,7 @@ export default function Cashier() {
   const canDelete = hasAnyPermission(user, ['cashier.delete', 'payments.delete']);
   const canEditPast = hasAnyPermission(user, ['cashier.edit_past', 'payments.edit_past']);
   const canWriteShift = canWriteCashierShift(user, shiftDate);
+  const isAdmin = user?.role === 'admin' || hasPermission(user, 'users.edit');
   const minShiftDate = canEditPast ? undefined : getCashierViewMinDate();
   const maxShiftDate = todayIso();
   const activeForm = activeSide === 'income' ? incomeForm : expenseForm;
@@ -1084,6 +1087,15 @@ export default function Cashier() {
             Сверка
           </button>
         )}
+        {canEdit && (
+          <button
+            type="button"
+            className="btn btn-primary btn-sm cashier-salary-btn"
+            onClick={() => setSalaryOpen(true)}
+          >
+            Зарплата
+          </button>
+        )}
       </div>
     </>
   );
@@ -1432,6 +1444,17 @@ export default function Cashier() {
           onClose={() => setReconcileOpen(false)}
           onPosted={() => load({ silent: true })}
           showToast={show}
+        />
+      )}
+
+      {salaryOpen && (
+        <CashierSalaryModal
+          open={salaryOpen}
+          onClose={() => setSalaryOpen(false)}
+          shiftDate={shiftDate}
+          canPay={canWriteShift}
+          isAdmin={isAdmin}
+          onPaid={() => load({ silent: true })}
         />
       )}
 
