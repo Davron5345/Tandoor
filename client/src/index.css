@@ -11517,6 +11517,36 @@ tr.product-row-highlight td:first-child {
   background: var(--surface, #fff);
 }
 
+.payroll-emp-num {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: var(--surface2, #f0f2f5);
+  border: 1px solid var(--border);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-muted, #607d8b);
+}
+
+.payroll-branch-chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #e3f2fd;
+  color: #1565c0;
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .payroll-emp-main {
   flex: 1;
   min-width: 140px;

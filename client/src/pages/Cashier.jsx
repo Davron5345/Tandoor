@@ -1454,6 +1454,7 @@ export default function Cashier() {
           shiftDate={shiftDate}
           canPay={canWriteShift}
           isAdmin={isAdmin}
+          branchName={branchName || ''}
           onPaid={() => load({ silent: true })}
         />
       )}

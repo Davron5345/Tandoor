@@ -9,6 +9,7 @@ export default function CashierSalaryModal({
   shiftDate,
   canPay = false,
   isAdmin = false,
+  branchName = '',
   onPaid,
 }) {
   const { show, Toast } = useToast();
@@ -64,10 +65,22 @@ export default function CashierSalaryModal({
           (e.full_name || '').toLowerCase().includes(q)
           || (e.position || '').toLowerCase().includes(q)
           || (e.tab_no || '').toLowerCase().includes(q)
+          || (e.department || '').toLowerCase().includes(q)
         )),
       }))
       .filter((d) => d.employees.length > 0);
   }, [data.departments, query]);
+
+  const numberedRows = useMemo(() => {
+    let n = 0;
+    return filteredDepartments.map((dep) => ({
+      ...dep,
+      employees: (dep.employees || []).map((emp) => {
+        n += 1;
+        return { ...emp, _num: n };
+      }),
+    }));
+  }, [filteredDepartments]);
 
   const openPay = (emp) => {
     setPayEmp(emp);
@@ -175,7 +188,7 @@ export default function CashierSalaryModal({
     <>
       {Toast}
       <Modal
-        title="Зарплата"
+        title={branchName ? `Зарплата · ${branchName}` : 'Зарплата'}
         onClose={onClose}
         wide
         className="modal-payroll"
@@ -214,6 +227,9 @@ export default function CashierSalaryModal({
             />
             Только на смене
           </label>
+          {branchName && (
+            <span className="payroll-branch-chip" title="Филиал">{branchName}</span>
+          )}
           <span className="payroll-debt-total">
             Долг всего: <strong>{formatMoney(data.total_debt || 0)}</strong>
           </span>
@@ -238,13 +254,13 @@ export default function CashierSalaryModal({
 
         {loading ? (
           <p className="payroll-empty">Загрузка…</p>
-        ) : filteredDepartments.length === 0 ? (
+        ) : numberedRows.length === 0 ? (
           <p className="payroll-empty">
             Нет сотрудников. Нажмите «Синхр. сотрудников» после настройки Face ID.
           </p>
         ) : (
           <div className="payroll-departments">
-            {filteredDepartments.map((dep) => (
+            {numberedRows.map((dep) => (
               <section key={dep.name} className="payroll-dept">
                 <header className="payroll-dept-head">
                   <h3>{dep.name}</h3>
@@ -253,10 +269,15 @@ export default function CashierSalaryModal({
                 <ul className="payroll-emp-list">
                   {dep.employees.map((emp) => (
                     <li key={emp.id} className="payroll-emp-row">
+                      <span className="payroll-emp-num" aria-hidden>{emp._num}</span>
                       <div className="payroll-emp-main">
                         <strong>{emp.full_name}</strong>
                         <span className="payroll-muted">
-                          {[emp.position, emp.tab_no ? `№${emp.tab_no}` : ''].filter(Boolean).join(' · ')}
+                          {[
+                            branchName,
+                            emp.position,
+                            emp.tab_no ? `№${emp.tab_no}` : '',
+                          ].filter(Boolean).join(' · ')}
                         </span>
                         <span className={`payroll-badge ${emp.present ? 'is-in' : 'is-out'}`}>
                           {emp.present ? 'На смене' : (emp.last_event_type === 'out' ? 'Ушёл' : '—')}
