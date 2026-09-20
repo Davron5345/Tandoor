@@ -414,7 +414,7 @@ Frontend зеркало: `client/src/permissions.js`.
 - Синхронизация: `POST /api/faceid/sync/employees` → `GET /api/integration/employees`; `POST /api/faceid/sync/attendance` → `GET /api/integration/attendance`.
 - Входящие отметки (push): публичный `POST /api/integrations/faceid/events?branch_id=` с `X-Device-Key` или `X-Webhook-Secret`; тело — одно событие или `{ events: [...] }` (`type` in/out/auto, `employeeId`/`tabNo`/`fullName`, `timestamp`). CSRF для `/api/integrations/*` отключён.
 - Сотрудники зарплаты: `payroll_employees` (по отделам Face ID), баланс `balance` = сколько ещё должны выплатить.
-- Выплата на кассе: кнопка **Зарплата** → ведомость в стиле печатного листа (2 колонки таблиц по отделам: № / отдел / OYLIK / KIRISH—CHIQISH / IMZO; SANA + название филиала; нумерация с 1 в каждом отделе) → клик по строке → **Начислить** + **Выплатить**; остаток (`balance + accrue − pay`) копится как долг. Создаётся кассовый `other_expense` со статьёй `exp_salary`.
+- Выплата на кассе: кнопка **Зарплата** → ведомость в стиле печатного листа (2 колонки таблиц по отделам: № / отдел / OYLIK / KIRISH—CHIQISH / IMZO; SANA + название филиала; нумерация с 1 в каждом отделе; модалка шире ~1320px, ячейки с отступами) → клик по строке → **Начислить** + **Выплатить**; остаток (`balance + accrue − pay`) копится как долг. Создаётся кассовый `other_expense` со статьёй `exp_salary`.
 - KIRISH/CHIQISH: первая «вход» и последняя «выход» за дату смены (`GET /api/payroll/employees?date=YYYY-MM-DD`); IMZO — два квадрата (вход/выход).
 - По умолчанию ведомость с галочкой **«Только с отметкой»** (`present=1`) — только сотрудники с Face ID-отметкой за дату смены; снять галочку — весь список филиала.
 - API: `GET /api/payroll/employees?date=&present=`, `POST .../accrue`, `POST .../pay`, `GET .../ledger`, `GET /api/payroll/attendance/recent`.
@@ -865,6 +865,7 @@ GET  /api/auth/roles
 | 2026-09-20 | Зарплата: нумерация строк и название филиала в списке сотрудников |
 | 2026-09-20 | Зарплата: ведомость в стиле печатного листа (таблицы по отделам, OYLIK / KIRISH—CHIQISH / IMZO, SANA + филиал) |
 | 2026-09-20 | Зарплата: по умолчанию только сотрудники с отметкой Face ID за дату (`present=1`) |
+| 2026-09-20 | Зарплата: модалка шире (~1320px), увеличены отступы и ширины колонок ведомости |
 
 ---
 
