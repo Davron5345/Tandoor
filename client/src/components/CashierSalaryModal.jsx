@@ -33,7 +33,7 @@ export default function CashierSalaryModal({
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState({ departments: [], total_debt: 0, items: [] });
   const [query, setQuery] = useState('');
-  const [presentOnly, setPresentOnly] = useState(false);
+  const [presentOnly, setPresentOnly] = useState(true);
   const [payEmp, setPayEmp] = useState(null);
   const [accrue, setAccrue] = useState('');
   const [payAmount, setPayAmount] = useState('');
@@ -245,7 +245,7 @@ export default function CashierSalaryModal({
               checked={presentOnly}
               onChange={(e) => setPresentOnly(e.target.checked)}
             />
-            Только на смене
+            Только с отметкой
           </label>
           <span className="payroll-debt-total">
             Долг всего: <strong>{formatMoney(data.total_debt || 0)}</strong>
@@ -256,7 +256,9 @@ export default function CashierSalaryModal({
           <p className="payroll-empty">Загрузка…</p>
         ) : sheetDepartments.length === 0 ? (
           <p className="payroll-empty">
-            Нет сотрудников этого филиала. Нажмите «Синхр. сотрудников» после настройки Face ID.
+            {presentOnly
+              ? 'За эту дату ещё нет отметок Face ID. Снимите «Только с отметкой», чтобы видеть весь список, или синхронизируйте отметки.'
+              : 'Нет сотрудников этого филиала. Нажмите «Синхр. сотрудников» после настройки Face ID.'}
           </p>
         ) : (
           <div className="payroll-sheet-grid">

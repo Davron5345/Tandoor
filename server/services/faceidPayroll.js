@@ -139,8 +139,10 @@ export function listPayrollEmployees(branchId = DEFAULT_BRANCH_ID, { presentOnly
   if (presentOnly) {
     rows = rows.filter((r) => {
       const t = dayMap.get(r.id);
-      if (t?.in_at && !t?.out_at) return true;
-      return r.last_event_type === 'in';
+      if (t?.in_at || t?.out_at) return true;
+      // fallback: последнее событие в этот же день
+      const at = String(r.last_event_at || '').slice(0, 10);
+      return at === day && (r.last_event_type === 'in' || r.last_event_type === 'out');
     });
   }
   const items = rows.map((r) => mapEmployeeRow(r, dayMap.get(r.id)));
