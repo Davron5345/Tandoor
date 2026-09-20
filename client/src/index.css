@@ -11420,8 +11420,9 @@ tr.product-row-highlight td:first-child {
 
 .modal-payroll-sheet.modal-wide,
 .modal-payroll-sheet {
-  width: min(1100px, 96vw);
-  max-width: 96vw;
+  width: min(1320px, 98vw);
+  max-width: 98vw;
+  max-height: min(94vh, 94dvh);
 }
 
 .modal-payroll-sheet .modal-body {
@@ -11479,8 +11480,8 @@ tr.product-row-highlight td:first-child {
 .payroll-sheet-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px 16px;
-  max-height: min(68vh, 720px);
+  gap: 16px 20px;
+  max-height: min(78vh, 860px);
   overflow: auto;
   padding-bottom: 8px;
 }
@@ -11492,6 +11493,7 @@ tr.product-row-highlight td:first-child {
 .payroll-sheet-table {
   width: 100%;
   border-collapse: collapse;
+  border-spacing: 0;
   table-layout: fixed;
   font-size: 12px;
   background: #fff;
@@ -11501,7 +11503,7 @@ tr.product-row-highlight td:first-child {
 .payroll-sheet-table th,
 .payroll-sheet-table td {
   border: 1px solid #333;
-  padding: 3px 5px;
+  padding: 6px 8px;
   vertical-align: middle;
 }
 
@@ -11509,13 +11511,16 @@ tr.product-row-highlight td:first-child {
   background: #f3f3f3;
   font-weight: 700;
   text-align: center;
-  font-size: 11px;
-  letter-spacing: 0.02em;
+  font-size: 10.5px;
+  letter-spacing: 0.01em;
+  line-height: 1.2;
   text-transform: uppercase;
+  white-space: nowrap;
+  padding: 7px 8px;
 }
 
 .payroll-sheet-table .col-num {
-  width: 28px;
+  width: 32px;
   text-align: center;
   font-weight: 600;
 }
@@ -11523,28 +11528,31 @@ tr.product-row-highlight td:first-child {
 .payroll-sheet-table .col-name {
   text-align: left;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  line-height: 1.25;
+  word-break: break-word;
 }
 
 .payroll-sheet-table thead .col-name {
   text-align: center;
+  white-space: nowrap;
 }
 
 .payroll-sheet-table .col-oylik {
-  width: 72px;
+  width: 88px;
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
 .payroll-sheet-table .col-time {
-  width: 96px;
+  width: 118px;
   text-align: center;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .payroll-sheet-table .col-imzo {
-  width: 44px;
+  width: 52px;
   text-align: center;
 }
 
@@ -11560,6 +11568,7 @@ tr.product-row-highlight td:first-child {
   font-weight: 600;
   text-transform: uppercase;
   font-size: 11px;
+  line-height: 1.25;
 }
 
 .payroll-sheet-pos {
@@ -11568,11 +11577,12 @@ tr.product-row-highlight td:first-child {
   opacity: 0.65;
   text-transform: none;
   font-weight: 400;
+  margin-top: 1px;
 }
 
 .payroll-sheet-times {
   display: inline-flex;
-  gap: 2px;
+  gap: 4px;
   align-items: center;
   justify-content: center;
 }
@@ -11646,12 +11656,21 @@ tr.product-row-highlight td:first-child {
     font-size: 11px;
   }
 
+  .payroll-sheet-table th,
+  .payroll-sheet-table td {
+    padding: 5px 6px;
+  }
+
   .payroll-sheet-table .col-oylik {
-    width: 64px;
+    width: 76px;
   }
 
   .payroll-sheet-table .col-time {
-    width: 84px;
+    width: 104px;
+  }
+
+  .payroll-sheet-table .col-imzo {
+    width: 48px;
   }
 
   .payroll-sheet-brand {
