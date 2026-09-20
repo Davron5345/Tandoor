@@ -1,7 +1,24 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { api, formatMoney, formatPriceInput, parsePriceInput } from '../api';
+import { api, formatMoney, formatPriceInput, parsePriceInput, formatDate } from '../api';
 import Modal, { useToast } from './Modal';
 import { todayLocalIso } from '../utils/date';
+
+function formatEventClock(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) {
+    const m = String(iso).match(/(\d{1,2}):(\d{2})/);
+    return m ? `${m[1].padStart(2, '0')}:${m[2]}` : '—';
+  }
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function attendanceCells(emp) {
+  const kirish = formatEventClock(emp.today_in_at || (emp.last_event_type === 'in' ? emp.last_event_at : null));
+  const chiqish = formatEventClock(emp.today_out_at || (emp.last_event_type === 'out' && !emp.today_in_at ? emp.last_event_at : null));
+  return { kirish, chiqish };
+}
 
 export default function CashierSalaryModal({
   open,
@@ -15,7 +32,6 @@ export default function CashierSalaryModal({
   const { show, Toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState({ departments: [], total_debt: 0, items: [] });
-  const [recent, setRecent] = useState([]);
   const [query, setQuery] = useState('');
   const [presentOnly, setPresentOnly] = useState(false);
   const [payEmp, setPayEmp] = useState(null);
@@ -35,52 +51,43 @@ export default function CashierSalaryModal({
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [list, att] = await Promise.all([
-        api.getPayrollEmployees(presentOnly ? { present: '1' } : {}),
-        api.getPayrollRecentAttendance({ limit: 12 }),
-      ]);
+      const params = { date: shiftDate || todayLocalIso() };
+      if (presentOnly) params.present = '1';
+      const list = await api.getPayrollEmployees(params);
       setData(list || { departments: [], total_debt: 0, items: [] });
-      setRecent(Array.isArray(att) ? att : []);
     } catch (err) {
       show(err.message || 'Не удалось загрузить зарплату', 'error');
       setData({ departments: [], total_debt: 0, items: [] });
     } finally {
       setLoading(false);
     }
-  }, [presentOnly, show]);
+  }, [presentOnly, shiftDate, show]);
 
   useEffect(() => {
     if (!open) return;
     load();
   }, [open, load]);
 
-  const filteredDepartments = useMemo(() => {
+  const sheetDepartments = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const deps = data.departments || [];
-    if (!q) return deps;
-    return deps
-      .map((d) => ({
-        ...d,
-        employees: (d.employees || []).filter((e) => (
+    const deps = (data.departments || []).map((d) => {
+      let employees = d.employees || [];
+      if (q) {
+        employees = employees.filter((e) => (
           (e.full_name || '').toLowerCase().includes(q)
           || (e.position || '').toLowerCase().includes(q)
           || (e.tab_no || '').toLowerCase().includes(q)
           || (e.department || '').toLowerCase().includes(q)
-        )),
-      }))
-      .filter((d) => d.employees.length > 0);
+        ));
+      }
+      return {
+        ...d,
+        name: (d.name || 'BOSHQALAR').toUpperCase(),
+        employees: employees.map((emp, idx) => ({ ...emp, _num: idx + 1 })),
+      };
+    }).filter((d) => d.employees.length > 0);
+    return deps;
   }, [data.departments, query]);
-
-  const numberedRows = useMemo(() => {
-    let n = 0;
-    return filteredDepartments.map((dep) => ({
-      ...dep,
-      employees: (dep.employees || []).map((emp) => {
-        n += 1;
-        return { ...emp, _num: n };
-      }),
-    }));
-  }, [filteredDepartments]);
 
   const openPay = (emp) => {
     setPayEmp(emp);
@@ -184,6 +191,8 @@ export default function CashierSalaryModal({
     return Math.max(0, Math.round((base + acc - pay) * 100) / 100);
   })();
 
+  const sheetDate = shiftDate || todayLocalIso();
+
   return (
     <>
       {Toast}
@@ -191,7 +200,7 @@ export default function CashierSalaryModal({
         title={branchName ? `Зарплата · ${branchName}` : 'Зарплата'}
         onClose={onClose}
         wide
-        className="modal-payroll"
+        className="modal-payroll modal-payroll-sheet"
         footer={(
           <div className="payroll-modal-footer">
             {isAdmin && (
@@ -211,6 +220,17 @@ export default function CashierSalaryModal({
           </div>
         )}
       >
+        <div className="payroll-sheet-head">
+          <div className="payroll-sheet-sana">
+            SANA:
+            {' '}
+            <strong>{formatDate(sheetDate)}</strong>
+          </div>
+          <div className="payroll-sheet-brand">
+            {branchName || 'Филиал'}
+          </div>
+        </div>
+
         <div className="payroll-toolbar">
           <input
             type="search"
@@ -227,78 +247,70 @@ export default function CashierSalaryModal({
             />
             Только на смене
           </label>
-          {branchName && (
-            <span className="payroll-branch-chip" title="Филиал">{branchName}</span>
-          )}
           <span className="payroll-debt-total">
             Долг всего: <strong>{formatMoney(data.total_debt || 0)}</strong>
           </span>
         </div>
 
-        {recent.length > 0 && (
-          <div className="payroll-recent">
-            <div className="payroll-recent-title">Последние отметки Face ID</div>
-            <ul>
-              {recent.slice(0, 8).map((ev) => (
-                <li key={ev.id}>
-                  <span className={`payroll-badge ${ev.event_type === 'in' ? 'is-in' : 'is-out'}`}>
-                    {ev.event_type === 'in' ? 'Пришёл' : 'Ушёл'}
-                  </span>
-                  <strong>{ev.full_name}</strong>
-                  <span className="payroll-muted">{ev.department || ''}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
         {loading ? (
           <p className="payroll-empty">Загрузка…</p>
-        ) : numberedRows.length === 0 ? (
+        ) : sheetDepartments.length === 0 ? (
           <p className="payroll-empty">
-            Нет сотрудников. Нажмите «Синхр. сотрудников» после настройки Face ID.
+            Нет сотрудников этого филиала. Нажмите «Синхр. сотрудников» после настройки Face ID.
           </p>
         ) : (
-          <div className="payroll-departments">
-            {numberedRows.map((dep) => (
-              <section key={dep.name} className="payroll-dept">
-                <header className="payroll-dept-head">
-                  <h3>{dep.name}</h3>
-                  <span>долг {formatMoney(dep.debt_sum || 0)}</span>
-                </header>
-                <ul className="payroll-emp-list">
-                  {dep.employees.map((emp) => (
-                    <li key={emp.id} className="payroll-emp-row">
-                      <span className="payroll-emp-num" aria-hidden>{emp._num}</span>
-                      <div className="payroll-emp-main">
-                        <strong>{emp.full_name}</strong>
-                        <span className="payroll-muted">
-                          {[
-                            branchName,
-                            emp.position,
-                            emp.tab_no ? `№${emp.tab_no}` : '',
-                          ].filter(Boolean).join(' · ')}
-                        </span>
-                        <span className={`payroll-badge ${emp.present ? 'is-in' : 'is-out'}`}>
-                          {emp.present ? 'На смене' : (emp.last_event_type === 'out' ? 'Ушёл' : '—')}
-                        </span>
-                      </div>
-                      <div className="payroll-emp-debt">
-                        <span className="label">Долг</span>
-                        <strong>{formatMoney(emp.balance)}</strong>
-                      </div>
-                      {canPay && (
-                        <button
-                          type="button"
-                          className="btn btn-primary btn-sm"
-                          onClick={() => openPay(emp)}
+          <div className="payroll-sheet-grid">
+            {sheetDepartments.map((dep) => (
+              <section key={dep.name} className="payroll-sheet-table-wrap">
+                <table className="payroll-sheet-table">
+                  <thead>
+                    <tr>
+                      <th className="col-num">№</th>
+                      <th className="col-name">{dep.name}</th>
+                      <th className="col-oylik">OYLIK</th>
+                      <th className="col-time">KIRISH — CHIQISH</th>
+                      <th className="col-imzo">IMZO</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dep.employees.map((emp) => {
+                      const att = attendanceCells(emp);
+                      const hasIn = att.kirish !== '—';
+                      const hasOut = att.chiqish !== '—';
+                      return (
+                        <tr
+                          key={emp.id}
+                          className={canPay ? 'is-clickable' : undefined}
+                          onClick={canPay ? () => openPay(emp) : undefined}
                         >
-                          Выплатить
-                        </button>
-                      )}
-                    </li>
-                  ))}
-                </ul>
+                          <td className="col-num">{emp._num}</td>
+                          <td className="col-name">
+                            <span className="payroll-sheet-fio">{emp.full_name}</span>
+                            {emp.position && emp.position.toUpperCase() !== dep.name && (
+                              <span className="payroll-sheet-pos">{emp.position}</span>
+                            )}
+                          </td>
+                          <td className="col-oylik">
+                            {Number(emp.balance) > 0 ? formatMoney(emp.balance) : ''}
+                          </td>
+                          <td className="col-time">
+                            <span className="payroll-sheet-times">
+                              <span className={att.kirish !== '—' ? 'is-set' : ''}>{att.kirish}</span>
+                              <span className="payroll-sheet-times-sep">/</span>
+                              <span className={att.chiqish !== '—' ? 'is-set' : ''}>{att.chiqish}</span>
+                            </span>
+                          </td>
+                          <td className="col-imzo">
+                            <span className="payroll-imzo" aria-hidden>
+                              <span className={`payroll-imzo-box${hasIn ? ' is-checked' : ''}`} />
+                              <span className={`payroll-imzo-box${hasOut ? ' is-checked' : ''}`} />
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </section>
             ))}
           </div>
@@ -321,6 +333,7 @@ export default function CashierSalaryModal({
           )}
         >
           <p className="payroll-pay-hint">
+            {branchName && <>Филиал: <strong>{branchName}</strong>. </>}
             Текущий долг: <strong>{formatMoney(payEmp.balance)}</strong>.
             Начислите зарплату и укажите, сколько выдать сейчас — остаток останется долгом.
           </p>

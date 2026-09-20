@@ -100,6 +100,7 @@ export function registerFaceIdPayrollRoutes(app) {
     try {
       res.json(payroll.listPayrollEmployees(req.branchId, {
         presentOnly: req.query.present === '1',
+        date: req.query.date || null,
       }));
     } catch (e) {
       res.status(400).json({ error: e.message });

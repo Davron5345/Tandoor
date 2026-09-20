@@ -81,8 +81,10 @@ async function faceIdFetch(branchId, path, options = {}) {
   return data;
 }
 
-function mapEmployeeRow(row) {
+function mapEmployeeRow(row, dayTimes = null) {
   if (!row) return null;
+  const todayIn = dayTimes?.in_at || null;
+  const todayOut = dayTimes?.out_at || null;
   return {
     id: row.id,
     branch_id: row.branch_id,
@@ -96,22 +98,52 @@ function mapEmployeeRow(row) {
     base_salary: roundMoney(row.base_salary),
     last_event_type: row.last_event_type || null,
     last_event_at: row.last_event_at || null,
-    present: row.last_event_type === 'in',
+    today_in_at: todayIn,
+    today_out_at: todayOut,
+    present: row.last_event_type === 'in' || (!!todayIn && !todayOut),
     synced_at: row.synced_at || null,
   };
 }
 
-export function listPayrollEmployees(branchId = DEFAULT_BRANCH_ID, { presentOnly = false } = {}) {
+/** Первая «вход» и последняя «выход» за календарный день YYYY-MM-DD. */
+function attendanceDayMap(branchId, dateIso) {
+  const day = String(dateIso || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return new Map();
+  const rows = queryAll(
+    `SELECT employee_id, event_type, event_at
+     FROM payroll_attendance
+     WHERE branch_id = ?
+       AND substr(event_at, 1, 10) = ?
+     ORDER BY event_at ASC`,
+    [branchId, day],
+  );
+  const map = new Map();
+  for (const r of rows) {
+    const cur = map.get(r.employee_id) || { in_at: null, out_at: null };
+    if (r.event_type === 'in' && !cur.in_at) cur.in_at = r.event_at;
+    if (r.event_type === 'out') cur.out_at = r.event_at;
+    map.set(r.employee_id, cur);
+  }
+  return map;
+}
+
+export function listPayrollEmployees(branchId = DEFAULT_BRANCH_ID, { presentOnly = false, date = null } = {}) {
   let rows = queryAll(
     `SELECT * FROM payroll_employees
-     WHERE branch_id = ?
+     WHERE branch_id = ? AND active = 1
      ORDER BY department ASC, full_name ASC`,
     [branchId],
   );
+  const day = String(date || new Date().toISOString().slice(0, 10)).slice(0, 10);
+  const dayMap = attendanceDayMap(branchId, day);
   if (presentOnly) {
-    rows = rows.filter((r) => r.last_event_type === 'in');
+    rows = rows.filter((r) => {
+      const t = dayMap.get(r.id);
+      if (t?.in_at && !t?.out_at) return true;
+      return r.last_event_type === 'in';
+    });
   }
-  const items = rows.map(mapEmployeeRow);
+  const items = rows.map((r) => mapEmployeeRow(r, dayMap.get(r.id)));
   const byDepartment = {};
   for (const emp of items) {
     const key = emp.department || 'Без отдела';
@@ -120,6 +152,7 @@ export function listPayrollEmployees(branchId = DEFAULT_BRANCH_ID, { presentOnly
   }
   return {
     items,
+    date: day,
     departments: Object.keys(byDepartment).sort((a, b) => a.localeCompare(b, 'ru')).map((name) => ({
       name,
       employees: byDepartment[name],
