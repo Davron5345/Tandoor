@@ -436,6 +436,7 @@ GET  /api/app/web-manifest?start=…   # динамический PWA-маниф
 GET  /manifest.webmanifest           # то же (публичный alias)
 GET  /api/public/snab-apk
 GET  /downloads/snabzenie.apk        → 302 на GitHub Releases
+POST /api/integrations/faceid/events # webhook приход/уход Face ID (X-Device-Key)
 ```
 
 ### Auth (дополнительно для снабжения / телефона)
