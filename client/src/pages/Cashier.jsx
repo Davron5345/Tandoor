@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { NavLink } from 'react-router-dom';
 import { api, formatDate, formatMoney, formatPriceInput, parsePriceInput } from '../api';
 import Modal, { useToast } from '../components/Modal';
 import { IconButton, IconEdit, IconTrash } from '../components/ActionIcons';
@@ -1393,6 +1394,9 @@ export default function Cashier() {
               >
                 {theme === 'dark' ? <IconNavSun /> : <IconNavMoon />}
               </button>
+              <NavLink to="/me" className="btn btn-ghost btn-sm">
+                Мой кабинет
+              </NavLink>
               <button type="button" className="btn btn-ghost btn-sm" onClick={logout}>
                 Выйти
               </button>

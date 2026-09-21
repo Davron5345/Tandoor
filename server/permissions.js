@@ -916,6 +916,7 @@ export function getUserPayload(user) {
     branch_name: branch?.name || null,
     department_id: user.department_id || null,
     department_name: department?.name || user.department_name || null,
+    payroll_employee_id: user.payroll_employee_id || null,
     permissions: getPermissionsForRole(user.role),
     must_change_password: !!user.must_change_password,
   };

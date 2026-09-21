@@ -54,6 +54,14 @@ export function registerFaceIdPayrollRoutes(app) {
   const canPay = requireAnyPermission('cashier.edit', 'payments.edit');
   const canImportEmployees = requireAnyPermission('users.edit', 'cashier.edit');
 
+  app.get('/api/payroll/me', (req, res) => {
+    try {
+      res.json(payroll.getPayrollCabinetForUser(req.user));
+    } catch (e) {
+      res.status(404).json({ error: e.message });
+    }
+  });
+
   app.get('/api/faceid/settings', requireAdmin, attachBranch, (req, res) => {
     const cfg = payroll.getFaceIdConfig(req.branchId);
     res.json({

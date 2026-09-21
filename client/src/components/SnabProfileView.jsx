@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { isNativeApp } from '../utils/nativeApp';
 import { isStandaloneApp } from '../utils/pwaPush';
 import { FALLBACK_APK_URL } from './SnabAppPanel';
@@ -81,6 +82,10 @@ export default function SnabProfileView({
             <span>{user?.username}</span>
           </div>
         </div>
+
+        <Link to="/me" className="btn btn-primary snab-profile-cabinet">
+          Мой кабинет — долг и рейтинг
+        </Link>
 
         <div className="snab-profile-grid">
           <div><span>Роль</span><div>{user?.role_label || user?.role || '—'}</div></div>

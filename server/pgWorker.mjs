@@ -95,6 +95,8 @@ async function ensureBootstrap() {
   await execRaw('CREATE INDEX IF NOT EXISTS idx_users_department ON users(department_id)');
   await execRaw('ALTER TABLE users ADD COLUMN IF NOT EXISTS login_token TEXT');
   await execRaw('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_login_token ON users(login_token)');
+  await execRaw('ALTER TABLE users ADD COLUMN IF NOT EXISTS payroll_employee_id TEXT');
+  await execRaw('CREATE INDEX IF NOT EXISTS idx_users_payroll_employee ON users(payroll_employee_id)');
   // Existing prod tables were created without view_token. ALTER first — unique
   // index in PG_CREATE_TABLES would abort bootstrap ("column does not exist").
   try {

@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-09-21 (fix healthcheck: view_token index после ALTER)
+**Последнее обновление документации:** 2026-09-21 (кабинет зарплаты после рабочего входа `/me`)
 
 ---
 
@@ -173,7 +173,7 @@ npm run db:import-payroll -- file.xlsx  # Импорт сотрудников з
 | Контрагенты | `counterparties`, `counterparty_firms` (юрлица: ИНН, bank_account, mfo), `counterparty_contracts` (title, number, date, end_date, direction, amount, `firm_id`) |
 | Финансы | `payments` (+ `external_ref`, `import_batch_id`, `contract_id`, `firm_id`, `bank_account_id`, `liable_user_id` / `liable_department_id` для возврата долга по remainder-инвентаризации), `bank_accounts`, `cash_articles`, `branch_opening_balances` |
 | Калькуляции | `calculations`, `calculation_items`, `calculation_sources` |
-| Auth/Admin | `users` (+ `department_id` → отдел филиала, `login_token` — уникальная ссылка входа с телефона `/e/{token}`), `sessions`, `roles`, `role_permissions`, `audit_log`, `visit_log`, `blocked_devices` |
+| Auth/Admin | `users` (+ `department_id` → отдел филиала, `login_token` — уникальная ссылка входа с телефона `/e/{token}`, `payroll_employee_id` → карточка зарплаты), `sessions`, `roles`, `role_permissions`, `audit_log`, `visit_log`, `blocked_devices` |
 | MyShop/Mobile | `shop_orders`, `shop_order_items`, `push_subscriptions`, `staff_locations`, `staff_location_history` |
 | Зарплата / Face ID | `payroll_employees` (синк из Face ID или Excel, `balance` = долг, `view_token` — личная ссылка `/s/{token}`), `payroll_attendance` (приход/уход), `payroll_ledger` (начисление/выплата); настройки в `settings` ключ `faceid_config_{branchId}` |
 | Прочее | `telegram_messages`, `settings`, `branches` |
@@ -189,7 +189,8 @@ npm run db:import-payroll -- file.xlsx  # Импорт сотрудников з
 | `/shop/:branchId` | `PublicShop` | Нет |
 | `/shop/:branchId/dept/:departmentId` | `PublicShop` | Нет |
 | `/e/:token` | `EmployeeLogin` | Нет (публичная ссылка → сессия по `users.login_token`) |
-| `/s/:token` | `EmployeeCabinet` | Нет (личный кабинет зарплаты по `payroll_employees.view_token`) |
+| `/s/:token` | `EmployeeCabinet` | Нет (личный кабинет зарплаты по `payroll_employees.view_token`, для тех у кого нет логина) |
+| `/me` | `EmployeeCabinet` (embedded) | Да (тот же кабинет после рабочего входа `/e/…`, по `users.payroll_employee_id` или совпадению ФИО) |
 | `/warehouse/orders`, `/snab` | `ShopOrdersMobile` | Да (mobile snab) |
 | `/warehouse/prihod` | `PrihodMobile` | Да (mobile приход) |
 | `/warehouse/transfer` | `TransferMobile` | Да (mobile перемещение по отделам; нужен `users.department_id`) |
@@ -235,7 +236,7 @@ Sidebar строится динамически по `hasPermission()`. В са�
 - Срок: 12 часов (или 7 дней с `remember`)
 - Пароли: `crypto.scryptSync`
 - Production admin: принудительный `must_change_password`
-- **Личная ссылка с телефона:** у каждого сотрудника `users.login_token` (base64url, уникальный). URL `/e/:token` → `POST /api/auth/login-link` (публичный, rate-limit, **до** `authRequired`) ставит cookie `remember=true` (7 дней). Недействительный/отключённый → 401. Роль может быть любой (кассир, склад, кастомная). После входа `phoneHomePath`: кассир → `/cashier`; `shop_orders.view` → `/warehouse/orders`; `documents.prihod` → `/warehouse/prihod`; `documents.transfer` + отдел → `/warehouse/transfer`; иначе `/`. Отдел не обязателен (кассир часто без отдела). Смена ссылки: `POST /api/users/:id/login-link` (`users.edit`) — старый URL умирает, сессии не трогаем. API отдаёт `login_path` (`/e/{token}`), сам токен в JSON не светит.
+- **Личная ссылка с телефона:** у каждого сотрудника `users.login_token` (base64url, уникальный). URL `/e/:token` → `POST /api/auth/login-link` (публичный, rate-limit, **до** `authRequired`) ставит cookie `remember=true` (7 дней). Недействительный/отключённый → 401. Роль может быть любой (кассир, склад, кастомная). После входа `phoneHomePath`: кассир → `/cashier`; `shop_orders.view` → `/warehouse/orders`; `documents.prihod` → `/warehouse/prihod`; `documents.transfer` + отдел → `/warehouse/transfer`; иначе `/`. Долг и рейтинг — внутри системы на `/me` (`GET /api/payroll/me`), если логин привязан к `payroll_employees` (поле `users.payroll_employee_id` или совпадение ФИО в филиале). Отдельная ссылка `/s/:token` нужна только тем, у кого нет логина. Отдел не обязателен (кассир часто без отдела). Смена ссылки: `POST /api/users/:id/login-link` (`users.edit`) — старый URL умирает, сессии не трогаем. API отдаёт `login_path` (`/e/{token}`), сам токен в JSON не светит.
 - **PWA на телефонных экранах:** компактный баннер `PhoneAppSetupBanner` (один шаг: сначала на домашний экран, потом Web Push) на `/cashier` (режим кассира), `/warehouse/orders`, `/warehouse/prihod`, `/warehouse/transfer`. Динамический манифест `GET /api/app/web-manifest?start=…` (и `/manifest.webmanifest`) задаёт `start_url` и имя под роль; **splash:** `background_color=#eceff1`, `theme_color=#f5c518`; `apple-mobile-web-app-status-bar-style=default`; на телефоне/standalone принудительно **light** (иначе чёрный экран из тёмного body). SW `client/public/sw.js`. Подписка `POST /api/push/subscribe` доступна ролям с `shop_orders.view` / `cashier.view|edit` / `documents.prihod|transfer|view`. На iOS push только после установки на экран; «Не сейчас» скрывает на сессию. iOS: Share → «На экран Домой» (нет `beforeinstallprompt`).
 
 ### 7.2 Роли (встроенные)
@@ -417,12 +418,13 @@ Frontend зеркало: `client/src/permissions.js`.
 - Синхронизация: `POST /api/faceid/sync/employees` → `GET /api/integration/employees`; `POST /api/faceid/sync/attendance` → `GET /api/integration/attendance`.
 - Входящие отметки (push): публичный `POST /api/integrations/faceid/events?branch_id=` с `X-Device-Key` или `X-Webhook-Secret`; тело — одно событие или `{ events: [...] }` (`type` in/out/auto, `employeeId`/`tabNo`/`fullName`, `timestamp`). CSRF для `/api/integrations/*` отключён.
 - Сотрудники зарплаты: `payroll_employees` (синк из Face ID или импорт Excel, `balance` = долг к выплате).
-- Личный кабинет: у каждого `view_token` (base64url). URL `/s/:token` → публичный `GET /api/public/payroll/:token` (rate-limit) — ФИО, филиал, долг, оклад, рейтинг явки за месяц, вход/выход сегодня, последние начисления/выплаты. Токен в JSON списка не светится (`view_path`). Копирование/ротация на вкладке «Зарплата / Face ID»: `POST /api/payroll/employees/:id/view-link` (`users.edit`).
+- Личный кабинет: у каждого `view_token` (base64url). URL `/s/:token` → публичный `GET /api/public/payroll/:token` (rate-limit) — ФИО, филиал, долг, оклад, рейтинг явки за месяц, вход/выход сегодня, последние начисления/выплаты. Токен в JSON списка не светится (`view_path`). Копирование/ротация на вкладке «Зарплата / Face ID»: `POST /api/payroll/employees/:id/view-link` (`users.edit`). Если у человека есть логин (`/e/…`), тот же кабинет открывается из системы: `/me` → `GET /api/payroll/me` (по `users.payroll_employee_id`, иначе ФИО+филиал). Ссылку `/s/…` тогда не обязательно слать.
+- При создании/редактировании логина выбор ФИО из зарплаты пишет `users.payroll_employee_id`.
 - Импорт Excel (экспорт Face ID): кнопка **«Импорт Excel»** на `/employees` (вкладка «Зарплата / Face ID»); `POST /api/payroll/employees/import-xlsx` (multipart `file`, `users.edit`); фирма → филиал (`scope=all` с HQ создаёт филиалы, `scope=branch` — только текущий); также JSON `POST /api/payroll/employees/import` и CLI `npm run db:import-payroll -- file.xlsx`.
 - Выплата на кассе: кнопка **Зарплата** → ведомость в стиле печатного листа (2 колонки таблиц по отделам: № / отдел / OYLIK / KIRISH—CHIQISH / IMZO; SANA + название филиала; нумерация с 1 в каждом отделе; модалка шире ~1320px, ячейки с отступами) → клик по строке → **Начислить** + **Выплатить**; остаток (`balance + accrue − pay`) копится как долг. Создаётся кассовый `other_expense` со статьёй `exp_salary`.
 - KIRISH/CHIQISH: первая «вход» и последняя «выход» за дату смены (`GET /api/payroll/employees?date=YYYY-MM-DD`); IMZO — два квадрата (вход/выход).
 - По умолчанию ведомость с галочкой **«Только с отметкой»** (`present=1`) — только сотрудники с Face ID-отметкой за дату смены; снять галочку — весь список филиала.
-- API: `GET /api/payroll/employees?date=&present=`, `POST .../accrue`, `POST .../pay`, `GET .../ledger`, `POST .../:id/view-link`, `GET /api/payroll/attendance/recent`, `GET /api/public/payroll/:token`.
+- API: `GET /api/payroll/employees?date=&present=`, `POST .../accrue`, `POST .../pay`, `GET .../ledger`, `POST .../:id/view-link`, `GET /api/payroll/attendance/recent`, `GET /api/public/payroll/:token`, `GET /api/payroll/me`.
 
 ---
 
@@ -443,6 +445,7 @@ GET  /api/app/web-manifest?start=…   # динамический PWA-маниф
 GET  /manifest.webmanifest           # то же (публичный alias)
 GET  /api/public/snab-apk
 GET  /api/public/payroll/:token      # кабинет сотрудника зарплаты (view_token)
+GET  /api/payroll/me                 # тот же кабинет для залогиненного (payroll_employee_id / ФИО)
 GET  /downloads/snabzenie.apk        → 302 на GitHub Releases
 POST /api/integrations/faceid/events # webhook приход/уход Face ID (X-Device-Key)
 ```
@@ -520,6 +523,7 @@ GET  /api/auth/roles
 | `/telegram` | Telegram.jsx | telegram.view |
 | `/e/:token` | EmployeeLogin.jsx | публично; вход по личной ссылке, редирект на `home` по роли |
 | `/s/:token` | EmployeeCabinet.jsx | публично; кабинет зарплаты: долг, оклад, рейтинг явки, сегодня вход/выход, история выплат |
+| `/me` | EmployeeCabinet.jsx | любой залогиненный; тот же кабинет без отдельной ссылки `/s/…` (касса, «Ещё», профиль снабженца, сайдбар) |
 | `/employees` | Employees.jsx | users.view; вкладки **Вход в систему** (логины, ссылки `/e/…`) и **Зарплата / Face ID** (payroll_employees по отделам + личные ссылки `/s/…`); `users.edit` — «Импорт Excel» по шаблону Face ID + CRUD пользователей; **Новый / Редактировать** выбирает ФИО из списка зарплаты филиала; поле **Отдел** (`department_id`); роль может отличаться |
 | `/roles` | Roles.jsx | admin |
 | `/branches` | Branches.jsx | admin |
@@ -879,6 +883,7 @@ GET  /api/auth/roles
 | 2026-09-21 | Редактирование сотрудника: тот же выбор ФИО из списка зарплаты |
 | 2026-09-21 | Личный кабинет зарплаты `/s/:token`: долг, рейтинг явки, выплаты; копия/ротация ссылки на вкладке Зарплата |
 | 2026-09-21 | Fix Railway healthcheck: unique index `view_token` только после ALTER, не в `PG_CREATE_TABLES` |
+| 2026-09-21 | После `/e/:token` долг и рейтинг на `/me` (`GET /api/payroll/me`); `/s/:token` — только без логина |
 
 ---
 

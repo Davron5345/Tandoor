@@ -119,12 +119,29 @@ export function resolveUserDepartmentId(departmentId, branchId, role) {
 function userSelectSql(where = 'WHERE u.id = ?') {
   return `
     SELECT u.id, u.username, u.name, u.role, u.active, u.created_at, u.branch_id, u.department_id,
-           u.login_token, b.name as branch_name, d.name as department_name
+           u.login_token, u.payroll_employee_id, b.name as branch_name, d.name as department_name
     FROM users u
     LEFT JOIN branches b ON b.id = u.branch_id
     LEFT JOIN departments d ON d.id = u.department_id
     ${where}
   `;
+}
+
+function resolvePayrollEmployeeId(rawId, branchId, currentUserId = null) {
+  if (rawId === undefined) return undefined;
+  const id = String(rawId || '').trim();
+  if (!id) return null;
+  const row = queryOne('SELECT id, branch_id FROM payroll_employees WHERE id = ?', [id]);
+  if (!row) throw new Error('Сотрудник зарплаты не найден');
+  if (branchId && row.branch_id !== branchId) {
+    throw new Error('Сотрудник зарплаты из другого филиала');
+  }
+  const taken = queryOne(
+    'SELECT id FROM users WHERE payroll_employee_id = ? AND id != ?',
+    [id, currentUserId || ''],
+  );
+  if (taken) throw new Error('Этот сотрудник зарплаты уже привязан к другому логину');
+  return row.id;
 }
 
 function mapUserRow(u) {
@@ -200,7 +217,7 @@ export function changePassword(userId, currentPassword, newPassword, keepToken =
 export function getUsers(requester, branchId = null, { allBranches = false } = {}) {
   let sql = `
     SELECT u.id, u.username, u.name, u.role, u.active, u.created_at, u.branch_id, u.department_id,
-           u.login_token, b.name as branch_name, d.name as department_name
+           u.login_token, u.payroll_employee_id, b.name as branch_name, d.name as department_name
     FROM users u
     LEFT JOIN branches b ON b.id = u.branch_id
     LEFT JOIN departments d ON d.id = u.department_id
@@ -246,11 +263,12 @@ export function createUser(data, requester = null) {
   }
 
   const departmentId = resolveUserDepartmentId(data.department_id, branchId, data.role);
+  const payrollEmployeeId = resolvePayrollEmployeeId(data.payroll_employee_id, branchId);
 
   const id = uuidv4();
   run(`
-    INSERT INTO users (id, username, password_hash, name, role, active, branch_id, department_id, login_token)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO users (id, username, password_hash, name, role, active, branch_id, department_id, login_token, payroll_employee_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, [
     id,
     username,
@@ -261,6 +279,7 @@ export function createUser(data, requester = null) {
     branchId,
     departmentId,
     uniqueLoginToken(),
+    payrollEmployeeId || null,
   ]);
 
   return mapUserRow(queryOne(userSelectSql(), [id]));
@@ -335,9 +354,13 @@ export function updateUser(id, data, requester = null) {
     )
     : (user.department_id || null);
 
+  const payrollEmployeeId = data.payroll_employee_id !== undefined
+    ? resolvePayrollEmployeeId(data.payroll_employee_id, branchId, id)
+    : (user.payroll_employee_id || null);
+
   run(`
     UPDATE users
-    SET username = ?, name = ?, role = ?, active = ?, branch_id = ?, department_id = ?
+    SET username = ?, name = ?, role = ?, active = ?, branch_id = ?, department_id = ?, payroll_employee_id = ?
     WHERE id = ?
   `, [
     (data.username || user.username).trim(),
@@ -346,6 +369,7 @@ export function updateUser(id, data, requester = null) {
     data.active !== undefined ? (data.active ? 1 : 0) : user.active,
     branchId,
     departmentId,
+    payrollEmployeeId,
     id,
   ]);
 

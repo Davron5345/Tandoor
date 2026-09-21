@@ -409,6 +409,7 @@ export const api = {
     body: '{}',
   }),
   getPayrollCabinet: (token) => publicRequest(`/public/payroll/${encodeURIComponent(token)}`),
+  getMyPayrollCabinet: () => request('/payroll/me'),
   importPayrollEmployees: (data) => request('/payroll/employees/import', {
     method: 'POST',
     body: JSON.stringify(data),

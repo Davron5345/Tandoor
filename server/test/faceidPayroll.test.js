@@ -94,6 +94,17 @@ test('payroll accrue and partial pay accumulates debt', async () => {
   const cabinet = payroll.getPayrollCabinetByToken(token);
   assert.equal(cabinet.full_name, 'Иванов Иван');
   assert.equal(cabinet.balance, 900000);
+
+  const dbMod = await import('../db.js');
+  dbMod.default.run(
+    `INSERT INTO users (id, username, password_hash, name, role, active, branch_id, login_token)
+     VALUES (?, ?, ?, ?, ?, 1, ?, ?)`,
+    ['u-ivan', 'ivanov', 'x', 'Иванов Иван', 'cashier', 'main', 'tok-ivan-login-abcdefgh'],
+  );
+  const mine = payroll.getPayrollCabinetForUser({ id: 'u-ivan' });
+  assert.equal(mine.full_name, 'Иванов Иван');
+  assert.equal(mine.balance, 900000);
+
   const rotated = payroll.rotatePayrollViewToken(cook.id, 'main');
   assert.notEqual(rotated.view_path, cook.view_path);
   assert.throws(() => payroll.getPayrollCabinetByToken(token), /недействительна/);

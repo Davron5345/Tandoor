@@ -103,18 +103,24 @@ export default function Employees() {
 
   const payrollItems = useMemo(() => {
     const currentName = String(userForm.name || '').trim().toLowerCase();
-    const taken = new Set(
+    const takenNames = new Set(
       users
         .filter((u) => u.id !== userModal)
         .map((u) => String(u.name || '').trim().toLowerCase())
         .filter(Boolean),
+    );
+    const takenIds = new Set(
+      users
+        .filter((u) => u.id !== userModal && u.payroll_employee_id)
+        .map((u) => u.payroll_employee_id),
     );
     return (payrollData.items || []).filter((emp) => {
       if (!emp?.id || !emp.full_name) return false;
       const key = String(emp.full_name).trim().toLowerCase();
       if (userForm.payroll_employee_id && emp.id === userForm.payroll_employee_id) return true;
       if (currentName && key === currentName) return true;
-      return !taken.has(key);
+      if (takenIds.has(emp.id)) return false;
+      return !takenNames.has(key);
     });
   }, [payrollData.items, users, userModal, userForm.name, userForm.payroll_employee_id]);
 
@@ -211,7 +217,7 @@ export default function Employees() {
       department_id: u.department_id || '',
       active: u.active,
       protected: !!u.protected,
-      payroll_employee_id: '',
+      payroll_employee_id: u.payroll_employee_id || '',
     });
     setUserModal(u.id);
   };
@@ -236,7 +242,6 @@ export default function Employees() {
           show('Укажите пароль', 'error');
           return;
         }
-        delete payload.payroll_employee_id;
         await api.createUser(payload);
         show('Сотрудник добавлен');
       } else {
@@ -247,7 +252,6 @@ export default function Employees() {
           delete payload.active;
           delete payload.branch_id;
         }
-        delete payload.payroll_employee_id;
         delete payload.protected;
         await api.updateUser(userModal, payload);
         show('Сотрудник обновлён');

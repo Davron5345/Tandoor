@@ -31,6 +31,7 @@ import MyShopConstructor from './pages/MyShopConstructor';
 import ShopOrders from './pages/ShopOrders';
 import Login from './pages/Login';
 import ChangePassword from './pages/ChangePassword';
+import EmployeeCabinet from './pages/EmployeeCabinet';
 import { api } from './api';
 import { useTheme } from './ThemeContext';
 import { useAuth } from './AuthContext';
@@ -207,6 +208,7 @@ function findNavItemForPath(items, pathname) {
 
 function resolveMobilePageTitle(pathname, sections, allItems) {
   if (pathname === '/' || pathname === '') return 'Рабочий стол';
+  if (pathname === '/me') return 'Мой кабинет';
   if (pathname.startsWith('/telegram')) return 'Telegram';
   if (pathname.startsWith('/reports')) {
     const reportItem = findNavItemForPath(allItems, pathname);
@@ -319,6 +321,9 @@ function MobileMoreSheet({
               <span>{user.roleLabel}</span>
             )}
           </div>
+          <NavLink to="/me" className="mobile-more-cabinet" onClick={onClose}>
+            Мой кабинет — долг и рейтинг
+          </NavLink>
         </div>
         <nav className="mobile-more-nav">
           {canViewDashboard && (
@@ -944,6 +949,7 @@ function AppContent() {
               {user.roleLabel !== user.name && (
                 <span className="sidebar-user-role">{user.roleLabel}</span>
               )}
+              <NavLink to="/me" className="sidebar-cabinet-link">Мой кабинет</NavLink>
             </div>
             {hasPermission(user, 'telegram.view') && (
               <NavLink
@@ -1079,11 +1085,12 @@ function AppContent() {
           />
         )}
         <div className="main-content">
-        {isCashierLayout && location.pathname !== '/cashier' ? (
+        {isCashierLayout && location.pathname !== '/cashier' && location.pathname !== '/me' ? (
           <Navigate to="/cashier" replace />
         ) : (
         <Routes key={branchId || 'default'}>
           <Route path="/" element={canViewDashboard ? <Dashboard /> : <Navigate to={firstNavPath} />} />
+          <Route path="/me" element={<EmployeeCabinet embedded backTo={isCashierLayout ? '/cashier' : '/'} showBack={isCashierLayout} />} />
           <Route path="/prihod" element={hasPermission(user, 'documents.prihod') ? <Documents key="prihod" defaultType="prihod" /> : <Navigate to="/" />} />
           <Route path="/rashod" element={hasPermission(user, 'documents.rashod') ? <Documents key="rashod" defaultType="rashod" /> : <Navigate to="/" />} />
           <Route path="/return-supplier" element={hasPermission(user, 'documents.rashod') ? <Documents key="return-supplier" defaultType="return_supplier" /> : <Navigate to="/" />} />

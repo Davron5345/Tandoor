@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { api, formatMoney, formatDate } from '../api';
 
 function formatClock(iso) {
@@ -19,8 +19,9 @@ function ledgerLabel(type) {
   return type || 'Операция';
 }
 
-export default function EmployeeCabinet() {
+export default function EmployeeCabinet({ embedded = false, backTo = '/', showBack = false }) {
   const { token } = useParams();
+  const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -28,7 +29,8 @@ export default function EmployeeCabinet() {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    api.getPayrollCabinet(token)
+    const req = embedded ? api.getMyPayrollCabinet() : api.getPayrollCabinet(token);
+    req
       .then((res) => {
         if (!cancelled) {
           setData(res);
@@ -38,30 +40,45 @@ export default function EmployeeCabinet() {
       .catch((err) => {
         if (!cancelled) {
           setData(null);
-          setError(err.message || 'Ссылка недействительна');
+          setError(err.message || (embedded ? 'Кабинет не найден' : 'Ссылка недействительна'));
         }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
     return () => { cancelled = true; };
-  }, [token]);
+  }, [token, embedded]);
 
   const rating = Number(data?.month?.rating) || 0;
 
   return (
-    <div className="emp-cabinet">
-      <header className="emp-cabinet-top">
-        <div className="emp-cabinet-brand">Mahalla</div>
-        <div className="emp-cabinet-title">Мой кабинет</div>
-      </header>
+    <div className={`emp-cabinet${embedded ? ' is-embedded' : ''}`}>
+      {embedded ? (
+        showBack ? (
+          <header className="emp-cabinet-embed-bar">
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => navigate(backTo)}>
+              ← Назад
+            </button>
+            <strong>Мой кабинет</strong>
+          </header>
+        ) : null
+      ) : (
+        <header className="emp-cabinet-top">
+          <div className="emp-cabinet-brand">Mahalla</div>
+          <div className="emp-cabinet-title">Мой кабинет</div>
+        </header>
+      )}
 
       <main className="emp-cabinet-body">
         {loading && <p className="emp-cabinet-empty">Загрузка…</p>}
         {error && !loading && (
           <div className="emp-cabinet-card">
             <p className="emp-cabinet-error">{error}</p>
-            <p className="form-hint">Обратитесь к администратору за новой ссылкой.</p>
+            <p className="form-hint">
+              {embedded
+                ? 'Если вы есть в списке зарплаты, попросите администратора привязать ваш логин к ФИО.'
+                : 'Обратитесь к администратору за новой ссылкой.'}
+            </p>
           </div>
         )}
         {data && !loading && (

@@ -660,17 +660,28 @@ function localDayIso(date = new Date()) {
   return `${y}-${m}-${d}`;
 }
 
-export function getPayrollCabinetByToken(rawToken) {
-  const token = String(rawToken || '').trim();
-  if (!token || token.length < 16) {
-    throw new Error('Ссылка недействительна');
+function findPayrollEmployeeForUser(user) {
+  if (user?.payroll_employee_id) {
+    const byId = queryOne(
+      'SELECT * FROM payroll_employees WHERE id = ? AND active = 1',
+      [user.payroll_employee_id],
+    );
+    if (byId) return byId;
   }
-  const row = queryOne(
-    'SELECT * FROM payroll_employees WHERE view_token = ? AND active = 1',
-    [token],
-  );
-  if (!row) throw new Error('Ссылка недействительна или сотрудник отключён');
+  const name = String(user?.name || '').trim();
+  if (!name) return null;
+  const params = [name];
+  let sql = 'SELECT * FROM payroll_employees WHERE full_name = ? COLLATE NOCASE AND active = 1';
+  if (user.branch_id) {
+    sql += ' AND branch_id = ?';
+    params.push(user.branch_id);
+  }
+  const matches = queryAll(sql, params);
+  if (matches.length === 1) return matches[0];
+  return null;
+}
 
+function buildPayrollCabinet(row) {
   const day = localDayIso();
   const month = day.slice(0, 7);
   const dayTimes = attendanceDayMap(row.branch_id, day).get(row.id) || {};
@@ -720,4 +731,39 @@ export function getPayrollCabinetByToken(rawToken) {
     },
     ledger,
   };
+}
+
+export function getPayrollCabinetByToken(rawToken) {
+  const token = String(rawToken || '').trim();
+  if (!token || token.length < 16) {
+    throw new Error('Ссылка недействительна');
+  }
+  const row = queryOne(
+    'SELECT * FROM payroll_employees WHERE view_token = ? AND active = 1',
+    [token],
+  );
+  if (!row) throw new Error('Ссылка недействительна или сотрудник отключён');
+  return buildPayrollCabinet(row);
+}
+
+export function getPayrollCabinetForUser(user) {
+  if (!user?.id) throw new Error('Требуется авторизация');
+  const dbUser = queryOne('SELECT * FROM users WHERE id = ? AND active = 1', [user.id]);
+  if (!dbUser) throw new Error('Пользователь не найден');
+  const row = findPayrollEmployeeForUser(dbUser);
+  if (!row) {
+    throw new Error('Кабинет зарплаты не найден. Обратитесь к администратору.');
+  }
+  if (!dbUser.payroll_employee_id) {
+    try {
+      const taken = queryOne(
+        'SELECT id FROM users WHERE payroll_employee_id = ? AND id != ?',
+        [row.id, dbUser.id],
+      );
+      if (!taken) {
+        run('UPDATE users SET payroll_employee_id = ? WHERE id = ?', [row.id, dbUser.id]);
+      }
+    } catch { /* колонка могла ещё не появиться */ }
+  }
+  return buildPayrollCabinet(row);
 }

@@ -550,6 +550,7 @@ function migrateSchema() {
   migrateUserLoginTokens();
   migrateInventoryCoverage();
   migratePayrollFaceId();
+  migrateUsersPayrollLink();
   addPerformanceIndexes();
 }
 
@@ -673,6 +674,41 @@ function migrateUserLoginTokens() {
   const done = queryOne("SELECT value FROM settings WHERE key = 'users_login_token_v1'");
   if (!done) {
     run("INSERT OR REPLACE INTO settings (key, value) VALUES ('users_login_token_v1', '1')");
+    saveDb();
+  }
+}
+
+function migrateUsersPayrollLink() {
+  try { run('ALTER TABLE users ADD COLUMN payroll_employee_id TEXT'); } catch { /* exists */ }
+  try {
+    const users = queryAll(
+      "SELECT id, name, branch_id, payroll_employee_id FROM users WHERE payroll_employee_id IS NULL OR payroll_employee_id = ''",
+    );
+    for (const u of users) {
+      const name = String(u.name || '').trim();
+      if (!name) continue;
+      const params = [name];
+      let sql = "SELECT id FROM payroll_employees WHERE full_name = ? COLLATE NOCASE AND active = 1";
+      if (u.branch_id) {
+        sql += ' AND branch_id = ?';
+        params.push(u.branch_id);
+      }
+      const matches = queryAll(sql, params);
+      if (matches.length !== 1) continue;
+      const taken = queryOne(
+        'SELECT id FROM users WHERE payroll_employee_id = ?',
+        [matches[0].id],
+      );
+      if (taken) continue;
+      run('UPDATE users SET payroll_employee_id = ? WHERE id = ?', [matches[0].id, u.id]);
+    }
+  } catch (err) {
+    console.error('⚠️ users payroll_employee_id backfill:', err.message);
+  }
+  try { run('CREATE INDEX IF NOT EXISTS idx_users_payroll_employee ON users(payroll_employee_id)'); } catch { /* */ }
+  const done = queryOne("SELECT value FROM settings WHERE key = 'users_payroll_employee_v1'");
+  if (!done) {
+    run("INSERT OR REPLACE INTO settings (key, value) VALUES ('users_payroll_employee_v1', '1')");
     saveDb();
   }
 }

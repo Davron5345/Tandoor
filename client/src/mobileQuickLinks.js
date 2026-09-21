@@ -13,6 +13,7 @@ import {
   IconNavAdmin,
   IconNavSettings,
   IconNavPayments,
+  IconNavHome,
 } from './components/NavIcons';
 
 /**
@@ -22,6 +23,12 @@ export function buildMobileQuickLinks(user) {
   if (!user) return [];
 
   const candidates = [
+    {
+      to: '/me',
+      label: 'Мой кабинет',
+      tone: 'rose',
+      Icon: IconNavHome,
+    },
     {
       to: '/prihod',
       label: 'Приход',
