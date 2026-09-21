@@ -102,14 +102,21 @@ export default function Employees() {
   const sections = useMemo(() => groupUsersByDepartment(users), [users]);
 
   const payrollItems = useMemo(() => {
+    const currentName = String(userForm.name || '').trim().toLowerCase();
     const taken = new Set(
-      users.map((u) => String(u.name || '').trim().toLowerCase()).filter(Boolean),
+      users
+        .filter((u) => u.id !== userModal)
+        .map((u) => String(u.name || '').trim().toLowerCase())
+        .filter(Boolean),
     );
     return (payrollData.items || []).filter((emp) => {
       if (!emp?.id || !emp.full_name) return false;
-      return !taken.has(String(emp.full_name).trim().toLowerCase());
+      const key = String(emp.full_name).trim().toLowerCase();
+      if (userForm.payroll_employee_id && emp.id === userForm.payroll_employee_id) return true;
+      if (currentName && key === currentName) return true;
+      return !taken.has(key);
     });
-  }, [payrollData.items, users]);
+  }, [payrollData.items, users, userModal, userForm.name, userForm.payroll_employee_id]);
 
   const payrollSelectItems = useMemo(
     () => payrollItems.map((emp) => ({
@@ -138,8 +145,21 @@ export default function Employees() {
 
   useEffect(() => { load(); }, [branchId]);
   useEffect(() => {
-    if (tab === 'payroll' || userModal === 'create') loadPayroll();
+    if (tab === 'payroll' || userModal) loadPayroll();
   }, [tab, branchId, userModal]);
+  useEffect(() => {
+    if (!userModal || userModal === 'create' || userForm.payroll_employee_id) return;
+    const name = String(userForm.name || '').trim().toLowerCase();
+    if (!name) return;
+    const match = (payrollData.items || []).find(
+      (emp) => String(emp.full_name || '').trim().toLowerCase() === name,
+    );
+    if (match) {
+      setUserForm((prev) => (
+        prev.payroll_employee_id ? prev : { ...prev, payroll_employee_id: match.id }
+      ));
+    }
+  }, [userModal, payrollData.items, userForm.name, userForm.payroll_employee_id]);
   useAutoRefresh(load, [branchId], { enabled: !userModal && tab === 'access' });
 
   const openCreateUser = () => {
@@ -158,7 +178,11 @@ export default function Employees() {
   const pickPayrollEmployee = (id) => {
     const emp = payrollItems.find((e) => e.id === id);
     if (!emp) {
-      setUserForm((prev) => ({ ...prev, payroll_employee_id: '', name: '' }));
+      setUserForm((prev) => ({
+        ...prev,
+        payroll_employee_id: '',
+        name: userModal === 'create' ? '' : prev.name,
+      }));
       return;
     }
     const username = suggestUsername(emp.full_name);
@@ -170,7 +194,9 @@ export default function Employees() {
       ...prev,
       payroll_employee_id: emp.id,
       name: emp.full_name,
-      username: prev.username && prev.payroll_employee_id ? username : (prev.username || username),
+      username: userModal === 'create'
+        ? (prev.username && prev.payroll_employee_id ? username : (prev.username || username))
+        : prev.username,
       department_id: deptMatch?.id || prev.department_id || '',
     }));
   };
@@ -185,6 +211,7 @@ export default function Employees() {
       department_id: u.department_id || '',
       active: u.active,
       protected: !!u.protected,
+      payroll_employee_id: '',
     });
     setUserModal(u.id);
   };
@@ -220,6 +247,8 @@ export default function Employees() {
           delete payload.active;
           delete payload.branch_id;
         }
+        delete payload.payroll_employee_id;
+        delete payload.protected;
         await api.updateUser(userModal, payload);
         show('Сотрудник обновлён');
       }
@@ -503,9 +532,9 @@ export default function Employees() {
                 Главный администратор — роль, логин и статус изменить нельзя. Можно менять имя и пароль.
               </p>
             )}
-            {userModal === 'create' && (
+            {userModal && !isProtectedForm && (
               <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                <label>Сотрудник *</label>
+                <label>{userModal === 'create' ? 'Сотрудник *' : 'Сотрудник из зарплаты'}</label>
                 {payrollLoading && payrollSelectItems.length === 0 ? (
                   <p className="form-hint">Загрузка списка…</p>
                 ) : payrollSelectItems.length === 0 ? (
@@ -527,8 +556,8 @@ export default function Employees() {
               <input
                 value={userForm.name}
                 onChange={(e) => setUserForm({ ...userForm, name: e.target.value })}
-                placeholder={userModal === 'create' ? 'Выберите из списка' : ''}
-                readOnly={userModal === 'create'}
+                placeholder={!isProtectedForm ? 'Выберите из списка' : ''}
+                readOnly={!isProtectedForm}
               />
             </div>
             <div className="form-group">
