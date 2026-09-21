@@ -203,3 +203,68 @@ test('inactive employee cannot enter by link', async () => {
   });
   assert.equal(loginRes.status, 401);
 });
+
+test('payroll link without login opens cabinet only', async () => {
+  const { importPayrollEmployees } = await import('../services/faceidPayroll.js');
+  const imported = importPayrollEmployees('main', [{
+    full_name: 'Без Логина',
+    department: 'Кухня',
+    position: 'Повар',
+    active: true,
+  }]);
+  assert.equal(imported.created, 1);
+  const { listPayrollEmployees } = await import('../services/faceidPayroll.js');
+  const emp = listPayrollEmployees('main').items.find((e) => e.full_name === 'Без Логина');
+  assert.ok(emp?.view_path?.startsWith('/e/'));
+  assert.equal(emp.has_login, false);
+
+  const res = await fetch(`${baseUrl}/api/auth/login-link`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token: emp.view_path.slice(3) }),
+  });
+  const body = await res.json();
+  assert.equal(res.status, 200, JSON.stringify(body));
+  assert.equal(body.mode, 'cabinet');
+  assert.equal(body.cabinet.full_name, 'Без Логина');
+  assert.equal(body.user, undefined);
+  assert.equal(res.headers.get('set-cookie'), null);
+});
+
+test('payroll link with system login enters the app', async () => {
+  const { importPayrollEmployees, listPayrollEmployees } = await import('../services/faceidPayroll.js');
+  importPayrollEmployees('main', [{
+    full_name: 'С Логином',
+    department: 'Касса',
+    position: 'Кассир',
+    active: true,
+  }]);
+  const emp = listPayrollEmployees('main').items.find((e) => e.full_name === 'С Логином');
+  const created = await fetch(`${baseUrl}/api/users`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', cookie },
+    body: JSON.stringify({
+      username: 'withlogin',
+      password: 'WithPass12',
+      name: 'С Логином',
+      role: 'cashier',
+      branch_id: 'main',
+      payroll_employee_id: emp.id,
+      active: true,
+    }),
+  });
+  const user = await created.json();
+  assert.equal(created.status, 201, JSON.stringify(user));
+  assert.equal(user.login_path, emp.view_path);
+
+  const res = await fetch(`${baseUrl}/api/auth/login-link`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token: emp.view_path.slice(3) }),
+  });
+  const body = await res.json();
+  assert.equal(res.status, 200, JSON.stringify(body));
+  assert.equal(body.mode, 'app');
+  assert.equal(body.user.username, 'withlogin');
+  assert.equal(body.home, '/cashier');
+});

@@ -89,7 +89,7 @@ test('payroll accrue and partial pay accumulates debt', async () => {
   assert.equal(afterPay.total_debt, 900000);
 
   const cook = afterPay.items.find((e) => e.full_name === 'Иванов Иван');
-  assert.ok(cook.view_path?.startsWith('/s/'));
+  assert.ok(cook.view_path?.startsWith('/e/'));
   const token = cook.view_path.slice(3);
   const cabinet = payroll.getPayrollCabinetByToken(token);
   assert.equal(cabinet.full_name, 'Иванов Иван');

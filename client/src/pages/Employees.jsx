@@ -308,7 +308,9 @@ export default function Employees() {
     }
     try {
       await navigator.clipboard.writeText(url);
-      show('Ссылка скопирована. Откройте её на телефоне сотрудника.');
+      show(emp.has_login
+        ? 'Ссылка скопирована. По ней сотрудник войдёт в систему.'
+        : 'Ссылка скопирована. По ней сотрудник увидит долг и рейтинг.');
     } catch {
       window.prompt('Личная ссылка сотрудника', url);
     }
@@ -401,7 +403,8 @@ export default function Employees() {
       {tab === 'access' && (
         <>
           <p className="form-hint" style={{ marginBottom: 12 }}>
-            У каждого сотрудника своя ссылка для входа с телефона. Роль может быть разной: кассир откроет кассу, кладовщик — снабжение или перемещение.
+            Одна ссылка на человека. Если выдали вход в систему (вкладка «Вход в систему») — по ссылке открывается работа.
+            Если логина нет — только личный кабинет: рейтинг явки и долг.
           </p>
           {!isHeadquarters && (
             <p className="form-hint" style={{ marginBottom: 12 }}>
@@ -447,7 +450,7 @@ export default function Employees() {
                         </td>
                         <td>
                           <div className="btn-group">
-                            <IconButton title="Скопировать ссылку входа" onClick={() => copyLoginLink(u)} disabled={!u.login_path}>
+                            <IconButton title="Скопировать ссылку" onClick={() => copyLoginLink(u)} disabled={!u.login_path}>
                               <IconCopy />
                             </IconButton>
                             {canEdit && (
@@ -492,7 +495,7 @@ export default function Employees() {
       {tab === 'payroll' && (
         <>
           <p className="form-hint" style={{ marginBottom: 12 }}>
-            Список для кассы «Зарплата». У каждого своя ссылка — сотрудник видит долг, явку и выплаты на телефоне.
+            Одна ссылка на каждого. Без логина в систему — кабинет (долг и рейтинг). С логином — работа в кассе/складе.
             Импорт Excel — шаблон Face ID (колонки Фирма, Отдел, Должность, ФИО, Оклад…).
             {isHeadquarters
               ? ' Фирма в файле сопоставляется с филиалом (при отсутствии филиал создаётся).'
@@ -525,6 +528,7 @@ export default function Employees() {
                         <th>Должность</th>
                         <th>Оклад</th>
                         <th>Долг</th>
+                        <th>Доступ</th>
                         <th>Ссылка</th>
                       </tr>
                     </thead>
@@ -536,9 +540,14 @@ export default function Employees() {
                           <td>{emp.position || '—'}</td>
                           <td>{Number(emp.base_salary) > 0 ? formatMoney(emp.base_salary) : '—'}</td>
                           <td>{Number(emp.balance) > 0 ? formatMoney(emp.balance) : '—'}</td>
+                          <td>{emp.has_login ? 'Вход в систему' : 'Только кабинет'}</td>
                           <td>
                             <div className="btn-group">
-                              <IconButton title="Скопировать личную ссылку" onClick={() => copyPayrollLink(emp)} disabled={!emp.view_path}>
+                              <IconButton
+                                title={emp.has_login ? 'Скопировать ссылку входа' : 'Скопировать ссылку кабинета'}
+                                onClick={() => copyPayrollLink(emp)}
+                                disabled={!emp.view_path}
+                              >
                                 <IconCopy />
                               </IconButton>
                               {canEdit && (

@@ -22,14 +22,16 @@ function generateViewToken() {
 function uniquePayrollViewToken() {
   for (let i = 0; i < 8; i += 1) {
     const token = generateViewToken();
-    const clash = queryOne('SELECT id FROM payroll_employees WHERE view_token = ?', [token]);
-    if (!clash) return token;
+    const clashEmp = queryOne('SELECT id FROM payroll_employees WHERE view_token = ?', [token]);
+    if (clashEmp) continue;
+    const clashUser = queryOne('SELECT id FROM users WHERE login_token = ?', [token]);
+    if (!clashUser) return token;
   }
   throw new Error('Не удалось выдать ссылку сотрудника');
 }
 
 function viewPathFor(token) {
-  return token ? `/s/${encodeURIComponent(token)}` : null;
+  return token ? `/e/${encodeURIComponent(token)}` : null;
 }
 
 export function ensurePayrollViewTokens() {
@@ -128,6 +130,7 @@ function mapEmployeeRow(row, dayTimes = null) {
     present: row.last_event_type === 'in' || (!!todayIn && !todayOut),
     synced_at: row.synced_at || null,
     view_path: viewPathFor(row.view_token),
+    has_login: !!row.has_login,
   };
 }
 
@@ -163,6 +166,12 @@ export function listPayrollEmployees(branchId = DEFAULT_BRANCH_ID, { presentOnly
   );
   const day = String(date || new Date().toISOString().slice(0, 10)).slice(0, 10);
   const dayMap = attendanceDayMap(branchId, day);
+  const linkedIds = new Set(
+    queryAll(
+      `SELECT payroll_employee_id AS id FROM users
+       WHERE payroll_employee_id IS NOT NULL AND payroll_employee_id != '' AND active = 1`,
+    ).map((r) => r.id),
+  );
   if (presentOnly) {
     rows = rows.filter((r) => {
       const t = dayMap.get(r.id);
@@ -172,7 +181,7 @@ export function listPayrollEmployees(branchId = DEFAULT_BRANCH_ID, { presentOnly
       return at === day && (r.last_event_type === 'in' || r.last_event_type === 'out');
     });
   }
-  const items = rows.map((r) => mapEmployeeRow(r, dayMap.get(r.id)));
+  const items = rows.map((r) => mapEmployeeRow({ ...r, has_login: linkedIds.has(r.id) }, dayMap.get(r.id)));
   const byDepartment = {};
   for (const emp of items) {
     const key = emp.department || 'Без отдела';
@@ -649,7 +658,9 @@ export function rotatePayrollViewToken(employeeId, branchId = DEFAULT_BRANCH_ID)
     [employeeId, branchId],
   );
   if (!row) throw new Error('Сотрудник не найден');
-  run('UPDATE payroll_employees SET view_token = ? WHERE id = ?', [uniquePayrollViewToken(), employeeId]);
+  const token = uniquePayrollViewToken();
+  run('UPDATE payroll_employees SET view_token = ? WHERE id = ?', [token, employeeId]);
+  run('UPDATE users SET login_token = ? WHERE payroll_employee_id = ?', [token, employeeId]);
   return mapEmployeeRow(queryOne('SELECT * FROM payroll_employees WHERE id = ?', [employeeId]));
 }
 

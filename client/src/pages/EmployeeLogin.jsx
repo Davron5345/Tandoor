@@ -2,11 +2,13 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
 import { phoneHomePath } from '../permissions';
+import EmployeeCabinet from './EmployeeCabinet';
 
 export default function EmployeeLogin() {
   const { token } = useParams();
   const navigate = useNavigate();
   const [error, setError] = useState('');
+  const [cabinet, setCabinet] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -14,6 +16,10 @@ export default function EmployeeLogin() {
       try {
         const data = await api.loginByLink(token);
         if (cancelled) return;
+        if (data.mode === 'cabinet' && data.cabinet) {
+          setCabinet(data.cabinet);
+          return;
+        }
         navigate(data.home || phoneHomePath(data.user), { replace: true });
       } catch (err) {
         if (!cancelled) setError(err.message || 'Ссылка недействительна');
@@ -21,6 +27,10 @@ export default function EmployeeLogin() {
     })();
     return () => { cancelled = true; };
   }, [token, navigate]);
+
+  if (cabinet) {
+    return <EmployeeCabinet initialData={cabinet} />;
+  }
 
   return (
     <div className="login-page employee-login-page">
@@ -32,7 +42,7 @@ export default function EmployeeLogin() {
             <p className="form-hint">Обратитесь к администратору за новой ссылкой.</p>
           </>
         ) : (
-          <p className="form-hint">Входим в систему…</p>
+          <p className="form-hint">Открываем…</p>
         )}
       </div>
     </div>

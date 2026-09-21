@@ -96,6 +96,9 @@ export function registerAuthRoutes(app, { authRequired }) {
     try {
       const rememberSession = remember !== false;
       const result = loginByLink(token, { remember: rememberSession, req });
+      if (result.mode === 'cabinet') {
+        return res.json({ mode: 'cabinet', cabinet: result.cabinet });
+      }
       setSessionCookie(res, result.token, { remember: rememberSession });
       const device = extractRequestDevice(req);
       logAudit({ user: result.user, headers: req.headers, socket: req.socket }, 'auth.login_link', {
@@ -104,8 +107,8 @@ export function registerAuthRoutes(app, { authRequired }) {
       logVisit(req, 'auth.login', { username: result.user.username, user_id: result.user.id, success: true, meta: { via: 'link' } });
       const wantsNativeToken = req.headers['x-native-client'] === '1' || !!req.body?.native;
       res.json(wantsNativeToken
-        ? { user: result.user, token: result.token, home: result.home }
-        : { user: result.user, home: result.home });
+        ? { mode: 'app', user: result.user, token: result.token, home: result.home }
+        : { mode: 'app', user: result.user, home: result.home });
     } catch (e) {
       if (e.code === 'DEVICE_BLOCKED') {
         logVisit(req, 'auth.login_blocked', { success: false, meta: { via: 'link' } });

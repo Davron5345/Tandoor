@@ -4,6 +4,7 @@ import db from './db.js';
 import { getUserPayload, roleExists, assertRoleMatchesBranch, phoneHomePath } from './permissions.js';
 import { getBranch, canViewAllBranches } from './branches.js';
 import { getDepartment } from './departments.js';
+import { getPayrollCabinetByToken } from './services/faceidPayroll.js';
 import {
   cleanExpiredSessions,
   createSession,
@@ -48,8 +49,10 @@ function generateLoginToken() {
 function uniqueLoginToken() {
   for (let i = 0; i < 8; i += 1) {
     const token = generateLoginToken();
-    const clash = queryOne('SELECT id FROM users WHERE login_token = ?', [token]);
-    if (!clash) return token;
+    const clashUser = queryOne('SELECT id FROM users WHERE login_token = ?', [token]);
+    if (clashUser) continue;
+    const clashEmp = queryOne('SELECT id FROM payroll_employees WHERE view_token = ?', [token]);
+    if (!clashEmp) return token;
   }
   throw new Error('Не удалось выдать ссылку входа');
 }
@@ -63,6 +66,23 @@ export function ensureAllLoginTokens() {
 
 function loginPathFor(token) {
   return token ? `/e/${encodeURIComponent(token)}` : null;
+}
+
+function entryTokenFor(user) {
+  if (user?.payroll_view_token) return user.payroll_view_token;
+  return user?.login_token || null;
+}
+
+function syncUserLoginTokenToPayroll(userId, payrollEmployeeId) {
+  if (!userId || !payrollEmployeeId) return;
+  const emp = queryOne('SELECT view_token FROM payroll_employees WHERE id = ?', [payrollEmployeeId]);
+  if (!emp?.view_token) return;
+  const clash = queryOne(
+    'SELECT id FROM users WHERE login_token = ? AND id != ?',
+    [emp.view_token, userId],
+  );
+  if (clash) return;
+  run('UPDATE users SET login_token = ? WHERE id = ?', [emp.view_token, userId]);
 }
 
 function cleanSessions() {
@@ -80,7 +100,11 @@ export function rotateUserLoginToken(userId, requester = null) {
   const user = queryOne('SELECT * FROM users WHERE id = ?', [userId]);
   if (!user) throw new Error('Сотрудник не найден');
   assertCanManageUser(requester, user);
-  run('UPDATE users SET login_token = ? WHERE id = ?', [uniqueLoginToken(), userId]);
+  const token = uniqueLoginToken();
+  if (user.payroll_employee_id) {
+    run('UPDATE payroll_employees SET view_token = ? WHERE id = ?', [token, user.payroll_employee_id]);
+  }
+  run('UPDATE users SET login_token = ? WHERE id = ?', [token, userId]);
   return mapUserRow(queryOne(userSelectSql(), [userId]));
 }
 
@@ -90,7 +114,23 @@ export function loginByLink(loginToken, options = {}) {
   if (!token || token.length < 16) {
     throw new Error('Ссылка недействительна');
   }
-  const user = queryOne('SELECT * FROM users WHERE login_token = ? AND active = 1', [token]);
+
+  let user = queryOne('SELECT * FROM users WHERE login_token = ? AND active = 1', [token]);
+  if (!user) {
+    const emp = queryOne(
+      'SELECT * FROM payroll_employees WHERE view_token = ? AND active = 1',
+      [token],
+    );
+    if (emp) {
+      user = queryOne(
+        'SELECT * FROM users WHERE payroll_employee_id = ? AND active = 1',
+        [emp.id],
+      );
+      if (!user) {
+        return { mode: 'cabinet', cabinet: getPayrollCabinetByToken(token) };
+      }
+    }
+  }
   if (!user) {
     throw new Error('Ссылка недействительна или сотрудник отключён');
   }
@@ -99,7 +139,7 @@ export function loginByLink(loginToken, options = {}) {
   const sessionToken = uuidv4();
   createSession(user, sessionToken, { req: options.req, remember });
   const payload = getUserPayload(user);
-  return { token: sessionToken, user: payload, home: phoneHomePath(payload) };
+  return { mode: 'app', token: sessionToken, user: payload, home: phoneHomePath(payload) };
 }
 
 /** Отдел должен принадлежать филиалу сотрудника; admin без филиала — без отдела. */
@@ -119,10 +159,12 @@ export function resolveUserDepartmentId(departmentId, branchId, role) {
 function userSelectSql(where = 'WHERE u.id = ?') {
   return `
     SELECT u.id, u.username, u.name, u.role, u.active, u.created_at, u.branch_id, u.department_id,
-           u.login_token, u.payroll_employee_id, b.name as branch_name, d.name as department_name
+           u.login_token, u.payroll_employee_id, pe.view_token AS payroll_view_token,
+           b.name as branch_name, d.name as department_name
     FROM users u
     LEFT JOIN branches b ON b.id = u.branch_id
     LEFT JOIN departments d ON d.id = u.department_id
+    LEFT JOIN payroll_employees pe ON pe.id = u.payroll_employee_id
     ${where}
   `;
 }
@@ -146,7 +188,7 @@ function resolvePayrollEmployeeId(rawId, branchId, currentUserId = null) {
 
 function mapUserRow(u) {
   if (!u) return null;
-  const { login_token: loginToken, ...rest } = u;
+  const { login_token: loginToken, payroll_view_token: payrollViewToken, ...rest } = u;
   delete rest.password_hash;
   return {
     ...rest,
@@ -155,7 +197,8 @@ function mapUserRow(u) {
     protected: isProtectedAdmin(u.username),
     department_id: u.department_id || null,
     department_name: u.department_name || null,
-    login_path: loginPathFor(loginToken),
+    payroll_employee_id: u.payroll_employee_id || null,
+    login_path: loginPathFor(entryTokenFor({ login_token: loginToken, payroll_view_token: payrollViewToken })),
   };
 }
 
@@ -217,10 +260,12 @@ export function changePassword(userId, currentPassword, newPassword, keepToken =
 export function getUsers(requester, branchId = null, { allBranches = false } = {}) {
   let sql = `
     SELECT u.id, u.username, u.name, u.role, u.active, u.created_at, u.branch_id, u.department_id,
-           u.login_token, u.payroll_employee_id, b.name as branch_name, d.name as department_name
+           u.login_token, u.payroll_employee_id, pe.view_token AS payroll_view_token,
+           b.name as branch_name, d.name as department_name
     FROM users u
     LEFT JOIN branches b ON b.id = u.branch_id
     LEFT JOIN departments d ON d.id = u.department_id
+    LEFT JOIN payroll_employees pe ON pe.id = u.payroll_employee_id
   `;
   const params = [];
   if (requester?.role === 'admin') {
@@ -282,6 +327,7 @@ export function createUser(data, requester = null) {
     payrollEmployeeId || null,
   ]);
 
+  if (payrollEmployeeId) syncUserLoginTokenToPayroll(id, payrollEmployeeId);
   return mapUserRow(queryOne(userSelectSql(), [id]));
 }
 
@@ -381,6 +427,7 @@ export function updateUser(id, data, requester = null) {
     revokeUserSessions(id);
   }
 
+  if (payrollEmployeeId) syncUserLoginTokenToPayroll(id, payrollEmployeeId);
   return mapUserRow(queryOne(userSelectSql(), [id]));
 }
 

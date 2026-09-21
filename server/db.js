@@ -702,6 +702,19 @@ function migrateUsersPayrollLink() {
       if (taken) continue;
       run('UPDATE users SET payroll_employee_id = ? WHERE id = ?', [matches[0].id, u.id]);
     }
+    const linked = queryAll(
+      "SELECT id, payroll_employee_id FROM users WHERE payroll_employee_id IS NOT NULL AND payroll_employee_id != ''",
+    );
+    for (const u of linked) {
+      const emp = queryOne('SELECT view_token FROM payroll_employees WHERE id = ?', [u.payroll_employee_id]);
+      if (!emp?.view_token) continue;
+      const clash = queryOne(
+        'SELECT id FROM users WHERE login_token = ? AND id != ?',
+        [emp.view_token, u.id],
+      );
+      if (clash) continue;
+      run('UPDATE users SET login_token = ? WHERE id = ?', [emp.view_token, u.id]);
+    }
   } catch (err) {
     console.error('⚠️ users payroll_employee_id backfill:', err.message);
   }

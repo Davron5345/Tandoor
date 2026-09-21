@@ -19,14 +19,25 @@ function ledgerLabel(type) {
   return type || 'Операция';
 }
 
-export default function EmployeeCabinet({ embedded = false, backTo = '/', showBack = false }) {
+export default function EmployeeCabinet({
+  embedded = false,
+  backTo = '/',
+  showBack = false,
+  initialData = null,
+}) {
   const { token } = useParams();
   const navigate = useNavigate();
-  const [data, setData] = useState(null);
+  const [data, setData] = useState(initialData);
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!initialData);
 
   useEffect(() => {
+    if (initialData) {
+      setData(initialData);
+      setError('');
+      setLoading(false);
+      return undefined;
+    }
     let cancelled = false;
     setLoading(true);
     const req = embedded ? api.getMyPayrollCabinet() : api.getPayrollCabinet(token);
@@ -47,7 +58,7 @@ export default function EmployeeCabinet({ embedded = false, backTo = '/', showBa
         if (!cancelled) setLoading(false);
       });
     return () => { cancelled = true; };
-  }, [token, embedded]);
+  }, [token, embedded, initialData]);
 
   const rating = Number(data?.month?.rating) || 0;
 
