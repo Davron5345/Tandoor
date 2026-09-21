@@ -615,23 +615,27 @@ function migratePayrollFaceId() {
 
 function migratePayrollViewTokens() {
   try { run('ALTER TABLE payroll_employees ADD COLUMN view_token TEXT'); } catch { /* exists */ }
-  try { run('CREATE UNIQUE INDEX IF NOT EXISTS idx_payroll_emp_view_token ON payroll_employees(view_token)'); } catch { /* */ }
-  const rows = queryAll("SELECT id FROM payroll_employees WHERE view_token IS NULL OR view_token = ''");
-  if (rows.length) {
-    const used = new Set(
-      queryAll("SELECT view_token FROM payroll_employees WHERE view_token IS NOT NULL AND view_token != ''")
-        .map((r) => r.view_token),
-    );
-    for (const row of rows) {
-      let token = '';
-      for (let i = 0; i < 8; i += 1) {
-        token = randomBytes(18).toString('base64url');
-        if (!used.has(token)) break;
+  try {
+    const rows = queryAll("SELECT id FROM payroll_employees WHERE view_token IS NULL OR view_token = ''");
+    if (rows.length) {
+      const used = new Set(
+        queryAll("SELECT view_token FROM payroll_employees WHERE view_token IS NOT NULL AND view_token != ''")
+          .map((r) => r.view_token),
+      );
+      for (const row of rows) {
+        let token = '';
+        for (let i = 0; i < 8; i += 1) {
+          token = randomBytes(18).toString('base64url');
+          if (!used.has(token)) break;
+        }
+        used.add(token);
+        run('UPDATE payroll_employees SET view_token = ? WHERE id = ?', [token, row.id]);
       }
-      used.add(token);
-      run('UPDATE payroll_employees SET view_token = ? WHERE id = ?', [token, row.id]);
     }
+  } catch (err) {
+    console.error('⚠️ payroll view_token backfill:', err.message);
   }
+  try { run('CREATE UNIQUE INDEX IF NOT EXISTS idx_payroll_emp_view_token ON payroll_employees(view_token)'); } catch { /* */ }
   const done = queryOne("SELECT value FROM settings WHERE key = 'payroll_view_token_v1'");
   if (!done) {
     run("INSERT OR REPLACE INTO settings (key, value) VALUES ('payroll_view_token_v1', '1')");

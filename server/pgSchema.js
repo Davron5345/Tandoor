@@ -501,7 +501,6 @@ CREATE TABLE IF NOT EXISTS payroll_ledger (
 
 CREATE INDEX IF NOT EXISTS idx_payroll_emp_branch ON payroll_employees (branch_id, department);
 CREATE INDEX IF NOT EXISTS idx_payroll_emp_faceid ON payroll_employees (branch_id, faceid_id);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_payroll_emp_view_token ON payroll_employees (view_token);
 CREATE INDEX IF NOT EXISTS idx_payroll_att_branch ON payroll_attendance (branch_id, event_at);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_payroll_att_ext ON payroll_attendance (branch_id, COALESCE(external_id, id));
 CREATE INDEX IF NOT EXISTS idx_payroll_ledger_emp ON payroll_ledger (employee_id, date);

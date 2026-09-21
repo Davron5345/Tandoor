@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-09-21 (личная ссылка кабинета сотрудника зарплаты)
+**Последнее обновление документации:** 2026-09-21 (fix healthcheck: view_token index после ALTER)
 
 ---
 
@@ -153,6 +153,7 @@ npm run db:import-payroll -- file.xlsx  # Импорт сотрудников з
 - **Движок (откат/dev без URL):** sql.js (SQLite в памяти, периодически сбрасывается на диск)
 - **Файл SQLite:** `data/warehouse.db` (путь через `DATA_DIR` env) — uploads и rollback
 - **Схема Postgres:** `server/pgSchema.js` (финальный эквивалент post-migration SQLite)
+- **Bootstrap Postgres:** новые колонки — `ALTER … ADD COLUMN IF NOT EXISTS` в `pgWorker.mjs` **до** индексов по ним. Не класть `CREATE INDEX` на новую колонку в `PG_CREATE_TABLES`: на существующей таблице `CREATE TABLE IF NOT EXISTS` колонку не добавит, индекс упадёт и Railway healthcheck (`/api/health`) не станет ready
 - **Диалект:** `server/sqlTranslate.js` (`?`→`$n`, `datetime('now')`, `INSERT OR REPLACE/IGNORE`, `IFNULL`, `IS ?`+null, `strftime`, `COLLATE NOCASE`)
 - **Миграции SQLite:** встроены в `server/db.js`, отслеживаются ключами в таблице `settings`
 - **Импорт:** `npm run db:migrate-pg` → `server/scripts/migrate-sqlite-to-postgres.mjs` (`MIGRATE_TRUNCATE=true`; bulk load с `session_replication_role=replica`; orphan SQLite-строки лучше вычистить в локальной копии перед импортом; `settings` в PG может быть `[OK~]` из‑за ключей схемы)
@@ -877,6 +878,7 @@ GET  /api/auth/roles
 | 2026-09-21 | Новый сотрудник (вход в систему): выбор ФИО из списка зарплаты филиала |
 | 2026-09-21 | Редактирование сотрудника: тот же выбор ФИО из списка зарплаты |
 | 2026-09-21 | Личный кабинет зарплаты `/s/:token`: долг, рейтинг явки, выплаты; копия/ротация ссылки на вкладке Зарплата |
+| 2026-09-21 | Fix Railway healthcheck: unique index `view_token` только после ALTER, не в `PG_CREATE_TABLES` |
 
 ---
 
