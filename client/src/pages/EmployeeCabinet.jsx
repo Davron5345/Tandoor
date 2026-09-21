@@ -74,7 +74,7 @@ export default function EmployeeCabinet({
           </header>
         ) : null
       ) : (
-        <header className="emp-cabinet-top">
+        <header className="emp-cabinet-top mobile-appbar">
           <div className="emp-cabinet-brand">Mahalla</div>
           <div className="emp-cabinet-title">Мой кабинет</div>
         </header>

@@ -417,12 +417,8 @@ export default function ShopOrdersMobile() {
       )}
 
       {view === 'list' && (
-        <PhoneAppSetupBanner startUrl="/warehouse/orders" appLabel="Снабжение" />
-      )}
-
-      {view === 'list' && (
         <>
-          <header className="warehouse-orders-mobile-header">
+          <header className="warehouse-orders-mobile-header mobile-appbar">
             <div className="warehouse-orders-mobile-brand">
               <span className="warehouse-orders-mobile-mark" aria-hidden><IconNavWarehouse /></span>
               <div>
@@ -442,7 +438,7 @@ export default function ShopOrdersMobile() {
               </button>
               <button
                 type="button"
-                className="warehouse-orders-mobile-icon-btn"
+                className="warehouse-orders-mobile-icon-btn warehouse-orders-mobile-theme-btn"
                 onClick={toggleTheme}
                 aria-label={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
                 title={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
@@ -457,6 +453,8 @@ export default function ShopOrdersMobile() {
               </button>
             </div>
           </header>
+
+          <PhoneAppSetupBanner startUrl="/warehouse/orders" appLabel="Снабжение" />
 
           {(canPrihod || canTransferMobile) && (
             <nav className="warehouse-orders-mobile-nav" aria-label="Разделы снабжения">
@@ -579,14 +577,14 @@ export default function ShopOrdersMobile() {
 
       {view === 'detail' && selected && (
         <div className="warehouse-orders-mobile-detail">
-          <header className="warehouse-orders-mobile-detail-header">
+          <header className="warehouse-orders-mobile-detail-header mobile-appbar">
             <button type="button" className="warehouse-orders-mobile-back" onClick={closeDetail}>
               ← Назад
             </button>
             <h2>Заказ №{selected.number}</h2>
             <button
               type="button"
-              className="warehouse-orders-mobile-icon-btn warehouse-orders-mobile-detail-theme"
+              className="warehouse-orders-mobile-icon-btn warehouse-orders-mobile-theme-btn"
               onClick={toggleTheme}
               aria-label={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
               title={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}

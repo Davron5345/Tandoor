@@ -1373,7 +1373,7 @@ export default function Cashier() {
 
       {cashierOnly ? (
         <>
-          <header className="cashier-unified-bar">
+          <header className="cashier-unified-bar mobile-appbar">
             <div className="cashier-app-bar-brand">
               <span className="cashier-app-bar-icon" aria-hidden><IconNavCashier /></span>
               <div>

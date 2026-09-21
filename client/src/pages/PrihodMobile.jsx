@@ -444,12 +444,8 @@ export default function PrihodMobile() {
       )}
 
       {view === 'list' && (
-        <PhoneAppSetupBanner startUrl="/warehouse/prihod" appLabel="Приход" />
-      )}
-
-      {view === 'list' && (
         <>
-          <header className="warehouse-orders-mobile-header">
+          <header className="warehouse-orders-mobile-header mobile-appbar">
             <div className="warehouse-orders-mobile-brand">
               <span className="warehouse-orders-mobile-mark" aria-hidden><IconNavWarehouse /></span>
               <div>
@@ -460,7 +456,7 @@ export default function PrihodMobile() {
             <div className="warehouse-orders-mobile-header-actions">
               <button
                 type="button"
-                className="warehouse-orders-mobile-icon-btn"
+                className="warehouse-orders-mobile-icon-btn warehouse-orders-mobile-theme-btn"
                 onClick={toggleTheme}
                 aria-label={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
               >
@@ -474,6 +470,8 @@ export default function PrihodMobile() {
               </button>
             </div>
           </header>
+
+          <PhoneAppSetupBanner startUrl="/warehouse/prihod" appLabel="Приход" />
 
           {navTabs}
 
@@ -557,14 +555,14 @@ export default function PrihodMobile() {
 
       {view === 'create' && (
         <div className="warehouse-orders-mobile-detail">
-          <header className="warehouse-orders-mobile-detail-header">
+          <header className="warehouse-orders-mobile-detail-header mobile-appbar">
             <button type="button" className="warehouse-orders-mobile-back" onClick={closeToList}>
               ← Назад
             </button>
             <h2>Новый приход</h2>
             <button
               type="button"
-              className="warehouse-orders-mobile-icon-btn warehouse-orders-mobile-detail-theme"
+              className="warehouse-orders-mobile-icon-btn warehouse-orders-mobile-theme-btn"
               onClick={toggleTheme}
               aria-label={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
             >
@@ -816,14 +814,14 @@ export default function PrihodMobile() {
 
       {view === 'detail' && selected && (
         <div className="warehouse-orders-mobile-detail">
-          <header className="warehouse-orders-mobile-detail-header">
+          <header className="warehouse-orders-mobile-detail-header mobile-appbar">
             <button type="button" className="warehouse-orders-mobile-back" onClick={closeToList}>
               ← Назад
             </button>
             <h2>Приход №{selected.number}</h2>
             <button
               type="button"
-              className="warehouse-orders-mobile-icon-btn warehouse-orders-mobile-detail-theme"
+              className="warehouse-orders-mobile-icon-btn warehouse-orders-mobile-theme-btn"
               onClick={toggleTheme}
               aria-label={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
             >

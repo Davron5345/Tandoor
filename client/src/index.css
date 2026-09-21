@@ -17954,3 +17954,643 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
   font-weight: 600;
   margin-bottom: 8px;
 }
+
+/* ═══ Единый мобильный дизайн (1С) ═══════════════════════════════════
+   Снабжение, приход, перемещение, касса и личный кабинет используют ту
+   же палитру и те же примитивы, что и mobile admin (`.app-mobile-admin`):
+   жёлтая шапка, светлые поверхности, прямоугольные поля, списки строками.
+   ═══════════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  .warehouse-orders-mobile-shell,
+  .app-cashier-mode,
+  .emp-cabinet,
+  .login-page {
+    --ones-yellow: #f5c518;
+    --ones-yellow-soft: #fff6cc;
+    --ones-ink: #1a1a1a;
+    --ones-muted: #6b7280;
+    --ones-border: #c8ccd0;
+    --ones-border-strong: #9aa0a6;
+    --ones-surface: #ffffff;
+    --ones-bg: #eceff1;
+    --ones-teal: #1a9b8e;
+    --ones-field: #ffffff;
+    --surface: var(--ones-surface);
+    --surface2: var(--ones-bg);
+    --surface-2: var(--ones-bg);
+    --bg: var(--ones-bg);
+    --text: var(--ones-ink);
+    --text-muted: var(--ones-muted);
+    --border: var(--ones-border);
+    --control-bg: var(--ones-field);
+    --control-border: var(--ones-border-strong);
+    --control-radius: 2px;
+    --primary: var(--ones-yellow);
+    --primary-hover: #e3b711;
+    --primary-text: var(--ones-ink);
+    --nav-active-bg: var(--ones-yellow-soft);
+    color: var(--ones-ink);
+    background: var(--ones-bg);
+  }
+
+  /* ——— Верхняя панель: одинаковая на всех экранах ——— */
+  .mobile-appbar {
+    position: relative;
+    z-index: 6;
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    min-height: 48px;
+    margin: 0;
+    padding: max(8px, env(safe-area-inset-top, 0px)) 8px 8px;
+    background: var(--ones-yellow, #f5c518);
+    color: var(--ones-ink, #1a1a1a);
+    border: 0;
+    border-bottom: 1px solid color-mix(in srgb, #000 10%, var(--ones-yellow, #f5c518));
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .mobile-appbar h1,
+  .mobile-appbar h2 {
+    flex: 1 1 auto;
+    min-width: 0;
+    margin: 0;
+    font-size: 17px;
+    font-weight: 700;
+    line-height: 1.2;
+    color: var(--ones-ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .mobile-appbar .warehouse-orders-mobile-brand,
+  .mobile-appbar .cashier-app-bar-brand {
+    flex: 1 1 auto;
+    min-width: 0;
+    gap: 8px;
+  }
+
+  .mobile-appbar .warehouse-orders-mobile-mark,
+  .mobile-appbar .cashier-app-bar-icon {
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
+    min-height: 28px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: var(--ones-ink);
+  }
+
+  .mobile-appbar .warehouse-orders-mobile-mark svg,
+  .mobile-appbar .cashier-app-bar-icon svg {
+    width: 24px;
+    height: 24px;
+  }
+
+  .mobile-appbar .warehouse-orders-mobile-brand strong,
+  .mobile-appbar .cashier-app-bar-brand strong {
+    font-size: 17px;
+    font-weight: 700;
+    line-height: 1.2;
+    color: var(--ones-ink);
+  }
+
+  .mobile-appbar .warehouse-orders-mobile-brand span,
+  .mobile-appbar .cashier-app-bar-brand span {
+    font-size: 12px;
+    color: color-mix(in srgb, var(--ones-ink) 62%, transparent);
+  }
+
+  .mobile-appbar .warehouse-orders-mobile-header-actions,
+  .mobile-appbar .cashier-app-bar-actions {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    flex: none;
+  }
+
+  .mobile-appbar .warehouse-orders-mobile-icon-btn,
+  .mobile-appbar .mobile-appbar-btn {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    min-height: 40px;
+    padding: 0;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--ones-ink);
+    box-shadow: none;
+  }
+
+  .mobile-appbar .warehouse-orders-mobile-icon-btn:active,
+  .mobile-appbar .mobile-appbar-btn:active,
+  .mobile-appbar .warehouse-orders-mobile-back:active {
+    background: color-mix(in srgb, #000 8%, transparent);
+  }
+
+  .mobile-appbar .warehouse-orders-mobile-icon-btn--alert::after {
+    border-color: var(--ones-yellow);
+  }
+
+  .mobile-appbar .warehouse-orders-mobile-back {
+    flex: none;
+    min-width: 40px;
+    height: 40px;
+    padding: 0 6px;
+    border-radius: 8px;
+    color: var(--ones-ink);
+    font-size: 15px;
+    font-weight: 700;
+  }
+
+  /* Тема на телефоне всегда светлая (1С) — переключатель прячем */
+  .mobile-appbar .theme-toggle,
+  .warehouse-orders-mobile-theme-btn {
+    display: none;
+  }
+
+  /* Баннер установки PWA — прямоугольный, как остальные карточки */
+  .app-mobile-admin .phone-app-setup-sheet,
+  .warehouse-orders-mobile-shell .phone-app-setup-sheet,
+  .app-cashier-mode .phone-app-setup-sheet {
+    border-radius: 2px;
+    border-color: var(--ones-border-strong, #9aa0a6);
+    background: var(--ones-yellow-soft, #fff6cc);
+  }
+
+  .app-mobile-admin .phone-app-setup-icon,
+  .warehouse-orders-mobile-shell .phone-app-setup-icon,
+  .app-cashier-mode .phone-app-setup-icon {
+    border-radius: 2px;
+    background: var(--ones-surface, #fff);
+    color: var(--ones-ink, #1a1a1a);
+  }
+
+  .mobile-appbar .btn-ghost {
+    min-height: 34px;
+    padding: 6px 10px;
+    border: 1px solid color-mix(in srgb, #000 18%, var(--ones-yellow));
+    border-radius: 2px;
+    background: color-mix(in srgb, #fff 55%, var(--ones-yellow));
+    color: var(--ones-ink);
+    font-weight: 600;
+  }
+
+  /* ——— Снабжение / приход / перемещение ——— */
+  .warehouse-orders-mobile-shell {
+    background: var(--ones-bg);
+  }
+
+  /* баннер теперь под шапкой — safe-area отступ больше не нужен */
+  .warehouse-orders-mobile-shell > .phone-app-setup {
+    padding-top: 8px;
+  }
+
+  .warehouse-orders-mobile-nav {
+    gap: 6px;
+    padding: 6px 10px;
+    background: var(--ones-surface);
+    border-bottom: 1px solid var(--ones-border);
+  }
+
+  .warehouse-orders-mobile-nav-tab {
+    min-height: 36px;
+    padding: 6px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--ones-border);
+    background: var(--ones-bg);
+    color: var(--ones-ink);
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .warehouse-orders-mobile-nav-tab.active {
+    background: var(--ones-yellow);
+    border-color: color-mix(in srgb, #000 12%, var(--ones-yellow));
+    color: var(--ones-ink);
+    font-weight: 700;
+  }
+
+  .warehouse-orders-mobile-branch {
+    gap: 4px;
+    margin: 0;
+    padding: 8px 10px;
+    border: 0;
+    border-bottom: 1px solid var(--ones-border);
+    border-radius: 0;
+    background: var(--ones-surface);
+  }
+
+  .warehouse-orders-mobile-branch > span {
+    font-size: 12px;
+    text-transform: none;
+    letter-spacing: normal;
+    color: var(--ones-muted);
+  }
+
+  .warehouse-orders-mobile-filters {
+    gap: 6px;
+    padding: 6px 10px;
+    background: var(--ones-surface);
+    border-bottom: 1px solid var(--ones-border);
+  }
+
+  .warehouse-orders-mobile-chip {
+    min-height: 34px;
+    padding: 6px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--ones-border);
+    background: var(--ones-bg);
+    color: var(--ones-ink);
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .warehouse-orders-mobile-chip.active {
+    background: var(--ones-yellow);
+    border-color: color-mix(in srgb, #000 12%, var(--ones-yellow));
+    color: var(--ones-ink);
+    font-weight: 700;
+  }
+
+  /* Список — строки как в документах mobile admin */
+  .warehouse-orders-mobile-list {
+    gap: 0;
+    padding: 0 0 max(12px, env(safe-area-inset-bottom, 0px));
+    background: var(--ones-surface);
+  }
+
+  .warehouse-orders-mobile-list--fab {
+    padding-bottom: max(88px, calc(env(safe-area-inset-bottom, 0px) + 72px));
+  }
+
+  .warehouse-orders-mobile-card {
+    padding: 12px;
+    border: 0;
+    border-bottom: 1px solid var(--ones-border);
+    border-radius: 0;
+    background: var(--ones-surface);
+    box-shadow: none;
+  }
+
+  .warehouse-orders-mobile-card:active {
+    transform: none;
+    background: var(--ones-yellow-soft);
+  }
+
+  .warehouse-orders-mobile-card-top strong {
+    font-size: 15px;
+    font-weight: 700;
+  }
+
+  .warehouse-orders-mobile-card-meta,
+  .warehouse-orders-mobile-empty {
+    color: var(--ones-muted);
+  }
+
+  .warehouse-orders-mobile-card-bottom {
+    border-top: 0;
+    margin-top: 6px;
+    padding-top: 0;
+  }
+
+  .warehouse-orders-mobile-detail-body {
+    background: var(--ones-bg);
+    padding: 12px 12px max(16px, env(safe-area-inset-bottom, 0px));
+  }
+
+  .warehouse-orders-mobile-detail-total {
+    padding: 10px 12px;
+    margin-bottom: 10px;
+    border: 1px solid var(--ones-border);
+    border-radius: 2px;
+    background: var(--ones-surface);
+    font-size: 16px;
+  }
+
+  .warehouse-prihod-item,
+  .warehouse-orders-mobile-detail-body .card {
+    border-radius: 2px;
+    border: 1px solid var(--ones-border-strong);
+    background: var(--ones-surface);
+    box-shadow: none;
+  }
+
+  .warehouse-prihod-readonly {
+    border: 1px solid var(--ones-border);
+    border-radius: 2px;
+    background: var(--ones-bg);
+  }
+
+  .warehouse-prihod-footer {
+    background: var(--ones-surface);
+    border-top: 1px solid var(--ones-border);
+  }
+
+  .warehouse-prihod-fab {
+    border-radius: 2px;
+    border: 1px solid color-mix(in srgb, #000 18%, var(--ones-yellow));
+    background: var(--ones-yellow);
+    color: var(--ones-ink);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+  }
+
+  /* жёлтый --primary нечитаем как заливка под белым текстом */
+  .snab-profile-avatar {
+    background: var(--ones-ink);
+    color: var(--ones-yellow);
+  }
+
+  .app-cashier-mode .cashier-kpi-balance .value {
+    color: var(--ones-ink);
+  }
+
+  .snab-profile-grid > div,
+  .snab-profile-version {
+    border-radius: 2px;
+    border-color: var(--ones-border-strong);
+    background: var(--ones-surface);
+  }
+
+  /* ——— Поля ввода: одинаковые рамки на всех оболочках ——— */
+  .warehouse-orders-mobile-shell input:not([type="checkbox"]):not([type="radio"]),
+  .warehouse-orders-mobile-shell select,
+  .warehouse-orders-mobile-shell textarea,
+  .app-cashier-mode .cashier-page input:not([type="checkbox"]):not([type="radio"]),
+  .app-cashier-mode .cashier-page select,
+  .app-cashier-mode .cashier-page textarea {
+    min-height: 40px;
+    border: 1px solid var(--ones-border-strong);
+    border-radius: 2px;
+    background: var(--ones-field);
+    color: var(--ones-ink);
+    box-shadow: none;
+  }
+
+  .warehouse-orders-mobile-shell input:focus,
+  .warehouse-orders-mobile-shell select:focus,
+  .app-cashier-mode .cashier-page input:focus,
+  .app-cashier-mode .cashier-page select:focus {
+    outline: none;
+    border-color: #6b7280;
+    box-shadow: inset 0 0 0 1px #6b7280;
+  }
+
+  /* ——— Кнопки ——— */
+  .warehouse-orders-mobile-shell .btn-primary,
+  .app-cashier-mode .cashier-page .btn-primary,
+  .emp-cabinet .btn-primary {
+    background: var(--ones-yellow);
+    border: 1px solid color-mix(in srgb, #000 18%, var(--ones-yellow));
+    border-radius: 2px;
+    color: var(--ones-ink);
+    box-shadow: none;
+  }
+
+  .warehouse-orders-mobile-shell .btn-primary:active,
+  .app-cashier-mode .cashier-page .btn-primary:active {
+    filter: brightness(0.96);
+  }
+
+  .warehouse-orders-mobile-shell .btn-ghost,
+  .app-cashier-mode .cashier-page .btn-ghost,
+  .emp-cabinet .btn-ghost {
+    border-radius: 2px;
+    border-color: var(--ones-border-strong);
+    background: var(--ones-field);
+    color: var(--ones-ink);
+  }
+
+  /* ——— Касса в режиме кассира ——— */
+  .app-cashier-mode .main {
+    padding: 0;
+    background: var(--ones-bg);
+  }
+
+  .app-cashier-mode .main-content > .cashier-page {
+    gap: 0;
+    padding: 0 0 max(8px, env(safe-area-inset-bottom, 0px));
+  }
+
+  .app-cashier-mode .cashier-unified-bar {
+    flex-wrap: wrap;
+    row-gap: 0;
+    border-radius: 0;
+  }
+
+  .app-cashier-mode .cashier-unified-bar .cashier-app-bar-icon {
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
+    min-height: 28px;
+    border-radius: 0;
+    background: transparent;
+    color: var(--ones-ink);
+  }
+
+  .app-cashier-mode .cashier-unified-bar .cashier-app-bar-icon svg {
+    width: 24px;
+    height: 24px;
+  }
+
+  .app-cashier-mode .mobile-appbar .cashier-unified-bar-center {
+    order: 3;
+    flex: 1 0 100%;
+    margin: 8px -8px -8px;
+    padding: 8px 10px;
+    justify-content: flex-start;
+    background: var(--ones-surface);
+    border-top: 1px solid color-mix(in srgb, #000 10%, var(--ones-yellow));
+  }
+
+  .app-cashier-mode .cashier-workspace {
+    gap: 8px;
+    padding: 8px 0 0;
+  }
+
+  .app-cashier-mode .cashier-panel,
+  .app-cashier-mode .cashier-history.card,
+  .app-cashier-mode .cashier-shift-notice {
+    border-radius: 0;
+    border-left: 0;
+    border-right: 0;
+    border-color: var(--ones-border);
+    background: var(--ones-surface);
+    box-shadow: none;
+  }
+
+  .app-cashier-mode .cashier-unified-bar .cashier-salary-btn {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .app-cashier-mode .cashier-side-toggle {
+    gap: 6px;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .app-cashier-mode .cashier-side-btn {
+    min-height: 40px;
+    border: 1px solid var(--ones-border);
+    border-radius: 6px;
+    background: var(--ones-bg);
+    color: var(--ones-ink);
+  }
+
+  .app-cashier-mode .cashier-side-btn.is-active[data-side="income"],
+  .app-cashier-mode .cashier-side-btn.is-active[data-side="expense"] {
+    background: var(--ones-yellow);
+    border-color: color-mix(in srgb, #000 12%, var(--ones-yellow));
+    color: var(--ones-ink);
+  }
+
+  .app-cashier-mode .cashier-article-chip {
+    border-radius: 6px;
+    border: 1px solid var(--ones-border);
+    background: var(--ones-bg);
+    color: var(--ones-ink);
+  }
+
+  .app-cashier-mode .cashier-article-chip.selected[data-side="income"],
+  .app-cashier-mode .cashier-article-chip.selected[data-side="expense"] {
+    background: var(--ones-yellow);
+    border-color: color-mix(in srgb, #000 12%, var(--ones-yellow));
+    color: var(--ones-ink);
+    font-weight: 700;
+  }
+
+  .app-cashier-mode .cashier-op-card {
+    border-radius: 0;
+    border-left: 0;
+    border-right: 0;
+    border-color: var(--ones-border);
+    background: var(--ones-surface);
+    box-shadow: none;
+  }
+
+  .app-cashier-mode .cashier-kpi-pill {
+    border-radius: 2px;
+    border: 1px solid var(--ones-border);
+    background: var(--ones-bg);
+  }
+
+  .app-cashier-mode .cashier-page > .phone-app-setup {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  /* ——— Вход (обычный и по ссылке сотрудника) ——— */
+  .login-page {
+    padding: 16px;
+    background: var(--ones-bg);
+  }
+
+  .login-theme-toggle {
+    display: none;
+  }
+
+  .login-card {
+    padding: 20px 16px 24px;
+    border: 1px solid var(--ones-border-strong);
+    border-radius: 2px;
+    background: var(--ones-surface);
+    box-shadow: none;
+  }
+
+  .login-card h1,
+  .login-title {
+    margin-bottom: 20px;
+    color: var(--ones-ink);
+  }
+
+  .login-page input:not([type="checkbox"]):not([type="radio"]) {
+    min-height: 44px;
+    border: 1px solid var(--ones-border-strong);
+    border-radius: 2px;
+    background: var(--ones-field);
+    color: var(--ones-ink);
+  }
+
+  .login-page .btn-primary {
+    background: var(--ones-yellow);
+    border: 1px solid color-mix(in srgb, #000 18%, var(--ones-yellow));
+    border-radius: 2px;
+    color: var(--ones-ink);
+    box-shadow: none;
+  }
+
+  .login-account-btn {
+    border-radius: 2px;
+    border-color: var(--ones-border);
+    background: var(--ones-bg);
+  }
+
+  /* ——— Личный кабинет сотрудника ——— */
+  /* в режиме кассира своей шапки нет — рисуем такую же жёлтую */
+  .app-cashier-mode .emp-cabinet-embed-bar {
+    margin: -8px -12px 12px;
+    min-height: 48px;
+    padding: max(8px, env(safe-area-inset-top, 0px)) 10px 8px;
+    background: var(--ones-yellow);
+    border-bottom: 1px solid color-mix(in srgb, #000 10%, var(--ones-yellow));
+  }
+
+  .app-cashier-mode .emp-cabinet-embed-bar .btn {
+    border-color: color-mix(in srgb, #000 18%, var(--ones-yellow));
+    background: color-mix(in srgb, #fff 55%, var(--ones-yellow));
+    color: var(--ones-ink);
+  }
+
+  .emp-cabinet-top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .emp-cabinet-brand {
+    order: 2;
+    margin-left: auto;
+    font-size: 11px;
+    opacity: 0.6;
+  }
+
+  .emp-cabinet-title {
+    font-size: 17px;
+    font-weight: 700;
+  }
+
+  .emp-cabinet-body {
+    gap: 10px;
+    padding: 12px;
+    background: var(--ones-bg);
+  }
+
+  .emp-cabinet-card,
+  .emp-cabinet-kpi {
+    border-radius: 2px;
+    border: 1px solid var(--ones-border);
+    background: var(--ones-surface);
+  }
+
+  .emp-cabinet-kpi span,
+  .emp-cabinet-kpi em,
+  .emp-cabinet-today span,
+  .emp-cabinet-hero p,
+  .emp-cabinet-ledger span,
+  .emp-cabinet-empty {
+    color: var(--ones-muted);
+  }
+
+  .emp-cabinet-ledger li {
+    border-bottom-color: var(--ones-border);
+  }
+}

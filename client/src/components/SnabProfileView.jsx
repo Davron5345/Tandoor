@@ -67,7 +67,7 @@ export default function SnabProfileView({
 
   return (
     <div className="warehouse-orders-mobile-detail snab-profile-view">
-      <header className="warehouse-orders-mobile-detail-header">
+      <header className="warehouse-orders-mobile-detail-header mobile-appbar">
         <button type="button" className="warehouse-orders-mobile-back" onClick={onBack}>
           ← Назад
         </button>

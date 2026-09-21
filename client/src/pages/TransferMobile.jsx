@@ -334,12 +334,8 @@ export default function TransferMobile() {
       )}
 
       {view === 'list' && (
-        <PhoneAppSetupBanner startUrl="/warehouse/transfer" appLabel="Перемещение" />
-      )}
-
-      {view === 'list' && (
         <>
-          <header className="warehouse-orders-mobile-header">
+          <header className="warehouse-orders-mobile-header mobile-appbar">
             <div className="warehouse-orders-mobile-brand">
               <span className="warehouse-orders-mobile-mark" aria-hidden><IconNavWarehouse /></span>
               <div>
@@ -348,7 +344,7 @@ export default function TransferMobile() {
               </div>
             </div>
             <div className="warehouse-orders-mobile-header-actions">
-              <button type="button" className="warehouse-orders-mobile-icon-btn" onClick={toggleTheme} aria-label="Тема">
+              <button type="button" className="warehouse-orders-mobile-icon-btn warehouse-orders-mobile-theme-btn" onClick={toggleTheme} aria-label="Тема">
                 {theme === 'dark' ? <IconNavSun /> : <IconNavMoon />}
               </button>
               <button type="button" className="warehouse-orders-mobile-icon-btn" onClick={() => loadDocs()} aria-label="Обновить">
@@ -359,6 +355,8 @@ export default function TransferMobile() {
               </button>
             </div>
           </header>
+
+          <PhoneAppSetupBanner startUrl="/warehouse/transfer" appLabel="Перемещение" />
 
           {navTabs}
 
@@ -429,7 +427,7 @@ export default function TransferMobile() {
 
       {view === 'create' && (
         <div className="warehouse-orders-mobile-detail">
-          <header className="warehouse-orders-mobile-detail-header">
+          <header className="warehouse-orders-mobile-detail-header mobile-appbar">
             <button type="button" className="warehouse-orders-mobile-back" onClick={closeToList}>
               ← Назад
             </button>
@@ -590,7 +588,7 @@ export default function TransferMobile() {
 
       {view === 'detail' && selected && (
         <div className="warehouse-orders-mobile-detail">
-          <header className="warehouse-orders-mobile-detail-header">
+          <header className="warehouse-orders-mobile-detail-header mobile-appbar">
             <button type="button" className="warehouse-orders-mobile-back" onClick={closeToList}>
               ← Назад
             </button>
