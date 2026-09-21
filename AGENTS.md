@@ -472,7 +472,7 @@ GET  /api/auth/roles
 | `/api/supplier-prices` | supplierPrices.routes.js | Прайс-документы поставщика (CRUD + confirm/cancel); `products.view`/`products.edit` |
 | `/api/counterparties` | counterparties.routes.js | Контрагенты, договоры (`/:id/contracts` CRUD), `/:id/firms` — юрлица поставщика (CRUD) |
 | `/api/payments` | finance.routes.js | Оплаты; `GET/POST/PUT/DELETE /api/bank-accounts`; `GET /bank-opening?bank_account_id=`; `DELETE /by-date/:date?bank_account_id=`; import parse/confirm |
-| `/api/payroll`, `/api/faceid` | faceid.routes.js | Зарплата + Face ID: settings (admin), sync employees/attendance, импорт сотрудников `POST /payroll/employees/import`, список по отделам, accrue/pay, recent attendance |
+| `/api/payroll`, `/api/faceid` | faceid.routes.js | Зарплата + Face ID: settings (admin), sync, `POST /payroll/employees/import-xlsx` (Excel), JSON import, список по отделам, accrue/pay |
 | `/api/cash-articles` | finance.routes.js | Статьи кассы |
 | `/api/stats`, `/api/reports/*` | org.routes.js | Отчёты, дашборд; `/api/reports/supplier-debts` (`supplier_ids` через запятую или `supplier_id`); `/api/reports/cash-articles?date_from&date_to` — обороты по статьям **только** `req.branchId` (платежи + JOIN статей по `ca.branch_id`) |
 | `/api/branches`, `/api/departments`, `/api/users` | org.routes.js | Оргструктура; `POST /api/users/:id/login-link` — новая ссылка входа (`users.edit`); в списке сотрудников `login_path` |
