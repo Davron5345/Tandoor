@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-09-21 (админка: импорт Excel сотрудников зарплаты)
+**Последнее обновление документации:** 2026-09-21 (новый сотрудник: выбор из списка зарплаты)
 
 ---
 
@@ -515,7 +515,7 @@ GET  /api/auth/roles
 | `/shop-orders` | ShopOrders.jsx | shop_orders.view |
 | `/telegram` | Telegram.jsx | telegram.view |
 | `/e/:token` | EmployeeLogin.jsx | публично; вход по личной ссылке, редирект на `home` по роли |
-| `/employees` | Employees.jsx | users.view; вкладки **Вход в систему** (логины, ссылки `/e/…`) и **Зарплата / Face ID** (payroll_employees по отделам); `users.edit` — «Импорт Excel» по шаблону Face ID + CRUD пользователей; поле **Отдел** (`department_id`); роль может отличаться |
+| `/employees` | Employees.jsx | users.view; вкладки **Вход в систему** (логины, ссылки `/e/…`) и **Зарплата / Face ID** (payroll_employees по отделам); `users.edit` — «Импорт Excel» по шаблону Face ID + CRUD пользователей; **Новый сотрудник** выбирается из списка зарплаты филиала (ФИО/должность); поле **Отдел** (`department_id`); роль может отличаться |
 | `/roles` | Roles.jsx | admin |
 | `/branches` | Branches.jsx | admin |
 | `/departments` | Departments.jsx | admin |
@@ -870,6 +870,7 @@ GET  /api/auth/roles
 | 2026-09-20 | Зарплата: модалка шире (~1320px), увеличены отступы и ширины колонок ведомости |
 | 2026-09-21 | Зарплата: импорт сотрудников из Excel Face ID (`POST /payroll/employees/import`, `npm run db:import-payroll`) |
 | 2026-09-21 | Админка «Сотрудники»: вкладка Зарплата/Face ID + кнопка «Импорт Excel» (`POST /payroll/employees/import-xlsx`) |
+| 2026-09-21 | Новый сотрудник (вход в систему): выбор ФИО из списка зарплаты филиала |
 
 ---
 

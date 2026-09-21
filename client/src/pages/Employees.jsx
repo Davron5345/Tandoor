@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { api, formatMoney } from '../api';
 import Modal, { useToast } from '../components/Modal';
+import CounterpartySearchSelect from '../components/CounterpartySearchSelect';
 import { IconButton, IconCopy, IconEdit, IconTrash } from '../components/ActionIcons';
 import { useAuth } from '../AuthContext';
 import { useBranch } from '../BranchContext';
@@ -8,8 +9,24 @@ import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import { hasPermission } from '../permissions';
 
 const emptyUser = {
-  username: '', password: '', name: '', role: 'warehouse', branch_id: 'main', department_id: '', active: true,
+  username: '',
+  password: '',
+  name: '',
+  role: 'warehouse',
+  branch_id: 'main',
+  department_id: '',
+  active: true,
+  payroll_employee_id: '',
 };
+
+function suggestUsername(fullName) {
+  const parts = String(fullName || '').trim().split(/\s+/).filter(Boolean);
+  const given = parts[1] || parts[0] || '';
+  return given
+    .toLowerCase()
+    .replace(/[''`´]/g, '')
+    .replace(/[^a-z0-9]/gi, '');
+}
 
 function employeeLoginUrl(user) {
   if (!user?.login_path) return '';
@@ -84,6 +101,24 @@ export default function Employees() {
 
   const sections = useMemo(() => groupUsersByDepartment(users), [users]);
 
+  const payrollItems = useMemo(() => {
+    const taken = new Set(
+      users.map((u) => String(u.name || '').trim().toLowerCase()).filter(Boolean),
+    );
+    return (payrollData.items || []).filter((emp) => {
+      if (!emp?.id || !emp.full_name) return false;
+      return !taken.has(String(emp.full_name).trim().toLowerCase());
+    });
+  }, [payrollData.items, users]);
+
+  const payrollSelectItems = useMemo(
+    () => payrollItems.map((emp) => ({
+      id: emp.id,
+      name: [emp.full_name, emp.position, emp.department].filter(Boolean).join(' · '),
+    })),
+    [payrollItems],
+  );
+
   const load = () => {
     api.getUsers().then(setUsers).catch(console.error);
     api.getRoles().then(setRoles).catch(console.error);
@@ -103,8 +138,8 @@ export default function Employees() {
 
   useEffect(() => { load(); }, [branchId]);
   useEffect(() => {
-    if (tab === 'payroll') loadPayroll();
-  }, [tab, branchId]);
+    if (tab === 'payroll' || userModal === 'create') loadPayroll();
+  }, [tab, branchId, userModal]);
   useAutoRefresh(load, [branchId], { enabled: !userModal && tab === 'access' });
 
   const openCreateUser = () => {
@@ -113,10 +148,31 @@ export default function Employees() {
       ...emptyUser,
       password: '',
       role: defaultRole,
-      branch_id: activeBranches[0]?.id || 'main',
+      branch_id: branchId || activeBranches[0]?.id || 'main',
       department_id: '',
+      payroll_employee_id: '',
     });
     setUserModal('create');
+  };
+
+  const pickPayrollEmployee = (id) => {
+    const emp = payrollItems.find((e) => e.id === id);
+    if (!emp) {
+      setUserForm((prev) => ({ ...prev, payroll_employee_id: '', name: '' }));
+      return;
+    }
+    const username = suggestUsername(emp.full_name);
+    const deptMatch = formDepartments.find((d) => (
+      d.name && emp.department
+      && d.name.trim().toLowerCase() === String(emp.department).trim().toLowerCase()
+    ));
+    setUserForm((prev) => ({
+      ...prev,
+      payroll_employee_id: emp.id,
+      name: emp.full_name,
+      username: prev.username && prev.payroll_employee_id ? username : (prev.username || username),
+      department_id: deptMatch?.id || prev.department_id || '',
+    }));
   };
 
   const openEditUser = (u) => {
@@ -145,10 +201,15 @@ export default function Employees() {
         return;
       }
       if (userModal === 'create') {
+        if (!userForm.name.trim()) {
+          show('Выберите сотрудника из списка', 'error');
+          return;
+        }
         if (!userForm.password) {
           show('Укажите пароль', 'error');
           return;
         }
+        delete payload.payroll_employee_id;
         await api.createUser(payload);
         show('Сотрудник добавлен');
       } else {
@@ -442,9 +503,33 @@ export default function Employees() {
                 Главный администратор — роль, логин и статус изменить нельзя. Можно менять имя и пароль.
               </p>
             )}
+            {userModal === 'create' && (
+              <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                <label>Сотрудник *</label>
+                {payrollLoading && payrollSelectItems.length === 0 ? (
+                  <p className="form-hint">Загрузка списка…</p>
+                ) : payrollSelectItems.length === 0 ? (
+                  <p className="form-hint">
+                    В зарплате филиала «{branchName}» пока нет сотрудников. Сначала нажмите «Импорт Excel» на вкладке «Зарплата / Face ID».
+                  </p>
+                ) : (
+                  <CounterpartySearchSelect
+                    items={payrollSelectItems}
+                    value={userForm.payroll_employee_id || ''}
+                    onChange={pickPayrollEmployee}
+                    placeholder="Найти ФИО из списка зарплаты…"
+                  />
+                )}
+              </div>
+            )}
             <div className="form-group">
               <label>Имя *</label>
-              <input value={userForm.name} onChange={(e) => setUserForm({ ...userForm, name: e.target.value })} />
+              <input
+                value={userForm.name}
+                onChange={(e) => setUserForm({ ...userForm, name: e.target.value })}
+                placeholder={userModal === 'create' ? 'Выберите из списка' : ''}
+                readOnly={userModal === 'create'}
+              />
             </div>
             <div className="form-group">
               <label>Логин *</label>
