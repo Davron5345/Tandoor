@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { api } from '../api';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { api, formatMoney } from '../api';
 import Modal, { useToast } from '../components/Modal';
 import { IconButton, IconCopy, IconEdit, IconTrash } from '../components/ActionIcons';
 import { useAuth } from '../AuthContext';
@@ -51,10 +51,15 @@ export default function Employees() {
   const { user } = useAuth();
   const { branches, branchId, isHeadquarters, branchName } = useBranch();
   const canEdit = hasPermission(user, 'users.edit');
+  const fileRef = useRef(null);
 
+  const [tab, setTab] = useState('access'); // access | payroll
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState({});
   const [departments, setDepartments] = useState([]);
+  const [payrollData, setPayrollData] = useState({ departments: [], items: [], total_debt: 0 });
+  const [payrollLoading, setPayrollLoading] = useState(false);
+  const [importBusy, setImportBusy] = useState(false);
   const [userModal, setUserModal] = useState(null);
   const [userForm, setUserForm] = useState(emptyUser);
   const { show, Toast } = useToast();
@@ -85,8 +90,22 @@ export default function Employees() {
     api.getDepartments().then(setDepartments).catch(() => setDepartments([]));
   };
 
+  const loadPayroll = () => {
+    setPayrollLoading(true);
+    api.getPayrollEmployees()
+      .then((data) => setPayrollData(data || { departments: [], items: [], total_debt: 0 }))
+      .catch((err) => {
+        console.error(err);
+        setPayrollData({ departments: [], items: [], total_debt: 0 });
+      })
+      .finally(() => setPayrollLoading(false));
+  };
+
   useEffect(() => { load(); }, [branchId]);
-  useAutoRefresh(load, [branchId], { enabled: !userModal });
+  useEffect(() => {
+    if (tab === 'payroll') loadPayroll();
+  }, [tab, branchId]);
+  useAutoRefresh(load, [branchId], { enabled: !userModal && tab === 'access' });
 
   const openCreateUser = () => {
     const defaultRole = Object.keys(roles).find((k) => k !== 'admin') || 'warehouse';
@@ -187,100 +206,223 @@ export default function Employees() {
     }
   };
 
+  const onPickPayrollExcel = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setImportBusy(true);
+    try {
+      const scope = isHeadquarters ? 'all' : 'branch';
+      const result = await api.importPayrollEmployeesXlsx(file, { scope });
+      const parts = [
+        `Строк: ${result.total_rows || 0}`,
+        `новых: ${result.created || 0}`,
+        `обновлено: ${result.updated || 0}`,
+      ];
+      if (result.skipped) parts.push(`пропущено: ${result.skipped}`);
+      show(parts.join(', '));
+      setTab('payroll');
+      loadPayroll();
+    } catch (err) {
+      show(err.message || 'Ошибка импорта', 'error');
+    } finally {
+      setImportBusy(false);
+    }
+  };
+
   return (
     <div>
       {Toast}
       <div className="page-header">
         <h1>Сотрудники</h1>
-        {canEdit && (
-          <button type="button" className="btn btn-primary" onClick={openCreateUser}>+ Добавить сотрудника</button>
-        )}
+        <div className="btn-group">
+          {canEdit && (
+            <>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={importBusy}
+                onClick={() => fileRef.current?.click()}
+              >
+                {importBusy ? 'Импорт…' : 'Импорт Excel'}
+              </button>
+              <input
+                ref={fileRef}
+                type="file"
+                accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                style={{ display: 'none' }}
+                onChange={onPickPayrollExcel}
+              />
+            </>
+          )}
+          {canEdit && tab === 'access' && (
+            <button type="button" className="btn btn-primary" onClick={openCreateUser}>+ Добавить сотрудника</button>
+          )}
+        </div>
       </div>
-      <p className="form-hint" style={{ marginBottom: 12 }}>
-        У каждого сотрудника своя ссылка для входа с телефона. Роль может быть разной: кассир откроет кассу, кладовщик — снабжение или перемещение.
-      </p>
-      {!isHeadquarters && (
-        <p className="form-hint" style={{ marginBottom: 12 }}>
-          Показаны сотрудники филиала «{branchName}». Переключите на Asosiy, чтобы видеть всех.
-        </p>
+
+      <div className="section-tabs" style={{ marginBottom: 12 }}>
+        <button
+          type="button"
+          className={`section-tab${tab === 'access' ? ' is-active' : ''}`}
+          onClick={() => setTab('access')}
+        >
+          Вход в систему
+        </button>
+        <button
+          type="button"
+          className={`section-tab${tab === 'payroll' ? ' is-active' : ''}`}
+          onClick={() => setTab('payroll')}
+        >
+          Зарплата / Face ID
+        </button>
+      </div>
+
+      {tab === 'access' && (
+        <>
+          <p className="form-hint" style={{ marginBottom: 12 }}>
+            У каждого сотрудника своя ссылка для входа с телефона. Роль может быть разной: кассир откроет кассу, кладовщик — снабжение или перемещение.
+          </p>
+          {!isHeadquarters && (
+            <p className="form-hint" style={{ marginBottom: 12 }}>
+              Показаны сотрудники филиала «{branchName}». Переключите на Asosiy, чтобы видеть всех.
+            </p>
+          )}
+
+          {sections.map((section) => (
+            <div className="card" key={section.key} style={{ marginBottom: 16 }}>
+              <div className="card-header">
+                <strong>{section.title}</strong>
+                {section.subtitle && <span className="report-meta">{section.subtitle}</span>}
+              </div>
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Имя</th>
+                      <th>Логин</th>
+                      <th>Роль</th>
+                      <th>Филиал</th>
+                      <th>Статус</th>
+                      <th>Вход с телефона</th>
+                      {canEdit && <th></th>}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {section.users.map((u) => (
+                      <tr key={u.id}>
+                        <td>{u.name}</td>
+                        <td>{u.username}</td>
+                        <td>
+                          <span className="badge badge-supplier">
+                            {roles[u.role]?.label || u.roleLabel || u.role}
+                            {u.protected && ' ★'}
+                          </span>
+                        </td>
+                        <td>{u.role === 'admin' ? 'Все филиалы' : (u.branch_name || '—')}</td>
+                        <td>
+                          <span className={`badge badge-${u.active ? 'confirmed' : 'cancelled'}`}>
+                            {u.active ? 'Активен' : 'Отключён'}
+                          </span>
+                        </td>
+                        <td>
+                          <div className="btn-group">
+                            <IconButton title="Скопировать ссылку входа" onClick={() => copyLoginLink(u)} disabled={!u.login_path}>
+                              <IconCopy />
+                            </IconButton>
+                            {canEdit && (
+                              <button
+                                type="button"
+                                className="btn btn-ghost btn-sm"
+                                onClick={() => rotateLoginLink(u)}
+                                title="Выдать новую ссылку"
+                              >
+                                Новая
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                        {canEdit && (
+                          <td>
+                            <div className="btn-group">
+                              <IconButton title="Изменить" onClick={() => openEditUser(u)}>
+                                <IconEdit />
+                              </IconButton>
+                              {!(u.protected || u.username === 'admin') && (
+                                <IconButton title="Удалить" danger onClick={() => removeUser(u)}>
+                                  <IconTrash />
+                                </IconButton>
+                              )}
+                            </div>
+                          </td>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ))}
+          {users.length === 0 && (
+            <div className="card"><div className="empty">Сотрудников пока нет</div></div>
+          )}
+        </>
       )}
 
-      {sections.map((section) => (
-        <div className="card" key={section.key} style={{ marginBottom: 16 }}>
-          <div className="card-header">
-            <strong>{section.title}</strong>
-            {section.subtitle && <span className="report-meta">{section.subtitle}</span>}
-          </div>
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Имя</th>
-                  <th>Логин</th>
-                  <th>Роль</th>
-                  <th>Филиал</th>
-                  <th>Статус</th>
-                  <th>Вход с телефона</th>
-                  {canEdit && <th></th>}
-                </tr>
-              </thead>
-              <tbody>
-                {section.users.map((u) => (
-                  <tr key={u.id}>
-                    <td>{u.name}</td>
-                    <td>{u.username}</td>
-                    <td>
-                      <span className="badge badge-supplier">
-                        {roles[u.role]?.label || u.roleLabel || u.role}
-                        {u.protected && ' ★'}
-                      </span>
-                    </td>
-                    <td>{u.role === 'admin' ? 'Все филиалы' : (u.branch_name || '—')}</td>
-                    <td>
-                      <span className={`badge badge-${u.active ? 'confirmed' : 'cancelled'}`}>
-                        {u.active ? 'Активен' : 'Отключён'}
-                      </span>
-                    </td>
-                    <td>
-                      <div className="btn-group">
-                        <IconButton title="Скопировать ссылку входа" onClick={() => copyLoginLink(u)} disabled={!u.login_path}>
-                          <IconCopy />
-                        </IconButton>
-                        {canEdit && (
-                          <button
-                            type="button"
-                            className="btn btn-ghost btn-sm"
-                            onClick={() => rotateLoginLink(u)}
-                            title="Выдать новую ссылку"
-                          >
-                            Новая
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                    {canEdit && (
-                      <td>
-                        <div className="btn-group">
-                          <IconButton title="Изменить" onClick={() => openEditUser(u)}>
-                            <IconEdit />
-                          </IconButton>
-                          {!(u.protected || u.username === 'admin') && (
-                            <IconButton title="Удалить" danger onClick={() => removeUser(u)}>
-                              <IconTrash />
-                            </IconButton>
-                          )}
-                        </div>
-                      </td>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      ))}
-      {users.length === 0 && (
-        <div className="card"><div className="empty">Сотрудников пока нет</div></div>
+      {tab === 'payroll' && (
+        <>
+          <p className="form-hint" style={{ marginBottom: 12 }}>
+            Список для кассы «Зарплата». Импорт Excel — шаблон Face ID (колонки Фирма, Отдел, Должность, ФИО, Оклад…).
+            {isHeadquarters
+              ? ' Фирма в файле сопоставляется с филиалом (при отсутствии филиал создаётся).'
+              : ` В этот филиал («${branchName}») попадут только строки с совпадающей фирмой.`}
+          </p>
+          {payrollLoading ? (
+            <div className="card"><div className="empty">Загрузка…</div></div>
+          ) : (payrollData.departments || []).length === 0 ? (
+            <div className="card">
+              <div className="empty">
+                Нет сотрудников зарплаты. Нажмите «Импорт Excel» или синхронизируйте Face ID на кассе.
+              </div>
+            </div>
+          ) : (
+            (payrollData.departments || []).map((dep) => (
+              <div className="card" key={dep.name} style={{ marginBottom: 16 }}>
+                <div className="card-header">
+                  <strong>{dep.name || 'Без отдела'}</strong>
+                  <span className="report-meta">
+                    {dep.employees?.length || 0} чел.
+                    {Number(dep.debt_sum) > 0 ? ` · долг ${formatMoney(dep.debt_sum)}` : ''}
+                  </span>
+                </div>
+                <div className="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th style={{ width: 40 }}>№</th>
+                        <th>ФИО</th>
+                        <th>Должность</th>
+                        <th>Оклад</th>
+                        <th>Долг</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(dep.employees || []).map((emp, idx) => (
+                        <tr key={emp.id}>
+                          <td>{idx + 1}</td>
+                          <td>{emp.full_name}</td>
+                          <td>{emp.position || '—'}</td>
+                          <td>{Number(emp.base_salary) > 0 ? formatMoney(emp.base_salary) : '—'}</td>
+                          <td>{Number(emp.balance) > 0 ? formatMoney(emp.balance) : '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ))
+          )}
+        </>
       )}
 
       {userModal && (

@@ -1,5 +1,7 @@
+import multer from 'multer';
 import { requireAdmin, requireAnyPermission, attachBranch } from '../middleware.js';
 import * as payroll from '../services/faceidPayroll.js';
+import { importPayrollEmployeesFromExcelBuffer } from '../services/payrollEmployeesImport.js';
 
 function todayIso() {
   const d = new Date();
@@ -31,8 +33,9 @@ export function registerPublicFaceIdRoutes(app) {
 }
 
 export function registerFaceIdPayrollRoutes(app) {
-  const canCashier = requireAnyPermission('cashier.view', 'cashier.edit', 'payments.view', 'payments.edit');
+  const canCashier = requireAnyPermission('cashier.view', 'cashier.edit', 'payments.view', 'payments.edit', 'users.view', 'users.edit');
   const canPay = requireAnyPermission('cashier.edit', 'payments.edit');
+  const canImportEmployees = requireAnyPermission('users.edit', 'cashier.edit');
 
   app.get('/api/faceid/settings', requireAdmin, attachBranch, (req, res) => {
     const cfg = payroll.getFaceIdConfig(req.branchId);
@@ -109,6 +112,43 @@ export function registerFaceIdPayrollRoutes(app) {
       res.status(400).json({ error: e.message });
     }
   });
+
+  const employeesXlsxUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 12 * 1024 * 1024 },
+    fileFilter: (_req, file, cb) => {
+      const name = String(file.originalname || '').toLowerCase();
+      if (name.endsWith('.xlsx') || name.endsWith('.xls')) cb(null, true);
+      else cb(new Error('Загрузите Excel (.xlsx) по шаблону сотрудников Face ID'));
+    },
+  });
+
+  app.post(
+    '/api/payroll/employees/import-xlsx',
+    canImportEmployees,
+    attachBranch,
+    (req, res, next) => {
+      employeesXlsxUpload.single('file')(req, res, (err) => {
+        if (err) return res.status(400).json({ error: err.message || 'Ошибка загрузки файла' });
+        next();
+      });
+    },
+    (req, res) => {
+      try {
+        if (!req.file?.buffer) {
+          return res.status(400).json({ error: 'Прикрепите файл Excel (.xlsx)' });
+        }
+        const scope = String(req.query.scope || req.body?.scope || 'all');
+        const result = importPayrollEmployeesFromExcelBuffer(req.file.buffer, {
+          createMissingBranches: scope !== 'branch',
+          onlyBranchId: scope === 'branch' ? req.branchId : null,
+        });
+        res.status(201).json(result);
+      } catch (e) {
+        res.status(400).json({ error: e.message });
+      }
+    },
+  );
 
   app.get('/api/payroll/employees', canCashier, attachBranch, (req, res) => {
     try {

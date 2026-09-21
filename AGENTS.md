@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-09-21 (импорт сотрудников зарплаты из Excel)
+**Последнее обновление документации:** 2026-09-21 (админка: импорт Excel сотрудников зарплаты)
 
 ---
 
@@ -415,7 +415,7 @@ Frontend зеркало: `client/src/permissions.js`.
 - Синхронизация: `POST /api/faceid/sync/employees` → `GET /api/integration/employees`; `POST /api/faceid/sync/attendance` → `GET /api/integration/attendance`.
 - Входящие отметки (push): публичный `POST /api/integrations/faceid/events?branch_id=` с `X-Device-Key` или `X-Webhook-Secret`; тело — одно событие или `{ events: [...] }` (`type` in/out/auto, `employeeId`/`tabNo`/`fullName`, `timestamp`). CSRF для `/api/integrations/*` отключён.
 - Сотрудники зарплаты: `payroll_employees` (синк из Face ID или импорт Excel, `balance` = долг к выплате).
-- Импорт Excel (экспорт Face ID): `POST /api/payroll/employees/import` `{ employees: [{ full_name, department, position, base_salary, faceid_id, tab_no, active }] }` (admin); CLI `npm run db:import-payroll -- path/to/employees.xlsx` — фирма из файла → филиал по имени (создаёт филиал при отсутствии); оклад UZS → `base_salary`.
+- Импорт Excel (экспорт Face ID): кнопка **«Импорт Excel»** на `/employees` (вкладка «Зарплата / Face ID»); `POST /api/payroll/employees/import-xlsx` (multipart `file`, `users.edit`); фирма → филиал (`scope=all` с HQ создаёт филиалы, `scope=branch` — только текущий); также JSON `POST /api/payroll/employees/import` и CLI `npm run db:import-payroll -- file.xlsx`.
 - Выплата на кассе: кнопка **Зарплата** → ведомость в стиле печатного листа (2 колонки таблиц по отделам: № / отдел / OYLIK / KIRISH—CHIQISH / IMZO; SANA + название филиала; нумерация с 1 в каждом отделе; модалка шире ~1320px, ячейки с отступами) → клик по строке → **Начислить** + **Выплатить**; остаток (`balance + accrue − pay`) копится как долг. Создаётся кассовый `other_expense` со статьёй `exp_salary`.
 - KIRISH/CHIQISH: первая «вход» и последняя «выход» за дату смены (`GET /api/payroll/employees?date=YYYY-MM-DD`); IMZO — два квадрата (вход/выход).
 - По умолчанию ведомость с галочкой **«Только с отметкой»** (`present=1`) — только сотрудники с Face ID-отметкой за дату смены; снять галочку — весь список филиала.
@@ -515,7 +515,7 @@ GET  /api/auth/roles
 | `/shop-orders` | ShopOrders.jsx | shop_orders.view |
 | `/telegram` | Telegram.jsx | telegram.view |
 | `/e/:token` | EmployeeLogin.jsx | публично; вход по личной ссылке, редирект на `home` по роли |
-| `/employees` | Employees.jsx | users.view; список **по отделам**; у каждого копирование ссылки `/e/…` и «Новая» (`users.edit`); поле **Отдел** (`department_id`); роль может отличаться |
+| `/employees` | Employees.jsx | users.view; вкладки **Вход в систему** (логины, ссылки `/e/…`) и **Зарплата / Face ID** (payroll_employees по отделам); `users.edit` — «Импорт Excel» по шаблону Face ID + CRUD пользователей; поле **Отдел** (`department_id`); роль может отличаться |
 | `/roles` | Roles.jsx | admin |
 | `/branches` | Branches.jsx | admin |
 | `/departments` | Departments.jsx | admin |
@@ -869,6 +869,7 @@ GET  /api/auth/roles
 | 2026-09-20 | Зарплата: по умолчанию только сотрудники с отметкой Face ID за дату (`present=1`) |
 | 2026-09-20 | Зарплата: модалка шире (~1320px), увеличены отступы и ширины колонок ведомости |
 | 2026-09-21 | Зарплата: импорт сотрудников из Excel Face ID (`POST /payroll/employees/import`, `npm run db:import-payroll`) |
+| 2026-09-21 | Админка «Сотрудники»: вкладка Зарплата/Face ID + кнопка «Импорт Excel» (`POST /payroll/employees/import-xlsx`) |
 
 ---
 

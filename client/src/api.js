@@ -408,6 +408,25 @@ export const api = {
     method: 'POST',
     body: JSON.stringify(data),
   }),
+  importPayrollEmployeesXlsx: async (file, { scope = 'all' } = {}) => {
+    const form = new FormData();
+    form.append('file', file);
+    const params = new URLSearchParams();
+    if (activeBranchId) params.set('branch_id', activeBranchId);
+    if (scope) params.set('scope', scope);
+    const qs = params.toString();
+    const url = `${getApiBaseUrl()}/api/payroll/employees/import-xlsx${qs ? `?${qs}` : ''}`;
+    const headers = {};
+    const nativeToken = getNativeSessionToken();
+    if (nativeToken) {
+      headers.Authorization = `Bearer ${nativeToken}`;
+      headers['X-Native-Client'] = '1';
+    }
+    const res = await fetch(url, { method: 'POST', credentials: 'include', headers, body: form });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Ошибка импорта сотрудников');
+    return data;
+  },
   accruePayrollEmployee: (id, data) => request(`/payroll/employees/${encodeURIComponent(id)}/accrue`, {
     method: 'POST',
     body: JSON.stringify(data),
