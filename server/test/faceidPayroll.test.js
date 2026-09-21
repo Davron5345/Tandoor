@@ -34,6 +34,22 @@ test('payroll accrue and partial pay accumulates debt', async () => {
   }));
 
   const payroll = await import('../services/faceidPayroll.js');
+  const imported = payroll.importPayrollEmployees('main', [
+    {
+      full_name: 'Тестов Тест',
+      department: 'АУП',
+      position: 'Кассир',
+      base_salary: 1_000_000,
+      active: true,
+    },
+  ]);
+  assert.equal(imported.created, 1);
+  const list = payroll.listPayrollEmployees('main');
+  const found = list.items.find((e) => e.full_name === 'Тестов Тест');
+  assert.ok(found);
+  assert.equal(found.base_salary, 1_000_000);
+  assert.equal(found.department, 'АУП');
+
   const empId = payroll.recordAttendanceEvent('main', {
     employeeId: 'face-1',
     tabNo: 'T1',
@@ -68,8 +84,7 @@ test('payroll accrue and partial pay accumulates debt', async () => {
   });
   assert.equal(again.balance, 900000);
 
-  const list = payroll.listPayrollEmployees('main');
-  assert.equal(list.departments.length, 1);
-  assert.equal(list.departments[0].name, 'Кухня');
-  assert.equal(list.total_debt, 900000);
+  const afterPay = payroll.listPayrollEmployees('main');
+  assert.ok(afterPay.departments.some((d) => d.name === 'Кухня'));
+  assert.equal(afterPay.total_debt, 900000);
 });

@@ -404,6 +404,10 @@ export const api = {
     const q = new URLSearchParams(params).toString();
     return request(`/payroll/employees/${encodeURIComponent(id)}/ledger${q ? `?${q}` : ''}`);
   },
+  importPayrollEmployees: (data) => request('/payroll/employees/import', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
   accruePayrollEmployee: (id, data) => request(`/payroll/employees/${encodeURIComponent(id)}/accrue`, {
     method: 'POST',
     body: JSON.stringify(data),

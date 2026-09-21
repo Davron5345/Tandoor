@@ -19,6 +19,7 @@
     "db:restore": "node server/scripts/db-restore.mjs",
     "db:migrate-pg": "node server/scripts/migrate-sqlite-to-postgres.mjs",
     "db:reset-operations": "node server/scripts/reset-operational-data.mjs",
+    "db:import-payroll": "node server/scripts/import-payroll-employees.mjs",
     "vapid:generate": "node server/scripts/generate-vapid.mjs",
     "perms:verify": "node server/scripts/verify-cashier-perms.mjs",
     "cap:sync": "npm run build && npx cap sync android",

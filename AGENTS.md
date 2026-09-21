@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-09-20 (зарплата: шире модалка и отступы ячеек)
+**Последнее обновление документации:** 2026-09-21 (импорт сотрудников зарплаты из Excel)
 
 ---
 
@@ -123,6 +123,7 @@ npm run db:list-backups         # Список бэкапов
 npm run db:restore -- best     # Восстановить лучший бэкап SQLite
 npm run db:migrate-pg          # Импорт warehouse.db → Postgres
 npm run db:reset-operations    # Сброс операционных данных
+npm run db:import-payroll -- file.xlsx  # Импорт сотрудников зарплаты из Excel Face ID
 ```
 
 **Движок:** `DATABASE_URL` → Postgres; без URL → sql.js + `warehouse.db`. Cutover: `docs/POSTGRES_CUTOVER.md`.
@@ -413,7 +414,8 @@ Frontend зеркало: `client/src/permissions.js`.
 - Настройки филиала в `settings.faceid_config_{branchId}`: `enabled`, `base_url`, `device_key`, `webhook_secret`. UI: Касса → Зарплата → «Face ID» (admin).
 - Синхронизация: `POST /api/faceid/sync/employees` → `GET /api/integration/employees`; `POST /api/faceid/sync/attendance` → `GET /api/integration/attendance`.
 - Входящие отметки (push): публичный `POST /api/integrations/faceid/events?branch_id=` с `X-Device-Key` или `X-Webhook-Secret`; тело — одно событие или `{ events: [...] }` (`type` in/out/auto, `employeeId`/`tabNo`/`fullName`, `timestamp`). CSRF для `/api/integrations/*` отключён.
-- Сотрудники зарплаты: `payroll_employees` (по отделам Face ID), баланс `balance` = сколько ещё должны выплатить.
+- Сотрудники зарплаты: `payroll_employees` (синк из Face ID или импорт Excel, `balance` = долг к выплате).
+- Импорт Excel (экспорт Face ID): `POST /api/payroll/employees/import` `{ employees: [{ full_name, department, position, base_salary, faceid_id, tab_no, active }] }` (admin); CLI `npm run db:import-payroll -- path/to/employees.xlsx` — фирма из файла → филиал по имени (создаёт филиал при отсутствии); оклад UZS → `base_salary`.
 - Выплата на кассе: кнопка **Зарплата** → ведомость в стиле печатного листа (2 колонки таблиц по отделам: № / отдел / OYLIK / KIRISH—CHIQISH / IMZO; SANA + название филиала; нумерация с 1 в каждом отделе; модалка шире ~1320px, ячейки с отступами) → клик по строке → **Начислить** + **Выплатить**; остаток (`balance + accrue − pay`) копится как долг. Создаётся кассовый `other_expense` со статьёй `exp_salary`.
 - KIRISH/CHIQISH: первая «вход» и последняя «выход» за дату смены (`GET /api/payroll/employees?date=YYYY-MM-DD`); IMZO — два квадрата (вход/выход).
 - По умолчанию ведомость с галочкой **«Только с отметкой»** (`present=1`) — только сотрудники с Face ID-отметкой за дату смены; снять галочку — весь список филиала.
@@ -470,7 +472,7 @@ GET  /api/auth/roles
 | `/api/supplier-prices` | supplierPrices.routes.js | Прайс-документы поставщика (CRUD + confirm/cancel); `products.view`/`products.edit` |
 | `/api/counterparties` | counterparties.routes.js | Контрагенты, договоры (`/:id/contracts` CRUD), `/:id/firms` — юрлица поставщика (CRUD) |
 | `/api/payments` | finance.routes.js | Оплаты; `GET/POST/PUT/DELETE /api/bank-accounts`; `GET /bank-opening?bank_account_id=`; `DELETE /by-date/:date?bank_account_id=`; import parse/confirm |
-| `/api/payroll`, `/api/faceid` | faceid.routes.js | Зарплата + Face ID: settings (admin), sync employees/attendance, список сотрудников по отделам, accrue/pay, recent attendance |
+| `/api/payroll`, `/api/faceid` | faceid.routes.js | Зарплата + Face ID: settings (admin), sync employees/attendance, импорт сотрудников `POST /payroll/employees/import`, список по отделам, accrue/pay, recent attendance |
 | `/api/cash-articles` | finance.routes.js | Статьи кассы |
 | `/api/stats`, `/api/reports/*` | org.routes.js | Отчёты, дашборд; `/api/reports/supplier-debts` (`supplier_ids` через запятую или `supplier_id`); `/api/reports/cash-articles?date_from&date_to` — обороты по статьям **только** `req.branchId` (платежи + JOIN статей по `ca.branch_id`) |
 | `/api/branches`, `/api/departments`, `/api/users` | org.routes.js | Оргструктура; `POST /api/users/:id/login-link` — новая ссылка входа (`users.edit`); в списке сотрудников `login_path` |
@@ -866,6 +868,7 @@ GET  /api/auth/roles
 | 2026-09-20 | Зарплата: ведомость в стиле печатного листа (таблицы по отделам, OYLIK / KIRISH—CHIQISH / IMZO, SANA + филиал) |
 | 2026-09-20 | Зарплата: по умолчанию только сотрудники с отметкой Face ID за дату (`present=1`) |
 | 2026-09-20 | Зарплата: модалка шире (~1320px), увеличены отступы и ширины колонок ведомости |
+| 2026-09-21 | Зарплата: импорт сотрудников из Excel Face ID (`POST /payroll/employees/import`, `npm run db:import-payroll`) |
 
 ---
 

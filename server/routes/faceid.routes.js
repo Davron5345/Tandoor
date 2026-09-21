@@ -96,6 +96,20 @@ export function registerFaceIdPayrollRoutes(app) {
     }
   });
 
+  app.post('/api/payroll/employees/import', requireAdmin, attachBranch, (req, res) => {
+    try {
+      const employees = Array.isArray(req.body?.employees)
+        ? req.body.employees
+        : (Array.isArray(req.body) ? req.body : null);
+      if (!employees) {
+        return res.status(400).json({ error: 'Передайте { employees: [...] }' });
+      }
+      res.status(201).json(payroll.importPayrollEmployees(req.branchId, employees));
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
   app.get('/api/payroll/employees', canCashier, attachBranch, (req, res) => {
     try {
       res.json(payroll.listPayrollEmployees(req.branchId, {

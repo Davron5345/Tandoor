@@ -173,9 +173,11 @@ export function getPayrollEmployee(id, branchId = DEFAULT_BRANCH_ID) {
 }
 
 function upsertEmployeeFromFaceId(branchId, emp) {
-  const faceidId = String(emp.id || emp.faceExternalId || '').trim();
-  const tabNo = emp.tabNo != null ? String(emp.tabNo) : null;
-  const fullName = String(emp.fullName || [emp.lastName, emp.firstName, emp.middleName].filter(Boolean).join(' ') || '').trim();
+  const faceidId = String(emp.id || emp.faceExternalId || emp.faceid_id || '').trim();
+  const tabNo = emp.tabNo != null && String(emp.tabNo).trim()
+    ? String(emp.tabNo).trim()
+    : (emp.tab_no != null && String(emp.tab_no).trim() ? String(emp.tab_no).trim() : null);
+  const fullName = String(emp.fullName || emp.full_name || [emp.lastName, emp.firstName, emp.middleName].filter(Boolean).join(' ') || '').trim();
   if (!fullName && !faceidId && !tabNo) return null;
 
   let existing = null;
@@ -191,11 +193,21 @@ function upsertEmployeeFromFaceId(branchId, emp) {
       [branchId, tabNo],
     );
   }
+  if (!existing && fullName) {
+    existing = queryOne(
+      'SELECT * FROM payroll_employees WHERE branch_id = ? AND full_name = ? COLLATE NOCASE',
+      [branchId, fullName],
+    );
+  }
 
   const department = emp.department || emp.departmentName || '';
   const position = emp.position || emp.positionName || '';
-  const active = emp.active !== false && emp.active !== 0;
+  const active = emp.active !== false && emp.active !== 0 && emp.active !== 'Нет';
   const now = new Date().toISOString();
+  const hasSalary = emp.base_salary != null || emp.baseSalary != null || emp.salary != null;
+  const baseSalary = hasSalary
+    ? roundMoney(emp.base_salary ?? emp.baseSalary ?? emp.salary)
+    : null;
 
   if (existing) {
     run(
@@ -206,21 +218,81 @@ function upsertEmployeeFromFaceId(branchId, emp) {
         department = ?,
         position = ?,
         active = ?,
+        base_salary = COALESCE(?, base_salary),
         synced_at = ?
        WHERE id = ?`,
-      [faceidId || null, tabNo, fullName || existing.full_name, department, position, active ? 1 : 0, now, existing.id],
+      [
+        faceidId || null,
+        tabNo,
+        fullName || existing.full_name,
+        department || existing.department || '',
+        position || existing.position || '',
+        active ? 1 : 0,
+        baseSalary,
+        now,
+        existing.id,
+      ],
     );
-    return existing.id;
+    return { id: existing.id, created: false };
   }
 
   const id = uuidv4();
   run(
     `INSERT INTO payroll_employees (
       id, branch_id, faceid_id, tab_no, full_name, department, position, active, balance, base_salary, synced_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?)`,
-    [id, branchId, faceidId || null, tabNo, fullName || 'Без имени', department, position, active ? 1 : 0, now],
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
+    [
+      id,
+      branchId,
+      faceidId || null,
+      tabNo,
+      fullName || 'Без имени',
+      department,
+      position,
+      active ? 1 : 0,
+      baseSalary || 0,
+      now,
+    ],
   );
-  return id;
+  return { id, created: true };
+}
+
+/** Импорт сотрудников зарплаты (Excel/Face ID export → payroll_employees). */
+export function importPayrollEmployees(branchId = DEFAULT_BRANCH_ID, employees = []) {
+  if (!Array.isArray(employees) || !employees.length) {
+    throw new Error('Нет сотрудников для импорта');
+  }
+  let created = 0;
+  let updated = 0;
+  let skipped = 0;
+  for (const raw of employees) {
+    if (!raw || typeof raw !== 'object') {
+      skipped += 1;
+      continue;
+    }
+    const result = upsertEmployeeFromFaceId(branchId, {
+      id: raw.faceid_id || raw.faceId || raw.employeeId || raw.id,
+      tabNo: raw.tab_no || raw.tabNo,
+      fullName: raw.full_name || raw.fullName || raw.fio,
+      lastName: raw.last_name || raw.lastName || raw.фамилия,
+      firstName: raw.first_name || raw.firstName || raw.имя,
+      middleName: raw.middle_name || raw.middleName || raw.отчество,
+      department: raw.department || raw.отдел,
+      position: raw.position || raw.должность,
+      base_salary: raw.base_salary ?? raw.baseSalary ?? raw.salary ?? raw.оклад,
+      active: raw.active !== undefined
+        ? raw.active
+        : !(raw.активен === 'Нет' || raw.активен === false || raw.активен === 0),
+    });
+    if (!result) {
+      skipped += 1;
+      continue;
+    }
+    if (result.created) created += 1;
+    else updated += 1;
+  }
+  touchConfig(branchId, { last_sync_at: new Date().toISOString() });
+  return { created, updated, skipped, total: employees.length };
 }
 
 export async function syncFaceIdEmployees(branchId = DEFAULT_BRANCH_ID) {
@@ -284,7 +356,7 @@ export function recordAttendanceEvent(branchId, payload = {}) {
 
   let emp = findEmployeeForEvent(branchId, payload);
   if (!emp && (payload.employeeId || payload.fullName || payload.tabNo)) {
-    const id = upsertEmployeeFromFaceId(branchId, {
+    const upserted = upsertEmployeeFromFaceId(branchId, {
       id: payload.employeeId,
       tabNo: payload.tabNo,
       fullName: payload.fullName,
@@ -292,7 +364,9 @@ export function recordAttendanceEvent(branchId, payload = {}) {
       position: payload.position,
       active: true,
     });
-    emp = queryOne('SELECT * FROM payroll_employees WHERE id = ?', [id]);
+    emp = upserted
+      ? queryOne('SELECT * FROM payroll_employees WHERE id = ?', [upserted.id])
+      : null;
   }
   if (!emp) throw new Error('Сотрудник не найден. Сначала синхронизируйте сотрудников Face ID.');
 
