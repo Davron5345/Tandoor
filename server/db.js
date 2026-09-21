@@ -1,4 +1,4 @@
-import { randomUUID } from 'crypto';
+import { randomUUID, randomBytes } from 'crypto';
 import initSqlJs from 'sql.js';
 import {
   LEGACY_ARTICLE_CODES,
@@ -605,9 +605,36 @@ function migratePayrollFaceId() {
   try { run('CREATE INDEX IF NOT EXISTS idx_payroll_att_branch ON payroll_attendance(branch_id, event_at)'); } catch { /* */ }
   try { run('CREATE UNIQUE INDEX IF NOT EXISTS idx_payroll_att_ext ON payroll_attendance(branch_id, external_id)'); } catch { /* */ }
   try { run('CREATE INDEX IF NOT EXISTS idx_payroll_ledger_emp ON payroll_ledger(employee_id, date)'); } catch { /* */ }
+  migratePayrollViewTokens();
   const done = queryOne("SELECT value FROM settings WHERE key = 'payroll_faceid_v1'");
   if (!done) {
     run("INSERT OR REPLACE INTO settings (key, value) VALUES ('payroll_faceid_v1', '1')");
+    saveDb();
+  }
+}
+
+function migratePayrollViewTokens() {
+  try { run('ALTER TABLE payroll_employees ADD COLUMN view_token TEXT'); } catch { /* exists */ }
+  try { run('CREATE UNIQUE INDEX IF NOT EXISTS idx_payroll_emp_view_token ON payroll_employees(view_token)'); } catch { /* */ }
+  const rows = queryAll("SELECT id FROM payroll_employees WHERE view_token IS NULL OR view_token = ''");
+  if (rows.length) {
+    const used = new Set(
+      queryAll("SELECT view_token FROM payroll_employees WHERE view_token IS NOT NULL AND view_token != ''")
+        .map((r) => r.view_token),
+    );
+    for (const row of rows) {
+      let token = '';
+      for (let i = 0; i < 8; i += 1) {
+        token = randomBytes(18).toString('base64url');
+        if (!used.has(token)) break;
+      }
+      used.add(token);
+      run('UPDATE payroll_employees SET view_token = ? WHERE id = ?', [token, row.id]);
+    }
+  }
+  const done = queryOne("SELECT value FROM settings WHERE key = 'payroll_view_token_v1'");
+  if (!done) {
+    run("INSERT OR REPLACE INTO settings (key, value) VALUES ('payroll_view_token_v1', '1')");
     saveDb();
   }
 }

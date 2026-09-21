@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
+import { randomBytes } from 'crypto';
 import db from '../db.js';
-import { DEFAULT_BRANCH_ID } from '../branches.js';
+import { DEFAULT_BRANCH_ID, getBranch } from '../branches.js';
 import { getSetting, setSetting } from './telegram.js';
 import { createPayment } from './payments.js';
 import { cashArticleId } from '../cashArticleDefaults.js';
@@ -12,6 +13,30 @@ const SETTINGS_KEY = (branchId) => `faceid_config_${branchId || DEFAULT_BRANCH_I
 
 function roundMoney(n) {
   return Math.round((Number(n) || 0) * 100) / 100;
+}
+
+function generateViewToken() {
+  return randomBytes(18).toString('base64url');
+}
+
+function uniquePayrollViewToken() {
+  for (let i = 0; i < 8; i += 1) {
+    const token = generateViewToken();
+    const clash = queryOne('SELECT id FROM payroll_employees WHERE view_token = ?', [token]);
+    if (!clash) return token;
+  }
+  throw new Error('Не удалось выдать ссылку сотрудника');
+}
+
+function viewPathFor(token) {
+  return token ? `/s/${encodeURIComponent(token)}` : null;
+}
+
+export function ensurePayrollViewTokens() {
+  const rows = queryAll("SELECT id FROM payroll_employees WHERE view_token IS NULL OR view_token = ''");
+  for (const row of rows) {
+    run('UPDATE payroll_employees SET view_token = ? WHERE id = ?', [uniquePayrollViewToken(), row.id]);
+  }
 }
 
 export function getFaceIdConfig(branchId = DEFAULT_BRANCH_ID) {
@@ -102,6 +127,7 @@ function mapEmployeeRow(row, dayTimes = null) {
     today_out_at: todayOut,
     present: row.last_event_type === 'in' || (!!todayIn && !todayOut),
     synced_at: row.synced_at || null,
+    view_path: viewPathFor(row.view_token),
   };
 }
 
@@ -128,6 +154,7 @@ function attendanceDayMap(branchId, dateIso) {
 }
 
 export function listPayrollEmployees(branchId = DEFAULT_BRANCH_ID, { presentOnly = false, date = null } = {}) {
+  ensurePayrollViewTokens();
   let rows = queryAll(
     `SELECT * FROM payroll_employees
      WHERE branch_id = ? AND active = 1
@@ -239,8 +266,8 @@ function upsertEmployeeFromFaceId(branchId, emp) {
   const id = uuidv4();
   run(
     `INSERT INTO payroll_employees (
-      id, branch_id, faceid_id, tab_no, full_name, department, position, active, balance, base_salary, synced_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
+      id, branch_id, faceid_id, tab_no, full_name, department, position, active, balance, base_salary, synced_at, view_token
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)`,
     [
       id,
       branchId,
@@ -252,6 +279,7 @@ function upsertEmployeeFromFaceId(branchId, emp) {
       active ? 1 : 0,
       baseSalary || 0,
       now,
+      uniquePayrollViewToken(),
     ],
   );
   return { id, created: true };
@@ -613,4 +641,83 @@ export function listRecentAttendance(branchId = DEFAULT_BRANCH_ID, limit = 30) {
     event_at: r.event_at,
     source: r.source,
   }));
+}
+
+export function rotatePayrollViewToken(employeeId, branchId = DEFAULT_BRANCH_ID) {
+  const row = queryOne(
+    'SELECT * FROM payroll_employees WHERE id = ? AND branch_id = ?',
+    [employeeId, branchId],
+  );
+  if (!row) throw new Error('Сотрудник не найден');
+  run('UPDATE payroll_employees SET view_token = ? WHERE id = ?', [uniquePayrollViewToken(), employeeId]);
+  return mapEmployeeRow(queryOne('SELECT * FROM payroll_employees WHERE id = ?', [employeeId]));
+}
+
+function localDayIso(date = new Date()) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+export function getPayrollCabinetByToken(rawToken) {
+  const token = String(rawToken || '').trim();
+  if (!token || token.length < 16) {
+    throw new Error('Ссылка недействительна');
+  }
+  const row = queryOne(
+    'SELECT * FROM payroll_employees WHERE view_token = ? AND active = 1',
+    [token],
+  );
+  if (!row) throw new Error('Ссылка недействительна или сотрудник отключён');
+
+  const day = localDayIso();
+  const month = day.slice(0, 7);
+  const dayTimes = attendanceDayMap(row.branch_id, day).get(row.id) || {};
+  const branch = getBranch(row.branch_id);
+
+  const presentDays = queryAll(
+    `SELECT DISTINCT substr(event_at, 1, 10) AS d
+     FROM payroll_attendance
+     WHERE employee_id = ? AND substr(event_at, 1, 7) = ?`,
+    [row.id, month],
+  ).length;
+  const daysElapsed = Number(day.slice(8, 10)) || 1;
+  const attendancePct = Math.min(100, Math.round((presentDays / daysElapsed) * 100));
+
+  const ledger = queryAll(
+    `SELECT entry_type, amount, balance_after, date, comment, created_at
+     FROM payroll_ledger
+     WHERE employee_id = ?
+     ORDER BY created_at DESC, id DESC
+     LIMIT 30`,
+    [row.id],
+  ).map((r) => ({
+    entry_type: r.entry_type,
+    amount: roundMoney(r.amount),
+    balance_after: roundMoney(r.balance_after),
+    date: r.date,
+    comment: r.comment || '',
+    created_at: r.created_at,
+  }));
+
+  return {
+    full_name: row.full_name,
+    position: row.position || '',
+    department: row.department || '',
+    branch_name: branch?.name || '',
+    balance: roundMoney(row.balance),
+    base_salary: roundMoney(row.base_salary),
+    today: {
+      in_at: dayTimes.in_at || null,
+      out_at: dayTimes.out_at || null,
+    },
+    month: {
+      key: month,
+      days_present: presentDays,
+      days_elapsed: daysElapsed,
+      rating: attendancePct,
+    },
+    ledger,
+  };
 }

@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-09-21 (редактирование сотрудника: выбор из списка зарплаты)
+**Последнее обновление документации:** 2026-09-21 (личная ссылка кабинета сотрудника зарплаты)
 
 ---
 
@@ -174,7 +174,7 @@ npm run db:import-payroll -- file.xlsx  # Импорт сотрудников з
 | Калькуляции | `calculations`, `calculation_items`, `calculation_sources` |
 | Auth/Admin | `users` (+ `department_id` → отдел филиала, `login_token` — уникальная ссылка входа с телефона `/e/{token}`), `sessions`, `roles`, `role_permissions`, `audit_log`, `visit_log`, `blocked_devices` |
 | MyShop/Mobile | `shop_orders`, `shop_order_items`, `push_subscriptions`, `staff_locations`, `staff_location_history` |
-| Зарплата / Face ID | `payroll_employees` (синк из Face ID, `balance` = долг к выплате), `payroll_attendance` (приход/уход), `payroll_ledger` (начисление/выплата); настройки в `settings` ключ `faceid_config_{branchId}` |
+| Зарплата / Face ID | `payroll_employees` (синк из Face ID или Excel, `balance` = долг, `view_token` — личная ссылка `/s/{token}`), `payroll_attendance` (приход/уход), `payroll_ledger` (начисление/выплата); настройки в `settings` ключ `faceid_config_{branchId}` |
 | Прочее | `telegram_messages`, `settings`, `branches` |
 
 ---
@@ -188,6 +188,7 @@ npm run db:import-payroll -- file.xlsx  # Импорт сотрудников з
 | `/shop/:branchId` | `PublicShop` | Нет |
 | `/shop/:branchId/dept/:departmentId` | `PublicShop` | Нет |
 | `/e/:token` | `EmployeeLogin` | Нет (публичная ссылка → сессия по `users.login_token`) |
+| `/s/:token` | `EmployeeCabinet` | Нет (личный кабинет зарплаты по `payroll_employees.view_token`) |
 | `/warehouse/orders`, `/snab` | `ShopOrdersMobile` | Да (mobile snab) |
 | `/warehouse/prihod` | `PrihodMobile` | Да (mobile приход) |
 | `/warehouse/transfer` | `TransferMobile` | Да (mobile перемещение по отделам; нужен `users.department_id`) |
@@ -415,11 +416,12 @@ Frontend зеркало: `client/src/permissions.js`.
 - Синхронизация: `POST /api/faceid/sync/employees` → `GET /api/integration/employees`; `POST /api/faceid/sync/attendance` → `GET /api/integration/attendance`.
 - Входящие отметки (push): публичный `POST /api/integrations/faceid/events?branch_id=` с `X-Device-Key` или `X-Webhook-Secret`; тело — одно событие или `{ events: [...] }` (`type` in/out/auto, `employeeId`/`tabNo`/`fullName`, `timestamp`). CSRF для `/api/integrations/*` отключён.
 - Сотрудники зарплаты: `payroll_employees` (синк из Face ID или импорт Excel, `balance` = долг к выплате).
+- Личный кабинет: у каждого `view_token` (base64url). URL `/s/:token` → публичный `GET /api/public/payroll/:token` (rate-limit) — ФИО, филиал, долг, оклад, рейтинг явки за месяц, вход/выход сегодня, последние начисления/выплаты. Токен в JSON списка не светится (`view_path`). Копирование/ротация на вкладке «Зарплата / Face ID»: `POST /api/payroll/employees/:id/view-link` (`users.edit`).
 - Импорт Excel (экспорт Face ID): кнопка **«Импорт Excel»** на `/employees` (вкладка «Зарплата / Face ID»); `POST /api/payroll/employees/import-xlsx` (multipart `file`, `users.edit`); фирма → филиал (`scope=all` с HQ создаёт филиалы, `scope=branch` — только текущий); также JSON `POST /api/payroll/employees/import` и CLI `npm run db:import-payroll -- file.xlsx`.
 - Выплата на кассе: кнопка **Зарплата** → ведомость в стиле печатного листа (2 колонки таблиц по отделам: № / отдел / OYLIK / KIRISH—CHIQISH / IMZO; SANA + название филиала; нумерация с 1 в каждом отделе; модалка шире ~1320px, ячейки с отступами) → клик по строке → **Начислить** + **Выплатить**; остаток (`balance + accrue − pay`) копится как долг. Создаётся кассовый `other_expense` со статьёй `exp_salary`.
 - KIRISH/CHIQISH: первая «вход» и последняя «выход» за дату смены (`GET /api/payroll/employees?date=YYYY-MM-DD`); IMZO — два квадрата (вход/выход).
 - По умолчанию ведомость с галочкой **«Только с отметкой»** (`present=1`) — только сотрудники с Face ID-отметкой за дату смены; снять галочку — весь список филиала.
-- API: `GET /api/payroll/employees?date=&present=`, `POST .../accrue`, `POST .../pay`, `GET .../ledger`, `GET /api/payroll/attendance/recent`.
+- API: `GET /api/payroll/employees?date=&present=`, `POST .../accrue`, `POST .../pay`, `GET .../ledger`, `POST .../:id/view-link`, `GET /api/payroll/attendance/recent`, `GET /api/public/payroll/:token`.
 
 ---
 
@@ -439,6 +441,7 @@ GET  /api/app/snab-update
 GET  /api/app/web-manifest?start=…   # динамический PWA-манифест (start_url по роли)
 GET  /manifest.webmanifest           # то же (публичный alias)
 GET  /api/public/snab-apk
+GET  /api/public/payroll/:token      # кабинет сотрудника зарплаты (view_token)
 GET  /downloads/snabzenie.apk        → 302 на GitHub Releases
 POST /api/integrations/faceid/events # webhook приход/уход Face ID (X-Device-Key)
 ```
@@ -472,7 +475,7 @@ GET  /api/auth/roles
 | `/api/supplier-prices` | supplierPrices.routes.js | Прайс-документы поставщика (CRUD + confirm/cancel); `products.view`/`products.edit` |
 | `/api/counterparties` | counterparties.routes.js | Контрагенты, договоры (`/:id/contracts` CRUD), `/:id/firms` — юрлица поставщика (CRUD) |
 | `/api/payments` | finance.routes.js | Оплаты; `GET/POST/PUT/DELETE /api/bank-accounts`; `GET /bank-opening?bank_account_id=`; `DELETE /by-date/:date?bank_account_id=`; import parse/confirm |
-| `/api/payroll`, `/api/faceid` | faceid.routes.js | Зарплата + Face ID: settings (admin), sync, `POST /payroll/employees/import-xlsx` (Excel), JSON import, список по отделам, accrue/pay |
+| `/api/payroll`, `/api/faceid` | faceid.routes.js | Зарплата + Face ID: settings (admin), sync, `POST /payroll/employees/import-xlsx` (Excel), JSON import, список по отделам, accrue/pay, `POST /payroll/employees/:id/view-link` |
 | `/api/cash-articles` | finance.routes.js | Статьи кассы |
 | `/api/stats`, `/api/reports/*` | org.routes.js | Отчёты, дашборд; `/api/reports/supplier-debts` (`supplier_ids` через запятую или `supplier_id`); `/api/reports/cash-articles?date_from&date_to` — обороты по статьям **только** `req.branchId` (платежи + JOIN статей по `ca.branch_id`) |
 | `/api/branches`, `/api/departments`, `/api/users` | org.routes.js | Оргструктура; `POST /api/users/:id/login-link` — новая ссылка входа (`users.edit`); в списке сотрудников `login_path` |
@@ -515,7 +518,8 @@ GET  /api/auth/roles
 | `/shop-orders` | ShopOrders.jsx | shop_orders.view |
 | `/telegram` | Telegram.jsx | telegram.view |
 | `/e/:token` | EmployeeLogin.jsx | публично; вход по личной ссылке, редирект на `home` по роли |
-| `/employees` | Employees.jsx | users.view; вкладки **Вход в систему** (логины, ссылки `/e/…`) и **Зарплата / Face ID** (payroll_employees по отделам); `users.edit` — «Импорт Excel» по шаблону Face ID + CRUD пользователей; **Новый / Редактировать** выбирает ФИО из списка зарплаты филиала; поле **Отдел** (`department_id`); роль может отличаться |
+| `/s/:token` | EmployeeCabinet.jsx | публично; кабинет зарплаты: долг, оклад, рейтинг явки, сегодня вход/выход, история выплат |
+| `/employees` | Employees.jsx | users.view; вкладки **Вход в систему** (логины, ссылки `/e/…`) и **Зарплата / Face ID** (payroll_employees по отделам + личные ссылки `/s/…`); `users.edit` — «Импорт Excel» по шаблону Face ID + CRUD пользователей; **Новый / Редактировать** выбирает ФИО из списка зарплаты филиала; поле **Отдел** (`department_id`); роль может отличаться |
 | `/roles` | Roles.jsx | admin |
 | `/branches` | Branches.jsx | admin |
 | `/departments` | Departments.jsx | admin |
@@ -872,6 +876,7 @@ GET  /api/auth/roles
 | 2026-09-21 | Админка «Сотрудники»: вкладка Зарплата/Face ID + кнопка «Импорт Excel» (`POST /payroll/employees/import-xlsx`) |
 | 2026-09-21 | Новый сотрудник (вход в систему): выбор ФИО из списка зарплаты филиала |
 | 2026-09-21 | Редактирование сотрудника: тот же выбор ФИО из списка зарплаты |
+| 2026-09-21 | Личный кабинет зарплаты `/s/:token`: долг, рейтинг явки, выплаты; копия/ротация ссылки на вкладке Зарплата |
 
 ---
 

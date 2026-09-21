@@ -87,4 +87,14 @@ test('payroll accrue and partial pay accumulates debt', async () => {
   const afterPay = payroll.listPayrollEmployees('main');
   assert.ok(afterPay.departments.some((d) => d.name === 'Кухня'));
   assert.equal(afterPay.total_debt, 900000);
+
+  const cook = afterPay.items.find((e) => e.full_name === 'Иванов Иван');
+  assert.ok(cook.view_path?.startsWith('/s/'));
+  const token = cook.view_path.slice(3);
+  const cabinet = payroll.getPayrollCabinetByToken(token);
+  assert.equal(cabinet.full_name, 'Иванов Иван');
+  assert.equal(cabinet.balance, 900000);
+  const rotated = payroll.rotatePayrollViewToken(cook.id, 'main');
+  assert.notEqual(rotated.view_path, cook.view_path);
+  assert.throws(() => payroll.getPayrollCabinetByToken(token), /недействительна/);
 });

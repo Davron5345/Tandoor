@@ -404,6 +404,11 @@ export const api = {
     const q = new URLSearchParams(params).toString();
     return request(`/payroll/employees/${encodeURIComponent(id)}/ledger${q ? `?${q}` : ''}`);
   },
+  rotatePayrollViewLink: (id) => request(`/payroll/employees/${encodeURIComponent(id)}/view-link`, {
+    method: 'POST',
+    body: '{}',
+  }),
+  getPayrollCabinet: (token) => publicRequest(`/public/payroll/${encodeURIComponent(token)}`),
   importPayrollEmployees: (data) => request('/payroll/employees/import', {
     method: 'POST',
     body: JSON.stringify(data),

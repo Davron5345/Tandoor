@@ -35,6 +35,8 @@ export const PG_MIGRATION_SETTINGS_KEYS = [
   'must_change_pwd_v1',
   'opening_balance_docs_v1',
   'performance_indexes_v1',
+  'payroll_faceid_v1',
+  'payroll_view_token_v1',
   'product_branches_v1',
   'product_branches_backfill_v1',
   'product_categories_v1',
@@ -467,6 +469,7 @@ CREATE TABLE IF NOT EXISTS payroll_employees (
   last_event_type TEXT,
   last_event_at TEXT,
   synced_at TEXT,
+  view_token TEXT UNIQUE,
   created_at TEXT DEFAULT (${NOW})
 );
 
@@ -498,6 +501,7 @@ CREATE TABLE IF NOT EXISTS payroll_ledger (
 
 CREATE INDEX IF NOT EXISTS idx_payroll_emp_branch ON payroll_employees (branch_id, department);
 CREATE INDEX IF NOT EXISTS idx_payroll_emp_faceid ON payroll_employees (branch_id, faceid_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_payroll_emp_view_token ON payroll_employees (view_token);
 CREATE INDEX IF NOT EXISTS idx_payroll_att_branch ON payroll_attendance (branch_id, event_at);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_payroll_att_ext ON payroll_attendance (branch_id, COALESCE(external_id, id));
 CREATE INDEX IF NOT EXISTS idx_payroll_ledger_emp ON payroll_ledger (employee_id, date);

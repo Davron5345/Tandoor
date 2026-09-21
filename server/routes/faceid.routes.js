@@ -1,4 +1,5 @@
 import multer from 'multer';
+import rateLimit from 'express-rate-limit';
 import { requireAdmin, requireAnyPermission, attachBranch } from '../middleware.js';
 import * as payroll from '../services/faceidPayroll.js';
 import { importPayrollEmployeesFromExcelBuffer } from '../services/payrollEmployeesImport.js';
@@ -8,6 +9,14 @@ function todayIso() {
   const pad = (n) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
+
+const payrollCabinetLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 40,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Слишком много запросов. Повторите через минуту.' },
+});
 
 export function registerPublicFaceIdRoutes(app) {
   // Face ID (или шлюз) шлёт отметки приход/уход
@@ -28,6 +37,14 @@ export function registerPublicFaceIdRoutes(app) {
     } catch (e) {
       const status = /ключ|Неверный/i.test(e.message) ? 403 : 400;
       res.status(status).json({ error: e.message });
+    }
+  });
+
+  app.get('/api/public/payroll/:token', payrollCabinetLimiter, (req, res) => {
+    try {
+      res.json(payroll.getPayrollCabinetByToken(req.params.token));
+    } catch (e) {
+      res.status(404).json({ error: e.message });
     }
   });
 }
@@ -172,6 +189,14 @@ export function registerFaceIdPayrollRoutes(app) {
   app.get('/api/payroll/employees/:id/ledger', canCashier, attachBranch, (req, res) => {
     try {
       res.json(payroll.listPayrollLedger(req.params.id, req.branchId, Number(req.query.limit) || 50));
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
+  app.post('/api/payroll/employees/:id/view-link', requireAnyPermission('users.edit'), attachBranch, (req, res) => {
+    try {
+      res.json(payroll.rotatePayrollViewToken(req.params.id, req.branchId));
     } catch (e) {
       res.status(400).json({ error: e.message });
     }

@@ -296,6 +296,32 @@ export default function Employees() {
     }
   };
 
+  const copyPayrollLink = async (emp) => {
+    const url = emp?.view_path ? `${window.location.origin}${emp.view_path}` : '';
+    if (!url) {
+      show('Ссылка ещё не создана', 'error');
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      show('Ссылка скопирована. Откройте её на телефоне сотрудника.');
+    } catch {
+      window.prompt('Личная ссылка сотрудника', url);
+    }
+  };
+
+  const rotatePayrollLink = async (emp) => {
+    if (!window.confirm(`Старая ссылка «${emp.full_name}» перестанет работать. Выдать новую?`)) return;
+    try {
+      const updated = await api.rotatePayrollViewLink(emp.id);
+      show('Новая ссылка готова');
+      loadPayroll();
+      await copyPayrollLink(updated);
+    } catch (e) {
+      show(e.message, 'error');
+    }
+  };
+
   const onPickPayrollExcel = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = '';
@@ -462,7 +488,8 @@ export default function Employees() {
       {tab === 'payroll' && (
         <>
           <p className="form-hint" style={{ marginBottom: 12 }}>
-            Список для кассы «Зарплата». Импорт Excel — шаблон Face ID (колонки Фирма, Отдел, Должность, ФИО, Оклад…).
+            Список для кассы «Зарплата». У каждого своя ссылка — сотрудник видит долг, явку и выплаты на телефоне.
+            Импорт Excel — шаблон Face ID (колонки Фирма, Отдел, Должность, ФИО, Оклад…).
             {isHeadquarters
               ? ' Фирма в файле сопоставляется с филиалом (при отсутствии филиал создаётся).'
               : ` В этот филиал («${branchName}») попадут только строки с совпадающей фирмой.`}
@@ -494,6 +521,7 @@ export default function Employees() {
                         <th>Должность</th>
                         <th>Оклад</th>
                         <th>Долг</th>
+                        <th>Ссылка</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -504,6 +532,23 @@ export default function Employees() {
                           <td>{emp.position || '—'}</td>
                           <td>{Number(emp.base_salary) > 0 ? formatMoney(emp.base_salary) : '—'}</td>
                           <td>{Number(emp.balance) > 0 ? formatMoney(emp.balance) : '—'}</td>
+                          <td>
+                            <div className="btn-group">
+                              <IconButton title="Скопировать личную ссылку" onClick={() => copyPayrollLink(emp)} disabled={!emp.view_path}>
+                                <IconCopy />
+                              </IconButton>
+                              {canEdit && (
+                                <button
+                                  type="button"
+                                  className="btn btn-ghost btn-sm"
+                                  onClick={() => rotatePayrollLink(emp)}
+                                  title="Выдать новую ссылку"
+                                >
+                                  Новая
+                                </button>
+                              )}
+                            </div>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
