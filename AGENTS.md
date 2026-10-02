@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-10-02 (акт сверки: кнопка «Открыть документ» в новой вкладке)
+**Последнее обновление документации:** 2026-10-02 (акт сверки: отметки сверки `reconciliation_marks`)
 
 ---
 
@@ -176,6 +176,7 @@ npm run db:import-payroll -- file.xlsx  # Импорт сотрудников з
 | Auth/Admin | `users` (+ `department_id` → отдел филиала, `login_token` — уникальная ссылка входа с телефона `/e/{token}`, `payroll_employee_id` → карточка зарплаты), `sessions`, `roles`, `role_permissions`, `audit_log`, `visit_log`, `blocked_devices` |
 | MyShop/Mobile | `shop_orders`, `shop_order_items`, `push_subscriptions`, `staff_locations`, `staff_location_history` |
 | Зарплата / Face ID | `payroll_employees` (синк из Face ID или Excel, `balance` = долг, `view_token` — единая ссылка `/e/{token}`), `payroll_attendance` (приход/уход), `payroll_ledger` (начисление/выплата); настройки в `settings` ключ `faceid_config_{branchId}` |
+| Отчёты | `reconciliation_marks` — отметки акта сверки (counterparty_id, срез `firm_id`/`contract_id` как в фильтре акта, `date`, снимок `balance`, comment, created_by) |
 | Прочее | `telegram_messages`, `settings`, `branches` |
 
 ---
@@ -398,6 +399,7 @@ Frontend зеркало: `client/src/permissions.js`.
 - API: `GET/POST /api/counterparties/:id/firms`, `PUT/DELETE /api/counterparties/:id/firms/:firmId`
 - Импорт выписки и ручные оплаты: `firm_id` на платеже; поиск по ИНН через `findCounterpartyFirmByInn`
 - **Акт сверки** (`/reports/reconciliation`): контрагент выбирается поиском (`CounterpartySearchSelect`, раскладка/транслит); фильтр «Фирма» (все / конкретная); строки без `firm_id` видны только при «Все фирмы»; клик по строке документа открывает `DocumentPreviewModal` — **только просмотр** (шапка, позиции, доп. расходы, итог; без полей ввода и кнопок изменения); кнопка **«Открыть документ ↗»** открывает оригинал в новой вкладке для редактирования (`/prihod|/rashod|/return-supplier|/return-customer|/transfer?open={id}` при праве на тип, иначе `/documents?open={id}` при `documents.view`; без прав кнопки нет)
+- **Отметки сверки** (`reconciliation_marks`): кнопка «✓ Отметить сверку» → дата (в пределах периода акта) + комментарий; сальдо на дату берётся из строк акта и сохраняется снимком. Отметка привязана к срезу фильтра (контрагент + фирма + договор; пусто = «все»). В шапке — «Последняя сверка: дата · сальдо · кто»; в таблице зелёная строка «✓ Сверено на …» после операций этой даты. Удалить может автор отметки или admin; создание/удаление пишутся в `audit_log` (`reconciliation.mark` / `reconciliation.unmark`)
 - Миграция: существующий `counterparties.inn` → первая фирма поставщика (`cfm_<counterparty_id>`)
 - **Следующий этап:** выбор фирмы в приходе (`documents.firm_id`); объединение автосозданных контрагентов под одного поставщика
 
@@ -482,7 +484,7 @@ GET  /api/auth/roles
 | `/api/payments` | finance.routes.js | Оплаты; `GET/POST/PUT/DELETE /api/bank-accounts`; `GET /bank-opening?bank_account_id=`; `DELETE /by-date/:date?bank_account_id=`; import parse/confirm |
 | `/api/payroll`, `/api/faceid` | faceid.routes.js | Зарплата + Face ID: settings (admin), sync, `POST /payroll/employees/import-xlsx` (Excel), JSON import, список по отделам, accrue/pay, `POST /payroll/employees/:id/view-link` |
 | `/api/cash-articles` | finance.routes.js | Статьи кассы |
-| `/api/stats`, `/api/reports/*` | org.routes.js | Отчёты, дашборд; `/api/reports/supplier-debts` (`supplier_ids` через запятую или `supplier_id`); `/api/reports/cash-articles?date_from&date_to` — обороты по статьям **только** `req.branchId` (платежи + JOIN статей по `ca.branch_id`) |
+| `/api/stats`, `/api/reports/*` | org.routes.js | Отчёты, дашборд; `/api/reports/supplier-debts` (`supplier_ids` через запятую или `supplier_id`); `/api/reports/cash-articles?date_from&date_to` — обороты по статьям **только** `req.branchId` (платежи + JOIN статей по `ca.branch_id`); `GET/POST /api/reports/reconciliation-marks` (`counterparty_id`, `firm_id`, `contract_id`), `DELETE /api/reports/reconciliation-marks/:id` — отметки акта сверки (`reports.view`; удаление — автор или admin) |
 | `/api/branches`, `/api/departments`, `/api/users` | org.routes.js | Оргструктура; `POST /api/users/:id/login-link` — новая ссылка входа (`users.edit`); в списке сотрудников `login_path` |
 | `/api/roles` | org.routes.js | Роли и права |
 | `/api/shop-orders` | shopOrders.routes.js | Заявки MyShop |
@@ -516,7 +518,7 @@ GET  /api/auth/roles
 | `/cashier` | Cashier.jsx | cashier.*; рабочий стол: слева ввод (переключатель Приход/Расход, крупная сумма, чипы статей, недавние контрагенты), справа журнал смены всегда на экране; поиск и фильтр Все/Приход/Расход; «Повторить последнюю»; KPI «В кассе»; кнопка **Зарплата** (`CashierSalaryModal`) — ведомость по отделам филиала (стиль листа Mahalla: OYLIK / KIRISH—CHIQISH / IMZO), начисление/выплата, долг копится; журнал без банковских операций (`bank_account_id`); **телефон:** чипы статей (не select), карточки операций; в режиме кассира — баннер PWA/push (`PhoneAppSetupBanner`) |
 | `/payments` | Payments.jsx | payments.view; справочник счетов («Основной»); список по датам (шапка колонок fixed pin при скролле); под поставщиком — фирма, под клиентом — канал (Payme/Click/Терминал/Инкассо); выбор столбцов; импорт AccReferenceReport |
 | `/cash-articles` | CashArticles.jsx | cash_articles.view |
-| `/reports/*` | Reports.jsx | reports.view; `/reports/supplier-debts` — долги поставщикам (мультивыбор + **шаблоны** набора в `localStorage` `supplier_debt_templates_v1` по филиалу); `/reports/cash-articles` — по статьям (изоляция филиала); акт сверки — поиск контрагента, фильтр «Фирма», клик по документу → модалка просмотра без редактирования (`components/DocumentPreviewModal.jsx`) |
+| `/reports/*` | Reports.jsx | reports.view; `/reports/supplier-debts` — долги поставщикам (мультивыбор + **шаблоны** набора в `localStorage` `supplier_debt_templates_v1` по филиалу); `/reports/cash-articles` — по статьям (изоляция филиала); акт сверки — поиск контрагента, фильтр «Фирма», «✓ Отметить сверку» (последняя сверка в шапке, зелёные строки отметок в таблице), клик по документу → модалка просмотра без редактирования (`components/DocumentPreviewModal.jsx`) |
 | `/opening-balance` | OpeningBalance.jsx | opening_balance.view; список — иконки Редактировать/Открыть/Удалить (`ActionIcons`) |
 | `/myshop` | MyShop.jsx | myshop.view |
 | `/myshop/constructor` | MyShopConstructor.jsx | myshop.edit |
@@ -890,6 +892,7 @@ GET  /api/auth/roles
 | 2026-10-02 | Акт сверки: клик по документу → `DocumentPreviewModal` (только просмотр); `GET /api/documents/:id` отдаёт `firm_name`, права на чтение карточки выровнены со списком (`documents.view`) |
 | 2026-10-02 | Акт сверки: выбор контрагента с поиском (`CounterpartySearchSelect`) вместо длинного select |
 | 2026-10-02 | Просмотр документа из акта сверки: кнопка «Открыть документ ↗» — оригинал в новой вкладке (`?open={id}`) для редактирования |
+| 2026-10-02 | Акт сверки: отметки сверки — таблица `reconciliation_marks`, API `/api/reports/reconciliation-marks`, «Последняя сверка» в шапке и строки «✓ Сверено на …» в таблице |
 
 ---
 

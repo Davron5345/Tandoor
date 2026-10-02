@@ -28,6 +28,12 @@ export {
 } from './services/reports.js';
 
 export {
+  getReconciliationMarks,
+  createReconciliationMark,
+  deleteReconciliationMark,
+} from './services/reconciliationMarks.js';
+
+export {
   getProducts,
   getProductKindCounts,
   getProductCategories,

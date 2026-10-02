@@ -80,6 +80,42 @@ export function registerOrgRoutes(app) {
     res.json(svc.getCashArticlesReport(req.branchId, dateFrom, dateTo));
   });
 
+  app.get('/api/reports/reconciliation-marks', requirePermission('reports.view'), attachBranch, (req, res) => {
+    try {
+      res.json(svc.getReconciliationMarks(req.branchId, req.query));
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
+  app.post('/api/reports/reconciliation-marks', requirePermission('reports.view'), attachBranch, (req, res) => {
+    try {
+      const mark = svc.createReconciliationMark(req.branchId, req.body || {}, req.user.id);
+      logAudit(req, 'reconciliation.mark', {
+        entity_type: 'counterparty',
+        entity_id: mark.counterparty_id,
+        meta: { mark_id: mark.id, date: mark.date, balance: mark.balance },
+      });
+      res.status(201).json(mark);
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
+  app.delete('/api/reports/reconciliation-marks/:id', requirePermission('reports.view'), attachBranch, (req, res) => {
+    try {
+      const mark = svc.deleteReconciliationMark(req.branchId, req.params.id, req.user);
+      logAudit(req, 'reconciliation.unmark', {
+        entity_type: 'counterparty',
+        entity_id: mark.counterparty_id,
+        meta: { mark_id: mark.id, date: mark.date, balance: mark.balance },
+      });
+      res.json({ ok: true });
+    } catch (e) {
+      res.status(e.status || 400).json({ error: e.message });
+    }
+  });
+
   app.get('/api/branches', attachBranch, (req, res) => {
     if (req.user.role === 'admin') {
       res.json(branches.getBranchesEnriched(true));

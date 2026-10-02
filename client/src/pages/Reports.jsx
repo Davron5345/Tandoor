@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, NavLink, Outlet, Route, Routes } from 'react-router-dom';
-import { api, formatDate, formatMoney } from '../api';
+import { api, formatDate, formatDateTime, formatMoney } from '../api';
 import { DOC_TYPE_LABELS } from '../permissions';
 import { useAuth } from '../AuthContext';
 import { useBranch } from '../BranchContext';
 import BranchChip from '../components/BranchChip';
-import { useToast } from '../components/Modal';
+import Modal, { ModalCancelButton, useToast } from '../components/Modal';
 import DocumentPreviewModal from '../components/DocumentPreviewModal';
 import CounterpartySearchSelect from '../components/CounterpartySearchSelect';
 import { todayLocalIso } from '../utils/date';
@@ -838,6 +838,11 @@ function ReconciliationReport() {
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [previewDocId, setPreviewDocId] = useState(null);
+  const [marks, setMarks] = useState([]);
+  const [markForm, setMarkForm] = useState(null);
+  const [markSaving, setMarkSaving] = useState(false);
+  const { user } = useAuth();
+  const { show, Toast } = useToast();
   const [dateFrom, setDateFrom] = useState(() => {
     const d = new Date();
     d.setMonth(d.getMonth() - 1);
@@ -967,6 +972,20 @@ function ReconciliationReport() {
     load();
   }, [branchId, load]);
 
+  const loadMarks = useCallback(() => {
+    if (!counterpartyId) {
+      setMarks([]);
+      return;
+    }
+    api.getReconciliationMarks({ counterparty_id: counterpartyId, firm_id: firmId, contract_id: contractId })
+      .then((list) => setMarks(Array.isArray(list) ? list : []))
+      .catch(() => setMarks([]));
+  }, [counterpartyId, firmId, contractId]);
+
+  useEffect(() => {
+    loadMarks();
+  }, [branchId, loadMarks]);
+
   useEffect(() => {
     if (!counterpartyId || !selectedCounterparty) {
       setCpOpeningBalance(0);
@@ -1077,6 +1096,77 @@ function ReconciliationReport() {
     return { debit, credit, balance: debit - credit };
   }, [rows]);
 
+  const balanceAt = useCallback((date) => {
+    let balance = 0;
+    for (const r of rows) {
+      if (r.date && r.date > date) break;
+      balance = r.balance;
+    }
+    return balance;
+  }, [rows]);
+
+  const displayRows = useMemo(() => {
+    const inRange = marks
+      .filter((m) => (!dateFrom || m.date >= dateFrom) && (!dateTo || m.date <= dateTo))
+      .sort((a, b) => a.date.localeCompare(b.date) || String(a.created_at).localeCompare(String(b.created_at)));
+    const result = [];
+    let mi = 0;
+    for (const r of rows) {
+      while (mi < inRange.length && r.date && r.date > inRange[mi].date) {
+        result.push({ mark: inRange[mi] });
+        mi += 1;
+      }
+      result.push(r);
+    }
+    while (mi < inRange.length) {
+      result.push({ mark: inRange[mi] });
+      mi += 1;
+    }
+    return result;
+  }, [rows, marks, dateFrom, dateTo]);
+
+  const lastMark = marks[0] || null;
+
+  const openMarkForm = () => {
+    const today = todayLocalIso();
+    const date = dateTo && dateTo < today ? dateTo : today;
+    setMarkForm({ date, comment: '' });
+  };
+
+  const saveMark = async () => {
+    if (!markForm?.date) return;
+    setMarkSaving(true);
+    try {
+      await api.createReconciliationMark({
+        counterparty_id: counterpartyId,
+        firm_id: firmId || null,
+        contract_id: contractId || null,
+        date: markForm.date,
+        balance: balanceAt(markForm.date),
+        comment: markForm.comment,
+      });
+      setMarkForm(null);
+      loadMarks();
+      show('Сверка отмечена');
+    } catch (e) {
+      show(e.message || 'Не удалось сохранить отметку', 'error');
+    } finally {
+      setMarkSaving(false);
+    }
+  };
+
+  const removeMark = async (mark) => {
+    if (!window.confirm(`Удалить отметку сверки на ${formatDate(mark.date)}?`)) return;
+    try {
+      await api.deleteReconciliationMark(mark.id);
+      loadMarks();
+    } catch (e) {
+      show(e.message || 'Не удалось удалить отметку', 'error');
+    }
+  };
+
+  const canDeleteMark = (mark) => user?.role === 'admin' || mark.created_by === user?.id;
+
   return (
     <div>
       <div className="page-header">
@@ -1154,6 +1244,24 @@ function ReconciliationReport() {
               <span className="report-summary-item">Начислено: {formatMoney(totals.debit)}</span>
               <span className="report-summary-item">Оплачено: {formatMoney(totals.credit)}</span>
               <span className="report-summary-item"><strong>Сальдо: {formatMoney(totals.balance)}</strong></span>
+              <span className="report-summary-spacer" />
+              {lastMark ? (
+                <span className="report-recon-last" title={lastMark.comment || undefined}>
+                  ✓ Последняя сверка: <strong>{formatDate(lastMark.date)}</strong>
+                  {' · '}сальдо {formatMoney(lastMark.balance)}
+                  {lastMark.created_by_name ? ` · ${lastMark.created_by_name}` : ''}
+                </span>
+              ) : (
+                <span className="report-recon-last is-empty">Сверок ещё не было</span>
+              )}
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={openMarkForm}
+                disabled={loading}
+              >
+                ✓ Отметить сверку
+              </button>
             </div>
             <div className="table-wrap">
               <table>
@@ -1168,7 +1276,33 @@ function ReconciliationReport() {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((r, idx) => (
+                  {displayRows.map((r, idx) => (r.mark ? (
+                    <tr key={`mark-${r.mark.id}`} className="report-recon-mark-row">
+                      <td>{formatDate(r.mark.date)}</td>
+                      <td colSpan={4}>
+                        <strong>✓ Сверено на {formatDate(r.mark.date)}</strong>
+                        <span className="report-recon-mark-meta">
+                          {r.mark.created_by_name || '—'}
+                          {r.mark.created_at ? `, отмечено ${formatDateTime(r.mark.created_at)}` : ''}
+                          {r.mark.comment ? ` — ${r.mark.comment}` : ''}
+                        </span>
+                      </td>
+                      <td>
+                        <strong>{formatMoney(r.mark.balance)}</strong>
+                        {canDeleteMark(r.mark) && (
+                          <button
+                            type="button"
+                            className="report-recon-mark-del"
+                            onClick={() => removeMark(r.mark)}
+                            title="Удалить отметку"
+                            aria-label="Удалить отметку"
+                          >
+                            ×
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ) : (
                     <tr
                       key={`${r.ref}-${idx}`}
                       className={r.docId ? 'report-row-clickable' : undefined}
@@ -1182,7 +1316,7 @@ function ReconciliationReport() {
                       <td>{formatMoney(r.credit)}</td>
                       <td><strong>{formatMoney(r.balance)}</strong></td>
                     </tr>
-                  ))}
+                  )))}
                   {rows.length === 0 && (
                     <tr><td colSpan={6} className="empty">{loading ? 'Загрузка…' : 'Нет операций за период'}</td></tr>
                   )}
@@ -1195,6 +1329,56 @@ function ReconciliationReport() {
       {previewDocId && (
         <DocumentPreviewModal documentId={previewDocId} onClose={() => setPreviewDocId(null)} />
       )}
+      {markForm && (
+        <Modal
+          title="Отметить сверку"
+          onClose={() => setMarkForm(null)}
+          className="modal-recon-mark"
+          footer={(
+            <>
+              <button type="button" className="btn btn-primary" onClick={saveMark} disabled={markSaving || !markForm.date}>
+                {markSaving ? 'Сохранение…' : 'Сохранить'}
+              </button>
+              <ModalCancelButton />
+            </>
+          )}
+        >
+          <div className="recon-mark-form">
+            <div className="recon-mark-cp">
+              {selectedCounterparty?.name}
+              {firmId && firms.find((f) => f.id === firmId) ? ` · ${firms.find((f) => f.id === firmId).name}` : ''}
+              {contractId && contracts.find((c) => c.id === contractId)
+                ? ` · ${formatContractOption(contracts.find((c) => c.id === contractId))}`
+                : ''}
+            </div>
+            <label className="form-group">
+              Дата сверки
+              <input
+                type="date"
+                value={markForm.date}
+                min={dateFrom || undefined}
+                max={dateTo || undefined}
+                onChange={(e) => setMarkForm({ ...markForm, date: e.target.value })}
+              />
+            </label>
+            <div className="recon-mark-balance">
+              Сальдо по акту на эту дату:
+              <strong>{formatMoney(markForm.date ? balanceAt(markForm.date) : 0)}</strong>
+            </div>
+            <label className="form-group">
+              Комментарий
+              <textarea
+                rows={2}
+                maxLength={500}
+                placeholder="Например: сверились с бухгалтером поставщика, подписан акт"
+                value={markForm.comment}
+                onChange={(e) => setMarkForm({ ...markForm, comment: e.target.value })}
+              />
+            </label>
+          </div>
+        </Modal>
+      )}
+      {Toast}
     </div>
   );
 }

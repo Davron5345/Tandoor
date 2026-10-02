@@ -173,6 +173,15 @@ export const api = {
     const q = new URLSearchParams(params).toString();
     return request(`/reports/creditors${q ? `?${q}` : ''}`);
   },
+  getReconciliationMarks: (params = {}) => {
+    const q = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value != null && value !== '') q.set(key, value);
+    });
+    return request(`/reports/reconciliation-marks?${q.toString()}`);
+  },
+  createReconciliationMark: (data) => request('/reports/reconciliation-marks', { method: 'POST', body: JSON.stringify(data) }),
+  deleteReconciliationMark: (id) => request(`/reports/reconciliation-marks/${id}`, { method: 'DELETE' }),
   getSupplierDebtMovementReport: (params = {}) => {
     const q = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => {

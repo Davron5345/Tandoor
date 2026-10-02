@@ -18618,6 +18618,94 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
   }
 }
 
+/* ===== Акт сверки: отметки сверки ===== */
+.report-summary:has(.report-recon-last) {
+  align-items: center;
+}
+
+.report-summary-spacer {
+  flex: 1 1 auto;
+}
+
+.report-recon-last {
+  font-size: 0.85rem;
+  color: #15803d;
+}
+
+.report-recon-last.is-empty {
+  color: var(--text-muted);
+}
+
+.report-recon-mark-row td {
+  background: color-mix(in srgb, #22c55e 12%, transparent);
+  border-top: 2px solid color-mix(in srgb, #22c55e 55%, transparent);
+  border-bottom: 2px solid color-mix(in srgb, #22c55e 55%, transparent);
+  color: #15803d;
+}
+
+.report-recon-mark-meta {
+  margin-left: 10px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.report-recon-mark-del {
+  margin-left: 10px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.report-recon-mark-del:hover {
+  color: var(--danger, #dc2626);
+}
+
+.modal-recon-mark.modal {
+  max-width: 460px;
+}
+
+.recon-mark-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.recon-mark-form label.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+}
+
+.recon-mark-cp {
+  font-weight: 600;
+}
+
+.recon-mark-balance {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface2, transparent);
+}
+
+@media (max-width: 768px) {
+  .report-summary-spacer {
+    display: none;
+  }
+
+  .report-recon-mark-meta {
+    display: block;
+    margin-left: 0;
+  }
+}
+
 /* ===== Акт сверки: просмотр документа (только чтение) ===== */
 .report-row-clickable {
   cursor: pointer;

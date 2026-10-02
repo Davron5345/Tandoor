@@ -190,6 +190,7 @@ export async function initDb() {
     bootstrapPostgresSeeds();
     migrateCashArticlesBankService();
     migratePayrollFaceId();
+    migrateReconciliationMarks();
     try {
       const { ensureRetailClientSetup } = await import('./services/retailAcquiring.js');
       const branches = queryAll('SELECT id FROM branches');
@@ -551,7 +552,28 @@ function migrateSchema() {
   migrateInventoryCoverage();
   migratePayrollFaceId();
   migrateUsersPayrollLink();
+  migrateReconciliationMarks();
   addPerformanceIndexes();
+}
+
+function migrateReconciliationMarks() {
+  run(`
+    CREATE TABLE IF NOT EXISTS reconciliation_marks (
+      id TEXT PRIMARY KEY,
+      branch_id TEXT NOT NULL,
+      counterparty_id TEXT NOT NULL,
+      firm_id TEXT,
+      contract_id TEXT,
+      date TEXT NOT NULL,
+      balance REAL NOT NULL DEFAULT 0,
+      comment TEXT,
+      created_by TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+  try {
+    run('CREATE INDEX IF NOT EXISTS idx_reconciliation_marks_cp ON reconciliation_marks(branch_id, counterparty_id, date)');
+  } catch { /* */ }
 }
 
 function migratePayrollFaceId() {

@@ -507,6 +507,21 @@ CREATE INDEX IF NOT EXISTS idx_payroll_att_branch ON payroll_attendance (branch_
 CREATE UNIQUE INDEX IF NOT EXISTS idx_payroll_att_ext ON payroll_attendance (branch_id, COALESCE(external_id, id));
 CREATE INDEX IF NOT EXISTS idx_payroll_ledger_emp ON payroll_ledger (employee_id, date);
 
+CREATE TABLE IF NOT EXISTS reconciliation_marks (
+  id TEXT PRIMARY KEY,
+  branch_id TEXT NOT NULL REFERENCES branches(id),
+  counterparty_id TEXT NOT NULL REFERENCES counterparties(id) ON DELETE CASCADE,
+  firm_id TEXT,
+  contract_id TEXT,
+  date TEXT NOT NULL,
+  balance DOUBLE PRECISION NOT NULL DEFAULT 0,
+  comment TEXT,
+  created_by TEXT,
+  created_at TEXT DEFAULT (${NOW})
+);
+
+CREATE INDEX IF NOT EXISTS idx_reconciliation_marks_cp ON reconciliation_marks (branch_id, counterparty_id, date);
+
 
 CREATE TABLE IF NOT EXISTS shop_orders (
   id TEXT PRIMARY KEY,
@@ -694,6 +709,7 @@ export const PG_TABLE_IMPORT_ORDER = [
   'payroll_employees',
   'payroll_attendance',
   'payroll_ledger',
+  'reconciliation_marks',
   'shop_orders',
   'shop_order_items',
   'telegram_messages',
