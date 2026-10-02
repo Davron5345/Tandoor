@@ -19033,3 +19033,141 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
     justify-content: space-between;
   }
 }
+
+/* ── Отчёт «Движение товаров» ── */
+.stock-movement-search input {
+  min-width: 200px;
+}
+
+.stock-movement-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+}
+
+.stock-movement-wrap {
+  max-height: calc(100vh - 260px);
+  overflow: auto;
+}
+
+.stock-movement-table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.stock-movement-table th,
+.stock-movement-table td {
+  border-right: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.stock-movement-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.stock-movement-table thead th {
+  background: var(--surface);
+}
+
+.stock-movement-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.stock-movement-table .stock-movement-kind {
+  white-space: normal;
+  min-width: 92px;
+  max-width: 120px;
+  font-size: 0.78rem;
+  line-height: 1.2;
+  vertical-align: bottom;
+}
+
+.stock-movement-table .stock-movement-group {
+  text-align: center;
+}
+
+.stock-movement-table .stock-movement-name {
+  min-width: 220px;
+  white-space: normal;
+}
+
+.stock-movement-table .stock-movement-idx {
+  width: 44px;
+  color: var(--text-muted);
+}
+
+.stock-movement-table .stock-movement-balance {
+  font-weight: 600;
+  background: color-mix(in srgb, var(--primary) 6%, var(--surface));
+}
+
+.stock-movement-table .stock-movement-total {
+  font-weight: 600;
+}
+
+.stock-movement-in {
+  color: var(--success);
+}
+
+.stock-movement-out {
+  color: var(--danger);
+}
+
+.stock-movement-table thead .stock-movement-in,
+.stock-movement-table thead .stock-movement-out {
+  color: inherit;
+}
+
+.stock-movement-table thead .stock-movement-group.stock-movement-in {
+  background: color-mix(in srgb, var(--success) 12%, var(--surface));
+}
+
+.stock-movement-table thead .stock-movement-group.stock-movement-out {
+  background: color-mix(in srgb, var(--danger) 12%, var(--surface));
+}
+
+.stock-movement-negative {
+  color: var(--danger);
+}
+
+.stock-movement-details-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin-bottom: 12px;
+  color: var(--text-muted);
+}
+
+.stock-movement-details-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.stock-movement-balance-row td {
+  background: color-mix(in srgb, var(--primary) 6%, var(--surface));
+  font-weight: 600;
+}
+
+.stock-movement-tag {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  background: var(--border);
+  color: var(--text-muted);
+}
+
+@media (max-width: 768px) {
+  .stock-movement-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .stock-movement-wrap {
+    max-height: none;
+  }
+}

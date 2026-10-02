@@ -28,6 +28,11 @@ export {
 } from './services/reports.js';
 
 export {
+  getStockMovementReport,
+  getStockMovementDetails,
+} from './services/stockMovement.js';
+
+export {
   getReconciliationMarks,
   createReconciliationMark,
   deleteReconciliationMark,

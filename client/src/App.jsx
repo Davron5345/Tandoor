@@ -111,6 +111,7 @@ function buildAppNav(user) {
 
   const reportsNav = filterNavItems(user, [
     { to: '/reports/stock', label: 'Остатки на складе', perm: 'reports.view' },
+    { to: '/reports/movement', label: 'Движение товаров', perm: 'reports.view' },
     { to: '/reports/documents', label: 'Документы за период', perm: 'reports.view' },
     { to: '/reports/debts/debtors', label: 'Задолженности', perm: 'reports.view' },
     { to: '/reports/supplier-debts', label: 'Долги поставщикам', perm: 'reports.view' },

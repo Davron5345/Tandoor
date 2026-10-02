@@ -165,6 +165,20 @@ export const api = {
     return request(`/reports/stock${q ? `?${q}` : ''}`);
   },
   zeroStockPosition: (data) => request('/reports/stock/zero', { method: 'POST', body: JSON.stringify(data) }),
+  getStockMovementReport: (params = {}) => {
+    const q = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value != null && value !== '') q.set(key, value);
+    });
+    return request(`/reports/stock-movement?${q.toString()}`);
+  },
+  getStockMovementDetails: (params = {}) => {
+    const q = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (key === 'variant_id' || (value != null && value !== '')) q.set(key, value ?? '');
+    });
+    return request(`/reports/stock-movement/details?${q.toString()}`);
+  },
   getDebtorsReport: (params = {}) => {
     const q = new URLSearchParams(params).toString();
     return request(`/reports/debtors${q ? `?${q}` : ''}`);
