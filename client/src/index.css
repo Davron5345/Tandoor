@@ -19035,8 +19035,34 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
 }
 
 /* ── Отчёт «Движение товаров» ── */
-.stock-movement-search input {
-  min-width: 200px;
+.report-filters .stock-movement-search input[type="search"] {
+  flex: none;
+  width: 240px;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
+  box-sizing: border-box;
+}
+
+.report-filters label.stock-filter-toggle {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  text-transform: none;
+  letter-spacing: normal;
+  white-space: nowrap;
 }
 
 .stock-movement-actions {
@@ -19162,6 +19188,11 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
 }
 
 @media (max-width: 768px) {
+  .report-filters .stock-movement-search input[type="search"] {
+    width: 100%;
+    min-height: 40px;
+  }
+
   .stock-movement-actions {
     width: 100%;
     justify-content: space-between;
