@@ -7,6 +7,7 @@ import { useBranch } from '../BranchContext';
 import BranchChip from '../components/BranchChip';
 import { useToast } from '../components/Modal';
 import DocumentPreviewModal from '../components/DocumentPreviewModal';
+import CounterpartySearchSelect from '../components/CounterpartySearchSelect';
 import { todayLocalIso } from '../utils/date';
 import { textMatchesSearch } from '../utils/searchNormalize';
 import SearchHighlight from '../components/SearchHighlight';
@@ -856,6 +857,14 @@ function ReconciliationReport() {
     [counterparties, counterpartyId],
   );
 
+  const counterpartySearchItems = useMemo(
+    () => counterparties.map((c) => ({
+      id: c.id,
+      name: `${c.name} (${c.type === 'supplier' ? 'поставщик' : 'клиент'})`,
+    })),
+    [counterparties],
+  );
+
   const isSupplier = selectedCounterparty?.type === 'supplier';
 
   useEffect(() => {
@@ -1079,21 +1088,18 @@ function ReconciliationReport() {
           <div className="report-filters">
             <label>
               Контрагент
-              <select
+              <CounterpartySearchSelect
+                items={counterpartySearchItems}
                 value={counterpartyId}
-                onChange={(e) => {
-                  setCounterpartyId(e.target.value);
+                onChange={(id) => {
+                  setCounterpartyId(id || '');
                   setContractId('');
                   setFirmId('');
                 }}
-              >
-                <option value="">— выберите —</option>
-                {counterparties.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} ({c.type === 'supplier' ? 'поставщик' : 'клиент'})
-                  </option>
-                ))}
-              </select>
+                placeholder="Найти контрагента…"
+                className="report-counterparty-search"
+              />
+
             </label>
             {isSupplier && (
               <label>

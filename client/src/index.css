@@ -18595,6 +18595,29 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
   }
 }
 
+/* ===== Акт сверки: поиск контрагента ===== */
+.report-filters .report-counterparty-search {
+  width: 320px;
+  max-width: 100%;
+}
+
+.report-filters .report-counterparty-search .counterparty-search-select-input {
+  min-width: 0;
+  max-width: none;
+  padding: 8px 10px;
+  font-size: 14px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
+  box-sizing: border-box;
+}
+
+@media (max-width: 768px) {
+  .report-filters .report-counterparty-search {
+    width: 100%;
+  }
+}
+
 /* ===== Акт сверки: просмотр документа (только чтение) ===== */
 .report-row-clickable {
   cursor: pointer;
