@@ -187,6 +187,13 @@ export const api = {
     const q = new URLSearchParams(params).toString();
     return request(`/reports/creditors${q ? `?${q}` : ''}`);
   },
+  getReconciliationAct: (params = {}) => {
+    const q = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value != null && value !== '') q.set(key, value);
+    });
+    return request(`/reports/reconciliation?${q.toString()}`);
+  },
   getReconciliationMarks: (params = {}) => {
     const q = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => {

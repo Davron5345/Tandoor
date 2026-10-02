@@ -27,6 +27,8 @@ export {
   zeroStockPosition,
 } from './services/reports.js';
 
+export { getReconciliationAct } from './services/reconciliation.js';
+
 export {
   getStockMovementReport,
   getStockMovementDetails,

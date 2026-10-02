@@ -136,7 +136,7 @@ function findLaterMovement(doc, key, excludeDocumentIds = []) {
   ]);
 }
 
-export function assertNoLaterStockMovements(doc, extraLines = null, excludeDocumentIds = []) {
+export function assertNoLaterStockMovements(doc, extraLines = null, excludeDocumentIds = [], action = 'отменить') {
   if (!doc || doc.status !== 'confirmed') return;
   if (doc.type !== 'opening_balance' && !STOCK_DOC_TYPES.includes(doc.type)) return;
 
@@ -147,7 +147,7 @@ export function assertNoLaterStockMovements(doc, extraLines = null, excludeDocum
     const typeName = TYPE_LABELS[later.type] || later.type;
     const name = later.product_name || 'товар';
     throw new Error(
-      `Нельзя отменить: после этого документа есть движение «${name}» (${typeName} №${later.number} от ${String(later.date).slice(0, 10)}). Сначала отмените более поздние документы.`,
+      `Нельзя ${action}: после этого документа есть движение «${name}» (${typeName} №${later.number} от ${String(later.date).slice(0, 10)}). Сначала отмените более поздние документы.`,
     );
   }
 }

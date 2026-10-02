@@ -86,6 +86,7 @@ function buildAppNav(user) {
   ]);
 
   const salesNav = filterNavItems(user, [
+    { to: '/rashod', label: 'Расход', perm: 'documents.rashod' },
     { to: '/dish-sales', label: 'Продажа блюд', perm: 'documents.dish_sale' },
     { to: '/return-customer', label: 'Возврат от клиента', perm: 'documents.rashod' },
     { to: '/myshop', label: 'MyShop', perm: 'myshop.view', end: true },
@@ -113,6 +114,7 @@ function buildAppNav(user) {
     { to: '/reports/stock', label: 'Остатки на складе', perm: 'reports.view' },
     { to: '/reports/movement', label: 'Движение товаров', perm: 'reports.view' },
     { to: '/reports/documents', label: 'Документы за период', perm: 'reports.view' },
+    { to: '/documents', label: 'Журнал документов', perm: 'documents.view' },
     { to: '/reports/debts/debtors', label: 'Задолженности', perm: 'reports.view' },
     { to: '/reports/supplier-debts', label: 'Долги поставщикам', perm: 'reports.view' },
     { to: '/reports/reconciliation', label: 'Акт сверки', perm: 'reports.view' },

@@ -134,6 +134,9 @@ export function reverseReceiveDepartmentStock(departmentId, productId, qty, unit
   const row = getRow(departmentId, productId, variantId);
   const oldStock = row?.stock || 0;
   const oldAvg = row?.avg_cost || 0;
+  if (oldStock + 1e-6 < qty) {
+    throw new Error(`Недостаточно остатка для отмены: на складе ${roundQty(oldStock)}, нужно вернуть ${roundQty(qty)}. Товар уже списан другими документами.`);
+  }
   const newStock = oldStock - qty;
   if (newStock <= 1e-9) {
     upsertRow(departmentId, productId, 0, 0, variantId);

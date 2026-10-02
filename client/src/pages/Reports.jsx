@@ -1207,9 +1207,7 @@ function ReconciliationReport() {
   const [firmId, setFirmId] = useState('');
   const [contracts, setContracts] = useState([]);
   const [firms, setFirms] = useState([]);
-  const [documents, setDocuments] = useState([]);
-  const [payments, setPayments] = useState([]);
-  const [cpOpeningBalance, setCpOpeningBalance] = useState(0);
+  const [act, setAct] = useState(null);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [previewDocId, setPreviewDocId] = useState(null);
@@ -1286,62 +1284,28 @@ function ReconciliationReport() {
     return `${c.number} — ${formatDate(c.date)}`;
   };
 
-  const docMatchesContract = (doc, selectedContractId) => {
-    if (!selectedContractId) return true;
-    if (selectedContractId === DEFAULT_CONTRACT_ID) {
-      return !doc.contract_id || doc.contract_id === DEFAULT_CONTRACT_ID;
-    }
-    return doc.contract_id === selectedContractId;
-  };
-
-  const docMatchesFirm = (doc, selectedFirmId) => {
-    if (!selectedFirmId) return true;
-    return doc.firm_id === selectedFirmId;
-  };
-
-  const payMatchesFirm = (p, selectedFirmId) => {
-    if (!selectedFirmId) return true;
-    return p.firm_id === selectedFirmId;
-  };
-
   const load = useCallback(() => {
     if (!counterpartyId) {
-      setDocuments([]);
-      setPayments([]);
+      setAct(null);
       setLoadError('');
       return;
     }
     setLoading(true);
     setLoadError('');
-    Promise.all([
-      api.getDocuments({
-        status: 'confirmed',
-        date_from: dateFrom,
-        date_to: dateTo,
-        counterparty_id: counterpartyId,
-      }),
-      api.getPayments(),
-    ])
-      .then(([docs, pays]) => {
-        const docList = Array.isArray(docs) ? docs : (docs?.items || []);
-        setDocuments(docList.filter((d) => (
-          d.counterparty_id === counterpartyId
-          && (!dateFrom || d.date >= dateFrom)
-          && (!dateTo || d.date <= dateTo)
-        )));
-        setPayments(pays.filter((p) => (
-          p.counterparty_id === counterpartyId
-          && (!dateFrom || p.date >= dateFrom)
-          && (!dateTo || p.date <= dateTo)
-        )));
-      })
+    api.getReconciliationAct({
+      counterparty_id: counterpartyId,
+      date_from: dateFrom,
+      date_to: dateTo,
+      firm_id: firmId,
+      contract_id: contractId,
+    })
+      .then(setAct)
       .catch((e) => {
         setLoadError(e.message || 'Не удалось загрузить акт сверки');
-        setDocuments([]);
-        setPayments([]);
+        setAct(null);
       })
       .finally(() => setLoading(false));
-  }, [counterpartyId, dateFrom, dateTo]);
+  }, [counterpartyId, dateFrom, dateTo, firmId, contractId]);
 
   useEffect(() => {
     load();
@@ -1361,109 +1325,25 @@ function ReconciliationReport() {
     loadMarks();
   }, [branchId, loadMarks]);
 
-  useEffect(() => {
-    if (!counterpartyId || !selectedCounterparty) {
-      setCpOpeningBalance(0);
-      return;
-    }
-    // Начальное сальдо — по контрагенту целиком; при фильтре по договору/фирме не показываем
-    if (contractId || firmId) {
-      setCpOpeningBalance(0);
-      return;
-    }
-    const fetcher = selectedCounterparty.type === 'supplier'
-      ? api.getCreditorsReport({ include_zero: '1' })
-      : api.getDebtorsReport({ include_zero: '1' });
-    fetcher
-      .then((report) => {
-        const row = (report.rows || []).find((r) => r.id === counterpartyId);
-        setCpOpeningBalance(row?.opening_balance || 0);
-      })
-      .catch(() => setCpOpeningBalance(0));
-  }, [counterpartyId, selectedCounterparty, contractId, firmId, branchId]);
-
   const rows = useMemo(() => {
-    if (!selectedCounterparty) return [];
-    const supplier = selectedCounterparty.type === 'supplier';
-    const filteredDocs = documents.filter(
-      (d) => docMatchesContract(d, contractId) && docMatchesFirm(d, firmId),
-    );
-    const matchedDocIds = new Set(filteredDocs.map((d) => d.id));
-
-    const docRows = filteredDocs
-      .map((d) => {
-        if (supplier && d.type === 'prihod') {
-          return {
-            docId: d.id,
-            date: d.date,
-            ref: `Документ №${d.number}`,
-            operation: 'Приход',
-            debit: d.total_amount || 0,
-            credit: 0,
-          };
-        }
-        if (supplier && d.type === 'return_supplier') {
-          return {
-            docId: d.id,
-            date: d.date,
-            ref: `Документ №${d.number}`,
-            operation: 'Возврат поставщику',
-            debit: 0,
-            credit: d.total_amount || 0,
-          };
-        }
-        if (!supplier && d.type === 'rashod') {
-          return {
-            docId: d.id,
-            date: d.date,
-            ref: `Документ №${d.number}`,
-            operation: 'Расход клиенту',
-            debit: d.total_amount || 0,
-            credit: 0,
-          };
-        }
-        return null;
-      })
-      .filter(Boolean);
-
-    const payRows = payments
-      .map((p) => {
-        if (supplier && p.type !== 'supplier_payment') return null;
-        if (!supplier && p.type !== 'customer_income') return null;
-        if (contractId) {
-          // При фильтре по договору — только оплаты, привязанные к документам этого договора
-          if (!p.document_id || !matchedDocIds.has(p.document_id)) return null;
-        }
-        if (!payMatchesFirm(p, firmId)) return null;
-        return {
-          date: p.date,
-          ref: `Оплата №${p.number}`,
-          operation: supplier ? 'Оплата поставщику' : 'Оплата от клиента',
-          debit: 0,
-          credit: p.amount || 0,
-        };
-      })
-      .filter(Boolean);
-
-    const merged = [...docRows, ...payRows].sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
-
-    const opening = Number(cpOpeningBalance) || 0;
+    if (!act || act.counterparty?.id !== counterpartyId) return [];
+    const merged = [...(act.rows || [])];
+    const opening = Number(act.opening) || 0;
     if (Math.abs(opening) > 0.005) {
       merged.unshift({
         date: '',
-        ref: 'Начальное сальдо',
+        ref: dateFrom ? `Сальдо на ${formatDate(dateFrom)}` : 'Начальное сальдо',
         operation: 'Входящий остаток',
         debit: opening > 0 ? opening : 0,
         credit: opening < 0 ? Math.abs(opening) : 0,
       });
     }
-
     let running = 0;
     return merged.map((row) => {
       running += (row.debit || 0) - (row.credit || 0);
       return { ...row, balance: running };
     });
-  }, [documents, payments, selectedCounterparty, cpOpeningBalance, contractId, firmId]);
+  }, [act, counterpartyId, dateFrom]);
 
   const totals = useMemo(() => {
     const debit = rows.reduce((s, r) => s + (r.debit || 0), 0);

@@ -99,6 +99,24 @@ export function deleteDepartment(id) {
   ).c;
   if (docsCount > 0) throw new Error('Отдел используется в документах — удаление невозможно');
 
+  const count = (sql) => queryOne(sql, [id])?.c || 0;
+  if (count('SELECT COUNT(*) as c FROM product_department_stock WHERE department_id = ? AND stock > 0.0005') > 0) {
+    throw new Error('В отделе есть остатки — сначала переместите или спишите их');
+  }
+  if (count('SELECT COUNT(*) as c FROM users WHERE department_id = ?') > 0) {
+    throw new Error('К отделу привязаны сотрудники — сначала переназначьте их');
+  }
+  if (count('SELECT COUNT(*) as c FROM opening_balance_lines WHERE department_id = ?') > 0) {
+    throw new Error('Отдел используется в начальном сальдо — удаление невозможно');
+  }
+  if (count('SELECT COUNT(*) as c FROM documents WHERE liable_department_id = ?') > 0
+    || count('SELECT COUNT(*) as c FROM payments WHERE liable_department_id = ?') > 0) {
+    throw new Error('На отдел записан долг по инвентаризации — удаление невозможно');
+  }
+  if (count('SELECT COUNT(*) as c FROM shop_orders WHERE department_id = ?') > 0) {
+    throw new Error('Отдел используется в заявках MyShop — удаление невозможно');
+  }
+
   run('DELETE FROM product_department_stock WHERE department_id = ?', [id]);
   run('DELETE FROM departments WHERE id = ?', [id]);
 }

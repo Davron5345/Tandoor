@@ -368,8 +368,8 @@ export function createPayment(data, userId = null, branchId = DEFAULT_BRANCH_ID,
     )
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, [
-    id, number, data.type, data.counterparty_id || null, data.document_id || null,
-    data.amount, data.date, data.comment || '', userId, payBranchId, data.article_id,
+    id, number, data.type, data.counterparty_id || linkedDoc?.counterparty_id || null, data.document_id || null,
+    data.amount, data.date, data.comment || '', userId, payBranchId, data.article_id || null,
     data.external_ref || null, data.import_batch_id || null, data.contract_id || null,
     data.firm_id || null, data.bank_account_id || null,
     data.liable_user_id || linkedDoc?.liable_user_id || null,
@@ -438,8 +438,8 @@ export function updatePayment(id, data, branchId = DEFAULT_BRANCH_ID, userRole =
     WHERE id=?
   `, [
     payType,
-    counterpartyId,
-    documentId,
+    counterpartyId || linkedDoc?.counterparty_id || null,
+    documentId || null,
     data.amount ?? existing.amount,
     data.date || existing.date,
     data.comment ?? existing.comment,

@@ -1,6 +1,7 @@
 import multer from 'multer';
 import rateLimit from 'express-rate-limit';
 import { requireAdmin, requireAnyPermission, attachBranch } from '../middleware.js';
+import { DEFAULT_BRANCH_ID } from '../branches.js';
 import * as payroll from '../services/faceidPayroll.js';
 import { importPayrollEmployeesFromExcelBuffer } from '../services/payrollEmployeesImport.js';
 
@@ -163,7 +164,9 @@ export function registerFaceIdPayrollRoutes(app) {
         if (!req.file?.buffer) {
           return res.status(400).json({ error: 'Прикрепите файл Excel (.xlsx)' });
         }
-        const scope = String(req.query.scope || req.body?.scope || 'all');
+        const requested = String(req.query.scope || req.body?.scope || 'all');
+        const canImportAll = req.user?.role === 'admin' && req.branchId === DEFAULT_BRANCH_ID;
+        const scope = canImportAll ? requested : 'branch';
         const result = importPayrollEmployeesFromExcelBuffer(req.file.buffer, {
           createMissingBranches: scope !== 'branch',
           onlyBranchId: scope === 'branch' ? req.branchId : null,

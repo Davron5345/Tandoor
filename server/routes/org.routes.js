@@ -80,6 +80,14 @@ export function registerOrgRoutes(app) {
     res.json(svc.getCashArticlesReport(req.branchId, dateFrom, dateTo));
   });
 
+  app.get('/api/reports/reconciliation', requirePermission('reports.view'), attachBranch, (req, res) => {
+    try {
+      res.json(svc.getReconciliationAct(req.branchId, req.query));
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
   app.get('/api/reports/stock-movement', requirePermission('reports.view'), attachBranch, (req, res) => {
     try {
       res.json(svc.getStockMovementReport(req.branchId, req.query));

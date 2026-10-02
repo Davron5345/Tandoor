@@ -1258,10 +1258,12 @@ export default function Products() {
               <IconButton title="Копировать категорию, ед. изм. и поставщиков" onClick={() => copyFromProduct(p)}>
                 <IconCopy />
               </IconButton>
-              <IconButton title="Архивировать" onClick={() => archiveProduct(p)}>
-                <IconArchive />
-              </IconButton>
-              {!p.is_used && (
+              {user?.role === 'admin' && (
+                <IconButton title="Архивировать" onClick={() => archiveProduct(p)}>
+                  <IconArchive />
+                </IconButton>
+              )}
+              {user?.role === 'admin' && !p.is_used && (
                 <IconButton title="Удалить безвозвратно" danger onClick={() => remove(p.id)}>
                   <IconTrash />
                 </IconButton>

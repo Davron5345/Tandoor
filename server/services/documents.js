@@ -389,12 +389,10 @@ function updateStock(documentId, reverse = false) {
     } else if (isOutgoingDocType(doc.type) && doc.from_department_id) {
       if (multiplier > 0) {
         const issued = issueDepartmentStock(doc.from_department_id, item.product_id, qty, vid);
-        if (doc.type === 'rashod') {
-          run(
-            'UPDATE document_items SET unit_cost = ?, cost_amount = ? WHERE id = ?',
-            [issued.unitCost, issued.totalCost, item.id],
-          );
-        }
+        run(
+          'UPDATE document_items SET unit_cost = ?, cost_amount = ? WHERE id = ?',
+          [issued.unitCost, issued.totalCost, item.id],
+        );
       } else {
         reverseIssueDepartmentStock(
           doc.from_department_id,
@@ -403,9 +401,7 @@ function updateStock(documentId, reverse = false) {
           item.unit_cost || item.price || 0,
           vid,
         );
-        if (doc.type === 'rashod') {
-          run('UPDATE document_items SET unit_cost = 0, cost_amount = 0 WHERE id = ?', [item.id]);
-        }
+        run('UPDATE document_items SET unit_cost = 0, cost_amount = 0 WHERE id = ?', [item.id]);
       }
       afterVariantStockChange(vid, item.product_id, branchId);
       syncBranchStockFromDepartments(branchId, item.product_id);
@@ -477,7 +473,9 @@ function validateDepartmentTransfer(branchId, fromDept, toDept, items, reverse =
   }
 }
 
-function validatePeremeshchenie(fromBranchId, toBranchId, fromDept, toDept, items, reverse = false) {
+const EDIT_CONFIRMED_ACTION = 'изменить проведённый документ';
+
+function validatePeremeshchenie(fromBranchId, toBranchId, fromDept, toDept, items, reverse = false, checkStock = true) {
   if (fromDept || toDept) {
     if (fromBranchId !== toBranchId && !(fromDept && toDept)) {
       throw new Error('Для перемещения между отделами выберите один филиал');
@@ -485,12 +483,12 @@ function validatePeremeshchenie(fromBranchId, toBranchId, fromDept, toDept, item
     if (fromDept && toDept && fromDept === toDept) {
       throw new Error('Отделы отправления и получения должны отличаться');
     }
-    validateDepartmentTransfer(fromBranchId, fromDept, toDept, items, reverse);
+    if (checkStock) validateDepartmentTransfer(fromBranchId, fromDept, toDept, items, reverse);
     return;
   }
   if (!toBranchId) throw new Error('Укажите филиал получателя');
   if (fromBranchId === toBranchId) throw new Error('Филиалы отправления и получения должны отличаться');
-  validateTransferStock(fromBranchId, items, reverse);
+  if (checkStock) validateTransferStock(fromBranchId, items, reverse);
 }
 
 function validateTransferStock(fromBranchId, items, reverse = false) {
@@ -1965,12 +1963,14 @@ function updateDishSaleDocument(id, existing, data, userId, branchId, items) {
   const willConfirm = data.status === 'confirmed' || (wasConfirmed && data.status !== 'draft');
   const total = items.reduce((s, i) => s + i.quantity * i.price, 0);
 
-  if (willConfirm) {
+  if (wasConfirmed) assertConfirmedDocCanReverse(existing, EDIT_CONFIRMED_ACTION);
+  if (willConfirm && !wasConfirmed) {
     buildDishSalePlan(items, fromDept, docBranchId);
   }
 
   transaction(() => {
     if (wasConfirmed) updateStock(id, true);
+    if (willConfirm && wasConfirmed) buildDishSalePlan(items, fromDept, docBranchId);
 
     run(`
       UPDATE documents
@@ -2048,6 +2048,7 @@ function persistInventoryDocument(existingId, data, userId, branchId, existing =
 
   transaction(() => {
     if (existing && wasConfirmed) {
+      assertConfirmedDocCanReverse(existing, EDIT_CONFIRMED_ACTION);
       reverseInventoryRemainder(id, userId);
       updateStock(id, true);
     }
@@ -2233,7 +2234,7 @@ export function createDocument(data, userId = null, branchId = DEFAULT_BRANCH_ID
   if (data.type === 'peremeshchenie') {
     if (fromDepartmentId) assertDepartmentInBranch(fromDepartmentId, fromBranchId);
     if (toDepartmentId) assertDepartmentInBranch(toDepartmentId, toBranchId || fromBranchId);
-    validatePeremeshchenie(fromBranchId, toBranchId, fromDepartmentId, toDepartmentId, items);
+    validatePeremeshchenie(fromBranchId, toBranchId, fromDepartmentId, toDepartmentId, items, false, false);
   }
 
   const id = uuidv4();
@@ -2336,7 +2337,7 @@ export function updateDocument(id, data, userId = null, branchId = DEFAULT_BRANC
 
     transaction(() => {
       if (wasConfirmed) {
-        assertRazdelkaCanReverse(id, existingDoc);
+        assertConfirmedDocCanReverse(existingDoc, EDIT_CONFIRMED_ACTION);
         updateStock(id, true);
       }
 
@@ -2444,7 +2445,7 @@ export function updateDocument(id, data, userId = null, branchId = DEFAULT_BRANC
   if (docType === 'peremeshchenie') {
     if (fromDepartmentId) assertDepartmentInBranch(fromDepartmentId, fromBranchId);
     if (toDepartmentId) assertDepartmentInBranch(toDepartmentId, toBranchId || fromBranchId);
-    validatePeremeshchenie(fromBranchId, toBranchId, fromDepartmentId, toDepartmentId, items);
+    validatePeremeshchenie(fromBranchId, toBranchId, fromDepartmentId, toDepartmentId, items, false, false);
   }
 
   const wasConfirmed = existingDoc.status === 'confirmed';
@@ -2452,10 +2453,12 @@ export function updateDocument(id, data, userId = null, branchId = DEFAULT_BRANC
   const { extras, replace: replaceExtras } = extraCostsForWrite(data, docType, id);
   assertExtraCostsAllocatable(items, extras);
 
+  if (wasConfirmed) assertConfirmedDocCanReverse(existingDoc, EDIT_CONFIRMED_ACTION);
+
   transaction(() => {
     if (wasConfirmed) updateStock(id, true);
 
-    if (willConfirm && !wasConfirmed) {
+    if (willConfirm) {
       if (isOutgoingDocType(docType)) validateRashodStock(docBranchId, rashodFromDepartmentId, items);
       if (docType === 'peremeshchenie') {
         validatePeremeshchenie(fromBranchId, toBranchId, fromDepartmentId, toDepartmentId, items);
@@ -2641,6 +2644,47 @@ function isInventoryParentDoc(doc) {
   return doc?.type === 'inventory' && doc.inventory_coverage !== 'remainder';
 }
 
+/** Все проверки перед откатом остатков проведённого документа (отмена / удаление / правка). */
+function assertConfirmedDocCanReverse(doc, action = 'отменить') {
+  if (doc?.status !== 'confirmed') return;
+  assertRazdelkaCanReverse(doc.id, doc);
+  const items = queryAll('SELECT * FROM document_items WHERE document_id = ?', [doc.id]);
+  assertTransferCanReverse(doc, items);
+  const remainder = isInventoryParentDoc(doc) ? findInventoryRemainder(doc.id) : null;
+  if (remainder?.status === 'confirmed') {
+    assertNoLaterStockMovements(remainder, null, [], action);
+    assertNoLaterStockMovements(doc, null, [remainder.id], action);
+  } else {
+    assertNoLaterStockMovements(doc, null, [], action);
+  }
+}
+
+function assertNoLinkedConfirmedReturns(id) {
+  const linked = queryOne(`
+    SELECT number, type FROM documents
+    WHERE source_document_id = ? AND status = 'confirmed'
+      AND type IN ('return_supplier', 'return_customer')
+    LIMIT 1
+  `, [id]);
+  if (linked) {
+    const label = linked.type === 'return_supplier' ? 'возврат поставщику' : 'возврат от клиента';
+    throw new Error(`Нельзя отменить: по документу проведён ${label} №${linked.number}. Сначала отмените возврат.`);
+  }
+}
+
+function assertNoLinkedPayments(id, remainder, action) {
+  if (remainder) {
+    const remPayments = queryOne('SELECT COUNT(*) as c FROM payments WHERE document_id = ?', [remainder.id])?.c || 0;
+    if (remPayments > 0) {
+      throw new Error(`Нельзя ${action} документ: есть оплаты по списанию непересчитанного.`);
+    }
+  }
+  const linkedPayments = queryOne('SELECT COUNT(*) as c FROM payments WHERE document_id = ?', [id])?.c || 0;
+  if (linkedPayments > 0) {
+    throw new Error(`Нельзя ${action} документ: есть привязанные оплаты. Сначала отвяжите или удалите оплаты.`);
+  }
+}
+
 export function cancelDocument(id, userId = null) {
   const doc = queryOne('SELECT * FROM documents WHERE id = ?', [id]);
   if (!doc) throw new Error('Документ не найден');
@@ -2661,15 +2705,12 @@ export function cancelDocument(id, userId = null) {
   const remainder = inventoryParent ? findInventoryRemainder(id) : null;
 
   if (doc.status === 'confirmed') {
-    assertRazdelkaCanReverse(id, doc);
-    const items = queryAll('SELECT * FROM document_items WHERE document_id = ?', [id]);
-    assertTransferCanReverse(doc, items);
-    if (remainder?.status === 'confirmed') {
-      assertNoLaterStockMovements(remainder);
-      assertNoLaterStockMovements(doc, null, [remainder.id]);
-    } else {
-      assertNoLaterStockMovements(doc);
+    if (doc.inventory_coverage === 'remainder') {
+      throw new Error('Списание непересчитанного отменяется вместе с инвентаризацией — снимите проведение у неё');
     }
+    assertNoLinkedConfirmedReturns(id);
+    assertNoLinkedPayments(id, null, 'отменить');
+    assertConfirmedDocCanReverse(doc);
   }
 
   if (inventoryParent) {
@@ -2702,25 +2743,10 @@ export function deleteDocument(id) {
     throw new Error('Нельзя удалить документ: к нему привязаны возвраты поставщику.');
   }
   const remainder = doc.type === 'inventory' ? findInventoryRemainder(id) : null;
-  if (remainder) {
-    const remPayments = queryOne('SELECT COUNT(*) as c FROM payments WHERE document_id = ?', [remainder.id])?.c || 0;
-    if (remPayments > 0) {
-      throw new Error('Нельзя удалить документ: есть оплаты по списанию непересчитанного.');
-    }
-  }
-  const linkedPayments = queryOne('SELECT COUNT(*) as c FROM payments WHERE document_id = ?', [id])?.c || 0;
-  if (linkedPayments > 0) {
-    throw new Error('Нельзя удалить документ: есть привязанные оплаты. Сначала отвяжите или удалите оплаты.');
-  }
+  assertNoLinkedPayments(id, remainder, 'удалить');
 
   if (doc.status === 'confirmed') {
-    assertRazdelkaCanReverse(id, doc);
-    if (remainder?.status === 'confirmed') {
-      assertNoLaterStockMovements(remainder);
-      assertNoLaterStockMovements(doc, null, [remainder.id]);
-    } else {
-      assertNoLaterStockMovements(doc);
-    }
+    assertConfirmedDocCanReverse(doc, 'удалить');
   }
 
   transaction(() => {

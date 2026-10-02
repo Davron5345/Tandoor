@@ -231,16 +231,40 @@ function getCounterpartyDebtRows(branchId, counterpartyType, docType, paymentTyp
   });
 }
 
+function returnedByCounterparty(branchId, returnType) {
+  const rows = queryAll(`
+    SELECT counterparty_id, COALESCE(SUM(total_amount), 0) as returned
+    FROM documents
+    WHERE branch_id = ?
+      AND type = ?
+      AND status = 'confirmed'
+      AND counterparty_id IS NOT NULL
+    GROUP BY counterparty_id
+  `, [branchId, returnType]);
+  return new Map(rows.map((r) => [r.counterparty_id, r.returned || 0]));
+}
+
+function applyReturns(rows, returnedMap) {
+  return rows.map((r) => {
+    const returned = returnedMap.get(r.id) || 0;
+    const charged = (r.charged || 0) - returned;
+    const paid = r.paid || 0;
+    return {
+      ...r,
+      returned,
+      charged,
+      balance: charged - paid + (r.opening_balance || 0),
+    };
+  });
+}
+
 export function getDebtorsReport(branchId = DEFAULT_BRANCH_ID, includeZero = false, includeUnlinkedPayments = true) {
-  const rows = getCounterpartyDebtRows(
-    branchId,
-    'client',
-    'rashod',
-    'customer_income',
-    includeUnlinkedPayments,
+  const rows = applyReturns(
+    getCounterpartyDebtRows(branchId, 'client', 'rashod', 'customer_income', includeUnlinkedPayments),
+    returnedByCounterparty(branchId, 'return_customer'),
   );
   const filtered = includeZero
-    ? rows.filter((r) => r.charged > 0 || r.paid > 0 || Math.abs(r.opening_balance || 0) > 0.005)
+    ? rows.filter((r) => r.charged > 0 || r.paid > 0 || r.returned > 0 || Math.abs(r.opening_balance || 0) > 0.005)
     : rows.filter((r) => r.balance > 0.005);
   const totalBalance = filtered.reduce((s, r) => s + r.balance, 0);
   return {
@@ -254,35 +278,10 @@ export function getDebtorsReport(branchId = DEFAULT_BRANCH_ID, includeZero = fal
 }
 
 export function getCreditorsReport(branchId = DEFAULT_BRANCH_ID, includeZero = false, includeUnlinkedPayments = true) {
-  const rows = getCounterpartyDebtRows(
-    branchId,
-    'supplier',
-    'prihod',
-    'supplier_payment',
-    includeUnlinkedPayments,
+  const adjusted = applyReturns(
+    getCounterpartyDebtRows(branchId, 'supplier', 'prihod', 'supplier_payment', includeUnlinkedPayments),
+    returnedByCounterparty(branchId, 'return_supplier'),
   );
-  const returnedRows = queryAll(`
-    SELECT counterparty_id, COALESCE(SUM(total_amount), 0) as returned
-    FROM documents
-    WHERE branch_id = ?
-      AND type = 'return_supplier'
-      AND status = 'confirmed'
-      AND counterparty_id IS NOT NULL
-    GROUP BY counterparty_id
-  `, [branchId]);
-  const returnedMap = new Map(returnedRows.map((r) => [r.counterparty_id, r.returned || 0]));
-
-  const adjusted = rows.map((r) => {
-    const returned = returnedMap.get(r.id) || 0;
-    const charged = (r.charged || 0) - returned;
-    const paid = r.paid || 0;
-    return {
-      ...r,
-      returned,
-      charged,
-      balance: charged - paid + (r.opening_balance || 0),
-    };
-  });
 
   const filtered = includeZero
     ? adjusted.filter((r) => r.charged > 0 || r.paid > 0 || r.returned > 0 || Math.abs(r.opening_balance || 0) > 0.005)
