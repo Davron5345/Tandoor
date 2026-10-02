@@ -3,7 +3,8 @@ import {
   api, formatDate, formatMoney, formatPriceInput, parsePriceInput, STATUS_LABELS,
 } from '../api';
 import Modal, { useToast, ModalCancelButton } from '../components/Modal';
-import { IconButton, IconEdit, IconEye, IconTrash } from '../components/ActionIcons';
+import { IconButton, IconEdit, IconEye, IconHistory, IconTrash } from '../components/ActionIcons';
+import DocumentHistoryModal from '../components/DocumentHistoryModal';
 import { useAuth } from '../AuthContext';
 import { useBranch } from '../BranchContext';
 import ProductSelect from '../components/ProductSelect';
@@ -35,6 +36,7 @@ export default function SupplierPrices() {
   const [form, setForm] = useState(emptyForm);
   const [readOnly, setReadOnly] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [historyDocId, setHistoryDocId] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -239,6 +241,9 @@ export default function SupplierPrices() {
                         <IconButton title="Открыть" onClick={() => openDoc(d.id, d.status === 'confirmed')}>
                           {d.status === 'confirmed' ? <IconEye /> : <IconEdit />}
                         </IconButton>
+                        <IconButton title="История изменений" onClick={() => setHistoryDocId(d.id)}>
+                          <IconHistory />
+                        </IconButton>
                         {canEdit && d.status !== 'confirmed' && (
                           <IconButton title="Удалить" danger onClick={() => removeDoc(d.id)}>
                             <IconTrash />
@@ -380,6 +385,9 @@ export default function SupplierPrices() {
             Сумма прайса (справочно): {formatMoney(total)}
           </p>
         </Modal>
+      )}
+      {historyDocId && (
+        <DocumentHistoryModal documentId={historyDocId} onClose={() => setHistoryDocId(null)} />
       )}
     </div>
   );

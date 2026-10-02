@@ -37,6 +37,8 @@ import {
 } from '../documentExtraCosts.js';
 import { getStockReport } from './reports.js';
 import { assertNoLaterStockMovements } from '../stockMovementGuard.js';
+import { buildDocumentHistoryDiff } from '../documentHistoryDiff.js';
+import { snapshotDocument, addDocumentHistory } from '../documentSnapshot.js';
 import { getCashArticle, getCashArticles } from '../cashArticles.js';
 import { SHORTAGE_ARTICLE_CODE, cashArticleId } from '../cashArticleDefaults.js';
 
@@ -196,28 +198,10 @@ function applyReturnCustomerLineCosts(documentId) {
   }
 }
 
-export function snapshotDocument(docId) {
-  const doc = queryOne('SELECT * FROM documents WHERE id = ?', [docId]);
-  const items = queryAll(`
-    SELECT di.*, p.name as product_name, p.sku, p.unit
-    FROM document_items di
-    JOIN products p ON p.id = di.product_id
-    WHERE di.document_id = ?
-  `, [docId]);
-  const extra_costs = queryAll(`
-    SELECT * FROM document_extra_costs WHERE document_id = ? ORDER BY COALESCE(sort_order, 0) ASC, id ASC
-  `, [docId]);
-  const counterparty = doc?.counterparty_id
-    ? queryOne('SELECT * FROM counterparties WHERE id = ?', [doc.counterparty_id])
-    : null;
-  return JSON.stringify({ document: doc, items, extra_costs, counterparty });
-}
+export { snapshotDocument };
 
 export function addHistory(documentId, action, userId = null) {
-  run(`
-    INSERT INTO document_history (id, document_id, action, snapshot, changed_by)
-    VALUES (?, ?, ?, ?, ?)
-  `, [uuidv4(), documentId, action, snapshotDocument(documentId), userId]);
+  addDocumentHistory(documentId, action, userId);
 }
 
 function afterVariantStockChange(variantId, productId, branchId) {
@@ -2743,15 +2727,15 @@ function formatChangedBy(row) {
 }
 
 export function getDocumentHistory(documentId) {
-  return queryAll(`
+  const rows = queryAll(`
     SELECT h.id, h.document_id, h.action, h.snapshot, h.changed_by, h.created_at,
            u.name as changed_by_name
     FROM document_history h
     LEFT JOIN users u ON u.id = h.changed_by
     WHERE h.document_id = ?
-    ORDER BY h.created_at DESC
   `, [documentId]).map((row) => ({
     ...row,
     user_name: formatChangedBy(row),
   }));
+  return buildDocumentHistoryDiff(rows);
 }

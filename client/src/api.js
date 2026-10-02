@@ -778,4 +778,6 @@ export const ACTION_LABELS = {
   updated: 'Изменён',
   confirmed: 'Проведён',
   cancelled: 'Отменён',
+  unconfirmed: 'Проведение снято',
+  cancel_to_draft: 'Проведение снято',
 };

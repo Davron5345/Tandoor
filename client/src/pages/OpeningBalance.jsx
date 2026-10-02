@@ -3,7 +3,8 @@ import {
   api, formatDate, formatMoney, formatPriceInput, parsePriceInput, normalizeQuantityInput, parseQuantityInput, STATUS_LABELS,
 } from '../api';
 import Modal, { useToast, ModalCancelButton } from '../components/Modal';
-import { IconButton, IconEdit, IconEye, IconTrash } from '../components/ActionIcons';
+import { IconButton, IconEdit, IconEye, IconHistory, IconTrash } from '../components/ActionIcons';
+import DocumentHistoryModal from '../components/DocumentHistoryModal';
 import { useAuth } from '../AuthContext';
 import { useBranch } from '../BranchContext';
 import BranchChip from '../components/BranchChip';
@@ -225,6 +226,7 @@ export default function OpeningBalance() {
   const [createModalType, setCreateModalType] = useState(null);
   const [createForm, setCreateForm] = useState(emptyDoc);
   const [createSaving, setCreateSaving] = useState(false);
+  const [historyDocId, setHistoryDocId] = useState(null);
   const { show, Toast } = useToast();
   const { user } = useAuth();
   const { branchId, branchName } = useBranch();
@@ -956,6 +958,9 @@ export default function OpeningBalance() {
                                 <IconEye />
                               </IconButton>
                             )}
+                            <IconButton title="История изменений" onClick={() => setHistoryDocId(d.id)}>
+                              <IconHistory />
+                            </IconButton>
                           </div>
                         </td>
                       </tr>
@@ -1105,6 +1110,9 @@ export default function OpeningBalance() {
         >
           {renderCreateModalBody()}
         </Modal>
+      )}
+      {historyDocId && (
+        <DocumentHistoryModal documentId={historyDocId} onClose={() => setHistoryDocId(null)} />
       )}
     </div>
   );

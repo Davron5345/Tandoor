@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { createPortal } from 'react-dom';
-import { api, formatMoney, formatDate, formatPriceInput, parsePriceInput, parseQuantityInput, normalizeQuantityInput, lineMoneyFromItem, STATUS_LABELS, ACTION_LABELS } from '../api';
+import { api, formatMoney, formatDate, formatPriceInput, parsePriceInput, parseQuantityInput, normalizeQuantityInput, lineMoneyFromItem, STATUS_LABELS } from '../api';
 import Modal, { useToast, ModalCancelButton } from '../components/Modal';
+import DocumentHistoryModal from '../components/DocumentHistoryModal';
 import CategorySelect from '../components/CategorySelect';
 import ProductSelect, { ProductThumb } from '../components/ProductSelect';
 import CounterpartyCreateModal from '../components/CounterpartyCreateModal';
@@ -178,7 +179,6 @@ export default function Documents({ defaultType }) {
   const [paymentModal, setPaymentModal] = useState(null);
   const [paymentForm, setPaymentForm] = useState(emptyPayment);
   const [historyModal, setHistoryModal] = useState(null);
-  const [history, setHistory] = useState([]);
   const [form, setForm] = useState({ ...emptyDoc, type: defaultType || 'prihod' });
   const [docProducts, setDocProducts] = useState([]);
   const [supplierContracts, setSupplierContracts] = useState([]);
@@ -1146,9 +1146,7 @@ export default function Documents({ defaultType }) {
     };
   }, [searchParams, defaultType]);
 
-  const openHistory = async (id) => {
-    const h = await api.getDocumentHistory(id);
-    setHistory(h);
+  const openHistory = (id) => {
     setHistoryModal(id);
   };
 
@@ -3104,21 +3102,7 @@ export default function Documents({ defaultType }) {
       )}
 
       {historyModal && (
-        <Modal title="История изменений" closeOnBackdrop onClose={() => setHistoryModal(null)}>
-          {history.length === 0 && <div className="empty">История пуста</div>}
-          {history.map((h) => (
-            <div key={h.id} className="history-item">
-              <div className="meta">{formatDate(h.created_at)} · {h.user_name || h.changed_by_name || 'Не указан'}</div>
-              <div className="action">{ACTION_LABELS[h.action] || h.action}</div>
-              {h.snapshot?.document && (
-                <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-                  {h.snapshot.document.number} · {formatMoney(h.snapshot.document.total_amount)} ·
-                  {' '}{h.snapshot.items?.length || 0} поз.
-                </div>
-              )}
-            </div>
-          ))}
-        </Modal>
+        <DocumentHistoryModal documentId={historyModal} onClose={() => setHistoryModal(null)} />
       )}
 
       {actionsMenuDoc && actionsMenuPos && createPortal(

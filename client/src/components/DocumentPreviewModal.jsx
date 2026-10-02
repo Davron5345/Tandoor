@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import Modal, { ModalCancelButton } from './Modal';
+import DocumentHistoryModal from './DocumentHistoryModal';
 import { api, formatDate, formatMoney, formatQty, STATUS_LABELS } from '../api';
 import { DOC_TYPE_LABELS, hasPermission } from '../permissions';
 import { useAuth } from '../AuthContext';
@@ -36,6 +37,7 @@ function departmentLabel(doc) {
 export default function DocumentPreviewModal({ documentId, onClose }) {
   const [doc, setDoc] = useState(null);
   const [error, setError] = useState('');
+  const [showHistory, setShowHistory] = useState(false);
   const { user } = useAuth();
 
   useEffect(() => {
@@ -67,6 +69,11 @@ export default function DocumentPreviewModal({ documentId, onClose }) {
       className="doc-preview-modal"
       footer={(
         <>
+          {doc && (
+            <button type="button" className="btn btn-ghost" onClick={() => setShowHistory(true)}>
+              История
+            </button>
+          )}
           {originalUrl && (
             <a
               className="btn btn-primary"
@@ -163,6 +170,13 @@ export default function DocumentPreviewModal({ documentId, onClose }) {
             )}
           </div>
         </div>
+      )}
+      {showHistory && (
+        <DocumentHistoryModal
+          documentId={documentId}
+          title={`История: ${title}`}
+          onClose={() => setShowHistory(false)}
+        />
       )}
     </Modal>
   );

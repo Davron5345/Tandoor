@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { api, formatMoney, formatDate, STATUS_LABELS, ACTION_LABELS } from '../api';
+import { api, formatMoney, formatDate, STATUS_LABELS } from '../api';
 import Modal, { useToast } from '../components/Modal';
+import DocumentHistoryModal from '../components/DocumentHistoryModal';
 import ProductSelect from '../components/ProductSelect';
 import { useAuth } from '../AuthContext';
 import { useBranch } from '../BranchContext';
@@ -159,7 +160,6 @@ export default function Razdelka() {
   const [filterStatus, setFilterStatus] = useState('');
   const [modal, setModal] = useState(null);
   const [historyModal, setHistoryModal] = useState(null);
-  const [history, setHistory] = useState([]);
   const [form, setForm] = useState(emptyForm);
   const [inputProducts, setInputProducts] = useState([]);
   const [calculations, setCalculations] = useState([]);
@@ -357,9 +357,7 @@ export default function Razdelka() {
     setModal(id);
   };
 
-  const openHistory = async (id) => {
-    const h = await api.getDocumentHistory(id);
-    setHistory(h);
+  const openHistory = (id) => {
     setHistoryModal(id);
   };
 
@@ -901,15 +899,7 @@ export default function Razdelka() {
       )}
 
       {historyModal && (
-        <Modal title="История изменений" closeOnBackdrop onClose={() => setHistoryModal(null)} footer={<button type="button" className="btn btn-ghost" onClick={() => setHistoryModal(null)}>Закрыть</button>}>
-          {history.map((h) => (
-            <div key={h.id} className="history-item">
-              <strong>{ACTION_LABELS?.[h.action] || h.action}</strong>
-              <span>{new Date(h.created_at).toLocaleString('ru-RU')}</span>
-              {h.user_name && <span> — {h.user_name}</span>}
-            </div>
-          ))}
-        </Modal>
+        <DocumentHistoryModal documentId={historyModal} onClose={() => setHistoryModal(null)} />
       )}
     </div>
   );

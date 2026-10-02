@@ -11,7 +11,8 @@ import {
   STATUS_LABELS,
 } from '../api';
 import Modal, { useToast, ModalCancelButton } from '../components/Modal';
-import { IconButton, IconCheck, IconEdit, IconEye, IconPlus, IconTrash } from '../components/ActionIcons';
+import { IconButton, IconCheck, IconEdit, IconEye, IconHistory, IconPlus, IconTrash } from '../components/ActionIcons';
+import DocumentHistoryModal from '../components/DocumentHistoryModal';
 import { useAuth } from '../AuthContext';
 import { useBranch } from '../BranchContext';
 import BranchChip from '../components/BranchChip';
@@ -371,7 +372,7 @@ function productSearchHaystack(products, item) {
   return parts.filter(Boolean).join(' ');
 }
 
-function InventoryDocCard({ doc, canEdit, canDelete, onOpen, onEdit, onDelete }) {
+function InventoryDocCard({ doc, canEdit, canDelete, onOpen, onEdit, onDelete, onHistory }) {
   const showDelete = canDelete && doc.status !== 'confirmed';
   return (
     <article className="inventory-doc-card">
@@ -427,6 +428,9 @@ function InventoryDocCard({ doc, canEdit, canDelete, onOpen, onEdit, onDelete })
           onClick={() => onOpen(doc.id, doc.status !== 'draft')}
         >
           <IconEye />
+        </IconButton>
+        <IconButton title="История изменений" onClick={() => onHistory(doc.id)}>
+          <IconHistory />
         </IconButton>
         {showDelete && (
           <IconButton title="Удалить" onClick={() => onDelete(doc.id)}>
@@ -730,6 +734,7 @@ export default function Inventory() {
   const [filterDateTo, setFilterDateTo] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [modal, setModal] = useState(null);
+  const [historyDocId, setHistoryDocId] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [readOnly, setReadOnly] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -1559,6 +1564,9 @@ export default function Inventory() {
                       >
                         <IconEye />
                       </IconButton>
+                      <IconButton title="История изменений" onClick={() => setHistoryDocId(d.id)}>
+                        <IconHistory />
+                      </IconButton>
                       {canDelete && d.status !== 'confirmed' && (
                         <IconButton title="Удалить" onClick={() => deleteDoc(d.id)}>
                           <IconTrash />
@@ -1585,6 +1593,7 @@ export default function Inventory() {
               onOpen={openDoc}
               onEdit={editDoc}
               onDelete={deleteDoc}
+              onHistory={setHistoryDocId}
             />
           ))}
         </div>
@@ -2191,6 +2200,9 @@ export default function Inventory() {
         onClose={() => setProductModalOpen(false)}
         onCreated={onQuickProductCreated}
       />
+      {historyDocId && (
+        <DocumentHistoryModal documentId={historyDocId} onClose={() => setHistoryDocId(null)} />
+      )}
       {canEdit && (
         <button type="button" className="inventory-fab" onClick={openCreate}>
           <IconPlus /> Новый

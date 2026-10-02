@@ -1,7 +1,6 @@
 import db from '../db.js';
 import * as svc from '../services.js';
 import { sendDocumentNotification } from '../telegram.js';
-import { canAccessDocumentType } from '../permissions.js';
 import { requirePermission, requireAnyPermission, attachBranch } from '../middleware.js';
 import {
   filterDocumentsForUser,
@@ -222,10 +221,14 @@ export function registerDocumentRoutes(app) {
     }
   });
 
-  app.get('/api/documents/:id/history', requireAnyPermission(...DOC_READ_PERMS), attachBranch, (req, res) => {
+  app.get('/api/documents/:id/history', requireAnyPermission(
+    ...DOC_READ_PERMS,
+    'opening_balance.view',
+    'products.view',
+  ), attachBranch, (req, res) => {
     const doc = svc.getDocument(req.params.id, req.branchId);
     if (!doc) return res.status(404).json({ error: 'Не найден' });
-    if (!canAccessDocumentType(req.user.role, doc.type)) {
+    if (!filterDocumentsForUser([doc], req.user.role).length) {
       return res.status(403).json({ error: 'Недостаточно прав' });
     }
     try {
@@ -234,10 +237,6 @@ export function registerDocumentRoutes(app) {
     } catch (e) {
       return res.status(403).json({ error: e.message });
     }
-    const history = svc.getDocumentHistory(req.params.id).map((h) => ({
-      ...h,
-      snapshot: JSON.parse(h.snapshot),
-    }));
-    res.json(history);
+    res.json(svc.getDocumentHistory(req.params.id));
   });
 }

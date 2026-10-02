@@ -52,6 +52,7 @@ export function registerSupplierPriceRoutes(app) {
           req.params.id,
           req.body,
           req.branchId,
+          req.user.id,
         );
         res.json(doc);
       } catch (e) {

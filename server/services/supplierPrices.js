@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import db from '../db.js';
 import { DEFAULT_BRANCH_ID } from '../branches.js';
+import { addDocumentHistory } from '../documentSnapshot.js';
 
 const { queryAll, queryOne, run, transaction } = db;
 
@@ -200,12 +201,13 @@ export function createSupplierPriceDocument(data, userId, branchId) {
       ],
     );
     insertItems(id, items);
+    addDocumentHistory(id, 'created', userId || null);
   });
 
   return getSupplierPriceDocument(id, branchId);
 }
 
-export function updateSupplierPriceDocument(id, data, branchId) {
+export function updateSupplierPriceDocument(id, data, branchId, userId = null) {
   const existing = queryOne(
     'SELECT * FROM documents WHERE id = ? AND type = ? AND branch_id = ?',
     [id, SUPPLIER_PRICE_TYPE, branchId],
@@ -242,6 +244,7 @@ export function updateSupplierPriceDocument(id, data, branchId) {
     );
     run('DELETE FROM document_items WHERE document_id = ?', [id]);
     insertItems(id, items);
+    addDocumentHistory(id, 'updated', userId);
   });
 
   return getSupplierPriceDocument(id, branchId);
@@ -263,11 +266,7 @@ export function confirmSupplierPriceDocument(id, userId, branchId) {
     `UPDATE documents SET status = 'confirmed', updated_at = datetime('now') WHERE id = ?`,
     [id],
   );
-  run(
-    `INSERT INTO document_history (id, document_id, action, snapshot, changed_by)
-     VALUES (?, ?, 'confirmed', ?, ?)`,
-    [uuidv4(), id, JSON.stringify({ type: SUPPLIER_PRICE_TYPE }), userId || 'system'],
-  );
+  addDocumentHistory(id, 'confirmed', userId || 'system');
   return getSupplierPriceDocument(id, branchId);
 }
 
@@ -283,11 +282,7 @@ export function cancelSupplierPriceDocument(id, userId, branchId) {
     `UPDATE documents SET status = 'draft', updated_at = datetime('now') WHERE id = ?`,
     [id],
   );
-  run(
-    `INSERT INTO document_history (id, document_id, action, snapshot, changed_by)
-     VALUES (?, ?, 'cancel_to_draft', ?, ?)`,
-    [uuidv4(), id, JSON.stringify({ type: SUPPLIER_PRICE_TYPE }), userId || 'system'],
-  );
+  addDocumentHistory(id, 'cancel_to_draft', userId || 'system');
   return getSupplierPriceDocument(id, branchId);
 }
 
@@ -382,16 +377,7 @@ export function syncSupplierPriceListFromPrihod(doc, items) {
       ],
     );
     insertItems(id, mergedItems);
-    run(
-      `INSERT INTO document_history (id, document_id, action, snapshot, changed_by)
-       VALUES (?, ?, 'confirmed', ?, ?)`,
-      [
-        uuidv4(),
-        id,
-        JSON.stringify({ via: 'prihod', prihod_id: doc.id }),
-        'system',
-      ],
-    );
+    addDocumentHistory(id, 'confirmed', 'system');
     return id;
   }
 
@@ -407,5 +393,6 @@ export function syncSupplierPriceListFromPrihod(doc, items) {
   );
   run('DELETE FROM document_items WHERE document_id = ?', [priceDoc.id]);
   insertItems(priceDoc.id, mergedItems);
+  addDocumentHistory(priceDoc.id, 'updated', 'system');
   return priceDoc.id;
 }

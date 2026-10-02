@@ -6,6 +6,7 @@ import { setDepartmentStock, syncVariantCatalogStock } from '../inventoryCost.js
 import { assertNoLaterStockMovements } from '../stockMovementGuard.js';
 import { getCounterparty } from './counterparties.js';
 import { assertBankAccountInBranch } from './bankAccounts.js';
+import { addDocumentHistory } from '../documentSnapshot.js';
 
 const { queryAll, queryOne, run, transaction } = db;
 
@@ -261,11 +262,7 @@ function reverseStockLines(lines, branchId) {
 }
 
 function addHistory(documentId, action, userId = null) {
-  run(
-    `INSERT INTO document_history (id, document_id, action, snapshot, changed_by)
-     VALUES (?, ?, ?, ?, ?)`,
-    [uuidv4(), documentId, action, JSON.stringify({ document_id: documentId, action }), userId],
-  );
+  addDocumentHistory(documentId, action, userId);
 }
 
 export function createOpeningBalanceDocument(data, userId = null, branchId = DEFAULT_BRANCH_ID) {

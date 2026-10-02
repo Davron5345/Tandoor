@@ -5,7 +5,8 @@ import { useAuth } from '../AuthContext';
 import { useBranch } from '../BranchContext';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import { hasPermission } from '../permissions';
-import { AddRowButton, IconCheck, IconEye, IconTrash, IconUndo } from '../components/ActionIcons';
+import { AddRowButton, IconCheck, IconEye, IconHistory, IconTrash, IconUndo } from '../components/ActionIcons';
+import DocumentHistoryModal from '../components/DocumentHistoryModal';
 import { encodeProductPick } from '../utils/productVariants';
 
 const emptyLine = { product_id: '', variant_id: null, quantity: 1, price: 0, calculation_id: '' };
@@ -33,6 +34,7 @@ export default function DishSales() {
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [lineCosts, setLineCosts] = useState({});
+  const [historyDocId, setHistoryDocId] = useState(null);
   const { show, Toast } = useToast();
   const { user } = useAuth();
   const { branchId } = useBranch();
@@ -290,6 +292,9 @@ export default function DishSales() {
                       <button type="button" className="btn btn-sm btn-ghost" onClick={() => openEdit(d.id)} title="Открыть">
                         <IconEye />
                       </button>
+                      <button type="button" className="btn btn-sm btn-ghost" onClick={() => setHistoryDocId(d.id)} title="История изменений">
+                        <IconHistory />
+                      </button>
                       {canConfirm && d.status === 'draft' && (
                         <button type="button" className="btn btn-sm btn-success" onClick={() => confirmDoc(d.id)} title="Провести">
                           <IconCheck />
@@ -447,6 +452,9 @@ export default function DishSales() {
             </div>
           </div>
         </Modal>
+      )}
+      {historyDocId && (
+        <DocumentHistoryModal documentId={historyDocId} onClose={() => setHistoryDocId(null)} />
       )}
     </div>
   );
