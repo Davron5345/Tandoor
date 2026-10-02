@@ -1099,7 +1099,9 @@ export default function Documents({ defaultType }) {
       to_branch_id: doc.to_branch_id || '',
       from_department_id: doc.from_department_id || '',
       to_department_id: doc.to_department_id || '',
-      transfer_mode: (doc.from_department_id || doc.to_department_id) ? 'department' : 'branch',
+      transfer_mode: doc.to_branch_id && doc.to_branch_id !== (doc.from_branch_id || doc.branch_id)
+        ? 'branch'
+        : ((doc.from_department_id || doc.to_department_id) ? 'department' : 'branch'),
       items: doc.items.map((i) => ({
         product_id: i.product_id,
         variant_id: i.variant_id || null,

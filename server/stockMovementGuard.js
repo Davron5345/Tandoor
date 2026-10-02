@@ -1,4 +1,5 @@
 import db from './db.js';
+import { getDefaultDepartmentId } from './departments.js';
 
 const { queryAll, queryOne } = db;
 
@@ -61,7 +62,11 @@ function collectStockKeys(doc, extraLines = null) {
     'SELECT product_id, variant_id FROM document_items WHERE document_id = ?',
     [doc.id],
   );
-  const depts = [...new Set([doc.from_department_id, doc.to_department_id].filter(Boolean))];
+  const docDepts = [doc.from_department_id, doc.to_department_id].filter(Boolean);
+  if (doc.type === 'peremeshchenie' && docDepts.length === 1) {
+    docDepts.push(getDefaultDepartmentId(doc.from_branch_id || doc.branch_id));
+  }
+  const depts = [...new Set(docDepts.filter(Boolean))];
   for (const item of items) {
     for (const departmentId of depts) {
       push(item.product_id, item.variant_id, departmentId);

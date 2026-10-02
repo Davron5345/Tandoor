@@ -287,11 +287,25 @@ function updateStock(documentId, reverse = false) {
   if (doc.type === 'peremeshchenie') {
     const fromId = doc.from_branch_id || doc.branch_id;
     const toId = doc.to_branch_id || fromId;
-    const fromDept = doc.from_department_id || null;
-    const toDept = doc.to_department_id || null;
+    let fromDept = doc.from_department_id || null;
+    let toDept = doc.to_department_id || null;
+
+    // Межфилиальное: остаток живёт в отделах, поэтому двигаем его между отделами по умолчанию
+    // и запоминаем их в документе. Старые проведённые без отделов отменяются по-старому (ниже).
+    if (!fromDept && !toDept && !reverse && fromId && toId && fromId !== toId) {
+      fromDept = getDefaultDepartmentId(fromId);
+      toDept = getDefaultDepartmentId(toId);
+      if (!fromDept) throw new Error('У филиала-отправителя нет активного отдела');
+      if (!toDept) throw new Error('У филиала-получателя нет активного отдела');
+      run(
+        'UPDATE documents SET from_department_id = ?, to_department_id = ? WHERE id = ?',
+        [fromDept, toDept, documentId],
+      );
+    }
 
     if (fromDept || toDept) {
       const branchId = fromId || DEFAULT_BRANCH_ID;
+      const targetBranchId = toId || branchId;
       for (const item of items) {
         const qty = itemStockQty(item);
         if (qty <= 0) continue;
@@ -326,6 +340,10 @@ function updateStock(documentId, reverse = false) {
         }
         afterVariantStockChange(vid, item.product_id, branchId);
         syncBranchStockFromDepartments(branchId, item.product_id);
+        if (targetBranchId !== branchId) {
+          afterVariantStockChange(vid, item.product_id, targetBranchId);
+          syncBranchStockFromDepartments(targetBranchId, item.product_id);
+        }
       }
       return;
     }
@@ -461,7 +479,7 @@ function validateDepartmentTransfer(branchId, fromDept, toDept, items, reverse =
 
 function validatePeremeshchenie(fromBranchId, toBranchId, fromDept, toDept, items, reverse = false) {
   if (fromDept || toDept) {
-    if (fromBranchId !== toBranchId) {
+    if (fromBranchId !== toBranchId && !(fromDept && toDept)) {
       throw new Error('Для перемещения между отделами выберите один филиал');
     }
     if (fromDept && toDept && fromDept === toDept) {
@@ -487,14 +505,15 @@ function validateTransferStock(fromBranchId, items, reverse = false) {
     }
     return;
   }
+  const sourceDept = getDefaultDepartmentId(fromBranchId);
+  if (!sourceDept) throw new Error('У филиала-отправителя нет активного отдела');
+  const sourceDeptName = queryOne('SELECT name FROM departments WHERE id = ?', [sourceDept])?.name || 'основной';
   for (const item of items) {
-    const stock = item.variant_id
-      ? getVariantBranchStock(item.variant_id, fromBranchId)
-      : getBranchStock(item.product_id, fromBranchId);
+    const stock = getDepartmentStock(item.product_id, sourceDept, item.variant_id || null);
     const qty = itemStockQty(item);
-    if (stock < qty) {
+    if (stock + 1e-9 < qty) {
       const label = getItemStockLabel(item);
-      throw new Error(`Недостаточно остатка «${label}» на филиале-отправителе (есть ${stock})`);
+      throw new Error(`Недостаточно остатка «${label}» в отделе «${sourceDeptName}» филиала-отправителя (есть ${stock})`);
     }
   }
 }
@@ -2587,11 +2606,11 @@ function assertTransferCanReverse(doc, items) {
 
   if (fromDept || toDept) {
     // Department-level: check that target dept has enough stock to reverse
-    const effectiveToDept = toDept || getDefaultDepartmentId(toId || fromId);
+    const effectiveToDept = toDept || getDefaultDepartmentId(fromId || DEFAULT_BRANCH_ID);
     if (effectiveToDept) {
       for (const item of items) {
         const stock = getDepartmentStock(item.product_id, effectiveToDept, item.variant_id || null);
-        if (stock < item.quantity) {
+        if (stock + 1e-9 < itemStockQty(item)) {
           const label = getItemStockLabel(item);
           throw new Error(
             `Нельзя отменить перемещение: недостаточно «${label}» в отделе-получателе для возврата (есть ${stock})`,
@@ -2608,7 +2627,7 @@ function assertTransferCanReverse(doc, items) {
       const stock = item.variant_id
         ? getVariantBranchStock(item.variant_id, toId)
         : getBranchStock(item.product_id, toId);
-      if (stock < item.quantity) {
+      if (stock + 1e-9 < itemStockQty(item)) {
         const label = getItemStockLabel(item);
         throw new Error(
           `Нельзя отменить перемещение: недостаточно «${label}» в филиале-получателе для возврата (есть ${stock})`,

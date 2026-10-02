@@ -39,6 +39,14 @@ function statusClass(status) {
   return 'badge';
 }
 
+function transferSideLabel(doc, side) {
+  const dept = doc[`${side}_department_name`] || '';
+  const fromBranch = doc.from_branch_id || doc.branch_id;
+  const interBranch = doc.to_branch_id && doc.to_branch_id !== fromBranch;
+  const branch = interBranch ? doc[`${side}_branch_name`] : '';
+  return [branch, dept].filter(Boolean).join(' · ');
+}
+
 function lineStockQty(item) {
   const qty = Number(item.quantity) || 0;
   const net = Number(item.net_weight) || 0;
@@ -398,8 +406,8 @@ export default function TransferMobile() {
                     </div>
                     <div className="warehouse-orders-mobile-card-client">
                       {incoming
-                        ? `← ${doc.from_department_name || 'Отдел'} → вам`
-                        : `${doc.from_department_name || myDeptName} → ${doc.to_department_name || 'Отдел'}`}
+                        ? `← ${transferSideLabel(doc, 'from') || 'Отдел'} → вам`
+                        : `${transferSideLabel(doc, 'from') || myDeptName} → ${transferSideLabel(doc, 'to') || 'Отдел'}`}
                     </div>
                     <div className="warehouse-orders-mobile-card-meta">
                       <span>{formatDate(doc.date)}</span>
@@ -602,7 +610,7 @@ export default function TransferMobile() {
               </span>
             </div>
             <p className="transfer-mobile-from">
-              {selected.from_department_name || '—'} → {selected.to_department_name || '—'}
+              {transferSideLabel(selected, 'from') || '—'} → {transferSideLabel(selected, 'to') || '—'}
             </p>
             {selected.comment && <p className="form-hint">{selected.comment}</p>}
             <ul className="transfer-mobile-lines">
