@@ -104,7 +104,7 @@ export function registerDocumentRoutes(app) {
   app.get('/api/documents/:id', requireAnyPermission(...DOC_READ_PERMS), attachBranch, (req, res) => {
     const doc = svc.getDocument(req.params.id, req.branchId);
     if (!doc) return res.status(404).json({ error: 'Не найден' });
-    if (!canAccessDocumentType(req.user.role, doc.type)) {
+    if (!filterDocumentsForUser([doc], req.user.role).length) {
       return res.status(403).json({ error: 'Недостаточно прав' });
     }
     try {

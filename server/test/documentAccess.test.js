@@ -27,6 +27,11 @@ test('warehouse role sees allowed document types', () => {
   assert.equal(filtered.length, 2);
 });
 
+test('documents.view lets accountant read prihod (reconciliation preview)', () => {
+  const filtered = filterDocumentsForUser([{ id: '1', type: 'prihod' }], 'accountant');
+  assert.equal(filtered.length, 1);
+});
+
 test('assertDocumentBranchAccess blocks foreign branch for everyone including admin', () => {
   const user = { role: 'warehouse', branch_id: 'branch-a' };
   const doc = { branch_id: 'branch-b' };

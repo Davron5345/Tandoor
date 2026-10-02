@@ -645,10 +645,12 @@ export function getDocument(id, branchId = null) {
            fb.name as from_branch_name, tb.name as to_branch_name,
            fd.name as from_department_name, td.name as to_department_name,
            lu.name as liable_user_name, ld.name as liable_department_name,
-           ica.name as article_name
+           ica.name as article_name,
+           cf.name as firm_name, cf.inn as firm_inn
     FROM documents d
     LEFT JOIN counterparties c ON c.id = d.counterparty_id
     LEFT JOIN counterparty_contracts cc ON cc.id = d.contract_id
+    LEFT JOIN counterparty_firms cf ON cf.id = d.firm_id
     LEFT JOIN branches b ON b.id = d.branch_id
     LEFT JOIN branches fb ON fb.id = d.from_branch_id
     LEFT JOIN branches tb ON tb.id = d.to_branch_id

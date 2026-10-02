@@ -18594,3 +18594,129 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
     border-bottom-color: var(--ones-border);
   }
 }
+
+/* ===== Акт сверки: просмотр документа (только чтение) ===== */
+.report-row-clickable {
+  cursor: pointer;
+}
+
+.report-row-clickable:hover td {
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
+}
+
+.report-doc-link {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.doc-preview-modal.modal {
+  max-width: 1100px;
+}
+
+.doc-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.doc-preview-readonly-note {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  padding: 6px 10px;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  align-self: flex-start;
+}
+
+.doc-preview-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px 18px;
+  margin: 0;
+}
+
+.doc-preview-meta > div {
+  min-width: 0;
+}
+
+.doc-preview-meta dt {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-bottom: 2px;
+}
+
+.doc-preview-meta dd {
+  margin: 0;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.doc-preview-meta-wide {
+  grid-column: 1 / -1;
+}
+
+.doc-preview-table th.num,
+.doc-preview-table td.num {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.doc-preview-subtitle {
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.doc-preview-extras ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.doc-preview-extras li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+}
+
+.doc-preview-extras li + li {
+  border-top: 1px solid var(--border);
+}
+
+.doc-preview-totals {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.doc-preview-totals > div {
+  display: flex;
+  gap: 16px;
+  align-items: baseline;
+}
+
+.doc-preview-totals span {
+  color: var(--text-muted);
+}
+
+.doc-preview-totals strong {
+  font-size: 1.1rem;
+}
+
+@media (max-width: 768px) {
+  .doc-preview-meta {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .doc-preview-totals {
+    align-items: stretch;
+  }
+
+  .doc-preview-totals > div {
+    justify-content: space-between;
+  }
+}

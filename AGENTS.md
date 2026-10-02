@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-09-21 (единый мобильный дизайн 1С на всех телефонных экранах)
+**Последнее обновление документации:** 2026-10-02 (акт сверки: просмотр документа в модалке только для чтения)
 
 ---
 
@@ -397,7 +397,7 @@ Frontend зеркало: `client/src/permissions.js`.
 - API договоров: `GET/POST /api/counterparties/:id/contracts?firm_id=`, `PUT/DELETE .../contracts/:contractId`
 - API: `GET/POST /api/counterparties/:id/firms`, `PUT/DELETE /api/counterparties/:id/firms/:firmId`
 - Импорт выписки и ручные оплаты: `firm_id` на платеже; поиск по ИНН через `findCounterpartyFirmByInn`
-- **Акт сверки** (`/reports/reconciliation`): фильтр «Фирма» (все / конкретная); строки без `firm_id` видны только при «Все фирмы»
+- **Акт сверки** (`/reports/reconciliation`): фильтр «Фирма» (все / конкретная); строки без `firm_id` видны только при «Все фирмы»; клик по строке документа открывает `DocumentPreviewModal` — **только просмотр** (шапка, позиции, доп. расходы, итог; без полей ввода и кнопок изменения)
 - Миграция: существующий `counterparties.inn` → первая фирма поставщика (`cfm_<counterparty_id>`)
 - **Следующий этап:** выбор фирмы в приходе (`documents.firm_id`); объединение автосозданных контрагентов под одного поставщика
 
@@ -476,7 +476,7 @@ GET  /api/auth/roles
 |---------|---------------|------------|
 | `/api/products` | catalog.routes.js | Номенклатура, варианты, изображения; `department_id` — остатки отдела; `in_stock=1` — только остаток > 0; при `department_id` без требования `visible` (склад); права также transfer/prihod/rashod/view/inventory |
 | `/api/calculations` | catalog.routes.js | Калькуляции |
-| `/api/documents` | documents.routes.js | Складские документы (`date_from`, `date_to`, `counterparty_id`, `product_id`, `variant_id`, type, status); при `type=peremeshchenie` у пользователя с `department_id` — фильтр involving + `direction=in|out`; при `product_id` — JOIN `document_items`…; `GET /api/documents/inventory/stock?department_id=` (+ опционально `product_id`/`variant_id` — одна позиция, в т.ч. с нулевым остатком; в снимке `net_weight` из каталога) — права inventory/transfer/rashod/prihod/documents.view; `GET /api/documents/inventory/options` — статьи расхода и сотрудники филиала для полной инвентаризации; `type=inventory` скрывает `remainder` (у родителя `remainder_document`); `GET /api/documents/:id` у полной — `remainder_items` (товар, учёт, сумма); у строк документов — `variant_name`; у инвентаризации — `net_weight` |
+| `/api/documents` | documents.routes.js | Складские документы (`date_from`, `date_to`, `counterparty_id`, `product_id`, `variant_id`, type, status); при `type=peremeshchenie` у пользователя с `department_id` — фильтр involving + `direction=in|out`; при `product_id` — JOIN `document_items`…; `GET /api/documents/inventory/stock?department_id=` (+ опционально `product_id`/`variant_id` — одна позиция, в т.ч. с нулевым остатком; в снимке `net_weight` из каталога) — права inventory/transfer/rashod/prihod/documents.view; `GET /api/documents/inventory/options` — статьи расхода и сотрудники филиала для полной инвентаризации; `type=inventory` скрывает `remainder` (у родителя `remainder_document`); `GET /api/documents/:id` у полной — `remainder_items` (товар, учёт, сумма); у строк документов — `variant_name`; у инвентаризации — `net_weight`; в шапке `firm_name` / `firm_inn`; доступ к карточке — как у списка (`documents.view` открывает любой тип, иначе право на тип) |
 | `/api/supplier-prices` | supplierPrices.routes.js | Прайс-документы поставщика (CRUD + confirm/cancel); `products.view`/`products.edit` |
 | `/api/counterparties` | counterparties.routes.js | Контрагенты, договоры (`/:id/contracts` CRUD), `/:id/firms` — юрлица поставщика (CRUD) |
 | `/api/payments` | finance.routes.js | Оплаты; `GET/POST/PUT/DELETE /api/bank-accounts`; `GET /bank-opening?bank_account_id=`; `DELETE /by-date/:date?bank_account_id=`; import parse/confirm |
@@ -516,7 +516,7 @@ GET  /api/auth/roles
 | `/cashier` | Cashier.jsx | cashier.*; рабочий стол: слева ввод (переключатель Приход/Расход, крупная сумма, чипы статей, недавние контрагенты), справа журнал смены всегда на экране; поиск и фильтр Все/Приход/Расход; «Повторить последнюю»; KPI «В кассе»; кнопка **Зарплата** (`CashierSalaryModal`) — ведомость по отделам филиала (стиль листа Mahalla: OYLIK / KIRISH—CHIQISH / IMZO), начисление/выплата, долг копится; журнал без банковских операций (`bank_account_id`); **телефон:** чипы статей (не select), карточки операций; в режиме кассира — баннер PWA/push (`PhoneAppSetupBanner`) |
 | `/payments` | Payments.jsx | payments.view; справочник счетов («Основной»); список по датам (шапка колонок fixed pin при скролле); под поставщиком — фирма, под клиентом — канал (Payme/Click/Терминал/Инкассо); выбор столбцов; импорт AccReferenceReport |
 | `/cash-articles` | CashArticles.jsx | cash_articles.view |
-| `/reports/*` | Reports.jsx | reports.view; `/reports/supplier-debts` — долги поставщикам (мультивыбор + **шаблоны** набора в `localStorage` `supplier_debt_templates_v1` по филиалу); `/reports/cash-articles` — по статьям (изоляция филиала); акт сверки — фильтр «Фирма» |
+| `/reports/*` | Reports.jsx | reports.view; `/reports/supplier-debts` — долги поставщикам (мультивыбор + **шаблоны** набора в `localStorage` `supplier_debt_templates_v1` по филиалу); `/reports/cash-articles` — по статьям (изоляция филиала); акт сверки — фильтр «Фирма», клик по документу → модалка просмотра без редактирования (`components/DocumentPreviewModal.jsx`) |
 | `/opening-balance` | OpeningBalance.jsx | opening_balance.view; список — иконки Редактировать/Открыть/Удалить (`ActionIcons`) |
 | `/myshop` | MyShop.jsx | myshop.view |
 | `/myshop/constructor` | MyShopConstructor.jsx | myshop.edit |
@@ -887,6 +887,7 @@ GET  /api/auth/roles
 | 2026-09-21 | После `/e/:token` долг и рейтинг на `/me` (`GET /api/payroll/me`); `/s/:token` — только без логина |
 | 2026-09-21 | Единая ссылка `/e/:token`: с логином — работа в системе, без логина — только рейтинг и долг |
 | 2026-09-21 | Единый мобильный дизайн: снабжение/приход/перемещение, касса, кабинет и вход получили палитру `--ones-*` и общую жёлтую шапку `.mobile-appbar` (как mobile admin) |
+| 2026-10-02 | Акт сверки: клик по документу → `DocumentPreviewModal` (только просмотр); `GET /api/documents/:id` отдаёт `firm_name`, права на чтение карточки выровнены со списком (`documents.view`) |
 
 ---
 

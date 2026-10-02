@@ -6,6 +6,7 @@ import { useAuth } from '../AuthContext';
 import { useBranch } from '../BranchContext';
 import BranchChip from '../components/BranchChip';
 import { useToast } from '../components/Modal';
+import DocumentPreviewModal from '../components/DocumentPreviewModal';
 import { todayLocalIso } from '../utils/date';
 import { textMatchesSearch } from '../utils/searchNormalize';
 import SearchHighlight from '../components/SearchHighlight';
@@ -835,6 +836,7 @@ function ReconciliationReport() {
   const [cpOpeningBalance, setCpOpeningBalance] = useState(0);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
+  const [previewDocId, setPreviewDocId] = useState(null);
   const [dateFrom, setDateFrom] = useState(() => {
     const d = new Date();
     d.setMonth(d.getMonth() - 1);
@@ -989,6 +991,7 @@ function ReconciliationReport() {
       .map((d) => {
         if (supplier && d.type === 'prihod') {
           return {
+            docId: d.id,
             date: d.date,
             ref: `Документ №${d.number}`,
             operation: 'Приход',
@@ -998,6 +1001,7 @@ function ReconciliationReport() {
         }
         if (supplier && d.type === 'return_supplier') {
           return {
+            docId: d.id,
             date: d.date,
             ref: `Документ №${d.number}`,
             operation: 'Возврат поставщику',
@@ -1007,6 +1011,7 @@ function ReconciliationReport() {
         }
         if (!supplier && d.type === 'rashod') {
           return {
+            docId: d.id,
             date: d.date,
             ref: `Документ №${d.number}`,
             operation: 'Расход клиенту',
@@ -1158,9 +1163,14 @@ function ReconciliationReport() {
                 </thead>
                 <tbody>
                   {rows.map((r, idx) => (
-                    <tr key={`${r.ref}-${idx}`}>
+                    <tr
+                      key={`${r.ref}-${idx}`}
+                      className={r.docId ? 'report-row-clickable' : undefined}
+                      onClick={r.docId ? () => setPreviewDocId(r.docId) : undefined}
+                      title={r.docId ? 'Открыть документ (только просмотр)' : undefined}
+                    >
                       <td>{formatDate(r.date)}</td>
-                      <td>{r.ref}</td>
+                      <td>{r.docId ? <span className="report-doc-link">{r.ref}</span> : r.ref}</td>
                       <td>{r.operation}</td>
                       <td>{formatMoney(r.debit)}</td>
                       <td>{formatMoney(r.credit)}</td>
@@ -1176,6 +1186,9 @@ function ReconciliationReport() {
           </>
         )}
       </div>
+      {previewDocId && (
+        <DocumentPreviewModal documentId={previewDocId} onClose={() => setPreviewDocId(null)} />
+      )}
     </div>
   );
 }
