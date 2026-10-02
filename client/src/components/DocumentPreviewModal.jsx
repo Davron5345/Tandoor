@@ -1,7 +1,25 @@
 import { useEffect, useState } from 'react';
 import Modal, { ModalCancelButton } from './Modal';
 import { api, formatDate, formatMoney, formatQty, STATUS_LABELS } from '../api';
-import { DOC_TYPE_LABELS } from '../permissions';
+import { DOC_TYPE_LABELS, hasPermission } from '../permissions';
+import { useAuth } from '../AuthContext';
+
+const DOC_PAGE_BY_TYPE = {
+  prihod: { path: '/prihod', perm: 'documents.prihod' },
+  rashod: { path: '/rashod', perm: 'documents.rashod' },
+  return_supplier: { path: '/return-supplier', perm: 'documents.rashod' },
+  return_customer: { path: '/return-customer', perm: 'documents.rashod' },
+  peremeshchenie: { path: '/transfer', perm: 'documents.transfer' },
+};
+
+function originalDocumentUrl(user, doc) {
+  const page = DOC_PAGE_BY_TYPE[doc.type];
+  if (!page) return null;
+  const open = `?open=${encodeURIComponent(doc.id)}`;
+  if (hasPermission(user, page.perm)) return `${page.path}${open}`;
+  if (hasPermission(user, 'documents.view')) return `/documents${open}`;
+  return null;
+}
 
 function itemName(item) {
   const base = item.product_name || '—';
@@ -18,6 +36,7 @@ function departmentLabel(doc) {
 export default function DocumentPreviewModal({ documentId, onClose }) {
   const [doc, setDoc] = useState(null);
   const [error, setError] = useState('');
+  const { user } = useAuth();
 
   useEffect(() => {
     let cancelled = false;
@@ -37,6 +56,7 @@ export default function DocumentPreviewModal({ documentId, onClose }) {
   const hasNet = items.some((i) => Number(i.net_weight) > 0);
   const extras = doc?.extra_costs || [];
   const department = doc ? departmentLabel(doc) : '';
+  const originalUrl = doc ? originalDocumentUrl(user, doc) : null;
 
   return (
     <Modal
@@ -45,7 +65,22 @@ export default function DocumentPreviewModal({ documentId, onClose }) {
       wide
       closeOnBackdrop
       className="doc-preview-modal"
-      footer={<ModalCancelButton>Закрыть</ModalCancelButton>}
+      footer={(
+        <>
+          {originalUrl && (
+            <a
+              className="btn btn-primary"
+              href={originalUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Открыть оригинал документа в новой вкладке для редактирования"
+            >
+              Открыть документ ↗
+            </a>
+          )}
+          <ModalCancelButton>Закрыть</ModalCancelButton>
+        </>
+      )}
     >
       {error && <div className="alert alert-error">{error}</div>}
       {!error && !doc && <div className="empty">Загрузка…</div>}

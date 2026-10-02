@@ -18637,6 +18637,11 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
   max-width: 1100px;
 }
 
+.doc-preview-modal a.btn {
+  text-decoration: none;
+  white-space: nowrap;
+}
+
 .doc-preview {
   display: flex;
   flex-direction: column;
