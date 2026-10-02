@@ -176,9 +176,17 @@ function getUsedProductIdSet(productIds = []) {
   if (!ids.length) return used;
 
   const placeholders = ids.map(() => '?').join(',');
-  for (const table of ['document_items', 'calculation_items', 'calculation_sources']) {
+  const sources = [
+    ['document_items', 'product_id'],
+    ['calculation_items', 'product_id'],
+    ['calculation_sources', 'product_id'],
+    ['calculations', 'source_product_id'],
+    ['opening_balance_lines', 'product_id'],
+    ['shop_order_items', 'product_id'],
+  ];
+  for (const [table, column] of sources) {
     const rows = queryAll(
-      `SELECT DISTINCT product_id FROM ${table} WHERE product_id IN (${placeholders})`,
+      `SELECT DISTINCT ${column} AS product_id FROM ${table} WHERE ${column} IN (${placeholders})`,
       ids,
     );
     for (const row of rows) {

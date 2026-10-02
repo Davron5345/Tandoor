@@ -240,9 +240,15 @@ function updateStock(documentId, reverse = false) {
 
     for (const item of inputItems) {
       if (!reverse) {
-        issueDepartmentStock(fromDept, item.product_id, item.quantity, variantId(item));
+        const issued = issueDepartmentStock(fromDept, item.product_id, item.quantity, variantId(item));
+        run(
+          'UPDATE document_items SET unit_cost = ?, cost_amount = ? WHERE id = ?',
+          [issued.unitCost, issued.totalCost, item.id],
+        );
       } else {
-        reverseIssueDepartmentStock(fromDept, item.product_id, item.quantity, item.price || 0, variantId(item));
+        const unitCost = Number(item.unit_cost) > 0 ? Number(item.unit_cost) : (item.price || 0);
+        reverseIssueDepartmentStock(fromDept, item.product_id, item.quantity, unitCost, variantId(item));
+        run('UPDATE document_items SET unit_cost = 0, cost_amount = 0 WHERE id = ?', [item.id]);
       }
       afterVariantStockChange(variantId(item), item.product_id, branchId);
       syncBranchStockFromDepartments(branchId, item.product_id);
@@ -387,8 +393,9 @@ function updateStock(documentId, reverse = false) {
       afterVariantStockChange(vid, item.product_id, branchId);
       syncBranchStockFromDepartments(branchId, item.product_id);
     } else if (isOutgoingDocType(doc.type) && doc.from_department_id) {
+      const outQty = itemStockQty(item);
       if (multiplier > 0) {
-        const issued = issueDepartmentStock(doc.from_department_id, item.product_id, qty, vid);
+        const issued = issueDepartmentStock(doc.from_department_id, item.product_id, outQty, vid);
         run(
           'UPDATE document_items SET unit_cost = ?, cost_amount = ? WHERE id = ?',
           [issued.unitCost, issued.totalCost, item.id],
@@ -397,7 +404,7 @@ function updateStock(documentId, reverse = false) {
         reverseIssueDepartmentStock(
           doc.from_department_id,
           item.product_id,
-          qty,
+          outQty,
           item.unit_cost || item.price || 0,
           vid,
         );
@@ -440,11 +447,30 @@ function validateRashodStock(branchId, fromDepartmentId, items, reverse = false)
   assertDepartmentInBranch(fromDepartmentId, branchId);
   for (const item of items) {
     const stock = getDepartmentStock(item.product_id, fromDepartmentId, item.variant_id || null);
-    if (stock < item.quantity) {
+    if (stock + 1e-9 < itemStockQty(item)) {
       const label = getItemStockLabel(item);
       throw new Error(`Недостаточно остатка «${label}» (есть ${stock})`);
     }
   }
+}
+
+/** Возврат поставщику списывает столько же склада на штуку, сколько пришло: нетто берём из строк прихода. */
+function inheritReturnSupplierNet(items, sourceDocumentId) {
+  if (!sourceDocumentId) return items;
+  const sourceItems = queryAll(
+    'SELECT product_id, variant_id, quantity, net_weight FROM document_items WHERE document_id = ?',
+    [sourceDocumentId],
+  );
+  return items.map((item) => {
+    if (Number(item.net_weight) > 0) return item;
+    const matches = sourceItems.filter(
+      (s) => s.product_id === item.product_id && (s.variant_id || null) === (item.variant_id || null),
+    );
+    const qty = matches.reduce((sum, s) => sum + (Number(s.quantity) || 0), 0);
+    const stock = matches.reduce((sum, s) => sum + itemStockQty(s), 0);
+    const net = qty > 0 ? stock / qty : 0;
+    return Math.abs(net - 1) > 1e-9 && net > 0 ? { ...item, net_weight: net } : item;
+  });
 }
 
 function validateDepartmentTransfer(branchId, fromDept, toDept, items, reverse = false) {
@@ -1613,6 +1639,15 @@ function assertExtraCostsAllocatable(items, extras) {
   }
 }
 
+function loadStoredInputItems(documentId) {
+  return queryAll(`
+    SELECT product_id, variant_id, quantity, price, amount, net_weight
+    FROM document_items
+    WHERE document_id = ? AND COALESCE(item_role, 'input') = 'input'
+    ORDER BY COALESCE(sort_order, 0) ASC, id ASC
+  `, [documentId]);
+}
+
 function normalizeItems(items) {
   const valid = (items || []).filter((i) => i.product_id);
   if (valid.length === 0) {
@@ -2178,7 +2213,7 @@ export function createDocument(data, userId = null, branchId = DEFAULT_BRANCH_ID
     return persistInventoryDocument(null, data, userId, branchId);
   }
 
-  const items = normalizeItems(data.items);
+  let items = normalizeItems(data.items);
 
   let docBranchId;
   let fromBranchId = null;
@@ -2212,6 +2247,7 @@ export function createDocument(data, userId = null, branchId = DEFAULT_BRANCH_ID
     : null;
   if (data.type === 'return_supplier') {
     assertReturnSupplierSourceDocument(sourceDocumentId, docBranchId, data.counterparty_id, data.date);
+    items = inheritReturnSupplierNet(items, sourceDocumentId);
   }
   if (data.type === 'return_customer') {
     assertReturnCustomerSourceDocument(sourceDocumentId, docBranchId, data.counterparty_id, data.date);
@@ -2353,8 +2389,8 @@ export function updateDocument(id, data, userId = null, branchId = DEFAULT_BRANC
             total_amount=?, status=?, calculation_id=?, updated_at=datetime('now')
         WHERE id=?
       `, [
-        data.date,
-        data.comment || '',
+        data.date || existingDoc.date,
+        data.comment !== undefined ? (data.comment || '') : (existingDoc.comment || ''),
         docBranchId,
         fromDept,
         toDept,
@@ -2383,8 +2419,8 @@ export function updateDocument(id, data, userId = null, branchId = DEFAULT_BRANC
     return persistInventoryDocument(id, data, userId, branchId, existingDoc);
   }
 
-  const counterpartyId = data.counterparty_id ?? existingDoc.counterparty_id;
-  const items = normalizeItems(data.items);
+  const counterpartyId = data.counterparty_id !== undefined ? (data.counterparty_id || null) : existingDoc.counterparty_id;
+  let items = normalizeItems(data.items !== undefined ? data.items : loadStoredInputItems(id));
 
   let docBranchId;
   let fromBranchId = null;
@@ -2423,6 +2459,7 @@ export function updateDocument(id, data, userId = null, branchId = DEFAULT_BRANC
   const returnDate = data.date || existingDoc.date;
   if (docType === 'return_supplier') {
     assertReturnSupplierSourceDocument(sourceDocumentId, docBranchId, counterpartyId, returnDate);
+    items = inheritReturnSupplierNet(items, sourceDocumentId);
   }
   if (docType === 'return_customer') {
     assertReturnCustomerSourceDocument(sourceDocumentId, docBranchId, counterpartyId, returnDate);
@@ -2482,8 +2519,10 @@ export function updateDocument(id, data, userId = null, branchId = DEFAULT_BRANC
           total_amount=?, status=?, updated_at=datetime('now')
       WHERE id=?
     `, [
-      data.counterparty_id || null, contractId, data.date, data.comment || '',
-      data.from_location || '', data.to_location || '',
+      counterpartyId, contractId, returnDate,
+      data.comment !== undefined ? (data.comment || '') : (existingDoc.comment || ''),
+      data.from_location !== undefined ? (data.from_location || '') : (existingDoc.from_location || ''),
+      data.to_location !== undefined ? (data.to_location || '') : (existingDoc.to_location || ''),
       docBranchId, fromBranchId, toBranchId, savedFromDepartmentId, toDepartmentId, sourceDocumentId,
       total, data.status || existingDoc.status, id,
     ]);

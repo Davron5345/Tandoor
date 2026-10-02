@@ -4,7 +4,7 @@ import { requirePermission, requireAdmin, attachBranch } from '../middleware.js'
 import * as branches from '../branches.js';
 import * as departments from '../departments.js';
 import db from '../db.js';
-import { seedBranchRoles } from '../permissions.js';
+import { reloadRoles, seedBranchRoles } from '../permissions.js';
 
 import { logAudit } from '../auditLog.js';
 
@@ -48,6 +48,10 @@ export function registerOrgRoutes(app) {
     const includeZero = req.query.include_zero === '1';
     const includeUnlinked = req.query.include_unlinked_payments !== '0';
     res.json(svc.getCreditorsReport(req.branchId, includeZero, includeUnlinked));
+  });
+
+  app.get('/api/reports/liable-debts', requirePermission('reports.view'), attachBranch, (req, res) => {
+    res.json(svc.getLiableDebtsReport(req.branchId, req.query.include_zero === '1'));
   });
 
   app.get('/api/reports/supplier-debts', requirePermission('reports.view'), attachBranch, (req, res) => {
@@ -170,6 +174,7 @@ export function registerOrgRoutes(app) {
   app.delete('/api/branches/:id', requireAdmin, (req, res) => {
     try {
       branches.deleteBranch(req.params.id);
+      reloadRoles(db);
       res.json({ ok: true });
     } catch (e) {
       res.status(400).json({ error: e.message });

@@ -187,6 +187,10 @@ export const api = {
     const q = new URLSearchParams(params).toString();
     return request(`/reports/creditors${q ? `?${q}` : ''}`);
   },
+  getLiableDebtsReport: (params = {}) => {
+    const q = new URLSearchParams(params).toString();
+    return request(`/reports/liable-debts${q ? `?${q}` : ''}`);
+  },
   getReconciliationAct: (params = {}) => {
     const q = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => {
@@ -224,9 +228,7 @@ export const api = {
     const q = new URLSearchParams(params).toString();
     return request(`/reports/cash-articles${q ? `?${q}` : ''}`);
   },
-  getBusinessBalance: () => request('/reports/business-balance'),
   getOpeningBalance: () => request('/opening-balance'),
-  getOpeningBalanceDocuments: () => request('/opening-balance/documents'),
   getOpeningBalanceDocument: (id) => request(`/opening-balance/documents/${id}`),
   createOpeningBalanceDocument: (data) => request('/opening-balance/documents', { method: 'POST', body: JSON.stringify(data) }),
   updateOpeningBalanceDocument: (id, data) => request(`/opening-balance/documents/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
@@ -265,7 +267,6 @@ export const api = {
     method: 'PUT',
     body: JSON.stringify({ status }),
   }),
-  getPublicShopBranches: () => publicRequest('/public/shop/branches'),
   getPublicShopCatalog: (branchId, departmentId) => {
     const path = departmentId
       ? `/public/shop/${encodeURIComponent(branchId)}/dept/${encodeURIComponent(departmentId)}/catalog`
@@ -426,24 +427,12 @@ export const api = {
     ).toString();
     return request(`/payroll/employees${q ? `?${q}` : ''}`);
   },
-  getPayrollRecentAttendance: (params = {}) => {
-    const q = new URLSearchParams(params).toString();
-    return request(`/payroll/attendance/recent${q ? `?${q}` : ''}`);
-  },
-  getPayrollLedger: (id, params = {}) => {
-    const q = new URLSearchParams(params).toString();
-    return request(`/payroll/employees/${encodeURIComponent(id)}/ledger${q ? `?${q}` : ''}`);
-  },
   rotatePayrollViewLink: (id) => request(`/payroll/employees/${encodeURIComponent(id)}/view-link`, {
     method: 'POST',
     body: '{}',
   }),
   getPayrollCabinet: (token) => publicRequest(`/public/payroll/${encodeURIComponent(token)}`),
   getMyPayrollCabinet: () => request('/payroll/me'),
-  importPayrollEmployees: (data) => request('/payroll/employees/import', {
-    method: 'POST',
-    body: JSON.stringify(data),
-  }),
   importPayrollEmployeesXlsx: async (file, { scope = 'all' } = {}) => {
     const form = new FormData();
     form.append('file', file);
@@ -463,10 +452,6 @@ export const api = {
     if (!res.ok) throw new Error(data.error || 'Ошибка импорта сотрудников');
     return data;
   },
-  accruePayrollEmployee: (id, data) => request(`/payroll/employees/${encodeURIComponent(id)}/accrue`, {
-    method: 'POST',
-    body: JSON.stringify(data),
-  }),
   payPayrollEmployee: (id, data) => request(`/payroll/employees/${encodeURIComponent(id)}/pay`, {
     method: 'POST',
     body: JSON.stringify(data),
@@ -591,14 +576,6 @@ export const api = {
     return normalizeListResponse(await request(`/admin/visits?${q}`));
   },
   getVisitActions: () => request('/admin/visits/actions'),
-  getMySessions: async (params = {}) => {
-    const clean = Object.fromEntries(
-      Object.entries({ page: 1, limit: 50, ...params }).filter(([, v]) => v !== '' && v != null),
-    );
-    const q = new URLSearchParams(clean).toString();
-    return normalizeListResponse(await request(`/auth/sessions?${q}`));
-  },
-  revokeMySession: (id) => request(`/auth/sessions/${id}`, { method: 'DELETE' }),
 
   getPushPublicKey: () => request('/push/vapid-public-key'),
   subscribePush: (subscription) => request('/push/subscribe', {

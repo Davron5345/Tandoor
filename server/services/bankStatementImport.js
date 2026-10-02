@@ -415,7 +415,7 @@ function classifyRow(raw, ctx) {
         name: firmMatch.counterparty_name,
         type: firmMatch.counterparty_type,
       };
-      type = 'supplier_payment';
+      type = firmMatch.counterparty_type === 'client' ? 'other_expense' : 'supplier_payment';
       const recon = reconcileFirmWithStatement(firmMatch, {
         inn: counterpartyInn,
         statementName: suggestedName || raw.name,

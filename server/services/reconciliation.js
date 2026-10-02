@@ -18,6 +18,11 @@ const DOC_OPERATIONS = {
 };
 
 const PAYMENT_TYPE = { supplier: 'supplier_payment', client: 'customer_income' };
+/** Деньги в обратную сторону — увеличивают сальдо (см. COUNTERPARTY_REFUND_TYPE в reports.js). */
+const REFUND = {
+  supplier: { type: 'other_income', operation: 'Возврат денег от поставщика' },
+  client: { type: 'other_expense', operation: 'Выдано клиенту' },
+};
 
 function docMatchesContract(doc, contractId) {
   if (!contractId) return true;
@@ -73,14 +78,16 @@ export function getReconciliationAct(branchId = DEFAULT_BRANCH_ID, filters = {})
   const matchedDocIds = new Set(docs.map((d) => d.id));
 
   const pays = queryAll(`
-    SELECT p.id, p.number, p.date, p.created_at, p.amount, p.firm_id, p.document_id
+    SELECT p.id, p.number, p.date, p.created_at, p.amount, p.firm_id, p.contract_id, p.document_id, p.type
     FROM payments p
     LEFT JOIN documents d ON d.id = p.document_id
     WHERE (p.branch_id = ? OR (p.branch_id IS NULL AND ? = ?))
-      AND p.type = ?
       AND (
-        (p.document_id IS NOT NULL AND d.id IS NOT NULL AND d.status = 'confirmed' AND d.counterparty_id = ?)
-        OR (p.document_id IS NULL AND p.counterparty_id = ?)
+        (p.type = ? AND (
+          (p.document_id IS NOT NULL AND d.id IS NOT NULL AND d.status = 'confirmed' AND d.counterparty_id = ?)
+          OR (p.document_id IS NULL AND p.counterparty_id = ?)
+        ))
+        OR (p.type = ? AND p.document_id IS NULL AND p.counterparty_id = ?)
       )
       ${dateTo ? 'AND p.date <= ?' : ''}
   `, [
@@ -90,9 +97,15 @@ export function getReconciliationAct(branchId = DEFAULT_BRANCH_ID, filters = {})
     PAYMENT_TYPE[kind],
     counterpartyId,
     counterpartyId,
+    REFUND[kind].type,
+    counterpartyId,
     ...(dateTo ? [dateTo] : []),
   ]).filter((p) => {
-    if (contractId && (!p.document_id || !matchedDocIds.has(p.document_id))) return false;
+    if (contractId) {
+      const byDoc = p.document_id && matchedDocIds.has(p.document_id);
+      const byContract = !p.document_id && p.contract_id === contractId;
+      if (!byDoc && !byContract) return false;
+    }
     if (firmId && p.firm_id !== firmId) return false;
     return true;
   });
@@ -111,15 +124,21 @@ export function getReconciliationAct(branchId = DEFAULT_BRANCH_ID, filters = {})
         credit: op.side === 'credit' ? amount : 0,
       };
     }),
-    ...pays.map((p) => ({
-      paymentId: p.id,
-      date: p.date,
-      created_at: p.created_at,
-      ref: `Оплата №${p.number}`,
-      operation: kind === 'supplier' ? 'Оплата поставщику' : 'Оплата от клиента',
-      debit: 0,
-      credit: Number(p.amount) || 0,
-    })),
+    ...pays.map((p) => {
+      const amount = Number(p.amount) || 0;
+      const isRefund = p.type === REFUND[kind].type;
+      return {
+        paymentId: p.id,
+        date: p.date,
+        created_at: p.created_at,
+        ref: `Оплата №${p.number}`,
+        operation: isRefund
+          ? REFUND[kind].operation
+          : (kind === 'supplier' ? 'Оплата поставщику' : 'Оплата от клиента'),
+        debit: isRefund ? amount : 0,
+        credit: isRefund ? 0 : amount,
+      };
+    }),
   ].sort((a, b) => String(a.date).localeCompare(String(b.date))
     || String(a.created_at || '').localeCompare(String(b.created_at || '')));
 

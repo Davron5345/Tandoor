@@ -97,13 +97,19 @@ export function deleteCounterparty(id, branchId = DEFAULT_BRANCH_ID) {
        AND (branch_id = ? OR (branch_id IS NULL AND ? = ?))`,
     [id, branchId, branchId, DEFAULT_BRANCH_ID],
   )?.c || 0);
-  const mentions = docCount + payCount;
+  const obCount = Number(queryOne(
+    'SELECT COUNT(*) as c FROM opening_balance_lines WHERE counterparty_id = ?',
+    [id],
+  )?.c || 0);
+  const mentions = docCount + payCount + obCount;
   if (mentions > 0) {
-    throw new Error(
-      `Нельзя удалить: есть упоминания (${mentions}: документов ${docCount}, выписок/оплат ${payCount})`,
-    );
+    const parts = [`документов ${docCount}`, `выписок/оплат ${payCount}`];
+    if (obCount) parts.push(`строк начального сальдо ${obCount}`);
+    throw new Error(`Нельзя удалить: есть упоминания (${mentions}: ${parts.join(', ')})`);
   }
 
+  run('UPDATE telegram_messages SET counterparty_id = NULL WHERE counterparty_id = ?', [id]);
+  run('DELETE FROM reconciliation_marks WHERE counterparty_id = ?', [id]);
   run('DELETE FROM counterparty_firms WHERE counterparty_id = ? AND branch_id = ?', [id, branchId]);
   run('DELETE FROM counterparty_contracts WHERE counterparty_id = ? AND branch_id = ?', [id, branchId]);
   run('DELETE FROM product_suppliers WHERE supplier_id = ? AND branch_id = ?', [id, branchId]);
@@ -290,6 +296,10 @@ export function deleteCounterpartyContract(counterpartyId, contractId, branchId 
     [contractId, counterpartyId],
   );
   if (used) throw new Error('Договор используется в документах и не может быть удалён');
+  const usedPay = queryOne('SELECT id FROM payments WHERE contract_id = ? LIMIT 1', [contractId]);
+  if (usedPay) throw new Error('Договор используется в оплатах и не может быть удалён');
+  run('UPDATE counterparty_firms SET contract_id = NULL WHERE contract_id = ?', [contractId]);
+  run('UPDATE reconciliation_marks SET contract_id = NULL WHERE contract_id = ?', [contractId]);
   run('DELETE FROM counterparty_contracts WHERE id = ?', [contractId]);
 }
 
@@ -485,6 +495,14 @@ export function enrichCounterpartiesWithFirms(rows, branchId = DEFAULT_BRANCH_ID
       AND (branch_id = ? OR (branch_id IS NULL AND ? = ?))
     GROUP BY counterparty_id
   `, [branchId, branchId, DEFAULT_BRANCH_ID]);
+  const obCounts = queryAll(`
+    SELECT obl.counterparty_id, COUNT(*) as c
+    FROM opening_balance_lines obl
+    JOIN documents d ON d.id = obl.document_id
+    WHERE obl.counterparty_id IS NOT NULL AND d.branch_id = ?
+    GROUP BY obl.counterparty_id
+  `, [branchId]);
+  const obByCp = new Map(obCounts.map((r) => [r.counterparty_id, Number(r.c) || 0]));
   const docsByCp = new Map(docCounts.map((r) => [r.counterparty_id, Number(r.c) || 0]));
   const paysByCp = new Map(payCounts.map((r) => [r.counterparty_id, Number(r.c) || 0]));
 
@@ -502,7 +520,8 @@ export function enrichCounterpartiesWithFirms(rows, branchId = DEFAULT_BRANCH_ID
         : (cp.inn || ''),
       documents_count: documentsCount,
       payments_count: paymentsCount,
-      mentions_count: documentsCount + paymentsCount,
+      opening_lines_count: obByCp.get(cp.id) || 0,
+      mentions_count: documentsCount + paymentsCount + (obByCp.get(cp.id) || 0),
     };
   });
 }

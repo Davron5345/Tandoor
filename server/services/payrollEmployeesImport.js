@@ -1,5 +1,7 @@
 import * as XLSX from 'xlsx';
+import db from '../db.js';
 import { getBranches, createBranch } from '../branches.js';
+import { seedBranchRoles } from '../permissions.js';
 import { importPayrollEmployees } from './faceidPayroll.js';
 
 function normalizeName(value) {
@@ -105,6 +107,7 @@ function findOrCreateBranch(firmName, { createMissing = true } = {}) {
   if (existing) return { branch: existing, created: false };
   if (!createMissing) return null;
   const branch = createBranch({ name: firmName.trim(), active: true });
+  seedBranchRoles(db, branch.id);
   return { branch, created: true };
 }
 

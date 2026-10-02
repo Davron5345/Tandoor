@@ -441,6 +441,14 @@ export function deleteUser(id, requester = null) {
       throw new Error('Нельзя удалять сотрудников другого филиала');
     }
   }
+  const liable = queryOne(
+    `SELECT COUNT(*) as c FROM documents WHERE liable_user_id = ? AND status != 'cancelled'`,
+    [id],
+  );
+  const liablePayments = queryOne('SELECT COUNT(*) as c FROM payments WHERE liable_user_id = ?', [id]);
+  if (Number(liable?.c || 0) + Number(liablePayments?.c || 0) > 0) {
+    throw new Error('На сотрудника записан долг по инвентаризации — удалить нельзя, отключите его (снимите «Активен»)');
+  }
   revokeUserSessions(id);
   run('DELETE FROM users WHERE id = ?', [id]);
 }

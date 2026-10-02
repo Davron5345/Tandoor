@@ -1354,6 +1354,27 @@ export default function Payments() {
           onClose={() => setAccountModal(null)}
           footer={
             <>
+              {accountModal !== 'create' && canEdit && (
+                <button
+                  type="button"
+                  className="btn btn-danger"
+                  style={{ marginRight: 'auto' }}
+                  onClick={async () => {
+                    if (!window.confirm('Удалить банковский счёт? Можно только если по нему нет операций и начального сальдо.')) return;
+                    try {
+                      await api.deleteBankAccount(accountModal);
+                      show('Счёт удалён');
+                      setAccountModal(null);
+                      if (selectedAccountId === accountModal) setSelectedAccountId('');
+                      await loadAccounts();
+                    } catch (e) {
+                      show(e.message, 'error');
+                    }
+                  }}
+                >
+                  Удалить
+                </button>
+              )}
               <button type="button" className="btn btn-ghost" onClick={() => setAccountModal(null)}>Отмена</button>
               <button
                 type="button"

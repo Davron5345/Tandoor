@@ -2,7 +2,11 @@ import { v4 as uuidv4 } from 'uuid';
 import db from '../db.js';
 import { DEFAULT_BRANCH_ID, getBranch } from '../branches.js';
 import { assertDepartmentInBranch, syncBranchStockFromDepartments } from '../departments.js';
-import { setDepartmentStock, syncVariantCatalogStock } from '../inventoryCost.js';
+import {
+  receiveDepartmentStock,
+  reverseReceiveDepartmentStock,
+  syncVariantCatalogStock,
+} from '../inventoryCost.js';
 import { assertNoLaterStockMovements } from '../stockMovementGuard.js';
 import { getCounterparty } from './counterparties.js';
 import { assertBankAccountInBranch } from './bankAccounts.js';
@@ -233,12 +237,12 @@ function applyStockLines(lines, branchId) {
       throw new Error('Укажите вариант товара');
     }
 
-    setDepartmentStock(
+    receiveDepartmentStock(
       line.department_id,
       line.product_id,
-      line.quantity,
-      line.unit_cost,
-      line.variant_id,
+      Number(line.quantity) || 0,
+      Number(line.unit_cost) || 0,
+      line.variant_id || null,
     );
     touchedProducts.add(line.product_id);
     if (line.variant_id) touchedVariants.add(line.variant_id);
@@ -255,7 +259,13 @@ function applyStockLines(lines, branchId) {
 function reverseStockLines(lines, branchId) {
   for (const line of lines) {
     if (line.line_type !== 'stock') continue;
-    setDepartmentStock(line.department_id, line.product_id, 0, 0, line.variant_id);
+    reverseReceiveDepartmentStock(
+      line.department_id,
+      line.product_id,
+      Number(line.quantity) || 0,
+      Number(line.unit_cost) || 0,
+      line.variant_id || null,
+    );
     syncBranchStockFromDepartments(branchId, line.product_id);
     if (line.variant_id) syncVariantCatalogStock(line.variant_id, branchId);
   }

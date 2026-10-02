@@ -126,7 +126,7 @@ function collectEvents(branchId, { dateTo = null, departmentIds, productId = nul
         push(row, row.from_department_id, 'rashod', Math.abs(Number(row.quantity) || 0));
         break;
       case 'return_supplier':
-        push(row, row.from_department_id, 'return_supplier', Math.abs(Number(row.quantity) || 0));
+        push(row, row.from_department_id, 'return_supplier', stockQty(row));
         break;
       case 'razdelka':
         if (role === 'input') push(row, row.from_department_id, 'razdelka_in', Math.abs(Number(row.quantity) || 0));

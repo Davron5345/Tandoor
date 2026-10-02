@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, NavLink, Outlet, Route, Routes } from 'react-router-dom';
 import { api, formatDate, formatDateTime, formatMoney } from '../api';
 import { DOC_TYPE_LABELS } from '../permissions';
@@ -1132,6 +1132,9 @@ function CounterpartyDebtReport({ kind }) {
                 <th>Контакты</th>
                 <th className="col-num">По документам</th>
                 <th className="col-num">Оплачено</th>
+                <th className="col-num" title={kind === 'debtors' ? 'Деньги, выданные клиенту (возврат, «Долг клиентам»)' : 'Деньги, вернувшиеся от поставщика'}>
+                  {kind === 'debtors' ? 'Выдано' : 'Возврат денег'}
+                </th>
                 <th className="col-num">Нач. сальдо</th>
                 <th className="col-num">Остаток</th>
               </tr>
@@ -1160,18 +1163,19 @@ function CounterpartyDebtReport({ kind }) {
                   </td>
                   <td className="col-num">{formatMoney(row.charged)}</td>
                   <td className="col-num muted">{formatMoney(row.paid)}</td>
+                  <td className="col-num muted">{formatMoney(row.refunded || 0)}</td>
                   <td className="col-num muted">{formatMoney(row.opening_balance || 0)}</td>
                   <td className={`col-num strong debt-balance-${kind}`}>{formatMoney(row.balance)}</td>
                 </tr>
               ))}
               {(loading || !report) && (
                 <tr>
-                  <td colSpan={7} className="empty">Загрузка…</td>
+                  <td colSpan={8} className="empty">Загрузка…</td>
                 </tr>
               )}
               {report && rows.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="empty debt-report-empty">
+                  <td colSpan={8} className="empty debt-report-empty">
                     <span className="debt-empty-title">Задолженности нет</span>
                     <span className="debt-empty-hint">
                       {kind === 'debtors'
@@ -1185,9 +1189,144 @@ function CounterpartyDebtReport({ kind }) {
             {rows.length > 0 && (
               <tfoot>
                 <tr className="report-total-row">
-                  <td colSpan={6}><strong>Итого</strong></td>
+                  <td colSpan={7}><strong>Итого</strong></td>
                   <td className={`col-num strong debt-balance-${kind}`}>
                     <strong>{formatMoney(totalBalance)}</strong>
+                  </td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LiableDebtReport() {
+  const [report, setReport] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState('');
+  const [includeZero, setIncludeZero] = useState(false);
+  const [expanded, setExpanded] = useState(() => new Set());
+  const { branchId } = useBranch();
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    setLoadError('');
+    api.getLiableDebtsReport(includeZero ? { include_zero: '1' } : {})
+      .then((data) => { if (alive) setReport(data); })
+      .catch((e) => {
+        if (!alive) return;
+        setLoadError(e.message || 'Не удалось загрузить отчёт');
+        setReport({ rows: [], count: 0, total_balance: 0 });
+      })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [includeZero, branchId]);
+
+  const toggle = (id) => setExpanded((prev) => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    return next;
+  });
+
+  const rows = report?.rows || [];
+
+  return (
+    <div className="debt-report-page">
+      <div className="stock-report-top">
+        <div className="stock-report-kpi">
+          <div className="stat-card stock-kpi-card">
+            <span className="label">Должников</span>
+            <span className="value">{rows.length}</span>
+          </div>
+          <div className="stat-card stock-kpi-card debt-kpi-total debt-kpi-debtors">
+            <span className="label">Долг по инвентаризации</span>
+            <span className="value">{formatMoney(report?.total_balance || 0)}</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="card stock-report-toolbar">
+        <div className="stock-toolbar-grid debt-toolbar-grid">
+          <div className="stock-toolbar-actions debt-toolbar-actions">
+            <label className="stock-filter-toggle">
+              <input type="checkbox" checked={includeZero} onChange={(e) => setIncludeZero(e.target.checked)} />
+              <span>Показывать погашенные</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div className="card debt-report-table-card">
+        {loadError && <div className="alert alert-error" style={{ margin: '12px 16px 0' }}>{loadError}</div>}
+        <div className="card-header debt-report-table-head">
+          <strong>Сотрудники и отделы — списание непересчитанного</strong>
+          <span className="report-meta">{loading ? 'Загрузка…' : `${rows.length} записей`}</span>
+        </div>
+        <div className="table-wrap">
+          <table className="debt-report-table">
+            <thead>
+              <tr>
+                <th className="col-index">№</th>
+                <th>Должник</th>
+                <th className="col-num">Начислено</th>
+                <th className="col-num">Погашено</th>
+                <th className="col-num">Остаток</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, index) => (
+                <Fragment key={row.id}>
+                  <tr className="report-row-clickable" onClick={() => toggle(row.id)}>
+                    <td className="col-index">{index + 1}</td>
+                    <td className="debt-name-cell">
+                      <strong>{expanded.has(row.id) ? '▾ ' : '▸ '}{row.name}</strong>
+                      <span className="muted"> · {row.kind === 'user' ? 'сотрудник' : 'отдел'}</span>
+                    </td>
+                    <td className="col-num">{formatMoney(row.charged)}</td>
+                    <td className="col-num muted">{formatMoney(row.repaid)}</td>
+                    <td className="col-num strong debt-balance-debtors">{formatMoney(row.balance)}</td>
+                  </tr>
+                  {expanded.has(row.id) && row.documents.map((doc) => (
+                    <tr key={`${row.id}:${doc.id}`} className="muted">
+                      <td />
+                      <td>
+                        {formatDate(doc.date)} · списание №{doc.number}
+                        {doc.parent_number ? ` (инвентаризация №${doc.parent_number})` : ''}
+                        {doc.department_name ? ` · ${doc.department_name}` : ''}
+                      </td>
+                      <td className="col-num">{formatMoney(doc.charged)}</td>
+                      <td className="col-num">{formatMoney(doc.repaid)}</td>
+                      <td className="col-num">{formatMoney(doc.balance)}</td>
+                    </tr>
+                  ))}
+                </Fragment>
+              ))}
+              {(loading || !report) && (
+                <tr><td colSpan={5} className="empty">Загрузка…</td></tr>
+              )}
+              {report && !loading && rows.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="empty debt-report-empty">
+                    <span className="debt-empty-title">Долгов нет</span>
+                    <span className="debt-empty-hint">
+                      Появится после полной инвентаризации со списанием на сотрудника или отдел.
+                      Погашение — касса, прочий приход «Возврат долга» с привязкой к списанию.
+                    </span>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+            {rows.length > 0 && (
+              <tfoot>
+                <tr className="report-total-row">
+                  <td colSpan={4}><strong>Итого</strong></td>
+                  <td className="col-num strong debt-balance-debtors">
+                    <strong>{formatMoney(report?.total_balance || 0)}</strong>
                   </td>
                 </tr>
               </tfoot>
@@ -2387,6 +2526,13 @@ function DebtsReportShell() {
           >
             Кредиторы
           </NavLink>
+          <NavLink
+            to="/reports/debts/staff"
+            end
+            className={({ isActive }) => `debt-kind-tab debt-kind-tab-debtors${isActive ? ' active' : ''}`}
+          >
+            Сотрудники
+          </NavLink>
         </nav>
       </div>
       <Outlet />
@@ -2535,6 +2681,7 @@ export default function Reports() {
         <Route index element={<Navigate to="debtors" replace />} />
         <Route path="debtors" element={<CounterpartyDebtReport kind="debtors" />} />
         <Route path="creditors" element={<CounterpartyDebtReport kind="creditors" />} />
+        <Route path="staff" element={<LiableDebtReport />} />
         <Route path="*" element={<Navigate to="/reports/debts/debtors" replace />} />
       </Route>
       <Route path="debtors" element={<Navigate to="/reports/debts/debtors" replace />} />

@@ -2,7 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import db from './db.js';
 import { DEFAULT_CASH_ARTICLES, cashArticleId } from './cashArticleDefaults.js';
 
-const { queryAll, queryOne, run } = db;
+const { queryAll, queryOne, run, transaction } = db;
 
 function ensureBranchOpeningBalanceRow(branchId) {
   const existing = queryOne('SELECT branch_id FROM branch_opening_balances WHERE branch_id = ?', [branchId]);
@@ -119,8 +119,40 @@ export function deleteBranch(id) {
   const cpCount = queryOne('SELECT COUNT(*) as c FROM counterparties WHERE branch_id = ?', [id]).c;
   if (cpCount > 0) throw new Error('В филиале есть контрагенты — удаление невозможно');
 
-  run('DELETE FROM product_branch_stock WHERE branch_id = ?', [id]);
-  run('DELETE FROM branches WHERE id = ?', [id]);
+  const blockers = [
+    ['SELECT COUNT(*) as c FROM payments WHERE branch_id = ?', 'кассовые и банковские операции'],
+    ['SELECT COUNT(*) as c FROM calculations WHERE branch_id = ?', 'калькуляции'],
+    ['SELECT COUNT(*) as c FROM payroll_employees WHERE branch_id = ?', 'сотрудники зарплаты'],
+    ['SELECT COUNT(*) as c FROM shop_orders WHERE branch_id = ?', 'заявки MyShop'],
+    [`SELECT COUNT(*) as c FROM product_department_stock pds
+      JOIN departments d ON d.id = pds.department_id
+      WHERE d.branch_id = ? AND pds.stock > 0.0005`, 'остатки на складах'],
+    [`SELECT COUNT(*) as c FROM users u
+      JOIN roles r ON r.id = u.role
+      WHERE r.branch_id = ?`, 'сотрудники с ролями этого филиала'],
+  ];
+  for (const [sql, label] of blockers) {
+    if (Number(queryOne(sql, [id])?.c || 0) > 0) {
+      throw new Error(`В филиале есть ${label} — удаление невозможно`);
+    }
+  }
+
+  transaction(() => {
+    run(`DELETE FROM product_department_stock
+         WHERE department_id IN (SELECT id FROM departments WHERE branch_id = ?)`, [id]);
+    for (const table of [
+      'product_branch_stock', 'product_branches', 'product_variant_branches', 'product_suppliers',
+      'branch_opening_balances', 'bank_accounts', 'cash_articles', 'departments',
+      'reconciliation_marks', 'payroll_attendance', 'payroll_ledger',
+      'push_subscriptions', 'staff_location_history', 'staff_locations',
+    ]) {
+      run(`DELETE FROM ${table} WHERE branch_id = ?`, [id]);
+    }
+    run('DELETE FROM role_permissions WHERE role IN (SELECT id FROM roles WHERE branch_id = ?)', [id]);
+    run('DELETE FROM roles WHERE branch_id = ?', [id]);
+    run('DELETE FROM settings WHERE key = ?', [`faceid_config_${id}`]);
+    run('DELETE FROM branches WHERE id = ?', [id]);
+  });
 }
 
 export function resolveBranchId(user, requestedBranchId) {

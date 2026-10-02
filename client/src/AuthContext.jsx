@@ -34,6 +34,14 @@ export function AuthProvider({ children }) {
   }, []);
 
   const logout = async () => {
+    // Иначе push этого телефона продолжит приходить вышедшему сотруднику
+    try {
+      const registration = await navigator.serviceWorker?.getRegistration?.();
+      const subscription = await registration?.pushManager?.getSubscription?.();
+      if (subscription?.endpoint) await api.unsubscribePush(subscription.endpoint);
+    } catch {
+      // нет прав на push или SW — подписки и не было
+    }
     try {
       await api.logout();
     } catch {

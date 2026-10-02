@@ -83,7 +83,6 @@ export const PERMISSION_GROUPS = [
   { id: 'opening_balance', label: 'Начальное сальдо', category: 'finance', icon: '⚖️', hint: 'Стартовые остатки товаров, долги контрагентов и касса', actions: { view: 'opening_balance.view', write: 'opening_balance.edit' } },
   { id: 'telegram', label: 'Telegram', category: 'admin', icon: '✈️', hint: 'Просмотр истории, настройка бота и ручная отправка', actions: { view: 'telegram.view', write: 'telegram.settings', send: 'telegram.send' } },
   { id: 'users', label: 'Сотрудники', category: 'admin', icon: '👤', actions: { view: 'users.view', write: 'users.edit' } },
-  { id: 'branches', label: 'Филиалы', category: 'admin', icon: '🏢', actions: { view: 'branches.view', write: 'branches.edit' } },
 ];
 
 export const PERMISSION_PRESETS = [
@@ -408,6 +407,11 @@ export function deleteRole(db, id) {
 
   initRoles(db);
   permissionsCache = loadRolePermissionsFromDb(db);
+}
+
+export function reloadRoles(dbInstance) {
+  initRoles(dbInstance);
+  permissionsCache = loadRolePermissionsFromDb(dbInstance);
 }
 
 export function getAllPermissionKeys() {

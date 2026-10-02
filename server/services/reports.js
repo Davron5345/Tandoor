@@ -244,16 +244,44 @@ function returnedByCounterparty(branchId, returnType) {
   return new Map(rows.map((r) => [r.counterparty_id, r.returned || 0]));
 }
 
-function applyReturns(rows, returnedMap) {
+/**
+ * Деньги, которые увеличивают долг контрагента обратно: возврат денег от поставщика
+ * (`other_income` с поставщиком) или выдача клиенту (`other_expense` с клиентом — возврат, «Долг клиентам»).
+ */
+export const COUNTERPARTY_REFUND_TYPE = { supplier: 'other_income', client: 'other_expense' };
+
+/** Такие оплаты — расчёты с контрагентом (меняют долг), а не доход/расход P&L. */
+function counterpartySettlementSql(counterpartyType) {
+  return `(p.document_id IS NULL AND p.counterparty_id IS NOT NULL AND EXISTS (
+    SELECT 1 FROM counterparties sc WHERE sc.id = p.counterparty_id AND sc.type = '${counterpartyType}'
+  ))`;
+}
+
+function refundsByCounterparty(branchId, counterpartyType) {
+  const rows = queryAll(`
+    SELECT p.counterparty_id, COALESCE(SUM(p.amount), 0) as refunded
+    FROM payments p
+    JOIN counterparties c ON c.id = p.counterparty_id AND c.type = ?
+    WHERE (p.branch_id = ? OR (p.branch_id IS NULL AND ? = ?))
+      AND p.type = ?
+      AND p.document_id IS NULL
+    GROUP BY p.counterparty_id
+  `, [counterpartyType, branchId, branchId, DEFAULT_BRANCH_ID, COUNTERPARTY_REFUND_TYPE[counterpartyType]]);
+  return new Map(rows.map((r) => [r.counterparty_id, r.refunded || 0]));
+}
+
+function applyReturns(rows, returnedMap, refundMap = new Map()) {
   return rows.map((r) => {
     const returned = returnedMap.get(r.id) || 0;
+    const refunded = refundMap.get(r.id) || 0;
     const charged = (r.charged || 0) - returned;
     const paid = r.paid || 0;
     return {
       ...r,
       returned,
+      refunded,
       charged,
-      balance: charged - paid + (r.opening_balance || 0),
+      balance: charged - paid + refunded + (r.opening_balance || 0),
     };
   });
 }
@@ -262,9 +290,10 @@ export function getDebtorsReport(branchId = DEFAULT_BRANCH_ID, includeZero = fal
   const rows = applyReturns(
     getCounterpartyDebtRows(branchId, 'client', 'rashod', 'customer_income', includeUnlinkedPayments),
     returnedByCounterparty(branchId, 'return_customer'),
+    includeUnlinkedPayments ? refundsByCounterparty(branchId, 'client') : new Map(),
   );
   const filtered = includeZero
-    ? rows.filter((r) => r.charged > 0 || r.paid > 0 || r.returned > 0 || Math.abs(r.opening_balance || 0) > 0.005)
+    ? rows.filter((r) => r.charged > 0 || r.paid > 0 || r.returned > 0 || r.refunded > 0 || Math.abs(r.opening_balance || 0) > 0.005)
     : rows.filter((r) => r.balance > 0.005);
   const totalBalance = filtered.reduce((s, r) => s + r.balance, 0);
   return {
@@ -281,10 +310,11 @@ export function getCreditorsReport(branchId = DEFAULT_BRANCH_ID, includeZero = f
   const adjusted = applyReturns(
     getCounterpartyDebtRows(branchId, 'supplier', 'prihod', 'supplier_payment', includeUnlinkedPayments),
     returnedByCounterparty(branchId, 'return_supplier'),
+    includeUnlinkedPayments ? refundsByCounterparty(branchId, 'supplier') : new Map(),
   );
 
   const filtered = includeZero
-    ? adjusted.filter((r) => r.charged > 0 || r.paid > 0 || r.returned > 0 || Math.abs(r.opening_balance || 0) > 0.005)
+    ? adjusted.filter((r) => r.charged > 0 || r.paid > 0 || r.returned > 0 || r.refunded > 0 || Math.abs(r.opening_balance || 0) > 0.005)
     : adjusted.filter((r) => r.balance > 0.005);
   const totalBalance = filtered.reduce((s, r) => s + r.balance, 0);
   return {
@@ -294,6 +324,75 @@ export function getCreditorsReport(branchId = DEFAULT_BRANCH_ID, includeZero = f
     rows: filtered,
     total_balance: totalBalance,
     count: filtered.length,
+  };
+}
+
+/**
+ * Долги сотрудников / отделов по списанию непересчитанного (полная инвентаризация):
+ * начислено = сумма remainder-документа, погашено = `other_income` с `document_id` этого документа.
+ */
+export function getLiableDebtsReport(branchId = DEFAULT_BRANCH_ID, includeZero = false) {
+  const docs = queryAll(`
+    SELECT d.id, d.number, d.date, d.total_amount, d.liable_user_id, d.liable_department_id,
+           d.source_document_id, parent.number AS parent_number,
+           u.name AS user_name, ld.name AS liable_department_name, td.name AS department_name,
+           COALESCE((
+             SELECT SUM(p.amount) FROM payments p
+             WHERE p.document_id = d.id AND p.type = 'other_income'
+           ), 0) AS repaid
+    FROM documents d
+    LEFT JOIN documents parent ON parent.id = d.source_document_id
+    LEFT JOIN users u ON u.id = d.liable_user_id
+    LEFT JOIN departments ld ON ld.id = d.liable_department_id
+    LEFT JOIN departments td ON td.id = d.to_department_id
+    WHERE d.branch_id = ? AND d.type = 'inventory' AND d.status = 'confirmed'
+      AND d.inventory_coverage = 'remainder'
+      AND (d.liable_user_id IS NOT NULL OR d.liable_department_id IS NOT NULL)
+    ORDER BY d.date ASC, d.created_at ASC
+  `, [branchId]);
+
+  const byDebtor = new Map();
+  for (const doc of docs) {
+    const key = doc.liable_user_id ? `user:${doc.liable_user_id}` : `dept:${doc.liable_department_id}`;
+    if (!byDebtor.has(key)) {
+      byDebtor.set(key, {
+        id: key,
+        kind: doc.liable_user_id ? 'user' : 'department',
+        name: doc.liable_user_id
+          ? (doc.user_name || 'Удалённый сотрудник')
+          : (doc.liable_department_name || 'Удалённый отдел'),
+        charged: 0,
+        repaid: 0,
+        balance: 0,
+        documents: [],
+      });
+    }
+    const row = byDebtor.get(key);
+    const charged = Number(doc.total_amount) || 0;
+    const repaid = Number(doc.repaid) || 0;
+    row.charged += charged;
+    row.repaid += repaid;
+    row.balance += charged - repaid;
+    row.documents.push({
+      id: doc.id,
+      number: doc.number,
+      date: doc.date,
+      parent_id: doc.source_document_id,
+      parent_number: doc.parent_number,
+      department_name: doc.department_name,
+      charged,
+      repaid,
+      balance: charged - repaid,
+    });
+  }
+
+  const rows = [...byDebtor.values()]
+    .filter((r) => includeZero || r.balance > 0.005)
+    .sort((a, b) => b.balance - a.balance || a.name.localeCompare(b.name, 'ru'));
+  return {
+    rows,
+    count: rows.length,
+    total_balance: rows.reduce((s, r) => s + r.balance, 0),
   };
 }
 
@@ -396,7 +495,21 @@ export function getSupplierDebtMovementReport(
               AND p.counterparty_id = c.id
             )
           )
-      ), 0) AS paid_period
+      ), 0) AS paid_period,
+      COALESCE((
+        SELECT SUM(p.amount)
+        FROM payments p
+        WHERE (p.branch_id = ? OR (p.branch_id IS NULL AND ? = ?))
+          AND p.type = 'other_income' AND p.document_id IS NULL AND p.counterparty_id = c.id
+          AND ? = 1 AND p.date < ?
+      ), 0) AS refund_before,
+      COALESCE((
+        SELECT SUM(p.amount)
+        FROM payments p
+        WHERE (p.branch_id = ? OR (p.branch_id IS NULL AND ? = ?))
+          AND p.type = 'other_income' AND p.document_id IS NULL AND p.counterparty_id = c.id
+          AND ? = 1 AND p.date >= ? AND p.date <= ?
+      ), 0) AS refund_period
     FROM counterparties c
     WHERE c.branch_id = ? AND c.type = 'supplier'${supplierFilter}
     ORDER BY c.name
@@ -408,6 +521,8 @@ export function getSupplierDebtMovementReport(
     branchId, dateFrom, dateTo,
     branchId, dateFrom, dateTo,
     branchId, branchId, DEFAULT_BRANCH_ID, dateFrom, dateTo, unlinkedFlag,
+    branchId, branchId, DEFAULT_BRANCH_ID, unlinkedFlag, dateFrom,
+    branchId, branchId, DEFAULT_BRANCH_ID, unlinkedFlag, dateFrom, dateTo,
     branchId,
     ...supplierParams,
   ]);
@@ -416,11 +531,12 @@ export function getSupplierDebtMovementReport(
     const openingDebt = (row.base_opening || 0)
       + (row.prihod_before || 0)
       - (row.return_before || 0)
-      - (row.paid_before || 0);
+      - (row.paid_before || 0)
+      + (row.refund_before || 0);
     const prihodGross = row.prihod_period || 0;
     const returned = row.return_period || 0;
     const prihod = prihodGross - returned;
-    const payment = row.paid_period || 0;
+    const payment = (row.paid_period || 0) - (row.refund_period || 0);
     const closingDebt = openingDebt + prihod - payment;
     return {
       id: row.id,
@@ -807,6 +923,7 @@ export function getPnLReport(branchId = DEFAULT_BRANCH_ID, dateFrom = null, date
     WHERE ${paymentsBranchFilterSql('p')} AND p.type = 'other_expense'
     ${payDateFilter}
       AND (ca.code IS NULL OR ca.code != ?)
+      AND NOT ${counterpartySettlementSql('client')}
     GROUP BY ca.id, ca.code, ca.name
     ORDER BY amount DESC, ca.name ASC
   `, [...payParams, PURCHASE_ARTICLE_CODE]);
@@ -817,6 +934,7 @@ export function getPnLReport(branchId = DEFAULT_BRANCH_ID, dateFrom = null, date
     LEFT JOIN cash_articles ca ON ca.id = p.article_id AND ca.branch_id = ?
     WHERE ${paymentsBranchFilterSql('p')} AND p.type = 'other_income'
     ${payDateFilter}
+      AND NOT ${counterpartySettlementSql('supplier')}
     GROUP BY ca.id, ca.code, ca.name
     ORDER BY amount DESC, ca.name ASC
   `, payParams);

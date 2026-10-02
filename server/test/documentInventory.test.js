@@ -536,6 +536,15 @@ test('inventory: partial leaves unlisted stock; full writes off leftovers with a
   assert.equal(afterPay.remainder_document.paid, 400);
   assert.equal(afterPay.remainder_document.balance, 600);
 
+  const liable = svc.getLiableDebtsReport('main');
+  const debtor = liable.rows.find((r) => r.id === `user:${sklad.id}`);
+  assert.equal(debtor.charged, 1000);
+  assert.equal(debtor.repaid, 400);
+  assert.equal(debtor.balance, 600);
+  assert.equal(debtor.documents[0].parent_number, full.number);
+  const { deleteUser } = await import('../auth.js');
+  assert.throws(() => deleteUser(sklad.id), /долг по инвентаризации/);
+
   svc.cancelDocument(full.id, 'test-user');
   assert.equal(getDepartmentStockWithCost(deptId, counted.id).stock, 10);
   assert.equal(getDepartmentStockWithCost(deptId, leftover.id).stock, 5);

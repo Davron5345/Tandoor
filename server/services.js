@@ -20,6 +20,7 @@ export {
   getStockReport,
   getDebtorsReport,
   getCreditorsReport,
+  getLiableDebtsReport,
   getSupplierDebtMovementReport,
   getStats,
   getPnLReport,
