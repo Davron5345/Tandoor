@@ -1,16 +1,23 @@
 import { createHash } from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import db from '../db.js';
-import { matchKey, parsePrihodMessage, splitPastedTelegramText } from '../telegramPrihodParser.js';
+import {
+  matchKey,
+  matchTokens,
+  parsePrihodMessage,
+  scoreTokens,
+  splitPastedTelegramText,
+} from '../telegramPrihodParser.js';
 import { confirmDocument, createDocument, getDocument, updateDocument } from './documents.js';
 import { getPrihodPrefillPriceMap, lastPriceForItem } from './products.js';
 
 const { queryAll, queryOne, run } = db;
 
 const TIME_ZONE = 'Asia/Tashkent';
-const AUTO_MATCH_MIN_SCORE = 60;
-const SUPPLIER_AUTO_MIN_SCORE = 50;
-const SUGGEST_MIN_SCORE = 40;
+const AUTO_MATCH_MIN_SCORE = 70;
+const AUTO_MATCH_MIN_GAP = 5;
+const SUPPLIER_LINK_BONUS = 6;
+const SUGGEST_MIN_SCORE = 25;
 const GRAM_UNITS = new Set(['г', 'гр', 'грамм']);
 const PIECE_UNITS = new Set(['шт', 'та', 'дона', 'штук']);
 
@@ -153,7 +160,7 @@ function buildMatchContext(branchId) {
     const pv = p.has_variants ? (variantsByProduct.get(p.id) || []) : [];
     if (!pv.length) {
       candidates.push({
-        product_id: p.id, variant_id: null, label: p.name, unit: p.unit || 'шт', keys: [matchKey(p.name)],
+        product_id: p.id, variant_id: null, label: p.name, unit: p.unit || 'шт', tokenSets: [matchTokens(p.name)],
       });
       continue;
     }
@@ -163,7 +170,7 @@ function buildMatchContext(branchId) {
         variant_id: v.id,
         label: `${p.name} — ${v.name}`,
         unit: p.unit || 'шт',
-        keys: [matchKey(`${p.name} ${v.name}`), matchKey(v.name)],
+        tokenSets: [matchTokens(`${p.name} ${v.name}`), matchTokens(v.name)],
       });
     }
   }
@@ -173,7 +180,7 @@ function buildMatchContext(branchId) {
     SELECT id, name FROM counterparties
     WHERE type = 'supplier' AND COALESCE(branch_id, 'main') = ?
     ORDER BY name
-  `, [branchId]).map((s) => ({ ...s, key: matchKey(s.name) }));
+  `, [branchId]).map((s) => ({ ...s, tokens: matchTokens(s.name) }));
 
   const links = new Set(
     queryAll('SELECT product_id, supplier_id FROM product_suppliers WHERE branch_id = ?', [branchId])
@@ -199,27 +206,12 @@ function buildMatchContext(branchId) {
   };
 }
 
-function scoreKeys(query, keys) {
-  if (!query) return 0;
-  const queryWords = query.split(' ');
-  let best = 0;
-  for (const key of keys) {
-    if (!key) continue;
-    if (key === query) return 90;
-    if (key.startsWith(`${query} `) || query.startsWith(`${key} `)) {
-      best = Math.max(best, 70);
-      continue;
-    }
-    const keyWords = key.split(' ');
-    if (queryWords.every((w) => keyWords.includes(w))) {
-      best = Math.max(best, 60);
-      continue;
-    }
-    if (query.length >= 3 && (key.includes(query) || keyWords.some((w) => w.startsWith(query)))) {
-      best = Math.max(best, SUGGEST_MIN_SCORE);
-    }
-  }
-  return best;
+function pickBest(scored) {
+  scored.sort((a, b) => b.score - a.score);
+  const [top, second] = scored;
+  const auto = !!top && top.score >= AUTO_MATCH_MIN_SCORE
+    && (!second || top.score - second.score >= AUTO_MATCH_MIN_GAP);
+  return { top: auto ? top : null, scored };
 }
 
 function publicCandidate(c) {
@@ -227,54 +219,45 @@ function publicCandidate(c) {
 }
 
 function matchProduct(ctx, name, supplierId) {
-  const key = matchKey(name);
-  const alias = ctx.productAliases.get(key);
+  const alias = ctx.productAliases.get(matchKey(name));
   if (alias) {
     const cand = ctx.candidateIndex.get(`${alias.target_id}:${alias.variant_id || ''}`);
     if (cand) return { match: cand, via: 'alias', suggestions: [] };
   }
-  const scored = ctx.candidates
-    .map((c) => {
-      const base = scoreKeys(key, c.keys);
-      const linked = supplierId && ctx.links.has(`${c.product_id}:${supplierId}`) ? 5 : 0;
-      return { c, score: base ? base + linked : 0 };
-    })
-    .filter((s) => s.score >= SUGGEST_MIN_SCORE)
-    .sort((a, b) => b.score - a.score || a.c.label.localeCompare(b.c.label, 'ru'));
-  const [top, second] = scored;
-  const auto = top && top.score >= AUTO_MATCH_MIN_SCORE && (!second || second.score < top.score);
+  const query = matchTokens(name);
+  const scored = [];
+  for (const c of ctx.candidates) {
+    const base = Math.max(...c.tokenSets.map((tokens) => scoreTokens(query, tokens)));
+    if (base < SUGGEST_MIN_SCORE) continue;
+    const linked = supplierId && ctx.links.has(`${c.product_id}:${supplierId}`) ? SUPPLIER_LINK_BONUS : 0;
+    scored.push({ c, score: base + (base >= 50 ? linked : 0) });
+  }
+  const { top } = pickBest(scored);
   return {
-    match: auto ? top.c : null,
-    via: auto ? 'name' : null,
+    match: top?.c || null,
+    via: top ? 'name' : null,
     suggestions: scored.slice(0, 6).map((s) => publicCandidate(s.c)),
   };
 }
 
 function matchSupplier(ctx, supplier) {
   if (!supplier) return { match: null, suggestions: [] };
-  const keys = [...new Set([matchKey(supplier.name), matchKey(supplier.raw)].filter(Boolean))];
-  for (const key of keys) {
-    const alias = ctx.supplierAliases.get(key);
+  const names = [...new Set([supplier.name, supplier.raw].filter(Boolean))];
+  for (const name of names) {
+    const alias = ctx.supplierAliases.get(matchKey(name));
     const cp = alias && ctx.suppliers.find((s) => s.id === alias.target_id);
     if (cp) return { match: cp, via: 'alias', suggestions: [] };
   }
-  const stem = keys[0];
-  const scored = ctx.suppliers
-    .map((s) => {
-      let score = 0;
-      if (keys.includes(s.key)) score = 90;
-      else if (s.key.split(' ')[0] === stem) score = 70;
-      else if (s.key.startsWith(stem)) score = 50;
-      else if (stem.length >= 3 && s.key.includes(stem)) score = SUGGEST_MIN_SCORE;
-      return { s, score };
-    })
-    .filter((x) => x.score >= SUGGEST_MIN_SCORE)
-    .sort((a, b) => b.score - a.score);
-  const [top, second] = scored;
-  const auto = top && top.score >= SUPPLIER_AUTO_MIN_SCORE && (!second || second.score < top.score);
+  const queries = names.map(matchTokens).filter((t) => t.length);
+  const scored = [];
+  for (const s of ctx.suppliers) {
+    const score = Math.max(0, ...queries.map((q) => scoreTokens(q, s.tokens)));
+    if (score >= SUGGEST_MIN_SCORE) scored.push({ s, score });
+  }
+  const { top } = pickBest(scored);
   return {
-    match: auto ? top.s : null,
-    via: auto ? 'name' : null,
+    match: top?.s || null,
+    via: top ? 'name' : null,
     suggestions: scored.slice(0, 6).map((x) => ({ id: x.s.id, name: x.s.name })),
   };
 }

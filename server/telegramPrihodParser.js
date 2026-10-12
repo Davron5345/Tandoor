@@ -196,7 +196,7 @@ export function splitPastedTelegramText(text) {
 }
 
 const LATIN_TO_CYR = [
-  ["o'", 'у'], ["g'", 'г'], ['sh', 'ш'], ['ch', 'ч'], ['yo', 'е'], ['yu', 'ю'], ['ya', 'я'], ['ts', 'ц'],
+  ["o'", 'у'], ["g'", 'г'], ['sh', 'ш'], ['ch', 'ч'], ['yo', 'е'], ['ye', 'е'], ['yu', 'ю'], ['ya', 'я'], ['ts', 'ц'],
   ['a', 'а'], ['b', 'б'], ['c', 'с'], ['d', 'д'], ['e', 'е'], ['f', 'ф'], ['g', 'г'], ['h', 'х'], ['i', 'и'],
   ['j', 'ж'], ['k', 'к'], ['l', 'л'], ['m', 'м'], ['n', 'н'], ['o', 'о'], ['p', 'п'], ['q', 'к'], ['r', 'р'],
   ['s', 'с'], ['t', 'т'], ['u', 'у'], ['v', 'в'], ['w', 'в'], ['x', 'х'], ['y', 'й'], ['z', 'з'],
@@ -217,7 +217,10 @@ function latinToCyrillic(text) {
   return out;
 }
 
-/** Ключ для сравнения названий: регистр, узбекские буквы, латиница → кириллица, без знаков. */
+/**
+ * Ключ для сравнения названий: латиница и кириллица (рус./узб.) сводятся к одному написанию —
+ * «Qo'zi» = «Қўзи» = «Кузи», «Jigari» ≈ «Жигари», «Murod» ≈ «Мурод».
+ */
 export function matchKey(text) {
   let s = fixUzbekCommaLetters(String(text || '')).toLowerCase()
     .replace(/[ʻʼ‘’`]/g, "'");
@@ -228,7 +231,78 @@ export function matchKey(text) {
     .replace(/ғ/g, 'г')
     .replace(/ў/g, 'у')
     .replace(/ҳ/g, 'х')
+    .replace(/[йы]/g, 'и')
+    .replace(/э/g, 'е')
+    .replace(/щ/g, 'ш')
+    .replace(/ц/g, 'с')
     .replace(/[ъь]/g, '')
     .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .replace(/(\p{L})\1+/gu, '$1')
     .trim();
+}
+
+export function matchTokens(text) {
+  const key = matchKey(text);
+  return key ? key.split(' ') : [];
+}
+
+function editDistance(a, b, limit) {
+  if (Math.abs(a.length - b.length) > limit) return limit + 1;
+  let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i += 1) {
+    const cur = [i];
+    let rowMin = i;
+    for (let j = 1; j <= b.length; j += 1) {
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      rowMin = Math.min(rowMin, cur[j]);
+    }
+    if (rowMin > limit) return limit + 1;
+    prev = cur;
+  }
+  return prev[b.length];
+}
+
+/** Похожесть двух слов 0..1: равны, окончание (жигар/жигари, жалил/жалилов), опечатка (мурот/мурод). */
+export function tokenSimilarity(a, b) {
+  if (!a || !b) return 0;
+  if (a === b) return 1;
+  const [short, long] = a.length <= b.length ? [a, b] : [b, a];
+  const maxSuffix = short.length === 3 ? 2 : 3;
+  if (short.length >= 3 && long.startsWith(short) && long.length - short.length <= maxSuffix) return 0.85;
+  if (/\d/.test(short) || /\d/.test(long)) return 0;
+  if (short.length >= 4 && editDistance(short, long, 1) <= 1) return 0.8;
+  if (short.length >= 7 && editDistance(short, long, 2) <= 2) return 0.7;
+  if (short.length >= 4 && long.length - short.length <= 4 && editDistance(short, long.slice(0, short.length), 1) <= 1) return 0.65;
+  return 0;
+}
+
+/**
+ * Насколько название-кандидат подходит под слова из сообщения (0..95).
+ * Все слова сообщения найдены → ≥ 50; полное совпадение → 95.
+ */
+export function scoreTokens(queryTokens, candidateTokens) {
+  if (!queryTokens.length || !candidateTokens.length) return 0;
+  const used = new Set();
+  let sum = 0;
+  let matched = 0;
+  for (const q of queryTokens) {
+    let best = 0;
+    let bestIdx = -1;
+    candidateTokens.forEach((c, idx) => {
+      const s = tokenSimilarity(q, c);
+      if (s > best || (s === best && s > 0 && used.has(bestIdx) && !used.has(idx))) {
+        best = s;
+        bestIdx = idx;
+      }
+    });
+    if (best > 0) {
+      matched += 1;
+      used.add(bestIdx);
+    }
+    sum += best;
+  }
+  const quality = sum / queryTokens.length;
+  if (matched < queryTokens.length) return Math.round(40 * quality);
+  const coverage = used.size / candidateTokens.length;
+  return Math.round(50 + 30 * quality + 15 * coverage);
 }

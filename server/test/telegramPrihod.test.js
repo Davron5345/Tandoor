@@ -5,7 +5,9 @@ import { join } from 'path';
 import { tmpdir } from 'os';
 import {
   matchKey,
+  matchTokens,
   parsePrihodMessage,
+  scoreTokens,
   splitPastedTelegramText,
 } from '../telegramPrihodParser.js';
 
@@ -182,4 +184,44 @@ test('pasted history imports once and ready messages create drafts in bulk', asy
   const noSupplier = tp.listInbox('main', { status: 'pending' }).items.find((i) => i.source === 'paste');
   assert.ok(noSupplier, 'message without supplier stays for review');
   assert.equal(noSupplier.analysis.supplier, null);
+});
+
+test('matching: Latin and Cyrillic spellings, suffixes and small typos are the same word', () => {
+  const score = (q, c) => scoreTokens(matchTokens(q), matchTokens(c));
+  assert.ok(score('Жалил', 'Jalil aka') >= 70);
+  assert.ok(score('Мурот', 'Murod') >= 70);
+  assert.ok(score('Сон', 'Mol soni') >= 70);
+  assert.ok(score('Жигар', 'Jigari') >= 70);
+  assert.ok(score('Jigar', 'Жигар') >= 90);
+  assert.ok(score('Qo\'zi dumbasiz', 'Қўзи думбасиз') >= 90);
+  assert.ok(score('Вырезка', 'Virezka') >= 90);
+  assert.ok(score('Маталашка', 'Matalashka') >= 90);
+  assert.equal(score('Сон', 'Молоко'), 0);
+  assert.equal(score('Мол', 'Молоко'), 0);
+  assert.ok(score('Куй жигари', 'Жигар') < 25);
+});
+
+test('Latin catalog names are recognised from a Cyrillic topic message', async () => {
+  const svc = await import('../services.js');
+  const tp = await import('../services/telegramPrihod.js');
+
+  const murod = svc.createCounterparty({ name: 'Murod aka', type: 'supplier', branch_id: 'main' });
+  const jigari = svc.createProduct({ name: "Qo'y jigari", unit: 'кг', price: 0, branch_id: 'main' });
+  const matal = svc.createProduct({ name: 'Matalashka', unit: 'кг', price: 0, branch_id: 'main' });
+
+  const res = tp.handleIncomingMessage({
+    chatId: -1001,
+    threadId: 77,
+    messageId: 50,
+    fromName: 'Нодирбек',
+    date: new Date('2026-10-10T05:00:00Z'),
+    text: 'Муротдан:\nКуй жигари-3кг\nМаталашка -51,8кг',
+  });
+  assert.equal(res.results[0].status, 'created');
+  const doc = svc.getDocument(res.results[0].document.id, 'main');
+  assert.equal(doc.counterparty_id, murod.id);
+  assert.deepEqual(
+    doc.items.map((i) => i.product_id).sort(),
+    [jigari.id, matal.id].sort(),
+  );
 });

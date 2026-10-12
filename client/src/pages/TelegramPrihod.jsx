@@ -77,7 +77,11 @@ function EntryCard({ entry, onReview, onStatus }) {
             ) : analysis.supplier.counterparty_id ? (
               <span className="tg-prihod-hit">{analysis.supplier.counterparty_name}</span>
             ) : (
-              <span className="tg-prihod-miss">«{analysis.supplier.name}» — не найден</span>
+              <span className="tg-prihod-miss">
+                «{analysis.supplier.name}» — {analysis.supplier.suggestions?.length
+                  ? `похоже: ${analysis.supplier.suggestions.slice(0, 2).map((s) => s.name).join(', ')}`
+                  : 'не найден'}
+              </span>
             )}
           </div>
           {analysis.lines.map((line) => (
@@ -87,7 +91,11 @@ function EntryCard({ entry, onReview, onStatus }) {
               {line.product_id ? (
                 <span className="tg-prihod-hit">{line.product_label}</span>
               ) : (
-                <span className="tg-prihod-miss">не найден</span>
+                <span className="tg-prihod-miss">
+                  {line.suggestions?.length
+                    ? `похоже: ${line.suggestions.slice(0, 2).map((s) => s.label).join(', ')}`
+                    : 'не найден'}
+                </span>
               )}
               <span className="muted">
                 {' · '}{formatQty(line.quantity)} {line.product_unit || line.parsed_unit || ''}
