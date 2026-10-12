@@ -2797,6 +2797,10 @@ export function deleteDocument(id) {
       updateStock(id, true);
     }
     run('DELETE FROM telegram_messages WHERE document_id = ?', [id]);
+    run(
+      "UPDATE telegram_inbox SET status = 'new', document_id = NULL, updated_at = datetime('now') WHERE document_id = ?",
+      [id],
+    );
     run('DELETE FROM documents WHERE id = ?', [id]);
   });
 

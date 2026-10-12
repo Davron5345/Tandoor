@@ -86,7 +86,14 @@ function getLastPricesMap(branchId, docType, counterpartyId = null) {
   return map;
 }
 
-function lastPriceForItem(lastMap, productId, variantId = null) {
+/** Цена для префилла прихода: прайс поставщика → последний приход (поставщика, затем любой). */
+export function getPrihodPrefillPriceMap(branchId, supplierId = null, asOfDate = null) {
+  const lastMap = getLastPricesMap(branchId, 'prihod', supplierId);
+  const supplierMap = supplierId ? getSupplierPriceMap(branchId, supplierId, asOfDate) : null;
+  return mergePriceMaps(supplierMap, lastMap);
+}
+
+export function lastPriceForItem(lastMap, productId, variantId = null) {
   if (!lastMap) return null;
   if (variantId) {
     return lastMap[`v:${variantId}`] ?? lastMap[productId] ?? null;

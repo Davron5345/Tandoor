@@ -1,12 +1,86 @@
 import TelegramBot from 'node-telegram-bot-api';
 import { logTelegramMessage } from './services.js';
 import { getSetting } from './services/telegram.js';
+import { handleIncomingMessage } from './services/telegramPrihod.js';
 
 let bot = null;
 let enabled = false;
 let currentToken = null;
 
+function isGroupChat(msg) {
+  return msg?.chat?.type === 'group' || msg?.chat?.type === 'supergroup';
+}
+
+function topicThreadId(msg) {
+  return msg.chat?.is_forum && msg.message_thread_id ? msg.message_thread_id : null;
+}
+
+function topicTitleFromMessage(msg, threadId) {
+  if (msg.forum_topic_created?.name) return msg.forum_topic_created.name;
+  if (msg.forum_topic_edited?.name) return msg.forum_topic_edited.name;
+  const root = msg.reply_to_message;
+  if (root?.forum_topic_created?.name && (!threadId || root.message_id === threadId)) {
+    return root.forum_topic_created.name;
+  }
+  return null;
+}
+
+function senderName(msg) {
+  const from = msg.from || {};
+  const full = [from.first_name, from.last_name].filter(Boolean).join(' ').trim();
+  return full || from.username || msg.author_signature || null;
+}
+
+async function onGroupMessage(instance, msg, edited) {
+  if (!isGroupChat(msg)) return;
+  const threadId = topicThreadId(msg);
+  let outcome;
+  try {
+    outcome = handleIncomingMessage({
+      chatId: msg.chat.id,
+      threadId,
+      chatTitle: msg.chat.title || null,
+      topicTitle: topicTitleFromMessage(msg, threadId),
+      messageId: msg.message_id,
+      fromName: senderName(msg),
+      fromUserId: msg.from?.id,
+      text: msg.text || msg.caption || '',
+      date: new Date((msg.date || Math.floor(Date.now() / 1000)) * 1000),
+      edited,
+    });
+  } catch (err) {
+    console.error('Telegram приход: ошибка обработки сообщения:', err.message);
+    return;
+  }
+  if (!outcome?.topic?.notify) return;
+  for (const result of outcome.results || []) {
+    if (!result.reply) continue;
+    try {
+      await instance.sendMessage(msg.chat.id, result.reply, {
+        ...(threadId ? { message_thread_id: threadId } : {}),
+        reply_to_message_id: msg.message_id,
+        allow_sending_without_reply: true,
+      });
+    } catch (err) {
+      console.error('Telegram приход: не удалось ответить в тему:', err.message);
+    }
+  }
+}
+
 function setupHandlers(instance) {
+  instance.on('message', (msg) => { onGroupMessage(instance, msg, false); });
+  instance.on('edited_message', (msg) => { onGroupMessage(instance, msg, true); });
+
+  instance.onText(/^\/topic(@\w+)?$/, (msg) => {
+    const threadId = topicThreadId(msg);
+    instance.sendMessage(msg.chat.id,
+      `Chat ID: ${msg.chat.id}\n` +
+      `Тема: ${threadId || 'общая'}\n\n` +
+      'Чтобы сообщения этой темы становились приходами, включите её в системе: Закупки → Приходы из Telegram → Темы.',
+      threadId ? { message_thread_id: threadId } : {},
+    );
+  });
+
   instance.onText(/\/start/, (msg) => {
     const chatId = msg.chat.id;
     instance.sendMessage(chatId,
@@ -21,8 +95,10 @@ function setupHandlers(instance) {
     instance.sendMessage(msg.chat.id,
       `📋 *Справка*\n\n` +
       `/start — получить ваш Chat ID\n` +
-      `/help — эта справка\n\n` +
-      `Уведомления о документах прихода/расхода отправляются автоматически из системы учёта.`,
+      `/help — эта справка\n` +
+      `/topic — ID группы и темы (для приходов из темы)\n\n` +
+      `Уведомления о документах прихода/расхода отправляются автоматически из системы учёта.\n` +
+      `В теме, включённой для приходов, пишите: «Жалилдан:» и строки «Сон-45,8кг» — бот создаст приход.`,
       { parse_mode: 'Markdown' }
     );
   });

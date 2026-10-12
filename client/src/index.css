@@ -19202,3 +19202,150 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
     max-height: none;
   }
 }
+
+/* Приходы из Telegram */
+.tg-prihod-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.tg-prihod-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.tg-prihod-chip {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: inherit;
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.tg-prihod-chip:hover {
+  border-color: var(--primary);
+}
+
+.tg-prihod-chip.is-active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
+.tg-prihod-list {
+  display: grid;
+  gap: 10px;
+}
+
+.tg-prihod-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  padding: 12px 14px;
+}
+
+.tg-prihod-card.is-pending {
+  border-left: 3px solid var(--warning);
+}
+
+.tg-prihod-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.tg-prihod-card-source {
+  font-size: 12px;
+}
+
+.tg-prihod-card-body {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) 2fr;
+  gap: 14px;
+  margin-top: 10px;
+}
+
+.tg-prihod-text {
+  margin: 0;
+  white-space: pre-wrap;
+  font-family: inherit;
+  font-size: 13px;
+  background: color-mix(in srgb, var(--primary) 6%, transparent);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.tg-prihod-parsed {
+  font-size: 13px;
+  display: grid;
+  gap: 3px;
+  align-content: start;
+}
+
+.tg-prihod-hit {
+  color: var(--success);
+  font-weight: 600;
+}
+
+.tg-prihod-miss {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.tg-prihod-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.tg-prihod-card-actions:empty {
+  display: none;
+}
+
+.tg-prihod-review {
+  display: grid;
+  gap: 12px;
+}
+
+.tg-prihod-review-head {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.tg-prihod-review-head label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tg-prihod-suggest {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.tg-prihod-review-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 768px) {
+  .tg-prihod-card-body,
+  .tg-prihod-review-head {
+    grid-template-columns: 1fr;
+  }
+
+  .tg-prihod-review-head label {
+    grid-column: auto !important;
+  }
+}

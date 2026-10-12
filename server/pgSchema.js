@@ -522,6 +522,63 @@ CREATE TABLE IF NOT EXISTS reconciliation_marks (
 
 CREATE INDEX IF NOT EXISTS idx_reconciliation_marks_cp ON reconciliation_marks (branch_id, counterparty_id, date);
 
+CREATE TABLE IF NOT EXISTS telegram_topics (
+  id TEXT PRIMARY KEY,
+  chat_id TEXT NOT NULL,
+  thread_id TEXT NOT NULL DEFAULT '',
+  chat_title TEXT,
+  title TEXT,
+  branch_id TEXT,
+  department_id TEXT,
+  mode TEXT NOT NULL DEFAULT 'off',
+  auto_create INTEGER DEFAULT 1,
+  auto_confirm INTEGER DEFAULT 0,
+  notify INTEGER DEFAULT 1,
+  last_message_at TEXT,
+  created_at TEXT DEFAULT (${NOW})
+);
+
+CREATE TABLE IF NOT EXISTS telegram_inbox (
+  id TEXT PRIMARY KEY,
+  branch_id TEXT NOT NULL,
+  topic_id TEXT,
+  department_id TEXT,
+  chat_id TEXT NOT NULL,
+  thread_id TEXT NOT NULL DEFAULT '',
+  message_id TEXT NOT NULL,
+  part INTEGER NOT NULL DEFAULT 0,
+  source TEXT NOT NULL DEFAULT 'telegram',
+  from_name TEXT,
+  from_user_id TEXT,
+  text TEXT NOT NULL,
+  message_at TEXT,
+  doc_date TEXT NOT NULL,
+  parsed_json TEXT,
+  status TEXT NOT NULL DEFAULT 'new',
+  document_id TEXT,
+  error TEXT,
+  edited INTEGER DEFAULT 0,
+  created_at TEXT DEFAULT (${NOW}),
+  updated_at TEXT DEFAULT (${NOW})
+);
+
+CREATE TABLE IF NOT EXISTS telegram_aliases (
+  id TEXT PRIMARY KEY,
+  branch_id TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  alias_key TEXT NOT NULL,
+  target_id TEXT NOT NULL,
+  variant_id TEXT,
+  created_by TEXT,
+  created_at TEXT DEFAULT (${NOW})
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_telegram_topics_chat ON telegram_topics (chat_id, thread_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_telegram_inbox_msg ON telegram_inbox (chat_id, message_id, part);
+CREATE INDEX IF NOT EXISTS idx_telegram_inbox_branch ON telegram_inbox (branch_id, status, doc_date);
+CREATE INDEX IF NOT EXISTS idx_telegram_inbox_document ON telegram_inbox (document_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_telegram_aliases_key ON telegram_aliases (branch_id, kind, alias_key);
+
 
 CREATE TABLE IF NOT EXISTS shop_orders (
   id TEXT PRIMARY KEY,
@@ -710,6 +767,9 @@ export const PG_TABLE_IMPORT_ORDER = [
   'payroll_attendance',
   'payroll_ledger',
   'reconciliation_marks',
+  'telegram_topics',
+  'telegram_inbox',
+  'telegram_aliases',
   'shop_orders',
   'shop_order_items',
   'telegram_messages',

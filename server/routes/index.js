@@ -6,6 +6,7 @@ import { registerCounterpartyRoutes } from './counterparties.routes.js';
 import { registerDocumentRoutes } from './documents.routes.js';
 import { registerFinanceRoutes } from './finance.routes.js';
 import { registerTelegramRoutes } from './telegram.routes.js';
+import { registerTelegramPrihodRoutes } from './telegramPrihod.routes.js';
 import { registerPublicShopRoutes } from './publicShop.routes.js';
 import { registerShopOrdersRoutes } from './shopOrders.routes.js';
 import { registerOpeningBalanceRoutes } from './openingBalance.routes.js';
@@ -33,6 +34,7 @@ export function registerApiRoutes(app, deps = {}) {
   registerOpeningBalanceRoutes(app);
   registerSupplierPriceRoutes(app);
   registerTelegramRoutes(app);
+  registerTelegramPrihodRoutes(app);
   registerFaceIdPayrollRoutes(app);
 }
 

@@ -145,9 +145,11 @@ export function deleteBranch(id) {
       'branch_opening_balances', 'bank_accounts', 'cash_articles', 'departments',
       'reconciliation_marks', 'payroll_attendance', 'payroll_ledger',
       'push_subscriptions', 'staff_location_history', 'staff_locations',
+      'telegram_inbox', 'telegram_aliases',
     ]) {
       run(`DELETE FROM ${table} WHERE branch_id = ?`, [id]);
     }
+    run("UPDATE telegram_topics SET branch_id = NULL, department_id = NULL, mode = 'off' WHERE branch_id = ?", [id]);
     run('DELETE FROM role_permissions WHERE role IN (SELECT id FROM roles WHERE branch_id = ?)', [id]);
     run('DELETE FROM roles WHERE branch_id = ?', [id]);
     run('DELETE FROM settings WHERE key = ?', [`faceid_config_${id}`]);

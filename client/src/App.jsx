@@ -26,6 +26,7 @@ import Calculations from './pages/Calculations';
 import Reports from './pages/Reports';
 import OpeningBalance from './pages/OpeningBalance';
 import SupplierPrices from './pages/SupplierPrices';
+import TelegramPrihod from './pages/TelegramPrihod';
 import MyShop from './pages/MyShop';
 import MyShopConstructor from './pages/MyShopConstructor';
 import ShopOrders from './pages/ShopOrders';
@@ -82,6 +83,7 @@ function buildAppNav(user) {
 
   const purchasesNav = filterNavItems(user, [
     { to: '/prihod', label: 'Приход', perm: 'documents.prihod' },
+    { to: '/prihod-telegram', label: 'Из Telegram', perm: 'documents.prihod' },
     { to: '/return-supplier', label: 'Возврат поставщику', perm: 'documents.rashod' },
   ]);
 
@@ -1095,6 +1097,7 @@ function AppContent() {
           <Route path="/" element={canViewDashboard ? <Dashboard /> : <Navigate to={firstNavPath} />} />
           <Route path="/me" element={<EmployeeCabinet embedded backTo={isCashierLayout ? '/cashier' : '/'} showBack={isCashierLayout} />} />
           <Route path="/prihod" element={hasPermission(user, 'documents.prihod') ? <Documents key="prihod" defaultType="prihod" /> : <Navigate to="/" />} />
+          <Route path="/prihod-telegram" element={hasPermission(user, 'documents.prihod') ? <TelegramPrihod /> : <Navigate to="/" />} />
           <Route path="/rashod" element={hasPermission(user, 'documents.rashod') ? <Documents key="rashod" defaultType="rashod" /> : <Navigate to="/" />} />
           <Route path="/return-supplier" element={hasPermission(user, 'documents.rashod') ? <Documents key="return-supplier" defaultType="return_supplier" /> : <Navigate to="/" />} />
           <Route path="/return-customer" element={hasPermission(user, 'documents.rashod') ? <Documents key="return-customer" defaultType="return_customer" /> : <Navigate to="/" />} />

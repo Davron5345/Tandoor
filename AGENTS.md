@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-10-02 (связки: возврат с нетто, НС прибавляет, денежные возвраты в долгах, долги сотрудников, удаления)
+**Последнее обновление документации:** 2026-10-12 (приходы из Telegram: темы группы → черновики прихода)
 
 ---
 
@@ -71,7 +71,8 @@ prihod-rashod/
 │   ├── departments.js      # Отделы/склады внутри филиала
 │   ├── myShop.js           # Витрина MyShop, layout
 │   ├── shopOrders.js       # Заявки MyShop
-│   ├── telegram.js         # Telegram-бот
+│   ├── telegram.js         # Telegram-бот (уведомления + сообщения групп/тем → приходы)
+│   ├── telegramPrihodParser.js # Разбор «Жалилдан: / Сон-45,8кг», вставки истории, matchKey
 │   ├── push.js             # Push: Web Push (VAPID) + FCM (Android native)
 │   ├── snabAppVersion.js   # Метаданные APK, URL скачивания
 │   ├── staffLocation.js    # Геолокация снабженцев
@@ -180,6 +181,7 @@ npm run db:repair-transfers [-- --apply] # Старые межфилиальны
 | MyShop/Mobile | `shop_orders`, `shop_order_items`, `push_subscriptions`, `staff_locations`, `staff_location_history` |
 | Зарплата / Face ID | `payroll_employees` (синк из Face ID или Excel, `balance` = долг, `view_token` — единая ссылка `/e/{token}`), `payroll_attendance` (приход/уход), `payroll_ledger` (начисление/выплата); настройки в `settings` ключ `faceid_config_{branchId}` |
 | Отчёты | `reconciliation_marks` — отметки акта сверки (counterparty_id, срез `firm_id`/`contract_id` как в фильтре акта, `date`, снимок `balance`, comment, created_by) |
+| Telegram-приходы | `telegram_topics` (группа `chat_id` + тема `thread_id`, `mode` off/prihod, `branch_id`, `department_id`, флаги `auto_create` / `auto_confirm` / `notify`), `telegram_inbox` (сообщение → `part` на каждого поставщика; `parsed_json`, `doc_date`, `status` new/error/created/ignored, `document_id`, `source` telegram/paste), `telegram_aliases` (выученные сопоставления `kind` product/supplier: `alias_key` → `target_id` / `variant_id`, по филиалу) |
 | Прочее | `telegram_messages`, `settings`, `branches` |
 
 ---
@@ -454,6 +456,20 @@ Frontend зеркало: `client/src/permissions.js`.
 - **Сотрудник:** нельзя, если на нём долг по инвентаризации (`liable_user_id`) — только отключить
 - **Импорт зарплаты** при создании филиала досеивает роли филиала (`seedBranchRoles`)
 
+### 9.14 Приходы из Telegram (группа с темами)
+
+- Бот (polling) слушает `message` / `edited_message` в группах. Чтобы видеть обычные сообщения, бот должен быть **админом** группы или с выключенным privacy (`/setprivacy` → Disable). Каждая увиденная группа/тема пишется в `telegram_topics` (название темы — из `forum_topic_created`); `/topic` в теме отвечает Chat ID / ID темы
+- Тема включается на `/prihod-telegram` → «Темы»: режим «Приход» + отдел-склад (привязывает тему к активному филиалу; тему чужого филиала менять нельзя). Флаги: **автосоздание** (по умолчанию да), **автопроведение** (нет; только если у всех строк найдена цена), **ответ в теме** (да)
+- Разбор (`telegramPrihodParser.js`): строка без цифр с `:` или окончанием `-дан/-тан/dan` — поставщик (стем без окончания: «Жалилдан» → «Жалил»), несколько поставщиков в одном сообщении → отдельные `part`. Строка товара: название + с конца числа с ед. (`кг/kg/г/л/шт/та/дона`), разделители `-–=:`. Вес главнее штук («-2та-26,2кг» → 26,2 кг, `pieces` = 2); граммы → кг; вес перед штуками считается фасовкой в названии. «К,ўзи» → «Қўзи». Строки без чисел — `notes`, сообщение без товаров игнорируется
+- Сопоставление (`services/telegramPrihod.js`, считается при чтении): сначала `telegram_aliases`, затем `matchKey` (регистр, ё/қ/ғ/ў/ҳ, латиница→кириллица): точное совпадение 90, по слову-префиксу 70, все слова 60 (+5 если товар привязан к поставщику); авто только при единственном лучшем ≥ 60. Поставщик: точное 90 / первое слово 70 / префикс 50 (авто ≥ 50, единственный). Товары с вариантами сопоставляются только с вариантом. Кол-во конвертируется в ед. товара (кг→г, кг→шт если указаны штуки)
+- Цена префилла — `getPrihodPrefillPriceMap` (прайс поставщика → последний **проведённый** приход поставщика → любой), иначе 0
+- Если всё распознано и включено автосоздание — **черновик** `prihod` (дата = дата сообщения по Asia/Tashkent, отдел темы, комментарий «Из Telegram · автор · дд.мм чч:мм»), недостающие связи `product_suppliers` создаются автоматически; бот отвечает в теме. Иначе запись ждёт в «Входящих»; ответ в теме перечисляет, что не сопоставлено
+- Ручной разбор: поставщик/товары/кол-во/цена → «Создать черновик» / «Создать и провести» (`documents.confirm`); галочка «Запомнить сопоставления» пишет `telegram_aliases` — следующие такие сообщения создаются сами. «Создать готовые» — черновики по всем полностью распознанным
+- Правка сообщения в Telegram: черновик обновляется (цены уже введённые сохраняются); если приход проведён — только предупреждение в теме. Повторная доставка того же `message_id` не дублирует
+- Удаление прихода возвращает сообщение в «Входящие» (`deleteDocument` сбрасывает `telegram_inbox.document_id`). «Пропустить» нельзя при живом приходе
+- История до подключения бота: «Вставить из Telegram» — текст из Telegram Desktop (`Нодирбек, [09.10.2026 8:39]` или `[09.10.2026 8:39] Нодирбек: …`), отдел и дата по умолчанию; дубли отсекаются по хешу (`chat_id = 'paste'`)
+- Удаление филиала чистит `telegram_inbox` / `telegram_aliases` и отвязывает темы; сброс операционных данных чистит inbox и aliases
+
 ---
 
 ## 10. API (сводка)
@@ -514,6 +530,7 @@ GET  /api/auth/roles
 | `/api/shop-orders` | shopOrders.routes.js | Заявки MyShop |
 | `/api/opening-balance` | openingBalance.routes.js | Начальное сальдо |
 | `/api/telegram/*` | telegram.routes.js | Telegram |
+| `/api/telegram-prihod/*` | telegramPrihod.routes.js | Приходы из Telegram (`documents.prihod`): `GET /inbox?status=pending\|created\|ignored&date_from&date_to` (`items` с `analysis`: поставщик/строки/подсказки/`ready`, `counts`), `POST /inbox/:id/create` `{ date, department_id, counterparty_id, items[{line_index, product_id, variant_id, quantity, price}], remember, confirm }` (confirm требует `documents.confirm`), `POST /inbox/create-ready` `{ ids }`, `POST /inbox/:id/status` `{ status: ignored\|new }`, `POST /import-text` `{ text, department_id, date }`, `GET /topics`; `PUT /topics/:id` `{ mode, department_id, auto_create, auto_confirm, notify }` — `telegram.settings` |
 | `/api/admin/*` | admin.routes.js | Аудит, бэкапы, сброс данных, сессии |
 | `/api/staff/location` | staff.routes.js | Геолокация снабженца (POST, текущая точка + история) |
 | `/api/admin/staff-locations` | staff.routes.js | Текущие позиции снабженцев (admin) |
@@ -529,6 +546,7 @@ GET  /api/auth/roles
 |---------|------|-------|
 | `/` | Dashboard.jsx | dashboard.view; «Топ по стоимости остатка» — `stock × avg_cost` склада; **телефон (≤768px):** «Рабочий стол» в стиле 1С — сетка «Быстрый доступ» (`MobileWorkspaceHome` + `mobileQuickLinks.js`) + Telegram внизу; dock скрыт; desktop-дашборд без изменений |
 | `/products` | Products.jsx | products.view; колонки **Цена справочника** и **Себест. склада** (филиал); у цен стрелка ▲/▼ по последним двум приходам (дороже/дешевле); в карточке — avg по отделам; клик по названию (при `documents.prihod` / `documents.view`) → модалка приходов с фильтром **Месяц / Год** и даты **С/По**; у варианта — только его строки (`variant_id`); у родителя — все по `product_id`; строка открывает `/prihod?open={id}` в **новой вкладке**; архивировать / удалить товар — только admin (как на сервере) |
+| `/prihod-telegram` | TelegramPrihod.jsx | documents.prihod; меню «Закупки → Из Telegram». Вкладка **Входящие**: карточки сообщений (текст + распознанный поставщик/товары зелёным/красным, статус), фильтры Ждут проверки / Созданы / Пропущены / Все; «Разобрать и создать» → окно сопоставления (поставщик, товар через `ProductSelect` с подсказками, кол-во, цена, «Запомнить сопоставления»), «Создать готовые (N)», «Вставить из Telegram» (история). Вкладка **Темы**: инструкция подключения + таблица групп/тем (режим, склад, автосоздание/автопроведение/ответ — правка `telegram.settings`) |
 | `/supplier-prices` | SupplierPrices.jsx | products.view; документы прайса поставщика (дата, поставщик, цены); edit — `products.edit` |
 | `/product-categories` | ProductCategories.jsx | products.view |
 | `/units` | Units.jsx | products.view |
@@ -707,6 +725,7 @@ GET  /api/auth/roles
 | Себестоимость / остатки | `server/inventoryCost.js`, `server/departments.js`, `server/documentExtraCosts.js` |
 | MyShop | `server/myShop.js`, `server/publicShop.js`, `client/src/pages/MyShop*.jsx` |
 | Telegram | `server/telegram.js`, `server/services/telegram.js` |
+| Приходы из Telegram | `server/telegramPrihodParser.js`, `server/services/telegramPrihod.js`, `server/routes/telegramPrihod.routes.js`, `client/src/pages/TelegramPrihod.jsx` |
 | Push (FCM + Web) | `server/push.js`, `client/src/utils/nativePush.js`, `client/src/utils/pwaPush.js` |
 | APK снабжения | `server/snabAppVersion.js`, `nativeApkUpdate.js`, `.github/workflows/android-apk.yml` |
 | Тема UI | `client/src/theme.js`, `ThemeContext.jsx` — не дублировать цвета в `:root` |
@@ -925,6 +944,7 @@ GET  /api/auth/roles
 | 2026-10-02 | Перемещения: отмена проверяет нетто×шт (не блокирует ложно и не создаёт остаток из воздуха); межфилиальное двигает остатки отделов по умолчанию и пишет их в документ; guard учитывает отдел по умолчанию; mobile перемещение показывает филиал |
 | 2026-10-02 | Аудит связок: правка проведённого документа проходит те же проверки, что отмена (`assertConfirmedDocCanReverse`); отмена блокируется оплатами и проведёнными возвратами; откат прихода при нехватке остатка — ошибка вместо молчаливого обнуления; возврат поставщику пишет себестоимость; «Дебиторы» вычитают возврат от клиента; акт сверки на сервере `GET /api/reports/reconciliation` (сальдо на начало периода, возврат от клиента, без 403 у склада); оплата без контрагента берёт его из документа, без `article_id` не падает; удаление отдела проверяет остатки/сотрудников/НС; импорт зарплаты «все филиалы» только admin HQ; меню: «Расход», «Журнал документов»; архив/удаление товара — только admin |
 | 2026-10-02 | Связки, часть 2: возврат поставщику списывает нетто×шт из прихода; отмена разделки по фактической себестоимости; НС прибавляет остаток (не SET); частичный PUT не стирает шапку; денежные возвраты (поставщик вернул / выдано клиенту) в долгах, «Долгах поставщикам», акте сверки и вне P&L; отчёт «Сотрудники» (`/api/reports/liable-debts`); банк: дебет фирме клиента → `other_expense`; понятные запреты удаления контрагента/договора/товара/филиала/сотрудника; роли для филиалов из импорта зарплаты; убраны неиспользуемые права `branches.*` и мёртвые методы `api.js`; удаление банковского счёта в UI; выход снимает push; `npm run db:repair-transfers` |
+| 2026-10-12 | Приходы из Telegram: бот читает группы с темами (`telegram_topics`), сообщения зав. склада «Жалилдан: / Сон-45,8кг» разбираются (`telegramPrihodParser.js`) в `telegram_inbox`, сопоставляются с поставщиком/товаром (выученные `telegram_aliases`) и создают черновик прихода с ответом в теме; страница `/prihod-telegram` (входящие, ручной разбор, «Создать готовые», вставка истории, настройка тем); API `/api/telegram-prihod/*` |
 
 ---
 

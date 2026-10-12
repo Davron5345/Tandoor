@@ -1,0 +1,185 @@
+import { test, before, after } from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtempSync, rmSync } from 'fs';
+import { join } from 'path';
+import { tmpdir } from 'os';
+import {
+  matchKey,
+  parsePrihodMessage,
+  splitPastedTelegramText,
+} from '../telegramPrihodParser.js';
+
+let testDir;
+
+before(() => {
+  testDir = mkdtempSync(join(tmpdir(), 'warehouse-tg-prihod-'));
+  process.env.DATA_DIR = testDir;
+  process.env.DISABLE_DEMO_SEED = 'true';
+  process.env.NODE_ENV = 'test';
+  process.env.TELEGRAM_ENABLED = 'false';
+});
+
+after(() => {
+  if (testDir) rmSync(testDir, { recursive: true, force: true });
+});
+
+test('parser: supplier header with -дан, weights, pieces and Uzbek comma letters', () => {
+  const a = parsePrihodMessage('Жалилдан:\nСон-45,8кг\nЖигар-4,3кг');
+  assert.equal(a.groups.length, 1);
+  assert.deepEqual(a.groups[0].supplier, { raw: 'Жалилдан', name: 'Жалил' });
+  assert.deepEqual(a.groups[0].lines.map((l) => [l.name, l.quantity, l.unit]), [
+    ['Сон', 45.8, 'кг'],
+    ['Жигар', 4.3, 'кг'],
+  ]);
+
+  const b = parsePrihodMessage('Атхамдан:\nК,ўзи думбасиз -2та-26,2кг');
+  const line = b.groups[0].lines[0];
+  assert.equal(line.name, 'Қўзи думбасиз');
+  assert.equal(line.quantity, 26.2);
+  assert.equal(line.pieces, 2);
+
+  const c = parsePrihodMessage('Контир-6,6кг\nВырезка -10,7кг');
+  assert.equal(c.groups[0].supplier, null);
+  assert.equal(c.groups[0].lines.length, 2);
+
+  const d = parsePrihodMessage('Ассалому алейкум\nСон 500г');
+  assert.deepEqual(d.notes, ['Ассалому алейкум']);
+  assert.equal(d.groups[0].lines[0].quantity, 0.5);
+
+  const multi = parsePrihodMessage('Жалилдан:\nСон-1кг\nМуротдан:\nКачалка -11кг');
+  assert.equal(multi.groups.length, 2);
+  assert.equal(multi.groups[1].supplier.name, 'Мурот');
+
+  assert.equal(matchKey("Qo'zi dumbasiz"), matchKey('Қўзи думбасиз'));
+});
+
+test('parser: pasted Telegram history splits into dated messages', () => {
+  const messages = splitPastedTelegramText(
+    'Нодирбек, [09.10.2026 8:39]\nЖалилдан:\nСон-19,8кг\n\nНодирбек, [09.10.2026 12:14]\nМуротдан:\nКачалка -11кг',
+  );
+  assert.equal(messages.length, 2);
+  assert.equal(messages[0].author, 'Нодирбек');
+  assert.equal(messages[0].date, '2026-10-09');
+  assert.equal(messages[0].time, '08:39');
+  assert.ok(messages[1].text.startsWith('Муротдан:'));
+});
+
+test('topic messages become prihod drafts; unknown names wait for review and are remembered', async () => {
+  const { default: db, initDb } = await import('../db.js');
+  const { initPermissions } = await import('../permissions.js');
+  const { seedDefaultUsers } = await import('../auth.js');
+  const svc = await import('../services.js');
+  const { getDefaultDepartmentId } = await import('../departments.js');
+  const tp = await import('../services/telegramPrihod.js');
+
+  await initDb();
+  initPermissions(db);
+  seedDefaultUsers();
+
+  const deptId = getDefaultDepartmentId('main');
+  const jalil = svc.createCounterparty({ name: 'Жалил', type: 'supplier', branch_id: 'main' });
+  const son = svc.createProduct({ name: 'Сон', unit: 'кг', price: 0, branch_id: 'main', supplier_ids: [jalil.id] });
+  svc.createProduct({ name: 'Жигар', unit: 'кг', price: 0, branch_id: 'main' });
+  const lenta = svc.createProduct({ name: 'Говядина лента', unit: 'кг', price: 0, branch_id: 'main' });
+
+  const msgBase = {
+    chatId: -1001,
+    threadId: 77,
+    chatTitle: 'Махалла 90',
+    topicTitle: 'Приход гушт',
+    fromName: 'Нодирбек',
+    date: new Date('2026-10-06T04:10:00Z'),
+  };
+
+  // Тема ещё не включена — сообщение только регистрирует тему
+  const before = tp.handleIncomingMessage({ ...msgBase, messageId: 1, text: 'Жалилдан:\nСон-45,8кг' });
+  assert.equal(before.results.length, 0);
+  const topic = tp.listTopics('main').find((t) => t.chat_id === '-1001' && t.thread_id === '77');
+  assert.ok(topic);
+  assert.equal(topic.title, 'Приход гушт');
+  tp.updateTopic(topic.id, { mode: 'prihod', department_id: deptId }, 'main');
+
+  const ok = tp.handleIncomingMessage({ ...msgBase, messageId: 2, text: 'Жалилдан:\nСон-45,8кг\nЖигар-4,3кг' });
+  assert.equal(ok.results.length, 1);
+  assert.equal(ok.results[0].status, 'created');
+  const doc = svc.getDocument(ok.results[0].document.id, 'main');
+  assert.equal(doc.type, 'prihod');
+  assert.equal(doc.status, 'draft');
+  assert.equal(doc.date, '2026-10-06');
+  assert.equal(doc.counterparty_id, jalil.id);
+  assert.equal(doc.to_department_id, deptId);
+  assert.deepEqual(doc.items.map((i) => Number(i.quantity)).sort(), [4.3, 45.8]);
+  assert.match(doc.comment, /Нодирбек/);
+
+  // Повторная доставка того же сообщения не дублирует
+  const dup = tp.handleIncomingMessage({ ...msgBase, messageId: 2, text: 'Жалилдан:\nСон-45,8кг\nЖигар-4,3кг' });
+  assert.equal(dup.results.length, 0);
+
+  // Правка сообщения обновляет черновик
+  const edited = tp.handleIncomingMessage({ ...msgBase, messageId: 2, edited: true, text: 'Жалилдан:\nСон-40кг\nЖигар-4,3кг' });
+  assert.equal(edited.results[0].status, 'updated');
+  const docAfterEdit = svc.getDocument(doc.id, 'main');
+  assert.ok(docAfterEdit.items.some((i) => Number(i.quantity) === 40 && i.product_id === son.id));
+
+  // «Лента» не совпадает однозначно, поставщика нет в справочнике — ждёт проверки
+  const pending = tp.handleIncomingMessage({ ...msgBase, messageId: 3, text: 'Рустамдан:\nЛента-13кг' });
+  assert.equal(pending.results[0].status, 'pending');
+  assert.match(pending.results[0].reply, /Рустам/);
+
+  const { items, counts } = tp.listInbox('main', { status: 'pending' });
+  assert.equal(counts.created, 1);
+  const entry = items.find((i) => i.message_id === '3');
+  assert.ok(entry);
+  assert.equal(entry.analysis.ready, false);
+  assert.equal(entry.analysis.supplier.counterparty_id, null);
+  assert.ok(entry.analysis.lines[0].suggestions.some((s) => s.product_id === lenta.id));
+
+  const rustam = svc.createCounterparty({ name: 'Рустам ака', type: 'supplier', branch_id: 'main' });
+  const created = tp.createFromInbox(entry.id, {
+    counterparty_id: rustam.id,
+    date: entry.doc_date,
+    items: [{ line_index: 0, product_id: lenta.id, quantity: 13, price: 90000 }],
+  }, 'test-user', 'main');
+  assert.equal(created.document.status, 'draft');
+  assert.equal(Number(created.document.total_amount), 13 * 90000);
+  svc.confirmDocument(created.document.id, 'test-user');
+
+  // Сопоставление запомнено: следующее такое сообщение создаётся само, цена — из проведённого прихода
+  const learned = tp.handleIncomingMessage({ ...msgBase, messageId: 4, text: 'Рустамдан:\nЛента-10кг' });
+  assert.equal(learned.results[0].status, 'created');
+  const learnedDoc = svc.getDocument(learned.results[0].document.id, 'main');
+  assert.equal(learnedDoc.counterparty_id, rustam.id);
+  assert.equal(learnedDoc.items[0].product_id, lenta.id);
+  assert.equal(Number(learnedDoc.items[0].price), 90000);
+
+  // Удаление прихода возвращает сообщение во входящие
+  svc.deleteDocument(learnedDoc.id);
+  const back = tp.listInbox('main', { status: 'new' }).items.find((i) => i.message_id === '4');
+  assert.ok(back);
+  assert.equal(back.document_id, null);
+});
+
+test('pasted history imports once and ready messages create drafts in bulk', async () => {
+  const svc = await import('../services.js');
+  const { getDefaultDepartmentId } = await import('../departments.js');
+  const tp = await import('../services/telegramPrihod.js');
+  const deptId = getDefaultDepartmentId('main');
+
+  const text = 'Нодирбек, [07.10.2026 8:31]\nЖалилдан:\nСон -20кг\n\nНодирбек, [08.10.2026 11:45]\nКонтир-6,6кг';
+  const first = tp.importPastedText('main', { text, department_id: deptId });
+  assert.equal(first.added, 2);
+  const again = tp.importPastedText('main', { text, department_id: deptId });
+  assert.equal(again.added, 0);
+  assert.equal(again.duplicates, 2);
+
+  const bulk = tp.createReadyFromInbox('main', 'test-user');
+  assert.equal(bulk.created.length, 2);
+  const doc = svc.getDocument(bulk.created.find((c) => c.number).document_id, 'main');
+  assert.equal(doc.type, 'prihod');
+  const dates = bulk.created.map((c) => svc.getDocument(c.document_id, 'main').date).sort();
+  assert.ok(dates.includes('2026-10-07'));
+
+  const noSupplier = tp.listInbox('main', { status: 'pending' }).items.find((i) => i.source === 'paste');
+  assert.ok(noSupplier, 'message without supplier stays for review');
+  assert.equal(noSupplier.analysis.supplier, null);
+});

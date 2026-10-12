@@ -30,6 +30,8 @@ export function resetOperationalData() {
 
   transaction(() => {
     run('DELETE FROM telegram_messages');
+    run('DELETE FROM telegram_inbox');
+    run('DELETE FROM telegram_aliases');
     run('DELETE FROM document_history');
     run('DELETE FROM opening_balance_lines');
     run('DELETE FROM document_items');

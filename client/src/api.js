@@ -536,6 +536,20 @@ export const api = {
   getTelegramMessages: () => request('/telegram/messages'),
   sendTelegramMessage: (data) => request('/telegram/send', { method: 'POST', body: JSON.stringify(data) }),
   sendDocumentTelegram: (id) => request(`/telegram/send-document/${id}`, { method: 'POST' }),
+  getTelegramPrihodInbox: (params = {}) => {
+    const q = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value != null && value !== '') q.set(key, value);
+    });
+    const qs = q.toString();
+    return request(`/telegram-prihod/inbox${qs ? `?${qs}` : ''}`);
+  },
+  createTelegramPrihod: (id, data) => request(`/telegram-prihod/inbox/${id}/create`, { method: 'POST', body: JSON.stringify(data) }),
+  createReadyTelegramPrihods: (ids = null) => request('/telegram-prihod/inbox/create-ready', { method: 'POST', body: JSON.stringify({ ids }) }),
+  setTelegramPrihodStatus: (id, status) => request(`/telegram-prihod/inbox/${id}/status`, { method: 'POST', body: JSON.stringify({ status }) }),
+  importTelegramPrihodText: (data) => request('/telegram-prihod/import-text', { method: 'POST', body: JSON.stringify(data) }),
+  getTelegramPrihodTopics: () => request('/telegram-prihod/topics'),
+  updateTelegramPrihodTopic: (id, data) => request(`/telegram-prihod/topics/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
 
   getAuditLog: async (params = {}) => {
     const clean = Object.fromEntries(
