@@ -56,9 +56,7 @@ function EntryCard({ entry, onReview, onStatus }) {
       <div className="tg-prihod-card-head">
         <div>
           <strong>{formatDate(entry.doc_date)}</strong>
-          {analysis.date_from_text
-            ? <span className="muted"> · дата из текста</span>
-            : messageTime(entry.message_at) && <span className="muted"> {messageTime(entry.message_at)}</span>}
+          {messageTime(entry.message_at) && <span className="muted"> {messageTime(entry.message_at)}</span>}
           {entry.from_name && <span> · {entry.from_name}</span>}
           <div className="muted tg-prihod-card-source">
             {entrySource(entry)}

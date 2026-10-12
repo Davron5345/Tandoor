@@ -122,8 +122,8 @@ function isoDate(y, m, d) {
 }
 
 /**
- * Дата, написанная в сообщении: «06.10», «06.10.2026», «Сана: 6.10», «06.10 Жалилдан:».
- * Без года — год даты сообщения (если получилось сильно «в будущем» — прошлый год).
+ * Дата, написанная в сообщении: «06.10», «06.10.2026», «Сана: 6.10», «06.10 Жалилдан:» — строку надо пропустить,
+ * а в `rest` остаётся заголовок поставщика. Без года — год `referenceDate` (если вышло сильно «в будущем» — прошлый).
  * @returns {{ date: string, rest: string } | null}
  */
 export function parseDateLine(rawLine, referenceDate = null) {
@@ -162,35 +162,32 @@ function resolveDate(m, referenceDate) {
 
 /**
  * Текст одного сообщения → группы по поставщикам.
- * Дата в тексте («06.10») относится к поставщикам после неё; без даты — `date: null` (берётся дата сообщения).
- * @returns {{ groups: Array<{ supplier: {raw,name}|null, date: string|null, lines: object[] }>, notes: string[] }}
+ * Дата документа — всегда дата сообщения в Telegram; дата, написанная в тексте («06.10»), пропускается.
+ * @returns {{ groups: Array<{ supplier: {raw,name}|null, lines: object[] }>, notes: string[] }}
  */
-export function parsePrihodMessage(text, { referenceDate = null } = {}) {
+export function parsePrihodMessage(text) {
   const groups = [];
   const notes = [];
   let current = null;
-  let currentDate = null;
 
   for (const rawLine of String(text || '').split(/\r?\n/)) {
     let trimmed = rawLine.trim();
     if (!trimmed) continue;
-    const dated = parseDateLine(trimmed, referenceDate);
+    const dated = parseDateLine(trimmed);
     if (dated) {
-      currentDate = dated.date;
-      if (current && !current.lines.length) current.date = dated.date;
       if (!dated.rest) continue;
       trimmed = dated.rest;
     }
     const header = parseSupplierHeader(trimmed);
     if (header) {
-      current = { supplier: header, date: currentDate, lines: [] };
+      current = { supplier: header, lines: [] };
       groups.push(current);
       continue;
     }
     const item = parseItemLine(trimmed);
     if (item) {
       if (!current) {
-        current = { supplier: null, date: currentDate, lines: [] };
+        current = { supplier: null, lines: [] };
         groups.push(current);
       }
       current.lines.push(item);

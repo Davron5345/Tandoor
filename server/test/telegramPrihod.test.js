@@ -202,7 +202,7 @@ test('matching: Latin and Cyrillic spellings, suffixes and small typos are the s
   assert.ok(score('Куй жигари', 'Жигар') < 25);
 });
 
-test('parser: date written in the message applies to the suppliers after it', () => {
+test('parser: a date written in the message is skipped (document date comes from Telegram)', () => {
   assert.deepEqual(parseDateLine('06.10', '2026-10-08'), { date: '2026-10-06', rest: '' });
   assert.deepEqual(parseDateLine('Сана: 6.10.2026', null), { date: '2026-10-06', rest: '' });
   assert.equal(parseDateLine('28.12', '2027-01-03').date, '2026-12-28');
@@ -210,13 +210,13 @@ test('parser: date written in the message applies to the suppliers after it', ()
   assert.equal(parseDateLine('Сон 4.5 кг', '2026-10-08'), null);
   assert.equal(parseDateLine('31.02', '2026-10-08'), null);
 
-  const p = parsePrihodMessage('06.10\nЖалилдан:\nСон-4.5кг\n07.10 Муротдан:\nКачалка -11кг', { referenceDate: '2026-10-08' });
-  assert.deepEqual(p.groups.map((g) => [g.supplier.name, g.date]), [['Жалил', '2026-10-06'], ['Мурот', '2026-10-07']]);
+  const p = parsePrihodMessage('06.10\nЖалилдан:\nСон-4.5кг\n07.10 Муротдан:\nКачалка -11кг');
+  assert.deepEqual(p.groups.map((g) => g.supplier.name), ['Жалил', 'Мурот']);
   assert.equal(p.groups[0].lines[0].quantity, 4.5);
-  assert.equal(parsePrihodMessage('Жалилдан:\nСон-1кг').groups[0].date, null);
+  assert.deepEqual(p.notes, []);
 });
 
-test('date, then supplier, then the supplier\'s own products; product keywords', async () => {
+test('Telegram date, then supplier, then the supplier\'s own products; product keywords', async () => {
   const svc = await import('../services.js');
   const tp = await import('../services/telegramPrihod.js');
 
@@ -233,7 +233,7 @@ test('date, then supplier, then the supplier\'s own products; product keywords',
   const a = tp.handleIncomingMessage({ ...base, messageId: 60, text: '06.10\nАнвардан:\nТўш-5кг\nКорейка-3кг' });
   assert.equal(a.results[0].status, 'created');
   const docA = svc.getDocument(a.results[0].document.id, 'main');
-  assert.equal(docA.date, '2026-10-06');
+  assert.equal(docA.date, '2026-10-08');
   assert.equal(docA.counterparty_id, anvar.id);
   assert.deepEqual(docA.items.map((i) => i.product_id).sort(), [toshMol.id, sarpanja.id].sort());
 

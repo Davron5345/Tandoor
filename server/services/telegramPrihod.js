@@ -296,20 +296,15 @@ function convertQuantity(line, productUnit) {
 }
 
 function groupJson(group, notes) {
-  return JSON.stringify({ date: group.date || null, supplier: group.supplier, lines: group.lines, notes });
+  return JSON.stringify({ supplier: group.supplier, lines: group.lines, notes });
 }
 
 function readParsed(entry) {
   try {
     const parsed = JSON.parse(entry.parsed_json || '{}');
-    return {
-      date: parsed.date || null,
-      supplier: parsed.supplier || null,
-      lines: parsed.lines || [],
-      notes: parsed.notes || [],
-    };
+    return { supplier: parsed.supplier || null, lines: parsed.lines || [], notes: parsed.notes || [] };
   } catch {
-    return { date: null, supplier: null, lines: [], notes: [] };
+    return { supplier: null, lines: [], notes: [] };
   }
 }
 
@@ -339,7 +334,6 @@ function analyzeEntry(entry, ctx) {
   });
   return {
     date: entry.doc_date,
-    date_from_text: !!parsed.date,
     supplier: parsed.supplier
       ? {
         raw: parsed.supplier.raw,
@@ -521,7 +515,7 @@ export function handleIncomingMessage(input) {
   if (!text || text.startsWith('/')) return { topic, results: [] };
 
   const when = localDateTime(input.date || new Date());
-  const parsed = parsePrihodMessage(text, { referenceDate: when.date });
+  const parsed = parsePrihodMessage(text);
   const chatId = String(input.chatId);
   const messageId = String(input.messageId);
   const existing = queryAll(
@@ -536,12 +530,11 @@ export function handleIncomingMessage(input) {
 
   parsed.groups.forEach((group, part) => {
     const parsedJson = groupJson(group, part === 0 ? parsed.notes : []);
-    const docDate = group.date || when.date;
     const prev = existing.find((e) => Number(e.part) === part);
     if (prev) {
       run(`
-        UPDATE telegram_inbox SET text = ?, parsed_json = ?, doc_date = ?, edited = 1, updated_at = datetime('now') WHERE id = ?
-      `, [text, parsedJson, docDate, prev.id]);
+        UPDATE telegram_inbox SET text = ?, parsed_json = ?, edited = 1, updated_at = datetime('now') WHERE id = ?
+      `, [text, parsedJson, prev.id]);
       results.push(processEditedEntry(queryOne('SELECT * FROM telegram_inbox WHERE id = ?', [prev.id]), topic, ctx));
       return;
     }
@@ -553,7 +546,7 @@ export function handleIncomingMessage(input) {
     `, [
       id, topic.branch_id, topic.id, topic.department_id, chatId, topic.thread_id, messageId, part,
       input.fromName || null, input.fromUserId ? String(input.fromUserId) : null,
-      text, when.at, docDate, parsedJson,
+      text, when.at, when.date, parsedJson,
     ]);
     results.push(autoProcessEntry(queryOne('SELECT * FROM telegram_inbox WHERE id = ?', [id]), topic, ctx));
   });
@@ -702,7 +695,7 @@ export function importPastedText(branchId, { text, department_id: departmentId, 
 
   for (const msg of messages) {
     const docDate = msg.date || fallbackDate;
-    const parsed = parsePrihodMessage(msg.text, { referenceDate: docDate });
+    const parsed = parsePrihodMessage(msg.text);
     if (!parsed.groups.length) {
       skipped += 1;
       continue;
@@ -723,7 +716,7 @@ export function importPastedText(branchId, { text, department_id: departmentId, 
         VALUES (?, ?, NULL, ?, 'paste', '', ?, ?, 'paste', ?, ?, ?, ?, ?, 'new')
       `, [
         uuidv4(), branchId, departmentId, messageId, part, msg.author || null, msg.text, messageAt,
-        group.date || docDate, groupJson(group, part === 0 ? parsed.notes : []),
+        docDate, groupJson(group, part === 0 ? parsed.notes : []),
       ]);
       added += 1;
     });
