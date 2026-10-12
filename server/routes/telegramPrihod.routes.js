@@ -13,11 +13,20 @@ export function registerTelegramPrihodRoutes(app) {
       if (req.body?.confirm && !hasPermission(req.user.role, 'documents.confirm')) {
         return res.status(403).json({ error: 'Нет права проводить документы' });
       }
+      const newVariants = (req.body?.items || []).filter((i) => String(i?.new_variant_name || '').trim());
+      if (newVariants.length && !hasPermission(req.user.role, 'products.edit')) {
+        return res.status(403).json({ error: 'Нет права добавлять варианты товаров' });
+      }
       const result = telegramPrihod.createFromInbox(req.params.id, req.body || {}, req.user.id, req.branchId);
       logAudit(req, 'telegram_prihod.create', {
         entity_type: 'document',
         entity_id: result.document.id,
-        meta: { number: result.document.number, inbox_id: req.params.id, confirmed: result.confirmed },
+        meta: {
+          number: result.document.number,
+          inbox_id: req.params.id,
+          confirmed: result.confirmed,
+          new_variants: newVariants.map((i) => i.new_variant_name),
+        },
       });
       res.status(201).json(result);
     } catch (e) {

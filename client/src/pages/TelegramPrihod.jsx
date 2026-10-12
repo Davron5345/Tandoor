@@ -133,7 +133,9 @@ function EntryCard({ entry, onReview, onStatus }) {
   );
 }
 
-function ReviewModal({ entry, products, suppliers, departments, canConfirm, onClose, onDone, show }) {
+function ReviewModal({
+  entry, products, suppliers, departments, canConfirm, canAddVariant, onClose, onDone, show,
+}) {
   const productPrice = useCallback((productId, variantId) => {
     const resolved = resolvePickFromProducts(products, encodeProductPick(productId, variantId));
     return Number(resolved.product?.last_price) || 0;
@@ -163,7 +165,29 @@ function ReviewModal({ entry, products, suppliers, departments, canConfirm, onCl
       product_id: resolved.productId || null,
       variant_id: resolved.variantId || null,
       product_unit: resolved.product?.unit || null,
+      new_variant_name: null,
       price: line.price || (resolved.productId ? productPrice(resolved.productId, resolved.variantId) : 0),
+    });
+  };
+
+  const productById = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
+
+  /** Товары с вариантами, куда можно добавить строку как новый вариант: выбранный + из подсказок. */
+  const variantParents = (line) => {
+    const ids = line.product_id ? [line.product_id] : (line.suggestions || []).map((s) => s.product_id);
+    return [...new Set(ids)]
+      .map((id) => productById.get(id))
+      .filter((p) => p?.has_variants)
+      .slice(0, 2);
+  };
+
+  const startNewVariant = (idx, product) => {
+    const line = form.lines[idx];
+    updateLine(idx, {
+      product_id: product.id,
+      variant_id: null,
+      product_unit: product.unit || null,
+      new_variant_name: line.name,
     });
   };
 
@@ -182,12 +206,17 @@ function ReviewModal({ entry, products, suppliers, departments, canConfirm, onCl
       .map((l) => ({
         line_index: l.index,
         product_id: l.product_id,
-        variant_id: l.variant_id || null,
+        variant_id: l.new_variant_name != null ? null : (l.variant_id || null),
+        new_variant_name: l.new_variant_name != null ? l.new_variant_name.trim() : undefined,
         quantity: parseQtyInput(l.quantity),
         price: Number(l.price) || 0,
       }));
     if (!items.length) {
       show('Выберите товары', 'error');
+      return;
+    }
+    if (items.some((i) => i.new_variant_name === '')) {
+      show('Укажите название нового варианта', 'error');
       return;
     }
     if (items.some((i) => !(i.quantity > 0))) {
@@ -299,11 +328,49 @@ function ReviewModal({ entry, products, suppliers, departments, canConfirm, onCl
                       </div>
                     </td>
                     <td>
-                      <ProductSelect
-                        products={products}
-                        value={encodeProductPick(line.product_id, line.variant_id)}
-                        onChange={(v) => pickProduct(idx, v)}
-                      />
+                      {line.new_variant_name != null ? (
+                        <div className="tg-prihod-newvar">
+                          <div className="tg-prihod-newvar-head">
+                            <span>
+                              Новый вариант в «{productById.get(line.product_id)?.name || 'товар'}»
+                            </span>
+                            <button
+                              type="button"
+                              className="btn btn-ghost btn-sm"
+                              onClick={() => updateLine(idx, { product_id: null, variant_id: null, new_variant_name: null })}
+                            >
+                              Отмена
+                            </button>
+                          </div>
+                          <input
+                            value={line.new_variant_name}
+                            onChange={(e) => updateLine(idx, { new_variant_name: e.target.value })}
+                            placeholder="Название варианта"
+                          />
+                          <div className="muted" style={{ fontSize: 12 }}>Добавится в справочник при создании прихода</div>
+                        </div>
+                      ) : (
+                        <ProductSelect
+                          products={products}
+                          value={encodeProductPick(line.product_id, line.variant_id)}
+                          onChange={(v) => pickProduct(idx, v)}
+                        />
+                      )}
+                      {canAddVariant && line.new_variant_name == null && variantParents(line).length > 0 && (
+                        <span className="tg-prihod-suggest">
+                          {variantParents(line).map((p) => (
+                            <button
+                              key={p.id}
+                              type="button"
+                              className="tg-prihod-chip tg-prihod-chip-add"
+                              title="Такого варианта нет — добавить его к товару"
+                              onClick={() => startNewVariant(idx, p)}
+                            >
+                              + Новый вариант «{line.name}» в «{p.name}»
+                            </button>
+                          ))}
+                        </span>
+                      )}
                       {!line.product_id && line.suggestions?.length > 0 && (
                         <span className="tg-prihod-suggest">
                           {line.suggestions.map((s) => (
@@ -522,6 +589,7 @@ export default function TelegramPrihod() {
   const { branchId } = useBranch();
   const { show, Toast } = useToast();
   const canConfirm = hasPermission(user, 'documents.confirm');
+  const canAddVariant = hasPermission(user, 'products.edit');
   const canEditTopics = hasPermission(user, 'telegram.settings');
 
   const [tab, setTab] = useState('inbox');
@@ -678,6 +746,7 @@ export default function TelegramPrihod() {
           suppliers={suppliers}
           departments={departments}
           canConfirm={canConfirm}
+          canAddVariant={canAddVariant}
           show={show}
           onClose={() => setReview(null)}
           onDone={() => { setReview(null); loadInbox(); }}

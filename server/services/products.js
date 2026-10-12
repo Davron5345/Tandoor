@@ -1045,6 +1045,38 @@ export function getArchivedProductVariants(productId, branchId = DEFAULT_BRANCH_
   }));
 }
 
+/**
+ * Добавить один вариант к товару с вариантами (остальные варианты и остатки не трогаются).
+ * Такой вариант уже есть — вернёт его (из архива — восстановит).
+ */
+export function addProductVariant(productId, name, branchId = DEFAULT_BRANCH_ID) {
+  const product = queryOne(
+    'SELECT id, name, price, has_variants FROM products WHERE id = ? AND COALESCE(archived, 0) = 0',
+    [productId],
+  );
+  if (!product) throw new Error('Товар не найден');
+  if (!product.has_variants) {
+    throw new Error(`У товара «${product.name}» нет вариантов — новый вариант можно добавить только товару с вариантами`);
+  }
+  const variantName = String(name || '').replace(/\s+/g, ' ').trim().slice(0, 120);
+  if (!variantName) throw new Error('Укажите название варианта');
+
+  const rows = queryAll('SELECT id, name, archived, sort_order FROM product_variants WHERE product_id = ?', [productId]);
+  const same = rows.find((v) => v.name.trim().toLowerCase() === variantName.toLowerCase());
+  if (same) {
+    if (same.archived) restoreProductVariant(productId, same.id, branchId);
+    return { id: same.id, name: same.name, product_id: productId, created: false };
+  }
+
+  const id = uuidv4();
+  const sortOrder = rows.reduce((m, v) => Math.max(m, Number(v.sort_order) || 0), -1) + 1;
+  run(
+    'INSERT INTO product_variants (id, product_id, name, price, stock, sort_order) VALUES (?, ?, ?, ?, 0, ?)',
+    [id, productId, variantName, Number(product.price) || 0, sortOrder],
+  );
+  return { id, name: variantName, product_id: productId, created: true };
+}
+
 export function archiveProductVariant(productId, variantId, branchId = DEFAULT_BRANCH_ID) {
   const row = queryOne(
     'SELECT id FROM product_variants WHERE id = ? AND product_id = ? AND COALESCE(archived, 0) = 0',

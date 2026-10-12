@@ -19237,6 +19237,29 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
   color: #fff;
 }
 
+.tg-prihod-chip-add {
+  border-style: dashed;
+  color: var(--primary);
+}
+
+.tg-prihod-newvar {
+  display: grid;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px dashed var(--primary);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.tg-prihod-newvar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
 .tg-prihod-list {
   display: grid;
   gap: 10px;

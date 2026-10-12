@@ -271,3 +271,41 @@ test('Latin catalog names are recognised from a Cyrillic topic message', async (
     [jigari.id, matal.id].sort(),
   );
 });
+
+test('review window adds a missing variant to the product and remembers it', async () => {
+  const { default: db } = await import('../db.js');
+  const svc = await import('../services.js');
+  const tp = await import('../services/telegramPrihod.js');
+
+  const atxam = svc.createCounterparty({ name: "Qo'y (Atxam)", type: 'supplier', branch_id: 'main' });
+  const qoy = svc.createProduct({
+    name: "Qo'y", unit: 'кг', branch_id: 'main', has_variants: true,
+    variants: [{ name: 'Butun (Vaguri)', price: 160000 }],
+  });
+  const butunId = qoy.variants[0].id;
+
+  const base = { chatId: -1001, threadId: 77, fromName: 'Нодирбек', date: new Date('2026-10-07T05:00:00Z') };
+  const first = tp.handleIncomingMessage({ ...base, messageId: 70, text: 'Атхамдан:\nК,ўзи думбасиз -2та-26,2кг' });
+  const entry = first.results[0].entry;
+
+  const created = tp.createFromInbox(entry.id, {
+    counterparty_id: atxam.id,
+    items: [{ line_index: 0, product_id: qoy.id, new_variant_name: 'Қўзи думбасиз', quantity: 26.2, price: 160000 }],
+  }, 'test-user', 'main');
+  const variants = db.queryAll('SELECT id, name, stock FROM product_variants WHERE product_id = ? ORDER BY sort_order', [qoy.id]);
+  assert.deepEqual(variants.map((v) => v.name), ['Butun (Vaguri)', 'Қўзи думбасиз']);
+  const newVariant = variants[1];
+  assert.equal(created.document.items[0].variant_id, newVariant.id);
+  assert.notEqual(newVariant.id, butunId);
+
+  // Тот же вариант второй раз не создаётся, следующее сообщение приходуется на него само
+  const again = tp.handleIncomingMessage({ ...base, messageId: 71, text: 'Атхамдан:\nК,ўзи думбасиз -1та-12кг' });
+  assert.equal(again.results[0].status, 'created');
+  const doc = svc.getDocument(again.results[0].document.id, 'main');
+  assert.equal(doc.items[0].variant_id, newVariant.id);
+  assert.equal(db.queryAll('SELECT id FROM product_variants WHERE product_id = ?', [qoy.id]).length, 2);
+
+  const { addProductVariant } = await import('../services/products.js');
+  const plain = svc.createProduct({ name: 'Bez variantov', unit: 'кг', price: 0, branch_id: 'main' });
+  assert.throws(() => addProductVariant(plain.id, 'X', 'main'), /нет вариантов/);
+});

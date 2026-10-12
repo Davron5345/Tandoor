@@ -9,7 +9,7 @@ import {
   splitPastedTelegramText,
 } from '../telegramPrihodParser.js';
 import { confirmDocument, createDocument, getDocument, updateDocument } from './documents.js';
-import { getPrihodPrefillPriceMap, lastPriceForItem } from './products.js';
+import { addProductVariant, getPrihodPrefillPriceMap, lastPriceForItem } from './products.js';
 
 const { queryAll, queryOne, run } = db;
 
@@ -618,13 +618,25 @@ function getEntry(id, branchId) {
 export function createFromInbox(id, payload, userId, branchId) {
   const entry = getEntry(id, branchId);
   if (entry.status === 'ignored') throw new Error('Сообщение пропущено — сначала верните его');
+  if (entry.status === 'created' && liveDocument(entry)) throw new Error('По этому сообщению приход уже создан');
   const parsed = readParsed(entry);
+  if (!payload.counterparty_id) throw new Error('Выберите поставщика');
+  assertDepartmentInBranch(payload.department_id || entry.department_id, branchId);
+  if (!(payload.items || []).some((i) => i.product_id)) throw new Error('Сопоставьте хотя бы один товар');
+
+  // «Новый вариант» из окна разбора: добавляем вариант товару и приходуем на него
+  const items = (payload.items || []).map((item) => {
+    const variantName = String(item.new_variant_name || '').trim();
+    if (!variantName || !item.product_id) return item;
+    const variant = addProductVariant(item.product_id, variantName, branchId);
+    return { ...item, variant_id: variant.id };
+  });
 
   if (payload.remember !== false) {
-    if (parsed.supplier && payload.counterparty_id) {
+    if (parsed.supplier) {
       saveAlias(branchId, 'supplier', matchKey(parsed.supplier.name), payload.counterparty_id, null, userId);
     }
-    for (const item of payload.items || []) {
+    for (const item of items) {
       const line = parsed.lines[Number(item.line_index)];
       if (line && item.product_id) {
         saveAlias(branchId, 'product', matchKey(line.name), item.product_id, item.variant_id || null, userId);
@@ -632,7 +644,7 @@ export function createFromInbox(id, payload, userId, branchId) {
     }
   }
 
-  return createPrihodFromEntry(entry, payload, userId);
+  return createPrihodFromEntry(entry, { ...payload, items }, userId);
 }
 
 /** Создать черновики по всем полностью распознанным сообщениям. */
