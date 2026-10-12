@@ -78,6 +78,7 @@ async function ensureBootstrap() {
   await execRaw('ALTER TABLE document_items ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0');
   await execRaw('ALTER TABLE document_items ADD COLUMN IF NOT EXISTS book_qty DOUBLE PRECISION DEFAULT 0');
   await execRaw('ALTER TABLE counterparties ADD COLUMN IF NOT EXISTS inn TEXT');
+  await execRaw('ALTER TABLE products ADD COLUMN IF NOT EXISTS keywords TEXT');
   await execRaw('ALTER TABLE payments ADD COLUMN IF NOT EXISTS external_ref TEXT');
   await execRaw('ALTER TABLE payments ADD COLUMN IF NOT EXISTS import_batch_id TEXT');
   await execRaw('ALTER TABLE payments ADD COLUMN IF NOT EXISTS contract_id TEXT');

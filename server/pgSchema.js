@@ -159,7 +159,8 @@ CREATE TABLE IF NOT EXISTS products (
   gross_weight DOUBLE PRECISION,
   has_variants INTEGER DEFAULT 0,
   archived INTEGER DEFAULT 0,
-  product_kind TEXT NOT NULL DEFAULT 'goods'
+  product_kind TEXT NOT NULL DEFAULT 'goods',
+  keywords TEXT
 );
 
 CREATE TABLE IF NOT EXISTS product_variants (

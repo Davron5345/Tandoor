@@ -1965,6 +1965,9 @@ function migrateProductCategories() {
   if (!prodCols.includes('gross_weight')) {
     run('ALTER TABLE products ADD COLUMN gross_weight REAL');
   }
+  if (!prodCols.includes('keywords')) {
+    run('ALTER TABLE products ADD COLUMN keywords TEXT');
+  }
 
   const done = queryOne("SELECT value FROM settings WHERE key = 'product_categories_v1'");
   if (!done) {

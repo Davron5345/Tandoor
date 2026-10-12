@@ -138,9 +138,13 @@ function saveAlias(branchId, kind, aliasKey, targetId, variantId = null, userId 
   `, [uuidv4(), branchId, kind, aliasKey, targetId, variantId || null, userId]);
 }
 
+function splitKeywords(raw) {
+  return String(raw || '').split(/[,;\n]+/).map((s) => s.trim()).filter(Boolean);
+}
+
 function buildMatchContext(branchId) {
   const products = queryAll(`
-    SELECT id, name, unit, has_variants FROM products WHERE COALESCE(archived, 0) = 0
+    SELECT id, name, unit, has_variants, keywords FROM products WHERE COALESCE(archived, 0) = 0
   `);
   const variants = queryAll(`
     SELECT v.id, v.product_id, v.name
@@ -157,10 +161,11 @@ function buildMatchContext(branchId) {
 
   const candidates = [];
   for (const p of products) {
+    const names = [p.name, ...splitKeywords(p.keywords)];
     const pv = p.has_variants ? (variantsByProduct.get(p.id) || []) : [];
     if (!pv.length) {
       candidates.push({
-        product_id: p.id, variant_id: null, label: p.name, unit: p.unit || 'шт', tokenSets: [matchTokens(p.name)],
+        product_id: p.id, variant_id: null, label: p.name, unit: p.unit || 'шт', tokenSets: names.map(matchTokens),
       });
       continue;
     }
@@ -170,7 +175,7 @@ function buildMatchContext(branchId) {
         variant_id: v.id,
         label: `${p.name} — ${v.name}`,
         unit: p.unit || 'шт',
-        tokenSets: [matchTokens(`${p.name} ${v.name}`), matchTokens(v.name)],
+        tokenSets: [...names.map((n) => matchTokens(`${n} ${v.name}`)), matchTokens(v.name)],
       });
     }
   }
@@ -182,18 +187,34 @@ function buildMatchContext(branchId) {
     ORDER BY name
   `, [branchId]).map((s) => ({ ...s, tokens: matchTokens(s.name) }));
 
-  const links = new Set(
-    queryAll('SELECT product_id, supplier_id FROM product_suppliers WHERE branch_id = ?', [branchId])
-      .map((r) => `${r.product_id}:${r.supplier_id}`),
-  );
-
   const priceMaps = new Map();
+  const supplierProducts = new Map();
   return {
     branchId,
     candidates,
     candidateIndex,
     suppliers,
-    links,
+    /** Товары, которые у поставщика есть: привязка в карточке, его приходы и прайсы. */
+    supplierProductIds(supplierId) {
+      if (!supplierId) return null;
+      if (!supplierProducts.has(supplierId)) {
+        const ids = new Set(
+          queryAll('SELECT product_id FROM product_suppliers WHERE supplier_id = ? AND branch_id = ?', [supplierId, branchId])
+            .map((r) => r.product_id),
+        );
+        for (const r of queryAll(`
+          SELECT DISTINCT di.product_id
+          FROM document_items di
+          JOIN documents d ON d.id = di.document_id
+          WHERE d.counterparty_id = ? AND d.type IN ('prihod', 'supplier_price') AND d.status <> 'cancelled'
+            AND COALESCE(d.branch_id, 'main') = ?
+        `, [supplierId, branchId])) {
+          ids.add(r.product_id);
+        }
+        supplierProducts.set(supplierId, ids);
+      }
+      return supplierProducts.get(supplierId);
+    },
     productAliases: loadAliases(branchId, 'product'),
     supplierAliases: loadAliases(branchId, 'supplier'),
     priceFor(supplierId, date, productId, variantId) {
@@ -225,18 +246,23 @@ function matchProduct(ctx, name, supplierId) {
     if (cand) return { match: cand, via: 'alias', suggestions: [] };
   }
   const query = matchTokens(name);
+  const own = ctx.supplierProductIds(supplierId);
   const scored = [];
   for (const c of ctx.candidates) {
-    const base = Math.max(...c.tokenSets.map((tokens) => scoreTokens(query, tokens)));
-    if (base < SUGGEST_MIN_SCORE) continue;
-    const linked = supplierId && ctx.links.has(`${c.product_id}:${supplierId}`) ? SUPPLIER_LINK_BONUS : 0;
-    scored.push({ c, score: base + (base >= 50 ? linked : 0) });
+    const score = Math.max(...c.tokenSets.map((tokens) => scoreTokens(query, tokens)));
+    if (score < SUGGEST_MIN_SCORE) continue;
+    scored.push({ c, score, own: !!own?.has(c.product_id) });
   }
-  const { top } = pickBest(scored);
+
+  // Сначала то, что у этого поставщика есть; не нашли — весь справочник
+  const ownScored = scored.filter((s) => s.own);
+  const ownPick = ownScored.length ? pickBest(ownScored).top : null;
+  const { top } = ownPick ? { top: ownPick } : pickBest(scored.slice());
+  scored.sort((a, b) => (b.score + (b.own ? SUPPLIER_LINK_BONUS : 0)) - (a.score + (a.own ? SUPPLIER_LINK_BONUS : 0)));
   return {
     match: top?.c || null,
-    via: top ? 'name' : null,
-    suggestions: scored.slice(0, 6).map((s) => publicCandidate(s.c)),
+    via: top ? (top.own ? 'supplier' : 'name') : null,
+    suggestions: scored.slice(0, 6).map((s) => ({ ...publicCandidate(s.c), own: s.own })),
   };
 }
 
@@ -269,12 +295,21 @@ function convertQuantity(line, productUnit) {
   return line.quantity;
 }
 
+function groupJson(group, notes) {
+  return JSON.stringify({ date: group.date || null, supplier: group.supplier, lines: group.lines, notes });
+}
+
 function readParsed(entry) {
   try {
     const parsed = JSON.parse(entry.parsed_json || '{}');
-    return { supplier: parsed.supplier || null, lines: parsed.lines || [], notes: parsed.notes || [] };
+    return {
+      date: parsed.date || null,
+      supplier: parsed.supplier || null,
+      lines: parsed.lines || [],
+      notes: parsed.notes || [],
+    };
   } catch {
-    return { supplier: null, lines: [], notes: [] };
+    return { date: null, supplier: null, lines: [], notes: [] };
   }
 }
 
@@ -303,6 +338,8 @@ function analyzeEntry(entry, ctx) {
     };
   });
   return {
+    date: entry.doc_date,
+    date_from_text: !!parsed.date,
     supplier: parsed.supplier
       ? {
         raw: parsed.supplier.raw,
@@ -434,7 +471,7 @@ function autoProcessEntry(entry, topic, ctx) {
       entry,
       status: result.confirmed ? 'confirmed' : 'created',
       document: result.document,
-      reply: `${head} · ${analysis.supplier.counterparty_name}\n${linesSummary(analysis)}${tail}`,
+      reply: `${head} · ${formatMessageAt(entry.doc_date)} · ${analysis.supplier.counterparty_name}\n${linesSummary(analysis)}${tail}`,
     };
   } catch (e) {
     run("UPDATE telegram_inbox SET status = 'error', error = ?, updated_at = datetime('now') WHERE id = ?", [e.message, entry.id]);
@@ -483,7 +520,8 @@ export function handleIncomingMessage(input) {
   const text = String(input.text || '').trim();
   if (!text || text.startsWith('/')) return { topic, results: [] };
 
-  const parsed = parsePrihodMessage(text);
+  const when = localDateTime(input.date || new Date());
+  const parsed = parsePrihodMessage(text, { referenceDate: when.date });
   const chatId = String(input.chatId);
   const messageId = String(input.messageId);
   const existing = queryAll(
@@ -493,21 +531,17 @@ export function handleIncomingMessage(input) {
   if (existing.length && !input.edited) return { topic, results: [] };
   if (!parsed.groups.length && !existing.length) return { topic, results: [] };
 
-  const when = localDateTime(input.date || new Date());
   const ctx = buildMatchContext(topic.branch_id);
   const results = [];
 
   parsed.groups.forEach((group, part) => {
-    const parsedJson = JSON.stringify({
-      supplier: group.supplier,
-      lines: group.lines,
-      notes: part === 0 ? parsed.notes : [],
-    });
+    const parsedJson = groupJson(group, part === 0 ? parsed.notes : []);
+    const docDate = group.date || when.date;
     const prev = existing.find((e) => Number(e.part) === part);
     if (prev) {
       run(`
-        UPDATE telegram_inbox SET text = ?, parsed_json = ?, edited = 1, updated_at = datetime('now') WHERE id = ?
-      `, [text, parsedJson, prev.id]);
+        UPDATE telegram_inbox SET text = ?, parsed_json = ?, doc_date = ?, edited = 1, updated_at = datetime('now') WHERE id = ?
+      `, [text, parsedJson, docDate, prev.id]);
       results.push(processEditedEntry(queryOne('SELECT * FROM telegram_inbox WHERE id = ?', [prev.id]), topic, ctx));
       return;
     }
@@ -519,7 +553,7 @@ export function handleIncomingMessage(input) {
     `, [
       id, topic.branch_id, topic.id, topic.department_id, chatId, topic.thread_id, messageId, part,
       input.fromName || null, input.fromUserId ? String(input.fromUserId) : null,
-      text, when.at, when.date, parsedJson,
+      text, when.at, docDate, parsedJson,
     ]);
     results.push(autoProcessEntry(queryOne('SELECT * FROM telegram_inbox WHERE id = ?', [id]), topic, ctx));
   });
@@ -667,12 +701,12 @@ export function importPastedText(branchId, { text, department_id: departmentId, 
   let skipped = 0;
 
   for (const msg of messages) {
-    const parsed = parsePrihodMessage(msg.text);
+    const docDate = msg.date || fallbackDate;
+    const parsed = parsePrihodMessage(msg.text, { referenceDate: docDate });
     if (!parsed.groups.length) {
       skipped += 1;
       continue;
     }
-    const docDate = msg.date || fallbackDate;
     const messageAt = msg.time ? `${docDate}T${msg.time}` : null;
     const messageId = `paste:${createHash('sha1')
       .update(`${branchId}|${docDate}|${msg.time || ''}|${msg.author || ''}|${msg.text}`)
@@ -688,8 +722,8 @@ export function importPastedText(branchId, { text, department_id: departmentId, 
           from_name, text, message_at, doc_date, parsed_json, status)
         VALUES (?, ?, NULL, ?, 'paste', '', ?, ?, 'paste', ?, ?, ?, ?, ?, 'new')
       `, [
-        uuidv4(), branchId, departmentId, messageId, part, msg.author || null, msg.text, messageAt, docDate,
-        JSON.stringify({ supplier: group.supplier, lines: group.lines, notes: part === 0 ? parsed.notes : [] }),
+        uuidv4(), branchId, departmentId, messageId, part, msg.author || null, msg.text, messageAt,
+        group.date || docDate, groupJson(group, part === 0 ? parsed.notes : []),
       ]);
       added += 1;
     });

@@ -56,7 +56,9 @@ function EntryCard({ entry, onReview, onStatus }) {
       <div className="tg-prihod-card-head">
         <div>
           <strong>{formatDate(entry.doc_date)}</strong>
-          {messageTime(entry.message_at) && <span className="muted"> {messageTime(entry.message_at)}</span>}
+          {analysis.date_from_text
+            ? <span className="muted"> · дата из текста</span>
+            : messageTime(entry.message_at) && <span className="muted"> {messageTime(entry.message_at)}</span>}
           {entry.from_name && <span> · {entry.from_name}</span>}
           <div className="muted tg-prihod-card-source">
             {entrySource(entry)}
@@ -311,9 +313,10 @@ function ReviewModal({ entry, products, suppliers, departments, canConfirm, onCl
                               key={`${s.product_id}:${s.variant_id || ''}`}
                               type="button"
                               className="tg-prihod-chip"
+                              title={s.own ? 'Есть у этого поставщика' : undefined}
                               onClick={() => pickProduct(idx, encodeProductPick(s.product_id, s.variant_id))}
                             >
-                              {s.label}
+                              {s.own ? '★ ' : ''}{s.label}
                             </button>
                           ))}
                         </span>

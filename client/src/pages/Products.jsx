@@ -172,6 +172,7 @@ const emptyProduct = {
   unit: 'шт',
   barcode: '',
   sku: '',
+  keywords: '',
   net_weight: '',
   gross_weight: '',
   price: '',
@@ -766,6 +767,7 @@ export default function Products() {
       unit: p.unit || 'шт',
       barcode: p.barcode || '',
       sku: p.sku || '',
+      keywords: p.keywords || '',
       net_weight: p.net_weight ?? '',
       gross_weight: p.gross_weight ?? '',
       price: priceSource != null && priceSource !== '' ? formatPriceInput(priceSource) : '',
@@ -907,6 +909,7 @@ export default function Products() {
         unit: form.unit,
         barcode: form.barcode,
         sku: form.sku,
+        keywords: form.keywords || '',
         net_weight: form.net_weight === '' ? null : form.net_weight,
         gross_weight: form.gross_weight === '' ? null : form.gross_weight,
         supplier_ids: form.supplier_ids || [],
@@ -1163,6 +1166,11 @@ export default function Products() {
           {!isVariant && p.barcode && (
             <div className="product-meta">
               Штрих-код: <SearchHighlight text={p.barcode} query={search} />
+            </div>
+          )}
+          {!isVariant && p.keywords && (
+            <div className="product-meta">
+              Также: <SearchHighlight text={p.keywords} query={search} />
             </div>
           )}
         </td>
@@ -1484,6 +1492,15 @@ export default function Products() {
                     <div className="form-group full">
                       <label>Наименование *</label>
                       <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                    </div>
+                    <div className="form-group full">
+                      <label>Ключевые слова</label>
+                      <input
+                        value={form.keywords || ''}
+                        onChange={(e) => setForm({ ...form, keywords: e.target.value })}
+                        placeholder="Другие названия через запятую: Ковурга, Корейка, qovurg'a"
+                      />
+                      <span className="form-hint">По ним товар находится в поиске и в приходах из Telegram</span>
                     </div>
                     <div className="form-group">
                       <label>Вид номенклатуры *</label>

@@ -638,7 +638,22 @@ function normalizeProductPayload(data) {
     barcode: (data.barcode || '').trim(),
     net_weight: netWeight,
     gross_weight: grossWeight,
+    keywords: data.keywords === undefined ? undefined : normalizeKeywords(data.keywords),
   };
+}
+
+/** «Ковурга, корейка\nqovurg'a» → «Ковурга, корейка, qovurg'a» (без повторов, null если пусто). */
+export function normalizeKeywords(raw) {
+  const list = Array.isArray(raw) ? raw : String(raw || '').split(/[,;\n]+/);
+  const seen = new Set();
+  const out = [];
+  for (const item of list) {
+    const word = String(item || '').replace(/\s+/g, ' ').trim();
+    if (!word || seen.has(word.toLowerCase())) continue;
+    seen.add(word.toLowerCase());
+    out.push(word.slice(0, 80));
+  }
+  return out.length ? out.slice(0, 30).join(', ') : null;
 }
 
 function normalizeVariantsInput(variants) {
@@ -948,13 +963,13 @@ export function createProduct(data) {
 
   const id = uuidv4();
   run(`
-    INSERT INTO products (id, name, sku, unit, price, stock, category_id, product_kind, barcode, net_weight, gross_weight, has_variants)
-    VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)
+    INSERT INTO products (id, name, sku, unit, price, stock, category_id, product_kind, barcode, net_weight, gross_weight, has_variants, keywords)
+    VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)
   `, [
     id, payload.name, payload.sku, payload.unit, payload.price,
     payload.category_id, payload.product_kind, payload.barcode || null,
     payload.net_weight, payload.gross_weight,
-    payload.has_variants,
+    payload.has_variants, payload.keywords ?? null,
   ]);
 
   const branchId = data.branch_id || DEFAULT_BRANCH_ID;
@@ -1000,6 +1015,9 @@ export function updateProduct(id, data, branchId = DEFAULT_BRANCH_ID, options = 
     payload.net_weight, payload.gross_weight,
     payload.has_variants, id,
   ]);
+  if (payload.keywords !== undefined) {
+    run('UPDATE products SET keywords = ? WHERE id = ?', [payload.keywords, id]);
+  }
   if (data.supplier_ids !== undefined) {
     setProductSuppliers(id, data.supplier_ids, branchId);
   }

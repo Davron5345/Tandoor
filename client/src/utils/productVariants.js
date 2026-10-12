@@ -123,12 +123,14 @@ export function productListRowSearchHaystack(row) {
       variant.barcode,
       product.barcode,
       product.sku,
+      product.keywords,
     ].filter(Boolean).join(' ').toLowerCase();
   }
   return [
     product.name,
     product.barcode,
     product.sku,
+    product.keywords,
   ].filter(Boolean).join(' ').toLowerCase();
 }
 
@@ -202,6 +204,7 @@ export function filterProductPickOptions(options, search) {
       option.label,
       option.product?.sku,
       option.product?.barcode,
+      option.product?.keywords,
       option.product?.category_name,
       option.product?.parent_category_name,
       option.variant?.name,
@@ -217,6 +220,7 @@ function pickSearchText(product, variant = null) {
     variant ? `${product?.name} ${variant.name}` : null,
     product?.sku,
     product?.barcode,
+    product?.keywords,
     product?.category_name,
     product?.parent_category_name,
   ].filter(Boolean).join(' ').toLowerCase();
@@ -263,6 +267,7 @@ export function filterProductPickGroups(groups, search) {
         group.product.name,
         group.product.sku,
         group.product.barcode,
+        group.product.keywords,
         group.product.category_name,
         group.product.parent_category_name,
       ].filter(Boolean).join(' ');

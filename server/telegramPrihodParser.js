@@ -110,28 +110,87 @@ function parseSupplierHeader(rawLine) {
   return { raw: line.replace(/:\s*$/, '').trim(), name: stem };
 }
 
+const DATE_IN_LINE_RE = /(?:^|[\s(])(\d{1,2})[./](\d{1,2})(?:[./](\d{2}|\d{4}))?(?:\s*(?:г\.?|й?ил|yil))?(?=$|[\s:),-])/iu;
+const DATE_WORDS = new Set([
+  'сана', 'дата', 'sana', 'число', 'приход', 'prixod', 'prihod', 'kirim', 'кирим', 'кун', 'куни', 'kun', 'kuni', 'от', 'за',
+]);
+
+function isoDate(y, m, d) {
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== m - 1 || dt.getUTCDate() !== d) return null;
+  return dt.toISOString().slice(0, 10);
+}
+
+/**
+ * Дата, написанная в сообщении: «06.10», «06.10.2026», «Сана: 6.10», «06.10 Жалилдан:».
+ * Без года — год даты сообщения (если получилось сильно «в будущем» — прошлый год).
+ * @returns {{ date: string, rest: string } | null}
+ */
+export function parseDateLine(rawLine, referenceDate = null) {
+  const line = String(rawLine || '').trim();
+  const m = line.match(DATE_IN_LINE_RE);
+  if (!m) return null;
+  const before = line.slice(0, m.index).replace(/[\s:;,.\-–—]+/gu, ' ').trim();
+  const after = line.slice(m.index + m[0].length).trim();
+  const words = before.split(' ').filter((w) => w && !DATE_WORDS.has(w.toLowerCase()));
+  const rest = [...words, after.replace(/^[\s:;,.\-–—]+/u, '')].filter(Boolean).join(' ').trim();
+  const restWords = rest.replace(/[:\s]+$/u, '').split(/\s+/).filter((w) => w && !DATE_WORDS.has(w.toLowerCase()));
+  if (/\d/.test(rest)) return null;
+  if (restWords.length && !parseSupplierHeader(rest)) return null;
+  const date = resolveDate(m, referenceDate);
+  return date ? { date, rest: restWords.length ? rest : '' } : null;
+}
+
+function resolveDate(m, referenceDate) {
+  const day = Number(m[1]);
+  const month = Number(m[2]);
+  const ref = /^\d{4}-\d{2}-\d{2}$/.test(String(referenceDate || '')) ? String(referenceDate) : null;
+  const refYear = ref ? Number(ref.slice(0, 4)) : new Date().getUTCFullYear();
+  let year = m[3] ? Number(m[3].length === 2 ? `20${m[3]}` : m[3]) : refYear;
+  let date = isoDate(year, month, day);
+  if (!date) return null;
+  if (!m[3] && ref) {
+    const diffDays = (Date.parse(date) - Date.parse(ref)) / 86400000;
+    if (diffDays > 31) {
+      year -= 1;
+      date = isoDate(year, month, day);
+      if (!date) return null;
+    }
+  }
+  return date;
+}
+
 /**
  * Текст одного сообщения → группы по поставщикам.
- * @returns {{ groups: Array<{ supplier: {raw,name}|null, lines: object[] }>, notes: string[] }}
+ * Дата в тексте («06.10») относится к поставщикам после неё; без даты — `date: null` (берётся дата сообщения).
+ * @returns {{ groups: Array<{ supplier: {raw,name}|null, date: string|null, lines: object[] }>, notes: string[] }}
  */
-export function parsePrihodMessage(text) {
+export function parsePrihodMessage(text, { referenceDate = null } = {}) {
   const groups = [];
   const notes = [];
   let current = null;
+  let currentDate = null;
 
   for (const rawLine of String(text || '').split(/\r?\n/)) {
-    const trimmed = rawLine.trim();
+    let trimmed = rawLine.trim();
     if (!trimmed) continue;
+    const dated = parseDateLine(trimmed, referenceDate);
+    if (dated) {
+      currentDate = dated.date;
+      if (current && !current.lines.length) current.date = dated.date;
+      if (!dated.rest) continue;
+      trimmed = dated.rest;
+    }
     const header = parseSupplierHeader(trimmed);
     if (header) {
-      current = { supplier: header, lines: [] };
+      current = { supplier: header, date: currentDate, lines: [] };
       groups.push(current);
       continue;
     }
     const item = parseItemLine(trimmed);
     if (item) {
       if (!current) {
-        current = { supplier: null, lines: [] };
+        current = { supplier: null, date: currentDate, lines: [] };
         groups.push(current);
       }
       current.lines.push(item);

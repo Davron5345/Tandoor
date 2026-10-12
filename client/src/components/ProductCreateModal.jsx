@@ -32,6 +32,7 @@ const emptyProduct = {
   unit: 'шт',
   barcode: '',
   sku: '',
+  keywords: '',
   net_weight: '',
   gross_weight: '',
   price: '',
@@ -190,6 +191,7 @@ export default function ProductCreateModal({
             unit: p.unit || 'шт',
             barcode: p.barcode || '',
             sku: p.sku || '',
+            keywords: p.keywords || '',
             net_weight: p.net_weight ?? '',
             gross_weight: p.gross_weight ?? '',
             price: priceSource != null && priceSource !== '' ? formatPriceInput(priceSource) : '',
@@ -346,6 +348,7 @@ export default function ProductCreateModal({
         unit: form.unit,
         barcode: form.barcode,
         sku: form.sku,
+        keywords: form.keywords || '',
         net_weight: form.net_weight === '' ? null : form.net_weight,
         gross_weight: form.gross_weight === '' ? null : form.gross_weight,
         supplier_ids: form.supplier_ids || [],
@@ -476,6 +479,14 @@ export default function ProductCreateModal({
                     <input
                       value={form.name}
                       onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    />
+                  </div>
+                  <div className="form-group full">
+                    <label>Ключевые слова</label>
+                    <input
+                      value={form.keywords || ''}
+                      onChange={(e) => setForm({ ...form, keywords: e.target.value })}
+                      placeholder="Другие названия через запятую: Ковурга, Корейка, qovurg'a"
                     />
                   </div>
                   <div className="form-group">

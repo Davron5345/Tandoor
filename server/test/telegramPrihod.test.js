@@ -6,6 +6,7 @@ import { tmpdir } from 'os';
 import {
   matchKey,
   matchTokens,
+  parseDateLine,
   parsePrihodMessage,
   scoreTokens,
   splitPastedTelegramText,
@@ -199,6 +200,51 @@ test('matching: Latin and Cyrillic spellings, suffixes and small typos are the s
   assert.equal(score('Сон', 'Молоко'), 0);
   assert.equal(score('Мол', 'Молоко'), 0);
   assert.ok(score('Куй жигари', 'Жигар') < 25);
+});
+
+test('parser: date written in the message applies to the suppliers after it', () => {
+  assert.deepEqual(parseDateLine('06.10', '2026-10-08'), { date: '2026-10-06', rest: '' });
+  assert.deepEqual(parseDateLine('Сана: 6.10.2026', null), { date: '2026-10-06', rest: '' });
+  assert.equal(parseDateLine('28.12', '2027-01-03').date, '2026-12-28');
+  assert.equal(parseDateLine('06.10 Жалилдан:', '2026-10-08').rest, 'Жалилдан:');
+  assert.equal(parseDateLine('Сон 4.5 кг', '2026-10-08'), null);
+  assert.equal(parseDateLine('31.02', '2026-10-08'), null);
+
+  const p = parsePrihodMessage('06.10\nЖалилдан:\nСон-4.5кг\n07.10 Муротдан:\nКачалка -11кг', { referenceDate: '2026-10-08' });
+  assert.deepEqual(p.groups.map((g) => [g.supplier.name, g.date]), [['Жалил', '2026-10-06'], ['Мурот', '2026-10-07']]);
+  assert.equal(p.groups[0].lines[0].quantity, 4.5);
+  assert.equal(parsePrihodMessage('Жалилдан:\nСон-1кг').groups[0].date, null);
+});
+
+test('date, then supplier, then the supplier\'s own products; product keywords', async () => {
+  const svc = await import('../services.js');
+  const tp = await import('../services/telegramPrihod.js');
+
+  const anvar = svc.createCounterparty({ name: 'Anvar', type: 'supplier', branch_id: 'main' });
+  const bobur = svc.createCounterparty({ name: 'Бобур', type: 'supplier', branch_id: 'main' });
+  const toshMol = svc.createProduct({ name: 'Тўш мол', unit: 'кг', price: 0, branch_id: 'main', supplier_ids: [anvar.id] });
+  const toshQoy = svc.createProduct({ name: "To'sh qo'y", unit: 'кг', price: 0, branch_id: 'main', supplier_ids: [bobur.id] });
+  const sarpanja = svc.createProduct({
+    name: 'Сарпанжа', unit: 'кг', price: 0, branch_id: 'main', keywords: 'Ковурга,  корейка; Ковурга',
+  });
+  assert.equal(sarpanja.keywords, 'Ковурга, корейка');
+
+  const base = { chatId: -1001, threadId: 77, fromName: 'Нодирбек', date: new Date('2026-10-08T05:00:00Z') };
+  const a = tp.handleIncomingMessage({ ...base, messageId: 60, text: '06.10\nАнвардан:\nТўш-5кг\nКорейка-3кг' });
+  assert.equal(a.results[0].status, 'created');
+  const docA = svc.getDocument(a.results[0].document.id, 'main');
+  assert.equal(docA.date, '2026-10-06');
+  assert.equal(docA.counterparty_id, anvar.id);
+  assert.deepEqual(docA.items.map((i) => i.product_id).sort(), [toshMol.id, sarpanja.id].sort());
+
+  const b = tp.handleIncomingMessage({ ...base, messageId: 61, text: 'Бобурдан:\nТўш-7кг' });
+  const docB = svc.getDocument(b.results[0].document.id, 'main');
+  assert.equal(docB.date, '2026-10-08');
+  assert.equal(docB.items[0].product_id, toshQoy.id);
+
+  // Без поставщика «Тўш» неоднозначен — ждёт выбора
+  const c = tp.handleIncomingMessage({ ...base, messageId: 62, text: 'Тўш-1кг' });
+  assert.equal(c.results[0].status, 'pending');
 });
 
 test('Latin catalog names are recognised from a Cyrillic topic message', async () => {
