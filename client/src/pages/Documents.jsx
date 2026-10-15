@@ -155,6 +155,9 @@ const emptyDoc = {
   status: 'draft',
   items: [{ ...emptyItem }],
   extra_costs: [],
+  ai_recognized: false,
+  ai_unconfirmed_count: 0,
+  ai_pending_items: [],
 };
 
 export default function Documents({ defaultType }) {
@@ -1109,6 +1112,8 @@ export default function Documents({ defaultType }) {
         price: i.price,
         amount: i.amount,
         net_weight: i.net_weight ?? '',
+        ai_confirmed: i.ai_confirmed !== 0 && i.ai_confirmed !== false,
+        ai_raw_name: i.ai_raw_name || null,
       })),
       extra_costs: doc.type === 'prihod'
         ? (doc.extra_costs || []).map((e) => ({
@@ -1117,6 +1122,9 @@ export default function Documents({ defaultType }) {
           capitalize: e.capitalize !== false,
         }))
         : [],
+      ai_recognized: !!doc.ai_recognized,
+      ai_unconfirmed_count: Number(doc.ai_unconfirmed_count) || 0,
+      ai_pending_items: Array.isArray(doc.ai_pending_items) ? doc.ai_pending_items : [],
     };
     setForm(applyDocumentDraft(id, loadedForm));
     setPrihodBodyTab('items');
@@ -1473,6 +1481,10 @@ export default function Documents({ defaultType }) {
           amount: parsePriceInput(e.amount) ?? 0,
           capitalize: e.capitalize !== false,
         }));
+        if (form.ai_recognized) {
+          // После проверки сохраняем без «висящих» несопоставленных — их нужно добавить вручную или отбросить.
+          data.ai_pending_items = [];
+        }
       }
       if (form.type === 'peremeshchenie') {
         if (form.transfer_mode === 'department') {
@@ -1718,7 +1730,10 @@ export default function Documents({ defaultType }) {
         {isPhone ? (
           <div className="docs-list-cards">
             {visibleDocs.map((d) => (
-              <article key={d.id} className="docs-doc-card">
+              <article
+                key={d.id}
+                className={`docs-doc-card${d.ai_recognized ? ' docs-doc-card--ai' : ''}`}
+              >
                 <button
                   type="button"
                   className="docs-doc-card-main"
@@ -1727,6 +1742,14 @@ export default function Documents({ defaultType }) {
                   <div className="docs-doc-card-top">
                     <strong>№{d.number}</strong>
                     <span className={`badge badge-${d.status}`}>{STATUS_LABELS[d.status]}</span>
+                    {!!d.ai_recognized && (
+                      <span className="badge badge-ai" title="Распознано искусственным интеллектом">ИИ</span>
+                    )}
+                    {!!d.ai_recognized && Number(d.ai_unconfirmed_count) > 0 && (
+                      <span className="badge badge-ai-pending">
+                        Неподтв. {d.ai_unconfirmed_count}
+                      </span>
+                    )}
                   </div>
                   <div className="docs-doc-card-meta">
                     <span className="docs-doc-card-meta-left">
@@ -1790,17 +1813,27 @@ export default function Documents({ defaultType }) {
             </thead>
             <tbody>
               {visibleDocs.map((d) => (
-                <tr key={d.id}>
+                <tr key={d.id} className={d.ai_recognized ? 'docs-row-ai' : undefined}>
                   <td>{d.number}</td>
                   <td>{formatDate(d.date)}</td>
                   <td>
                     <span className={`badge badge-${d.type === 'peremeshchenie' ? 'supplier' : ((d.type === RETURN_SUPPLIER_TYPE || d.type === RETURN_CUSTOMER_TYPE) ? 'rashod' : d.type)}`}>
                       {typeLabel(d.type)}
                     </span>
+                    {!!d.ai_recognized && (
+                      <span className="badge badge-ai" style={{ marginLeft: 6 }} title="Распознано ИИ">ИИ</span>
+                    )}
                   </td>
                   <td>{d.counterparty_name || docBranchLabel(d) || '—'}</td>
                   <td>{formatMoney(d.total_amount)}</td>
-                  <td><span className={`badge badge-${d.status}`}>{STATUS_LABELS[d.status]}</span></td>
+                  <td>
+                    <span className={`badge badge-${d.status}`}>{STATUS_LABELS[d.status]}</span>
+                    {!!d.ai_recognized && Number(d.ai_unconfirmed_count) > 0 && (
+                      <span className="badge badge-ai-pending" style={{ marginLeft: 6 }}>
+                        Неподтв. {d.ai_unconfirmed_count}
+                      </span>
+                    )}
+                  </td>
                   <td>
                     <div className="btn-group btn-group-icons doc-actions">
                       <IconButton
@@ -1939,6 +1972,24 @@ export default function Documents({ defaultType }) {
               </div>
             )}
             <div className="doc-modal-fields">
+              {form.ai_recognized && (
+                <div className="alert alert-ai" style={{ marginBottom: 12 }}>
+                  <strong>Распознано искусственным интеллектом</strong>
+                  {Number(form.ai_unconfirmed_count) > 0
+                    ? ` · неподтверждённых позиций: ${form.ai_unconfirmed_count}. Проверьте строки и сохраните.`
+                    : ' · позиции проверены.'}
+                  {Array.isArray(form.ai_pending_items) && form.ai_pending_items.length > 0 && (
+                    <ul style={{ margin: '8px 0 0', paddingLeft: 18 }}>
+                      {form.ai_pending_items.map((p, i) => (
+                        <li key={`ai-pending-${i}`}>
+                          Не сопоставлено: {p.name}
+                          {p.quantity != null ? ` — ${p.quantity} ${p.unit || ''}` : ''}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
               {form.type === 'prihod' && !form.counterparty_id && !isReadOnly && (
                 <div className="alert alert-error" style={{ marginBottom: 12 }}>
                   Сначала выберите поставщика — затем появятся только его товары.

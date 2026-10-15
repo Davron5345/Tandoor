@@ -536,6 +536,10 @@ export const api = {
   getTelegramMessages: () => request('/telegram/messages'),
   sendTelegramMessage: (data) => request('/telegram/send', { method: 'POST', body: JSON.stringify(data) }),
   sendDocumentTelegram: (id) => request(`/telegram/send-document/${id}`, { method: 'POST' }),
+  getAiSettings: () => request('/ai/settings'),
+  saveAiSettings: (data) => request('/ai/settings', { method: 'PUT', body: JSON.stringify(data) }),
+  refreshAiModels: () => request('/ai/models/refresh', { method: 'POST', body: '{}' }),
+  getAiModels: () => request('/ai/models'),
   getTelegramPrihodInbox: (params = {}) => {
     const q = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => {

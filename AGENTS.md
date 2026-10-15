@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-10-12 (Telegram-приход: новый вариант товара из окна разбора)
+**Последнее обновление документации:** 2026-10-16 (OpenRouter: распознавание фото прихода из Telegram)
 
 ---
 
@@ -173,7 +173,7 @@ npm run db:repair-transfers [-- --apply] # Старые межфилиальны
 |--------|---------|
 | Каталог | `products` (+ `keywords` — другие названия через запятую: поиск и приходы из Telegram), `product_variants`, `product_categories`, `units`, `product_images`, `product_suppliers`, `product_branches`, `product_variant_branches` |
 | Склад | `departments`, `product_department_stock`, `product_branch_stock` |
-| Документы | `documents` (+ `firm_id` у прихода, `inventory_coverage` / `article_id` / `liable_user_id` / `liable_department_id` у инвентаризации), `document_items` (+ `net_weight` в строках прихода/перемещения/инвентаризации, `book_qty` в инвентаризации), `document_extra_costs` (доп. расходы прихода), `document_history`, `opening_balance_lines` |
+| Документы | `documents` (+ `firm_id` у прихода, `inventory_coverage` / `article_id` / `liable_user_id` / `liable_department_id` у инвентаризации, `ai_recognized` / `ai_pending_json` / `ai_unconfirmed_count` у прихода из фото ИИ), `document_items` (+ `net_weight` в строках прихода/перемещения/инвентаризации, `book_qty` в инвентаризации, `ai_confirmed` / `ai_raw_name` у строк ИИ), `document_extra_costs` (доп. расходы прихода), `document_history`, `opening_balance_lines` |
 | Контрагенты | `counterparties`, `counterparty_firms` (юрлица: ИНН, bank_account, mfo), `counterparty_contracts` (title, number, date, end_date, direction, amount, `firm_id`) |
 | Финансы | `payments` (+ `external_ref`, `import_batch_id`, `contract_id`, `firm_id`, `bank_account_id`, `liable_user_id` / `liable_department_id` для возврата долга по remainder-инвентаризации), `bank_accounts`, `cash_articles`, `branch_opening_balances` |
 | Калькуляции | `calculations`, `calculation_items`, `calculation_sources` |
@@ -181,8 +181,8 @@ npm run db:repair-transfers [-- --apply] # Старые межфилиальны
 | MyShop/Mobile | `shop_orders`, `shop_order_items`, `push_subscriptions`, `staff_locations`, `staff_location_history` |
 | Зарплата / Face ID | `payroll_employees` (синк из Face ID или Excel, `balance` = долг, `view_token` — единая ссылка `/e/{token}`), `payroll_attendance` (приход/уход), `payroll_ledger` (начисление/выплата); настройки в `settings` ключ `faceid_config_{branchId}` |
 | Отчёты | `reconciliation_marks` — отметки акта сверки (counterparty_id, срез `firm_id`/`contract_id` как в фильтре акта, `date`, снимок `balance`, comment, created_by) |
-| Telegram-приходы | `telegram_topics` (группа `chat_id` + тема `thread_id`, `mode` off/prihod, `branch_id`, `department_id`, флаги `auto_create` / `auto_confirm` / `notify`), `telegram_inbox` (сообщение → `part` на каждого поставщика; `parsed_json`, `doc_date`, `status` new/error/created/ignored, `document_id`, `source` telegram/paste), `telegram_aliases` (выученные сопоставления `kind` product/supplier: `alias_key` → `target_id` / `variant_id`, по филиалу) |
-| Прочее | `telegram_messages`, `settings`, `branches` |
+| Telegram-приходы | `telegram_topics` (группа `chat_id` + тема `thread_id`, `mode` off/prihod, `branch_id`, `department_id`, флаги `auto_create` / `auto_confirm` / `notify`), `telegram_inbox` (сообщение → `part` на каждого поставщика; `parsed_json`, `doc_date`, `status` new/error/created/ignored, `document_id`, `source` telegram/paste/ai_photo), `telegram_aliases` (выученные сопоставления `kind` product/supplier: `alias_key` → `target_id` / `variant_id`, по филиалу) |
+| Прочее | `telegram_messages`, `settings` (в т.ч. `openrouter_config` — API-ключ, модель, кэш списка моделей), `branches` |
 
 ---
 
@@ -472,6 +472,7 @@ Frontend зеркало: `client/src/permissions.js`.
 - Удаление прихода возвращает сообщение в «Входящие» (`deleteDocument` сбрасывает `telegram_inbox.document_id`). «Пропустить» нельзя при живом приходе
 - История до подключения бота: «Вставить из Telegram» — текст из Telegram Desktop (`Нодирбек, [09.10.2026 8:39]` или `[09.10.2026 8:39] Нодирбек: …`), отдел и дата по умолчанию; дубли отсекаются по хешу (`chat_id = 'paste'`)
 - Удаление филиала чистит `telegram_inbox` / `telegram_aliases` и отвязывает темы; сброс операционных данных чистит inbox и aliases
+- **Фото прихода (OpenRouter):** в теме с режимом «Приход» фото тетради/накладной скачивается ботом → `recognizePrihodPhoto` (`services/openRouter.js`, vision-модель) → JSON поставщик/позиции → то же сопоставление, что у текста → черновик `prihod` с `ai_recognized=1`, строки `ai_confirmed=0`, несопоставленные в `ai_pending_json`; в теме ответ с 🟡; в списке приходов строка **жёлтая** + бейджи «ИИ» / «Неподтв. N». Проведение запрещено, пока `ai_unconfirmed_count > 0` (после «Сохранить» несопоставленные сбрасываются, строки считаются проверенными). Настройки: `/telegram` → вкладка «Искусственный интеллект» (`telegram.settings`): API-ключ OpenRouter, выбор модели, кнопка **«Обновить»** тянет список с `GET openrouter.ai/api/v1/models` в кэш `settings.openrouter_config`
 
 ---
 
@@ -533,6 +534,7 @@ GET  /api/auth/roles
 | `/api/shop-orders` | shopOrders.routes.js | Заявки MyShop |
 | `/api/opening-balance` | openingBalance.routes.js | Начальное сальдо |
 | `/api/telegram/*` | telegram.routes.js | Telegram |
+| `/api/ai/*` | ai.routes.js | OpenRouter (`telegram.settings`): `GET/PUT /api/ai/settings` (api_key, model; ключ маскируется), `POST /api/ai/models/refresh` — актуальный список моделей, `GET /api/ai/models` — кэш |
 | `/api/telegram-prihod/*` | telegramPrihod.routes.js | Приходы из Telegram (`documents.prihod`): `GET /inbox?status=pending\|created\|ignored&date_from&date_to` (`items` с `analysis`: поставщик/строки/подсказки/`ready`, `counts`), `POST /inbox/:id/create` `{ date, department_id, counterparty_id, items[{line_index, product_id, variant_id, new_variant_name?, quantity, price}], remember, confirm }` (confirm требует `documents.confirm`; `new_variant_name` — добавить вариант товару, требует `products.edit`), `POST /inbox/create-ready` `{ ids }`, `POST /inbox/:id/status` `{ status: ignored\|new }`, `POST /import-text` `{ text, department_id, date }`, `GET /topics`; `PUT /topics/:id` `{ mode, department_id, auto_create, auto_confirm, notify }` — `telegram.settings` |
 | `/api/admin/*` | admin.routes.js | Аудит, бэкапы, сброс данных, сессии |
 | `/api/staff/location` | staff.routes.js | Геолокация снабженца (POST, текущая точка + история) |
@@ -554,7 +556,7 @@ GET  /api/auth/roles
 | `/product-categories` | ProductCategories.jsx | products.view |
 | `/units` | Units.jsx | products.view |
 | `/counterparties` | Counterparties.jsx | counterparties.view; поиск по названию/ИНН/телефону; «Упоминания»; удаление только при 0 упоминаний; у поставщиков — фирмы; у «Клиент» — каналы оплаты |
-| `/prihod`, `/rashod`, `/return-*`, `/transfer` | Documents.jsx | documents.*; фильтры: дата С/По, контрагент/поставщик, статус; иконка **История** (как и в разделке, продаже блюд, инвентаризации, НС, прайсах) → `DocumentHistoryModal`: кто, когда, было → стало; `?open={id}` открывает документ; приход — вкладки **Товары** / **Доп. расходы** в том же окне (в себестоимость / в расходы; шапка и итоги всегда видны); в строке **Цена** стрелка ▲/▼ (дороже/дешевле vs последний приход; если цена как в последнем — vs предыдущий); в списке товара та же стрелка; перемещение — по умолчанию **между отделами**; у сотрудника с `department_id`: **Откуда** зафиксирован (свой отдел), **Куда** — выпадающий список складов филиала; компактная шапка; **телефон:** товары как маркетплейс; **в перемещении цена/сумма/Итого скрыты**; «Провести» снизу |
+| `/prihod`, `/rashod`, `/return-*`, `/transfer` | Documents.jsx | documents.*; фильтры: дата С/По, контрагент/поставщик, статус; иконка **История** (как и в разделке, продаже блюд, инвентаризации, НС, прайсах) → `DocumentHistoryModal`: кто, когда, было → стало; `?open={id}` открывает документ; приход — вкладки **Товары** / **Доп. расходы** в том же окне (в себестоимость / в расходы; шапка и итоги всегда видны); в строке **Цена** стрелка ▲/▼ (дороже/дешевле vs последний приход; если цена как в последнем — vs предыдущий); в списке товара та же стрелка; **приход с ИИ** (`ai_recognized`) — жёлтый фон строки, бейджи «ИИ» / «Неподтв. N», баннер в карточке; перемещение — по умолчанию **между отделами**; у сотрудника с `department_id`: **Откуда** зафиксирован (свой отдел), **Куда** — выпадающий список складов филиала; компактная шапка; **телефон:** товары как маркетплейс; **в перемещении цена/сумма/Итого скрыты**; «Провести» снизу |
 | `/documents` | Documents.jsx | documents.view; в меню «Отчёты → Журнал документов»; те же фильтры + тип документа; на телефоне — карточки как у typed-страниц |
 | `/razdelka` | Razdelka.jsx | documents.razdelka |
 | `/inventory` | Inventory.jsx | documents.inventory; на вкладке Документ сверху **Покрытие** радиокнопками (○ Частичная / ○ Полная), затем отдел квадратными кубиками с **галочкой** у выбранного; полная — статья списания + «В расход» / сотрудник / отдел кубиками; remainder связан с родителем; добавление строки берёт живой `book_qty`/`avg` отдела; колонки **Ед.** и **Нетто** как в приходе (факт — шт, на склад `net × qty` если нетто > 0); при «Сумма» — колонки **Себест.** (бирюза) и **Сумма** (синий); излишек без avg — поле ввода себестоимости; **«+»** у выбора товара — `ProductCreateModal` как в приходе (`products.edit`); без вариантов сразу в документ, несколько вариантов — выбрать в списке; в строках **№** и **товар — вариант**; «Новый» / выбор отдела открывает существующий черновик; повторный create пишет в него и **не затирает** уже посчитанные строки; **Заполнить по учёту** не чистит введённый факт/нетто и ручные позиции; черновик **Сохранить** пишет факт/нетто/учёт/вариант как введены и сразу подтягивает сохранённые строки с сервера (окно не закрывается); черновик в `sessionStorage` — после обновления страницы окно восстанавливается; **Сохранить и провести**; проведение переснимает учёт; **карандаш** в списке (как НС): черновик открыть, проведённый — снять проведение → снова черновик; глаз — просмотр; список — **сумма остатков** (складской факт × складская средняя + списание непересчитанного у полной) и **Итого** под таблицей; в карточке полной — список **непересчитанных** позиций (клик по «Списание»); **телефон:** ☰ + заголовок + филиал + «Новый» в topbar; список карточек (№/статус/дата·отдел/сумма); **2 вкладки** документа; desktop — **на весь экран**, кнопки Сохранить/Провести в шапке (телефон — снизу); portal Modal |
@@ -568,7 +570,7 @@ GET  /api/auth/roles
 | `/myshop` | MyShop.jsx | myshop.view |
 | `/myshop/constructor` | MyShopConstructor.jsx | myshop.edit |
 | `/shop-orders` | ShopOrders.jsx | shop_orders.view |
-| `/telegram` | Telegram.jsx | telegram.view |
+| `/telegram` | Telegram.jsx | telegram.view; вкладки Бот / **Искусственный интеллект** (OpenRouter API-ключ, модель, «Обновить» список) / История — `telegram.settings` |
 | `/e/:token` | EmployeeLogin.jsx | публично; единая ссылка: с логином → работа, без логина → кабинет |
 | `/s/:token` | EmployeeLogin.jsx | alias `/e/:token` |
 | `/me` | EmployeeCabinet.jsx | любой залогиненный; кабинет внутри системы |
@@ -729,6 +731,7 @@ GET  /api/auth/roles
 | MyShop | `server/myShop.js`, `server/publicShop.js`, `client/src/pages/MyShop*.jsx` |
 | Telegram | `server/telegram.js`, `server/services/telegram.js` |
 | Приходы из Telegram | `server/telegramPrihodParser.js`, `server/services/telegramPrihod.js`, `server/routes/telegramPrihod.routes.js`, `client/src/pages/TelegramPrihod.jsx` |
+| ИИ / OpenRouter (фото прихода) | `server/services/openRouter.js`, `server/routes/ai.routes.js`, вкладка ИИ в `Telegram.jsx`; фото — `handleIncomingPhoto` в `telegramPrihod.js` + `telegram.js` |
 | Push (FCM + Web) | `server/push.js`, `client/src/utils/nativePush.js`, `client/src/utils/pwaPush.js` |
 | APK снабжения | `server/snabAppVersion.js`, `nativeApkUpdate.js`, `.github/workflows/android-apk.yml` |
 | Тема UI | `client/src/theme.js`, `ThemeContext.jsx` — не дублировать цвета в `:root` |
@@ -952,6 +955,7 @@ GET  /api/auth/roles
 | 2026-10-12 | Товары: `products.keywords` (другие названия: «Сарпанжа» ← «Ковурга, Корейка»), поле в карточке, поиск по ним. Telegram-приход: дата → поставщик → сначала его товары (привязка/приходы/прайсы), потом весь справочник |
 | 2026-10-12 | Telegram-приход: дата документа всегда из Telegram (дата сообщения), дата в тексте только пропускается |
 | 2026-10-12 | Telegram-приход: в окне разбора «+ Новый вариант» — недостающий вариант добавляется товару (`addProductVariant`, `new_variant_name`, право `products.edit`) и запоминается |
+| 2026-10-16 | OpenRouter: настройки ИИ на `/telegram` (API-ключ, модель, «Обновить» список моделей); фото в теме прихода → vision → черновик с `ai_recognized`, жёлтый фон и «Неподтв.» в списке приходов; API `/api/ai/*` |
 
 ---
 

@@ -7,6 +7,7 @@ import { registerDocumentRoutes } from './documents.routes.js';
 import { registerFinanceRoutes } from './finance.routes.js';
 import { registerTelegramRoutes } from './telegram.routes.js';
 import { registerTelegramPrihodRoutes } from './telegramPrihod.routes.js';
+import { registerAiRoutes } from './ai.routes.js';
 import { registerPublicShopRoutes } from './publicShop.routes.js';
 import { registerShopOrdersRoutes } from './shopOrders.routes.js';
 import { registerOpeningBalanceRoutes } from './openingBalance.routes.js';
@@ -35,6 +36,7 @@ export function registerApiRoutes(app, deps = {}) {
   registerSupplierPriceRoutes(app);
   registerTelegramRoutes(app);
   registerTelegramPrihodRoutes(app);
+  registerAiRoutes(app);
   registerFaceIdPayrollRoutes(app);
 }
 

@@ -9,6 +9,7 @@ import {
   splitPastedTelegramText,
 } from '../telegramPrihodParser.js';
 import { confirmDocument, createDocument, getDocument, updateDocument } from './documents.js';
+import { isOpenRouterReady, recognizePrihodPhoto } from './openRouter.js';
 import { addProductVariant, getPrihodPrefillPriceMap, lastPriceForItem } from './products.js';
 
 const { queryAll, queryOne, run } = db;
@@ -735,3 +736,208 @@ export function importPastedText(branchId, { text, department_id: departmentId, 
   }
   return { added, duplicates, skipped };
 }
+
+/**
+ * Фото из темы прихода → OpenRouter vision → черновик прихода с пометкой ИИ.
+ * @param {{ chatId, threadId, chatTitle, topicTitle, messageId, fromName, fromUserId, date: Date, imageBuffer: Buffer, mimeType?: string, caption?: string }} input
+ */
+export async function handleIncomingPhoto(input) {
+  const topic = recordTopic(input);
+  if (topic.mode !== 'prihod' || !topic.branch_id || !topic.department_id) {
+    return { topic, results: [] };
+  }
+  if (!isOpenRouterReady()) {
+    return {
+      topic,
+      results: [{
+        reply: '📷 Фото получено, но OpenRouter не настроен. Администратор: Telegram → Искусственный интеллект.',
+      }],
+    };
+  }
+
+  const chatId = String(input.chatId);
+  const messageId = String(input.messageId);
+  const existing = queryOne(
+    'SELECT id, document_id, status FROM telegram_inbox WHERE chat_id = ? AND message_id = ? AND part = 0',
+    [chatId, messageId],
+  );
+  if (existing?.document_id && liveDocument(existing)) {
+    return { topic, results: [] };
+  }
+
+  const when = localDateTime(input.date || new Date());
+  let extraction;
+  try {
+    extraction = await recognizePrihodPhoto(input.imageBuffer, input.mimeType || 'image/jpeg');
+  } catch (e) {
+    return {
+      topic,
+      results: [{ reply: `⚠️ ИИ не смог разобрать фото: ${e.message}` }],
+    };
+  }
+
+  if (!extraction.items.length) {
+    return {
+      topic,
+      results: [{ reply: '📷 Фото принято, но позиции не найдены. Проверьте снимок или напишите текстом.' }],
+    };
+  }
+
+  const ctx = buildMatchContext(topic.branch_id);
+  const supplierRaw = extraction.supplier
+    ? { raw: extraction.supplier, name: extraction.supplier.replace(/[-–—]?дан$/i, '').trim() }
+    : null;
+  const supplierMatch = matchSupplier(ctx, supplierRaw);
+  const supplierId = supplierMatch.match?.id || null;
+
+  const matchedItems = [];
+  const pendingItems = [];
+  for (const line of extraction.items) {
+    const m = matchProduct(ctx, line.name, supplierId);
+    if (!m.match) {
+      pendingItems.push({
+        name: line.name,
+        quantity: line.quantity,
+        unit: line.unit,
+        price: line.price,
+      });
+      continue;
+    }
+    const qty = convertQuantity(
+      { quantity: line.quantity, unit: line.unit, pieces: null },
+      m.match.unit,
+    );
+    let price = line.price != null && Number.isFinite(line.price) && line.price > 0
+      ? line.price
+      : ctx.priceFor(supplierId, when.date, m.match.product_id, m.match.variant_id);
+    matchedItems.push({
+      product_id: m.match.product_id,
+      variant_id: m.match.variant_id,
+      quantity: qty,
+      price: price || 0,
+      ai_confirmed: 0,
+      ai_raw_name: line.name,
+    });
+  }
+
+  const inboxId = existing?.id || uuidv4();
+  const parsedJson = JSON.stringify({
+    source: 'ai_photo',
+    model: extraction.model,
+    supplier: supplierRaw,
+    lines: extraction.items,
+    notes: extraction.notes ? [extraction.notes] : [],
+  });
+  const textPreview = [
+    extraction.supplier ? `${extraction.supplier}:` : 'Фото прихода',
+    ...extraction.items.map((i) => `${i.name} — ${i.quantity} ${i.unit}`),
+  ].join('\n');
+
+  if (existing) {
+    run(`
+      UPDATE telegram_inbox
+      SET text = ?, parsed_json = ?, from_name = ?, department_id = ?,
+          message_at = ?, doc_date = ?, status = 'new', error = NULL, updated_at = datetime('now')
+      WHERE id = ?
+    `, [textPreview, parsedJson, input.fromName || null, topic.department_id, when.at, when.date, inboxId]);
+  } else {
+    run(`
+      INSERT INTO telegram_inbox (id, branch_id, topic_id, department_id, chat_id, thread_id, message_id, part, source,
+        from_name, from_user_id, text, message_at, doc_date, parsed_json, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 0, 'ai_photo', ?, ?, ?, ?, ?, ?, 'new')
+    `, [
+      inboxId, topic.branch_id, topic.id, topic.department_id, chatId,
+      input.threadId ? String(input.threadId) : '', messageId,
+      input.fromName || null, input.fromUserId ? String(input.fromUserId) : null,
+      textPreview, when.at, when.date, parsedJson,
+    ]);
+  }
+
+  if (!matchedItems.length && !supplierId) {
+    run("UPDATE telegram_inbox SET status = 'error', error = ? WHERE id = ?", [
+      'ИИ распознал позиции, но не удалось сопоставить поставщика и товары',
+      inboxId,
+    ]);
+    return {
+      topic,
+      results: [{
+        reply: `🟡 Распознано ИИ, но нужно сопоставить вручную в системе (Закупки → Из Telegram).\nПозиций: ${extraction.items.length}`,
+      }],
+    };
+  }
+
+  // Без поставщика всё равно создаём черновик, если есть сопоставленные товары
+  if (!matchedItems.length) {
+    run("UPDATE telegram_inbox SET status = 'error', error = ? WHERE id = ?", [
+      'Товары не сопоставлены со справочником',
+      inboxId,
+    ]);
+    const pendingList = pendingItems.map((p) => `• ${p.name} — ${formatQty(p.quantity)} ${p.unit}`).join('\n');
+    return {
+      topic,
+      results: [{
+        reply: `🟡 Распознано ИИ, товары не найдены в справочнике — проверьте в системе.\n${pendingList}`,
+      }],
+    };
+  }
+
+  if (supplierId) ensureSupplierLinks(topic.branch_id, supplierId, matchedItems);
+
+  const commentParts = ['🟡 Из Telegram · ИИ'];
+  if (input.fromName) commentParts.push(input.fromName);
+  commentParts.push(formatMessageAt(when.at));
+  if (extraction.notes) commentParts.push(extraction.notes);
+
+  try {
+    const doc = createDocument({
+      type: 'prihod',
+      date: when.date,
+      counterparty_id: supplierId,
+      to_department_id: topic.department_id,
+      comment: commentParts.join(' · '),
+      items: matchedItems,
+      ai_recognized: true,
+      ai_pending_items: pendingItems,
+    }, null, topic.branch_id);
+
+    run(`
+      UPDATE telegram_inbox
+      SET status = 'created', document_id = ?, error = NULL, updated_at = datetime('now')
+      WHERE id = ?
+    `, [doc.id, inboxId]);
+
+    const unconfirmed = Number(doc.ai_unconfirmed_count) || matchedItems.length + pendingItems.length;
+    const lines = matchedItems.map((i) => {
+      const label = ctx.candidateIndex.get(`${i.product_id}:${i.variant_id || ''}`)?.label || i.ai_raw_name;
+      return `• ${label} — ${formatQty(i.quantity)}`;
+    }).join('\n');
+    const pendingTail = pendingItems.length
+      ? `\n⚠️ Не сопоставлено (${pendingItems.length}):\n${pendingItems.map((p) => `• ${p.name}`).join('\n')}`
+      : '';
+    const supplierLabel = supplierMatch.match?.name || extraction.supplier || 'поставщик не указан';
+
+    return {
+      topic,
+      results: [{
+        status: 'created',
+        document: doc,
+        reply: (
+          `🟡 Распознано искусственным интеллектом\n`
+          + `✅ Приход №${doc.number} (черновик) · ${supplierLabel}\n`
+          + `Неподтверждённых позиций: ${unconfirmed}\n`
+          + `${lines}${pendingTail}\n`
+          + `Проверьте в системе — строка будет жёлтой.`
+        ),
+      }],
+    };
+  } catch (e) {
+    run("UPDATE telegram_inbox SET status = 'error', error = ?, updated_at = datetime('now') WHERE id = ?", [
+      e.message, inboxId,
+    ]);
+    return {
+      topic,
+      results: [{ reply: `⚠️ ИИ распознал, но не удалось создать приход: ${e.message}` }],
+    };
+  }
+}
+

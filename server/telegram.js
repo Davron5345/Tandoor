@@ -1,7 +1,7 @@
 import TelegramBot from 'node-telegram-bot-api';
 import { logTelegramMessage } from './services.js';
 import { getSetting } from './services/telegram.js';
-import { handleIncomingMessage } from './services/telegramPrihod.js';
+import { handleIncomingMessage, handleIncomingPhoto } from './services/telegramPrihod.js';
 
 let bot = null;
 let enabled = false;
@@ -31,9 +31,81 @@ function senderName(msg) {
   return full || from.username || msg.author_signature || null;
 }
 
+function largestPhoto(msg) {
+  const photos = msg.photo;
+  if (!Array.isArray(photos) || !photos.length) return null;
+  return photos[photos.length - 1];
+}
+
+async function downloadTelegramFile(instance, fileId) {
+  const file = await instance.getFile(fileId);
+  const token = currentToken;
+  if (!file?.file_path || !token) throw new Error('Не удалось скачать файл из Telegram');
+  const url = `https://api.telegram.org/file/bot${token}/${file.file_path}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Telegram file ${res.status}`);
+  const buf = Buffer.from(await res.arrayBuffer());
+  const path = String(file.file_path).toLowerCase();
+  let mimeType = 'image/jpeg';
+  if (path.endsWith('.png')) mimeType = 'image/png';
+  else if (path.endsWith('.webp')) mimeType = 'image/webp';
+  else if (path.endsWith('.gif')) mimeType = 'image/gif';
+  return { buffer: buf, mimeType };
+}
+
+async function replyInTopic(instance, msg, threadId, outcome) {
+  if (!outcome?.topic?.notify) return;
+  for (const result of outcome.results || []) {
+    if (!result.reply) continue;
+    try {
+      await instance.sendMessage(msg.chat.id, result.reply, {
+        ...(threadId ? { message_thread_id: threadId } : {}),
+        reply_to_message_id: msg.message_id,
+        allow_sending_without_reply: true,
+      });
+    } catch (err) {
+      console.error('Telegram приход: не удалось ответить в тему:', err.message);
+    }
+  }
+}
+
 async function onGroupMessage(instance, msg, edited) {
   if (!isGroupChat(msg)) return;
   const threadId = topicThreadId(msg);
+  const photo = !edited ? largestPhoto(msg) : null;
+
+  if (photo) {
+    let outcome;
+    try {
+      const { buffer, mimeType } = await downloadTelegramFile(instance, photo.file_id);
+      outcome = await handleIncomingPhoto({
+        chatId: msg.chat.id,
+        threadId,
+        chatTitle: msg.chat.title || null,
+        topicTitle: topicTitleFromMessage(msg, threadId),
+        messageId: msg.message_id,
+        fromName: senderName(msg),
+        fromUserId: msg.from?.id,
+        date: new Date((msg.date || Math.floor(Date.now() / 1000)) * 1000),
+        imageBuffer: buffer,
+        mimeType,
+        caption: msg.caption || '',
+      });
+    } catch (err) {
+      console.error('Telegram приход (фото):', err.message);
+      try {
+        await instance.sendMessage(msg.chat.id, `⚠️ Ошибка обработки фото: ${err.message}`, {
+          ...(threadId ? { message_thread_id: threadId } : {}),
+          reply_to_message_id: msg.message_id,
+          allow_sending_without_reply: true,
+        });
+      } catch { /* */ }
+      return;
+    }
+    await replyInTopic(instance, msg, threadId, outcome);
+    return;
+  }
+
   let outcome;
   try {
     outcome = handleIncomingMessage({
@@ -52,19 +124,7 @@ async function onGroupMessage(instance, msg, edited) {
     console.error('Telegram приход: ошибка обработки сообщения:', err.message);
     return;
   }
-  if (!outcome?.topic?.notify) return;
-  for (const result of outcome.results || []) {
-    if (!result.reply) continue;
-    try {
-      await instance.sendMessage(msg.chat.id, result.reply, {
-        ...(threadId ? { message_thread_id: threadId } : {}),
-        reply_to_message_id: msg.message_id,
-        allow_sending_without_reply: true,
-      });
-    } catch (err) {
-      console.error('Telegram приход: не удалось ответить в тему:', err.message);
-    }
-  }
+  await replyInTopic(instance, msg, threadId, outcome);
 }
 
 function setupHandlers(instance) {
@@ -98,7 +158,8 @@ function setupHandlers(instance) {
       `/help — эта справка\n` +
       `/topic — ID группы и темы (для приходов из темы)\n\n` +
       `Уведомления о документах прихода/расхода отправляются автоматически из системы учёта.\n` +
-      `В теме, включённой для приходов, пишите: «Жалилдан:» и строки «Сон-45,8кг» — бот создаст приход.`,
+      `В теме, включённой для приходов, пишите: «Жалилдан:» и строки «Сон-45,8кг» — бот создаст приход.\n` +
+      `Или отправьте *фото* тетради — при настроенном OpenRouter бот распознает позиции через ИИ (жёлтая пометка).`,
       { parse_mode: 'Markdown' }
     );
   });

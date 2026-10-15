@@ -554,7 +554,28 @@ function migrateSchema() {
   migrateUsersPayrollLink();
   migrateReconciliationMarks();
   migrateTelegramPrihod();
+  migrateAiPrihod();
   addPerformanceIndexes();
+}
+
+function migrateAiPrihod() {
+  const docCols = queryAll('PRAGMA table_info(documents)').map((c) => c.name);
+  if (!docCols.includes('ai_recognized')) {
+    run('ALTER TABLE documents ADD COLUMN ai_recognized INTEGER DEFAULT 0');
+  }
+  if (!docCols.includes('ai_pending_json')) {
+    run('ALTER TABLE documents ADD COLUMN ai_pending_json TEXT');
+  }
+  if (!docCols.includes('ai_unconfirmed_count')) {
+    run('ALTER TABLE documents ADD COLUMN ai_unconfirmed_count INTEGER DEFAULT 0');
+  }
+  const itemCols = queryAll('PRAGMA table_info(document_items)').map((c) => c.name);
+  if (!itemCols.includes('ai_confirmed')) {
+    run('ALTER TABLE document_items ADD COLUMN ai_confirmed INTEGER DEFAULT 1');
+  }
+  if (!itemCols.includes('ai_raw_name')) {
+    run('ALTER TABLE document_items ADD COLUMN ai_raw_name TEXT');
+  }
 }
 
 function migrateTelegramPrihod() {

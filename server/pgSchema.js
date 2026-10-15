@@ -349,6 +349,9 @@ CREATE TABLE IF NOT EXISTS documents (
   total_amount DOUBLE PRECISION DEFAULT 0,
   status TEXT DEFAULT 'draft',
   calculation_id TEXT,
+  ai_recognized INTEGER DEFAULT 0,
+  ai_pending_json TEXT,
+  ai_unconfirmed_count INTEGER DEFAULT 0,
   created_at TEXT DEFAULT (${NOW}),
   updated_at TEXT DEFAULT (${NOW}),
   UNIQUE (branch_id, type, number)
@@ -370,7 +373,9 @@ CREATE TABLE IF NOT EXISTS document_items (
   cost_amount DOUBLE PRECISION DEFAULT 0,
   net_weight DOUBLE PRECISION,
   sort_order INTEGER DEFAULT 0,
-  book_qty DOUBLE PRECISION DEFAULT 0
+  book_qty DOUBLE PRECISION DEFAULT 0,
+  ai_confirmed INTEGER DEFAULT 1,
+  ai_raw_name TEXT
 );
 
 CREATE TABLE IF NOT EXISTS document_extra_costs (

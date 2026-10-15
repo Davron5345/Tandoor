@@ -2916,6 +2916,33 @@ tr:hover td {
 .badge-success { background: color-mix(in srgb, var(--success) 18%, transparent); color: var(--success); }
 .badge-danger { background: color-mix(in srgb, var(--danger) 18%, transparent); color: var(--danger); }
 .badge-muted { background: var(--surface2); color: var(--text-muted); }
+.badge-ai {
+  background: #f5c518;
+  color: #1a1a1a;
+  font-weight: 600;
+}
+.badge-ai-pending {
+  background: #fff3cd;
+  color: #856404;
+  border: 1px solid #f0d78c;
+}
+.docs-row-ai td {
+  background: #fff8db !important;
+}
+.docs-row-ai:hover td {
+  background: #fff1b8 !important;
+}
+.docs-doc-card--ai {
+  background: #fff8db;
+  border-color: #f0d78c;
+}
+.alert-ai {
+  background: #fff8db;
+  color: #5c4a00;
+  border: 1px solid #f0d78c;
+  border-radius: 6px;
+  padding: 10px 12px;
+}
 
 .form-grid {
   display: grid;

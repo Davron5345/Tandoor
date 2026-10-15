@@ -10,6 +10,7 @@ export default function TelegramPage({ onStatusChange }) {
   const { user } = useAuth();
   const canManageSettings = hasPermission(user, 'telegram.settings');
   const canSend = hasPermission(user, 'telegram.send');
+  const [tab, setTab] = useState('bot');
   const [settings, setSettings] = useState(null);
   const [messages, setMessages] = useState([]);
   const [counterparties, setCounterparties] = useState([]);
@@ -19,6 +20,12 @@ export default function TelegramPage({ onStatusChange }) {
   const [editing, setEditing] = useState(false);
   const [showToken, setShowToken] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [aiSettings, setAiSettings] = useState(null);
+  const [aiKeyInput, setAiKeyInput] = useState('');
+  const [aiModel, setAiModel] = useState('');
+  const [showAiKey, setShowAiKey] = useState(false);
+  const [aiSaving, setAiSaving] = useState(false);
+  const [aiRefreshing, setAiRefreshing] = useState(false);
   const { show, Toast } = useToast();
 
   const load = useCallback(() => {
@@ -44,6 +51,15 @@ export default function TelegramPage({ onStatusChange }) {
         setCounterparties(c.filter((x) => x.telegram_chat_id));
       }
     }).catch(console.error);
+
+    if (canManageSettings) {
+      api.getAiSettings()
+        .then((ai) => {
+          setAiSettings(ai);
+          setAiModel(ai.model || '');
+        })
+        .catch(console.error);
+    }
   }, [canManageSettings]);
 
   useEffect(() => { load(); }, [load]);
@@ -95,6 +111,55 @@ export default function TelegramPage({ onStatusChange }) {
     }
   };
 
+  const saveAi = async () => {
+    setAiSaving(true);
+    try {
+      const body = { model: aiModel };
+      if (aiKeyInput.trim()) body.api_key = aiKeyInput.trim();
+      const result = await api.saveAiSettings(body);
+      setAiSettings(result);
+      setAiModel(result.model || '');
+      setAiKeyInput('');
+      show('Настройки ИИ сохранены');
+    } catch (e) {
+      show(e.message, 'error');
+    } finally {
+      setAiSaving(false);
+    }
+  };
+
+  const clearAiKey = async () => {
+    if (!confirm('Удалить API-ключ OpenRouter? Распознавание фото остановится.')) return;
+    setAiSaving(true);
+    try {
+      const result = await api.saveAiSettings({ clear_api_key: true, model: aiModel });
+      setAiSettings(result);
+      show('API-ключ удалён');
+    } catch (e) {
+      show(e.message, 'error');
+    } finally {
+      setAiSaving(false);
+    }
+  };
+
+  const refreshModels = async () => {
+    setAiRefreshing(true);
+    try {
+      if (aiKeyInput.trim()) {
+        await api.saveAiSettings({ api_key: aiKeyInput.trim(), model: aiModel || undefined });
+        setAiKeyInput('');
+      }
+      const result = await api.refreshAiModels();
+      setAiSettings(result);
+      setAiModel(result.model || '');
+      show(`Список моделей обновлён (${result.models?.length || 0})`);
+    } catch (e) {
+      show(e.message, 'error');
+    } finally {
+      setAiRefreshing(false);
+    }
+  };
+
   const send = async () => {
     try {
       await api.sendTelegramMessage(form);
@@ -106,6 +171,9 @@ export default function TelegramPage({ onStatusChange }) {
       show(e.message, 'error');
     }
   };
+
+  const models = aiSettings?.models || [];
+  const visionHint = models.filter((m) => /image|vision|multimodal/i.test(String(m.modality || '')));
 
   return (
     <div>
@@ -121,104 +189,226 @@ export default function TelegramPage({ onStatusChange }) {
       </div>
 
       {canManageSettings && (
-      <div className="card">
-        <div className="card-header">
-          <strong className="card-header-title"><IconKey /> Токен бота</strong>
-          {settings?.enabled && <span className="badge badge-confirmed">Активен</span>}
+        <div className="section-tabs" style={{ marginBottom: 16 }}>
+          <button
+            type="button"
+            className={`section-tab${tab === 'bot' ? ' active' : ''}`}
+            onClick={() => setTab('bot')}
+          >
+            Бот
+          </button>
+          <button
+            type="button"
+            className={`section-tab${tab === 'ai' ? ' active' : ''}`}
+            onClick={() => setTab('ai')}
+          >
+            Искусственный интеллект
+          </button>
+          <button
+            type="button"
+            className={`section-tab${tab === 'history' ? ' active' : ''}`}
+            onClick={() => setTab('history')}
+          >
+            История
+          </button>
         </div>
-        <div className="card-body">
-          <div className={`alert ${settings?.enabled ? 'alert-success' : 'alert-error'}`} style={{ marginBottom: 16 }}>
-            {settings?.enabled
-              ? 'Бот работает. Уведомления отправляются автоматически при проведении документов.'
-              : 'Бот не настроен. Получите токен у @BotFather и вставьте ниже.'}
-          </div>
+      )}
 
-          {settings?.hasToken && !editing && (
-            <div className="form-group" style={{ marginBottom: 16 }}>
-              <label>Текущий токен</label>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <input value={settings.tokenMasked} disabled style={{ flex: 1, fontFamily: 'monospace' }} />
-                {settings.updatedAt && (
-                  <span style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-                    обновлён {formatDate(settings.updatedAt)}
-                  </span>
+      {(!canManageSettings || tab === 'bot') && (
+        <>
+          {canManageSettings && (
+          <div className="card">
+            <div className="card-header">
+              <strong className="card-header-title"><IconKey /> Токен бота</strong>
+              {settings?.enabled && <span className="badge badge-confirmed">Активен</span>}
+            </div>
+            <div className="card-body">
+              <div className={`alert ${settings?.enabled ? 'alert-success' : 'alert-error'}`} style={{ marginBottom: 16 }}>
+                {settings?.enabled
+                  ? 'Бот работает. Уведомления и приходы из тем (текст и фото) обрабатываются автоматически.'
+                  : 'Бот не настроен. Получите токен у @BotFather и вставьте ниже.'}
+              </div>
+
+              {settings?.hasToken && !editing && (
+                <div className="form-group" style={{ marginBottom: 16 }}>
+                  <label>Текущий токен</label>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <input value={settings.tokenMasked} disabled style={{ flex: 1, fontFamily: 'monospace' }} />
+                    {settings.updatedAt && (
+                      <span style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                        обновлён {formatDate(settings.updatedAt)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {(editing || !settings?.hasToken) && (
+                <div className="form-group" style={{ marginBottom: 16 }}>
+                  <label>{settings?.hasToken ? 'Новый токен бота' : 'Токен бота от @BotFather'}</label>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <input
+                      type={showToken ? 'text' : 'password'}
+                      value={tokenInput}
+                      onChange={(e) => setTokenInput(e.target.value)}
+                      placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz"
+                      style={{ flex: 1, fontFamily: 'monospace' }}
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-icon btn-ghost"
+                      onClick={() => setShowToken(!showToken)}
+                      title={showToken ? 'Скрыть' : 'Показать'}
+                    >
+                      {showToken ? <IconEyeOff /> : <IconEye />}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="btn-group">
+                {!editing && settings?.hasToken && (
+                  <>
+                    <button type="button" className="btn btn-primary" onClick={startEdit}>
+                      <IconEdit />
+                      <span>Изменить токен</span>
+                    </button>
+                    <button type="button" className="btn btn-ghost" onClick={removeToken}>
+                      <IconTrash />
+                      <span>Удалить</span>
+                    </button>
+                  </>
+                )}
+                {(editing || !settings?.hasToken) && (
+                  <>
+                    <button type="button" className="btn btn-primary" onClick={saveToken} disabled={saving}>
+                      <IconSave />
+                      <span>{saving ? 'Сохранение...' : 'Сохранить'}</span>
+                    </button>
+                    {settings?.hasToken && (
+                      <button className="btn btn-ghost" onClick={cancelEdit}>Отмена</button>
+                    )}
+                  </>
                 )}
               </div>
             </div>
+          </div>
           )}
 
-          {(editing || !settings?.hasToken) && (
+          <div className="card">
+            <div className="card-header"><strong>Как подключить</strong></div>
+            <div className="card-body" style={{ fontSize: 14, color: 'var(--text-muted)' }}>
+              <ol style={{ paddingLeft: 20, lineHeight: 2 }}>
+                <li>Создайте бота через <strong>@BotFather</strong> и укажите токен выше</li>
+                <li>Добавьте бота в группу с темами (админом) и включите тему: Закупки → Из Telegram → Темы</li>
+                <li>Текстом: «Жалилдан:» и строки товаров — или <strong>фото тетради</strong> (нужен OpenRouter на вкладке ИИ)</li>
+                <li>Приходы с ИИ в списке с жёлтым фоном и счётчиком неподтверждённых позиций</li>
+              </ol>
+            </div>
+          </div>
+        </>
+      )}
+
+      {canManageSettings && tab === 'ai' && (
+        <div className="card">
+          <div className="card-header">
+            <strong className="card-header-title">OpenRouter — распознавание фото прихода</strong>
+            {aiSettings?.ready
+              ? <span className="badge badge-confirmed">Готово</span>
+              : <span className="badge badge-draft">Не настроено</span>}
+          </div>
+          <div className="card-body">
+            <div className="alert alert-info" style={{ marginBottom: 16 }}>
+              Ключ с <a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer">openrouter.ai/keys</a>.
+              Выберите vision-модель (с картинками), затем «Обновить» — подтянутся новые модели без ручного ввода id.
+              Фото в теме прихода → черновик с жёлтой пометкой «ИИ».
+            </div>
+
             <div className="form-group" style={{ marginBottom: 16 }}>
-              <label>{settings?.hasToken ? 'Новый токен бота' : 'Токен бота от @BotFather'}</label>
+              <label>
+                API-ключ OpenRouter
+                {aiSettings?.has_api_key ? ' (задан — введите новый, чтобы заменить)' : ''}
+              </label>
               <div style={{ display: 'flex', gap: 8 }}>
                 <input
-                  type={showToken ? 'text' : 'password'}
-                  value={tokenInput}
-                  onChange={(e) => setTokenInput(e.target.value)}
-                  placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz"
+                  type={showAiKey ? 'text' : 'password'}
+                  value={aiKeyInput}
+                  onChange={(e) => setAiKeyInput(e.target.value)}
+                  placeholder={aiSettings?.api_key_masked || 'sk-or-…'}
                   style={{ flex: 1, fontFamily: 'monospace' }}
                 />
                 <button
                   type="button"
                   className="btn btn-icon btn-ghost"
-                  onClick={() => setShowToken(!showToken)}
-                  title={showToken ? 'Скрыть' : 'Показать'}
+                  onClick={() => setShowAiKey(!showAiKey)}
+                  title={showAiKey ? 'Скрыть' : 'Показать'}
                 >
-                  {showToken ? <IconEyeOff /> : <IconEye />}
+                  {showAiKey ? <IconEyeOff /> : <IconEye />}
                 </button>
               </div>
-              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                Формат: число:строка (например, 7123456789:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw)
-              </span>
             </div>
-          )}
 
-          <div className="btn-group">
-            {!editing && settings?.hasToken && (
-              <>
-                <button type="button" className="btn btn-primary" onClick={startEdit}>
-                  <IconEdit />
-                  <span>Изменить токен</span>
+            <div className="form-group" style={{ marginBottom: 16 }}>
+              <label>Модель</label>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <select
+                  value={aiModel}
+                  onChange={(e) => setAiModel(e.target.value)}
+                  style={{ flex: 1, minWidth: 220 }}
+                >
+                  {!models.length && (
+                    <option value={aiModel || ''}>{aiModel || 'Сначала нажмите «Обновить»'}</option>
+                  )}
+                  {visionHint.length > 0 && (
+                    <optgroup label="С поддержкой изображений">
+                      {visionHint.map((m) => (
+                        <option key={m.id} value={m.id}>{m.name || m.id}</option>
+                      ))}
+                    </optgroup>
+                  )}
+                  {models.length > 0 && (
+                    <optgroup label="Все модели">
+                      {models.map((m) => (
+                        <option key={`all-${m.id}`} value={m.id}>{m.name || m.id}</option>
+                      ))}
+                    </optgroup>
+                  )}
+                </select>
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={refreshModels}
+                  disabled={aiRefreshing || (!aiSettings?.has_api_key && !aiKeyInput.trim())}
+                  title="Загрузить актуальный список моделей с OpenRouter"
+                >
+                  {aiRefreshing ? 'Обновление…' : 'Обновить'}
                 </button>
-                <button type="button" className="btn btn-ghost" onClick={removeToken}>
+              </div>
+              {aiSettings?.models_updated_at && (
+                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                  Список обновлён {formatDate(aiSettings.models_updated_at)}
+                  {models.length ? ` · ${models.length} моделей` : ''}
+                </span>
+              )}
+            </div>
+
+            <div className="btn-group">
+              <button type="button" className="btn btn-primary" onClick={saveAi} disabled={aiSaving}>
+                <IconSave />
+                <span>{aiSaving ? 'Сохранение…' : 'Сохранить'}</span>
+              </button>
+              {aiSettings?.has_api_key && (
+                <button type="button" className="btn btn-ghost" onClick={clearAiKey} disabled={aiSaving}>
                   <IconTrash />
-                  <span>Удалить</span>
+                  <span>Удалить ключ</span>
                 </button>
-              </>
-            )}
-            {(editing || !settings?.hasToken) && (
-              <>
-                <button type="button" className="btn btn-primary" onClick={saveToken} disabled={saving}>
-                  <IconSave />
-                  <span>{saving ? 'Сохранение...' : 'Сохранить'}</span>
-                </button>
-                {settings?.hasToken && (
-                  <button className="btn btn-ghost" onClick={cancelEdit}>Отмена</button>
-                )}
-              </>
-            )}
+              )}
+            </div>
           </div>
         </div>
-      </div>
       )}
 
-      <div className="card">
-        <div className="card-header"><strong>Как подключить контрагента</strong></div>
-        <div className="card-body" style={{ fontSize: 14, color: 'var(--text-muted)' }}>
-          <ol style={{ paddingLeft: 20, lineHeight: 2 }}>
-            <li>Создайте бота через <strong>@BotFather</strong> в Telegram</li>
-            {canManageSettings ? (
-              <li>Скопируйте токен и вставьте в поле выше</li>
-            ) : (
-              <li>Администратор настраивает токен бота в этом разделе</li>
-            )}
-            <li>Контрагент пишет боту команду <strong>/start</strong></li>
-            <li>Бот пришлёт Chat ID — укажите его в карточке контрагента</li>
-            <li>При проведении документа уведомление отправится автоматически</li>
-          </ol>
-        </div>
-      </div>
-
+      {(!canManageSettings || tab === 'history') && (
       <div className="card">
         <div className="card-header"><strong>История сообщений</strong></div>
         <div className="table-wrap">
@@ -255,6 +445,7 @@ export default function TelegramPage({ onStatusChange }) {
           </table>
         </div>
       </div>
+      )}
 
       {modal && canSend && (
         <Modal

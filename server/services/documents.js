@@ -770,8 +770,21 @@ export function getDocument(id, branchId = null) {
   const inventoryItems = inventoryAmounts?.items || items;
   const inventoryTotalsOut = doc.type === 'inventory' ? inventoryTotals(inventoryItems) : null;
 
+  let ai_pending_items = [];
+  if (doc.ai_pending_json) {
+    try {
+      const parsed = JSON.parse(doc.ai_pending_json);
+      ai_pending_items = Array.isArray(parsed) ? parsed : [];
+    } catch {
+      ai_pending_items = [];
+    }
+  }
+
   return {
     ...doc,
+    ai_recognized: !!doc.ai_recognized,
+    ai_unconfirmed_count: Number(doc.ai_unconfirmed_count) || 0,
+    ai_pending_items,
     shortage_total: inventoryTotalsOut?.shortage ?? 0,
     surplus_total: inventoryTotalsOut?.surplus ?? 0,
     remainder_document,
@@ -2295,11 +2308,23 @@ export function createDocument(data, userId = null, branchId = DEFAULT_BRANCH_ID
     }
   }
 
+  const aiRecognized = data.type === 'prihod' && (data.ai_recognized === true || data.ai_recognized === 1) ? 1 : 0;
+  const aiPendingJson = aiRecognized && Array.isArray(data.ai_pending_items)
+    ? JSON.stringify(data.ai_pending_items)
+    : null;
+  const aiUnconfirmedFromItems = aiRecognized
+    ? items.filter((i) => i.ai_confirmed === false || i.ai_confirmed === 0).length
+    : 0;
+  const aiUnconfirmedCount = aiRecognized
+    ? aiUnconfirmedFromItems + (Array.isArray(data.ai_pending_items) ? data.ai_pending_items.length : 0)
+    : 0;
+
   transaction(() => {
     run(`
       INSERT INTO documents (id, number, type, counterparty_id, contract_id, date, comment, from_location, to_location,
-        branch_id, from_branch_id, to_branch_id, from_department_id, to_department_id, source_document_id, total_amount, status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        branch_id, from_branch_id, to_branch_id, from_department_id, to_department_id, source_document_id, total_amount, status,
+        ai_recognized, ai_pending_json, ai_unconfirmed_count)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       id, number, data.type, data.counterparty_id || null, contractId,
       data.date, data.comment || '', data.from_location || '', data.to_location || '',
@@ -2308,13 +2333,20 @@ export function createDocument(data, userId = null, branchId = DEFAULT_BRANCH_ID
       toDepartmentId,
       sourceDocumentId,
       total, data.status || 'draft',
+      aiRecognized, aiPendingJson, aiUnconfirmedCount,
     ]);
 
     items.forEach((item, idx) => {
+      const aiConfirmed = aiRecognized
+        ? (item.ai_confirmed === false || item.ai_confirmed === 0 ? 0 : 1)
+        : 1;
       run(`
-        INSERT INTO document_items (id, document_id, product_id, variant_id, quantity, price, amount, item_role, net_weight, sort_order)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 'input', ?, ?)
-      `, [uuidv4(), id, item.product_id, item.variant_id || null, item.quantity, item.price, item.amount, item.net_weight ?? null, idx]);
+        INSERT INTO document_items (id, document_id, product_id, variant_id, quantity, price, amount, item_role, net_weight, sort_order, ai_confirmed, ai_raw_name)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'input', ?, ?, ?, ?)
+      `, [
+        uuidv4(), id, item.product_id, item.variant_id || null, item.quantity, item.price, item.amount,
+        item.net_weight ?? null, idx, aiConfirmed, item.ai_raw_name || null,
+      ]);
     });
 
     if (replaceExtras) replaceDocumentExtraCosts(id, extras);
@@ -2512,11 +2544,32 @@ export function updateDocument(id, data, userId = null, branchId = DEFAULT_BRANC
       )
       : null;
 
+    // Сохранение прихода с ИИ = пользователь проверил позиции; снимаем «неподтверждено» с строк.
+    // Несопоставленные (ai_pending) можно передать с клиента или оставить как были.
+    const isAiDoc = !!existingDoc.ai_recognized;
+    let aiPendingJson = existingDoc.ai_pending_json || null;
+    if (isAiDoc && data.ai_pending_items !== undefined) {
+      aiPendingJson = Array.isArray(data.ai_pending_items) && data.ai_pending_items.length
+        ? JSON.stringify(data.ai_pending_items)
+        : null;
+    }
+    let aiPendingLen = 0;
+    if (aiPendingJson) {
+      try {
+        const p = JSON.parse(aiPendingJson);
+        aiPendingLen = Array.isArray(p) ? p.length : 0;
+      } catch { /* */ }
+    }
+    // После ручного сохранения строки считаем подтверждёнными (пользователь видел документ).
+    const aiUnconfirmedCount = isAiDoc ? aiPendingLen : (Number(existingDoc.ai_unconfirmed_count) || 0);
+
     run(`
       UPDATE documents
       SET counterparty_id=?, contract_id=?, date=?, comment=?, from_location=?, to_location=?,
           branch_id=?, from_branch_id=?, to_branch_id=?, from_department_id=?, to_department_id=?, source_document_id=?,
-          total_amount=?, status=?, updated_at=datetime('now')
+          total_amount=?, status=?,
+          ai_pending_json=?, ai_unconfirmed_count=?,
+          updated_at=datetime('now')
       WHERE id=?
     `, [
       counterpartyId, contractId, returnDate,
@@ -2524,16 +2577,24 @@ export function updateDocument(id, data, userId = null, branchId = DEFAULT_BRANC
       data.from_location !== undefined ? (data.from_location || '') : (existingDoc.from_location || ''),
       data.to_location !== undefined ? (data.to_location || '') : (existingDoc.to_location || ''),
       docBranchId, fromBranchId, toBranchId, savedFromDepartmentId, toDepartmentId, sourceDocumentId,
-      total, data.status || existingDoc.status, id,
+      total, data.status || existingDoc.status,
+      isAiDoc ? aiPendingJson : existingDoc.ai_pending_json,
+      isAiDoc ? aiUnconfirmedCount : (Number(existingDoc.ai_unconfirmed_count) || 0),
+      id,
     ]);
 
     run('DELETE FROM document_items WHERE document_id = ?', [id]);
 
     items.forEach((item, idx) => {
       run(`
-        INSERT INTO document_items (id, document_id, product_id, variant_id, quantity, price, amount, item_role, net_weight, sort_order)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 'input', ?, ?)
-      `, [uuidv4(), id, item.product_id, item.variant_id || null, item.quantity, item.price, item.amount, item.net_weight ?? null, idx]);
+        INSERT INTO document_items (id, document_id, product_id, variant_id, quantity, price, amount, item_role, net_weight, sort_order, ai_confirmed, ai_raw_name)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'input', ?, ?, ?, ?)
+      `, [
+        uuidv4(), id, item.product_id, item.variant_id || null, item.quantity, item.price, item.amount,
+        item.net_weight ?? null, idx,
+        isAiDoc ? 1 : 1,
+        item.ai_raw_name || null,
+      ]);
     });
 
     if (replaceExtras) replaceDocumentExtraCosts(id, extras);
@@ -2555,6 +2616,9 @@ export function confirmDocument(id, userId = null) {
   if (!doc) throw new Error('Документ не найден');
   if (doc.status === 'confirmed') return getDocument(id, doc.branch_id);
   if (doc.status === 'cancelled') throw new Error('Документ отменён');
+  if (doc.ai_recognized && Number(doc.ai_unconfirmed_count) > 0) {
+    throw new Error('Сначала подтвердите позиции, распознанные ИИ (сохраните документ после проверки)');
+  }
 
   const items = queryAll('SELECT * FROM document_items WHERE document_id = ?', [id]);
   if (isOutgoingDocType(doc.type)) validateRashodStock(doc.branch_id || DEFAULT_BRANCH_ID, doc.from_department_id, items);
