@@ -1,3 +1,4 @@
+import multer from 'multer';
 import db from '../db.js';
 import * as svc from '../services.js';
 import { sendDocumentNotification } from '../telegram.js';
@@ -15,6 +16,22 @@ import {
 import { parsePagination, paginateList, stripPaginationParams } from '../pagination.js';
 import { logAudit } from '../auditLog.js';
 import { getDishRecipes, previewDishSaleLine } from '../dishSales.js';
+import {
+  saveDocumentAttachmentBuffer,
+  deleteDocumentAttachment,
+  listDocumentAttachments,
+  isAllowedDocMime,
+  MAX_DOC_FILE_SIZE,
+} from '../documentAttachments.js';
+
+const docAttachmentUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_DOC_FILE_SIZE },
+  fileFilter: (_req, file, cb) => {
+    if (isAllowedDocMime(file.mimetype)) cb(null, true);
+    else cb(new Error('Допустимы JPG, PNG, WEBP, GIF и PDF'));
+  },
+});
 
 const DOC_READ_PERMS = [
   'documents.view', 'documents.prihod', 'documents.rashod', 'documents.dish_sale',
@@ -216,6 +233,67 @@ export function registerDocumentRoutes(app) {
       assertDocumentDepartmentAccess(req.user, existing);
       assertDocumentMutableInBranch(existing, req.branchId, req.user);
       res.json(svc.deleteDocument(req.params.id));
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
+  app.get('/api/documents/:id/attachments', requireAnyPermission(...DOC_READ_PERMS), attachBranch, (req, res) => {
+    const doc = svc.getDocument(req.params.id, req.branchId);
+    if (!doc) return res.status(404).json({ error: 'Не найден' });
+    if (!filterDocumentsForUser([doc], req.user.role).length) {
+      return res.status(403).json({ error: 'Недостаточно прав' });
+    }
+    try {
+      assertDocumentBranchAccess(req.user, doc, req.branchId);
+      assertDocumentDepartmentAccess(req.user, doc);
+    } catch (e) {
+      return res.status(403).json({ error: e.message });
+    }
+    res.json(listDocumentAttachments(doc.id));
+  });
+
+  app.post(
+    '/api/documents/:id/attachments',
+    requirePermission('documents.edit'),
+    attachBranch,
+    (req, res, next) => {
+      docAttachmentUpload.single('file')(req, res, (err) => {
+        if (err) return res.status(400).json({ error: err.message });
+        next();
+      });
+    },
+    (req, res) => {
+      try {
+        const existing = svc.getDocument(req.params.id, req.branchId);
+        if (!existing) return res.status(404).json({ error: 'Не найден' });
+        assertDocumentTypeAccess(req.user.role, existing.type);
+        assertDocumentBranchAccess(req.user, existing, req.branchId);
+        assertDocumentDepartmentAccess(req.user, existing);
+        assertDocumentMutableInBranch(existing, req.branchId, req.user);
+        if (!req.file) return res.status(400).json({ error: 'Выберите файл' });
+        const att = saveDocumentAttachmentBuffer(existing.id, req.file.buffer, {
+          mimeType: req.file.mimetype,
+          originalName: req.file.originalname,
+          source: 'upload',
+        });
+        res.status(201).json(att);
+      } catch (e) {
+        res.status(400).json({ error: e.message });
+      }
+    },
+  );
+
+  app.delete('/api/documents/:id/attachments/:attachmentId', requirePermission('documents.edit'), attachBranch, (req, res) => {
+    try {
+      const existing = svc.getDocument(req.params.id, req.branchId);
+      if (!existing) return res.status(404).json({ error: 'Не найден' });
+      assertDocumentTypeAccess(req.user.role, existing.type);
+      assertDocumentBranchAccess(req.user, existing, req.branchId);
+      assertDocumentDepartmentAccess(req.user, existing);
+      assertDocumentMutableInBranch(existing, req.branchId, req.user);
+      deleteDocumentAttachment(existing.id, req.params.attachmentId);
+      res.json({ ok: true });
     } catch (e) {
       res.status(400).json({ error: e.message });
     }

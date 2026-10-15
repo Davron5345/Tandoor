@@ -555,7 +555,26 @@ function migrateSchema() {
   migrateReconciliationMarks();
   migrateTelegramPrihod();
   migrateAiPrihod();
+  migrateDocumentAttachments();
   addPerformanceIndexes();
+}
+
+function migrateDocumentAttachments() {
+  run(`
+    CREATE TABLE IF NOT EXISTS document_attachments (
+      id TEXT PRIMARY KEY,
+      document_id TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+      file_name TEXT NOT NULL,
+      original_name TEXT,
+      mime_type TEXT,
+      size INTEGER DEFAULT 0,
+      source TEXT DEFAULT 'upload',
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+  try {
+    run('CREATE INDEX IF NOT EXISTS idx_document_attachments_doc ON document_attachments(document_id)');
+  } catch { /* */ }
 }
 
 function migrateAiPrihod() {

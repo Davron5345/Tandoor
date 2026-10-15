@@ -383,6 +383,25 @@ export const api = {
   getDocument: (id) => request(`/documents/${id}`),
   createDocument: (data) => request('/documents', { method: 'POST', body: JSON.stringify(data) }),
   updateDocument: (id, data) => request(`/documents/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  getDocumentAttachments: (id) => request(`/documents/${id}/attachments`),
+  uploadDocumentAttachment: async (id, file) => {
+    const form = new FormData();
+    form.append('file', file);
+    const params = new URLSearchParams();
+    if (activeBranchId) params.set('branch_id', activeBranchId);
+    const qs = params.toString();
+    const res = await fetch(
+      `${getApiBaseUrl()}/api/documents/${id}/attachments${qs ? `?${qs}` : ''}`,
+      { method: 'POST', credentials: 'include', body: form },
+    );
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Не удалось загрузить файл');
+    return data;
+  },
+  deleteDocumentAttachment: (id, attachmentId) => request(
+    `/documents/${id}/attachments/${attachmentId}`,
+    { method: 'DELETE' },
+  ),
   confirmDocument: (id) => request(`/documents/${id}/confirm`, { method: 'POST' }),
   cancelDocument: (id) => request(`/documents/${id}/cancel`, { method: 'POST' }),
   deleteDocument: (id) => request(`/documents/${id}`, { method: 'DELETE' }),

@@ -3,6 +3,7 @@ import db from './db.js';
 import { uploadsDir } from './dbBackup.js';
 import { authOptional } from './middleware.js';
 import { hasPermission } from './permissions.js';
+import { getDocumentAttachment } from './documentAttachments.js';
 
 const { queryOne } = db;
 
@@ -14,6 +15,7 @@ const UPLOAD_VIEW_PERMISSIONS = [
   'documents.rashod',
   'documents.transfer',
   'documents.razdelka',
+  'documents.inventory',
 ];
 
 function canViewUploads(user) {
@@ -30,7 +32,17 @@ function parseProductUploadPath(path) {
     return null;
   }
 
-  return { productId: match[1], fileName };
+  return { kind: 'product', productId: match[1], fileName };
+}
+
+function parseDocumentUploadPath(path) {
+  const match = path.match(/^\/documents\/([^/]+)\/([^/]+)$/);
+  if (!match) return null;
+  const fileName = match[2];
+  if (!fileName || fileName.includes('..') || fileName.includes('/') || fileName.includes('\\')) {
+    return null;
+  }
+  return { kind: 'document', documentId: match[1], fileName };
 }
 
 function isRegisteredProductImage(productId, fileName) {
@@ -54,15 +66,23 @@ export function createProtectedUploadsRouter() {
       return res.status(403).json({ error: 'Недостаточно прав' });
     }
 
-    const parsed = parseProductUploadPath(req.path);
-    if (!parsed) {
-      return res.status(404).json({ error: 'Не найдено' });
-    }
-    if (!isRegisteredProductImage(parsed.productId, parsed.fileName)) {
-      return res.status(404).json({ error: 'Не найдено' });
+    const product = parseProductUploadPath(req.path);
+    if (product) {
+      if (!isRegisteredProductImage(product.productId, product.fileName)) {
+        return res.status(404).json({ error: 'Не найдено' });
+      }
+      return next();
     }
 
-    next();
+    const doc = parseDocumentUploadPath(req.path);
+    if (doc) {
+      if (!getDocumentAttachment(doc.documentId, doc.fileName)) {
+        return res.status(404).json({ error: 'Не найдено' });
+      }
+      return next();
+    }
+
+    return res.status(404).json({ error: 'Не найдено' });
   });
   router.use(staticHandler);
 

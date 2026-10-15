@@ -10,6 +10,7 @@ import {
 } from '../telegramPrihodParser.js';
 import { confirmDocument, createDocument, getDocument, updateDocument } from './documents.js';
 import { isOpenRouterReady, recognizePrihodPhoto } from './openRouter.js';
+import { saveDocumentAttachmentBuffer } from '../documentAttachments.js';
 import { addProductVariant, getPrihodPrefillPriceMap, lastPriceForItem } from './products.js';
 
 const { queryAll, queryOne, run } = db;
@@ -899,6 +900,18 @@ export async function handleIncomingPhoto(input) {
       ai_recognized: true,
       ai_pending_items: pendingItems,
     }, null, topic.branch_id);
+
+    try {
+      const mime = input.mimeType || 'image/jpeg';
+      const ext = mime.includes('png') ? '.png' : mime.includes('webp') ? '.webp' : mime.includes('gif') ? '.gif' : '.jpg';
+      saveDocumentAttachmentBuffer(doc.id, input.imageBuffer, {
+        mimeType: mime,
+        originalName: `telegram-${messageId}${ext}`,
+        source: 'telegram',
+      });
+    } catch (attachErr) {
+      console.error('Telegram приход: не удалось сохранить фото к документу:', attachErr.message);
+    }
 
     run(`
       UPDATE telegram_inbox

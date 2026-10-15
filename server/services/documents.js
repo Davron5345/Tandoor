@@ -38,6 +38,10 @@ import {
 import { getStockReport } from './reports.js';
 import { assertNoLaterStockMovements } from '../stockMovementGuard.js';
 import { buildDocumentHistoryDiff } from '../documentHistoryDiff.js';
+import {
+  listDocumentAttachments,
+  deleteAllDocumentAttachments,
+} from '../documentAttachments.js';
 import { snapshotDocument, addDocumentHistory } from '../documentSnapshot.js';
 import { getCashArticle, getCashArticles } from '../cashArticles.js';
 import { SHORTAGE_ARTICLE_CODE, cashArticleId } from '../cashArticleDefaults.js';
@@ -785,6 +789,7 @@ export function getDocument(id, branchId = null) {
     ai_recognized: !!doc.ai_recognized,
     ai_unconfirmed_count: Number(doc.ai_unconfirmed_count) || 0,
     ai_pending_items,
+    attachments: listDocumentAttachments(id),
     shortage_total: inventoryTotalsOut?.shortage ?? 0,
     surplus_total: inventoryTotalsOut?.surplus ?? 0,
     remainder_document,
@@ -2855,6 +2860,7 @@ export function deleteDocument(id) {
   transaction(() => {
     if (remainder) {
       if (remainder.status === 'confirmed') updateStock(remainder.id, true);
+      deleteAllDocumentAttachments(remainder.id);
       run('DELETE FROM documents WHERE id = ?', [remainder.id]);
     }
     if (doc.status === 'confirmed') {
@@ -2865,6 +2871,7 @@ export function deleteDocument(id) {
       "UPDATE telegram_inbox SET status = 'new', document_id = NULL, updated_at = datetime('now') WHERE document_id = ?",
       [id],
     );
+    deleteAllDocumentAttachments(id);
     run('DELETE FROM documents WHERE id = ?', [id]);
   });
 

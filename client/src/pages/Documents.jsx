@@ -158,6 +158,7 @@ const emptyDoc = {
   ai_recognized: false,
   ai_unconfirmed_count: 0,
   ai_pending_items: [],
+  attachments: [],
 };
 
 export default function Documents({ defaultType }) {
@@ -1125,6 +1126,7 @@ export default function Documents({ defaultType }) {
       ai_recognized: !!doc.ai_recognized,
       ai_unconfirmed_count: Number(doc.ai_unconfirmed_count) || 0,
       ai_pending_items: Array.isArray(doc.ai_pending_items) ? doc.ai_pending_items : [],
+      attachments: Array.isArray(doc.attachments) ? doc.attachments : [],
     };
     setForm(applyDocumentDraft(id, loadedForm));
     setPrihodBodyTab('items');
@@ -1987,6 +1989,93 @@ export default function Documents({ defaultType }) {
                         </li>
                       ))}
                     </ul>
+                  )}
+                </div>
+              )}
+              {form.type === 'prihod' && (
+                <div className="doc-attachments" style={{ marginBottom: 12 }}>
+                  <div className="doc-attachments-head">
+                    <strong>Файл прихода</strong>
+                    <span className="doc-attachments-hint">
+                      {(form.attachments || []).length
+                        ? 'Исходное фото / скан'
+                        : 'Прикрепите фото тетради или накладной'}
+                    </span>
+                    {canEdit && modal && modal !== 'create' && modal !== 'transfer' && !isReadOnly && (
+                      <label className="btn btn-ghost btn-sm doc-attachments-upload">
+                        Прикрепить
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp,image/gif,application/pdf"
+                          hidden
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            e.target.value = '';
+                            if (!file) return;
+                            try {
+                              const att = await api.uploadDocumentAttachment(modal, file);
+                              setForm((prev) => ({
+                                ...prev,
+                                attachments: [...(prev.attachments || []), att],
+                              }));
+                              show('Файл прикреплён');
+                            } catch (err) {
+                              show(err.message, 'error');
+                            }
+                          }}
+                        />
+                      </label>
+                    )}
+                  </div>
+                  {(form.attachments || []).length > 0 ? (
+                    <div className="doc-attachments-list">
+                      {(form.attachments || []).map((a) => {
+                        const isImg = String(a.mime_type || '').startsWith('image/');
+                        return (
+                          <div key={a.id} className="doc-attachment-item">
+                            {isImg ? (
+                              <a href={a.url} target="_blank" rel="noreferrer" className="doc-attachment-thumb">
+                                <img src={a.url} alt={a.original_name || 'Вложение'} />
+                              </a>
+                            ) : (
+                              <a href={a.url} target="_blank" rel="noreferrer" className="doc-attachment-file">
+                                PDF · {a.original_name || a.file_name}
+                              </a>
+                            )}
+                            <div className="doc-attachment-meta">
+                              <span>{a.original_name || a.file_name}</span>
+                              {a.source === 'telegram' && <span className="badge badge-ai">Из Telegram</span>}
+                              {canEdit && modal && modal !== 'create' && !isReadOnly && (
+                                <button
+                                  type="button"
+                                  className="btn btn-ghost btn-sm"
+                                  onClick={async () => {
+                                    if (!confirm('Удалить вложение?')) return;
+                                    try {
+                                      await api.deleteDocumentAttachment(modal, a.id);
+                                      setForm((prev) => ({
+                                        ...prev,
+                                        attachments: (prev.attachments || []).filter((x) => x.id !== a.id),
+                                      }));
+                                    } catch (err) {
+                                      show(err.message, 'error');
+                                    }
+                                  }}
+                                >
+                                  Удалить
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    modal === 'create' && (
+                      <div className="doc-attachments-empty">
+                        Сохраните документ, затем прикрепите файл — или пришлите фото в Telegram, оно сохранится само.
+                      </div>
+                    )
                   )}
                 </div>
               )}

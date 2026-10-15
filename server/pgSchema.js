@@ -387,6 +387,17 @@ CREATE TABLE IF NOT EXISTS document_extra_costs (
   sort_order INTEGER DEFAULT 0
 );
 
+CREATE TABLE IF NOT EXISTS document_attachments (
+  id TEXT PRIMARY KEY,
+  document_id TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+  file_name TEXT NOT NULL,
+  original_name TEXT,
+  mime_type TEXT,
+  size INTEGER DEFAULT 0,
+  source TEXT DEFAULT 'upload',
+  created_at TEXT DEFAULT (${NOW})
+);
+
 CREATE TABLE IF NOT EXISTS document_history (
   id TEXT PRIMARY KEY,
   document_id TEXT,
@@ -710,6 +721,7 @@ CREATE INDEX IF NOT EXISTS idx_docs_counterparty ON documents (counterparty_id);
 CREATE INDEX IF NOT EXISTS idx_doc_items_doc ON document_items (document_id);
 CREATE INDEX IF NOT EXISTS idx_doc_items_product ON document_items (product_id);
 CREATE INDEX IF NOT EXISTS idx_doc_extra_costs_doc ON document_extra_costs (document_id);
+CREATE INDEX IF NOT EXISTS idx_document_attachments_doc ON document_attachments (document_id);
 CREATE INDEX IF NOT EXISTS idx_document_history_document ON document_history (document_id);
 CREATE INDEX IF NOT EXISTS idx_payments_branch_date ON payments (branch_id, date, type);
 CREATE INDEX IF NOT EXISTS idx_payments_counterparty ON payments (counterparty_id);
@@ -765,6 +777,7 @@ export const PG_TABLE_IMPORT_ORDER = [
   'documents',
   'document_items',
   'document_extra_costs',
+  'document_attachments',
   'document_history',
   'opening_balance_lines',
   'branch_opening_balances',
