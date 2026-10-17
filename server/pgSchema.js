@@ -575,6 +575,8 @@ CREATE TABLE IF NOT EXISTS telegram_inbox (
   document_id TEXT,
   error TEXT,
   edited INTEGER DEFAULT 0,
+  media_file_name TEXT,
+  media_mime TEXT,
   created_at TEXT DEFAULT (${NOW}),
   updated_at TEXT DEFAULT (${NOW})
 );

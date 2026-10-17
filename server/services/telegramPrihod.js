@@ -10,7 +10,11 @@ import {
 } from '../telegramPrihodParser.js';
 import { confirmDocument, createDocument, getDocument, updateDocument } from './documents.js';
 import { isOpenRouterReady, recognizePrihodPhoto } from './openRouter.js';
-import { saveDocumentAttachmentBuffer } from '../documentAttachments.js';
+import {
+  saveDocumentAttachmentBuffer,
+  saveInboxMediaBuffer,
+  readInboxMediaBuffer,
+} from '../documentAttachments.js';
 import { addProductVariant, getPrihodPrefillPriceMap, lastPriceForItem } from './products.js';
 
 const { queryAll, queryOne, run } = db;
@@ -364,10 +368,40 @@ function ensureSupplierLinks(branchId, supplierId, items) {
 }
 
 function entryComment(entry) {
-  const parts = ['Из Telegram'];
+  const parts = [entry.source === 'ai_photo' ? '🟡 Из Telegram · ИИ' : 'Из Telegram'];
   if (entry.from_name) parts.push(entry.from_name);
   if (entry.message_at) parts.push(formatMessageAt(entry.message_at));
   return parts.join(' · ');
+}
+
+function attachInboxMediaToDocument(entry, documentId) {
+  if (!entry?.media_file_name || !documentId) return;
+  try {
+    const buf = readInboxMediaBuffer(entry.id, entry.media_file_name);
+    if (!buf?.length) return;
+    saveDocumentAttachmentBuffer(documentId, buf, {
+      mimeType: entry.media_mime || 'image/jpeg',
+      originalName: entry.media_file_name,
+      source: 'telegram',
+    });
+  } catch (e) {
+    console.error('Telegram приход: не удалось перенести фото во вложение:', e.message);
+  }
+}
+
+function enrichInboxRow(row) {
+  const rest = { ...row };
+  delete rest.parsed_json;
+  const isPhoto = row.source === 'ai_photo' || !!row.media_file_name;
+  return {
+    ...rest,
+    edited: !!row.edited,
+    source_kind: row.source === 'paste' ? 'paste' : isPhoto ? 'photo' : 'text',
+    source_label: row.source === 'paste' ? 'Вставка' : isPhoto ? 'Фото' : 'Текст',
+    media_url: row.media_file_name
+      ? `/uploads/telegram-inbox/${row.id}/${row.media_file_name}`
+      : null,
+  };
 }
 
 function liveDocument(entry) {
@@ -393,14 +427,21 @@ function createPrihodFromEntry(entry, payload, userId) {
   if (!items.length) throw new Error('Сопоставьте хотя бы один товар');
 
   ensureSupplierLinks(entry.branch_id, payload.counterparty_id, items);
+  const fromPhoto = entry.source === 'ai_photo' || !!entry.media_file_name;
   const doc = createDocument({
     type: 'prihod',
     date: payload.date || entry.doc_date,
     counterparty_id: payload.counterparty_id,
     to_department_id: departmentId,
     comment: entryComment(entry),
-    items,
+    items: fromPhoto
+      ? items.map((i) => ({ ...i, ai_confirmed: 0, ai_raw_name: i.ai_raw_name || null }))
+      : items,
+    ai_recognized: fromPhoto,
+    ai_pending_items: fromPhoto ? (payload.ai_pending_items || []) : undefined,
   }, userId, entry.branch_id);
+
+  attachInboxMediaToDocument(entry, doc.id);
 
   run(`
     UPDATE telegram_inbox
@@ -598,11 +639,10 @@ export function listInbox(branchId, filters = {}) {
   `, params);
 
   const ctx = buildMatchContext(branchId);
-  const items = rows.map((row) => {
-    const rest = { ...row };
-    delete rest.parsed_json;
-    return { ...rest, edited: !!row.edited, analysis: analyzeEntry(row, ctx) };
-  });
+  const items = rows.map((row) => ({
+    ...enrichInboxRow(row),
+    analysis: analyzeEntry(row, ctx),
+  }));
   const counts = Object.fromEntries(
     queryAll('SELECT status, COUNT(*) as c FROM telegram_inbox WHERE branch_id = ? GROUP BY status', [branchId])
       .map((r) => [r.status, Number(r.c) || 0]),
@@ -834,23 +874,36 @@ export async function handleIncomingPhoto(input) {
     ...extraction.items.map((i) => `${i.name} — ${i.quantity} ${i.unit}`),
   ].join('\n');
 
+  let mediaMeta = null;
+  try {
+    mediaMeta = saveInboxMediaBuffer(inboxId, input.imageBuffer, input.mimeType || 'image/jpeg');
+  } catch (e) {
+    console.error('Telegram приход: не удалось сохранить фото во входящие:', e.message);
+  }
+
   if (existing) {
     run(`
       UPDATE telegram_inbox
       SET text = ?, parsed_json = ?, from_name = ?, department_id = ?,
-          message_at = ?, doc_date = ?, status = 'new', error = NULL, updated_at = datetime('now')
+          message_at = ?, doc_date = ?, status = 'new', error = NULL, source = 'ai_photo',
+          media_file_name = COALESCE(?, media_file_name), media_mime = COALESCE(?, media_mime),
+          updated_at = datetime('now')
       WHERE id = ?
-    `, [textPreview, parsedJson, input.fromName || null, topic.department_id, when.at, when.date, inboxId]);
+    `, [
+      textPreview, parsedJson, input.fromName || null, topic.department_id, when.at, when.date,
+      mediaMeta?.file_name || null, mediaMeta?.mime_type || null, inboxId,
+    ]);
   } else {
     run(`
       INSERT INTO telegram_inbox (id, branch_id, topic_id, department_id, chat_id, thread_id, message_id, part, source,
-        from_name, from_user_id, text, message_at, doc_date, parsed_json, status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, 0, 'ai_photo', ?, ?, ?, ?, ?, ?, 'new')
+        from_name, from_user_id, text, message_at, doc_date, parsed_json, status, media_file_name, media_mime)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 0, 'ai_photo', ?, ?, ?, ?, ?, ?, 'new', ?, ?)
     `, [
       inboxId, topic.branch_id, topic.id, topic.department_id, chatId,
       input.threadId ? String(input.threadId) : '', messageId,
       input.fromName || null, input.fromUserId ? String(input.fromUserId) : null,
       textPreview, when.at, when.date, parsedJson,
+      mediaMeta?.file_name || null, mediaMeta?.mime_type || null,
     ]);
   }
 

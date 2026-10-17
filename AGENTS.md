@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-10-16 (Вложение исходного фото к приходу)
+**Последнее обновление документации:** 2026-10-17 (Источник фото во входящих Telegram)
 
 ---
 
@@ -181,7 +181,7 @@ npm run db:repair-transfers [-- --apply] # Старые межфилиальны
 | MyShop/Mobile | `shop_orders`, `shop_order_items`, `push_subscriptions`, `staff_locations`, `staff_location_history` |
 | Зарплата / Face ID | `payroll_employees` (синк из Face ID или Excel, `balance` = долг, `view_token` — единая ссылка `/e/{token}`), `payroll_attendance` (приход/уход), `payroll_ledger` (начисление/выплата); настройки в `settings` ключ `faceid_config_{branchId}` |
 | Отчёты | `reconciliation_marks` — отметки акта сверки (counterparty_id, срез `firm_id`/`contract_id` как в фильтре акта, `date`, снимок `balance`, comment, created_by) |
-| Telegram-приходы | `telegram_topics` (группа `chat_id` + тема `thread_id`, `mode` off/prihod, `branch_id`, `department_id`, флаги `auto_create` / `auto_confirm` / `notify`), `telegram_inbox` (сообщение → `part` на каждого поставщика; `parsed_json`, `doc_date`, `status` new/error/created/ignored, `document_id`, `source` telegram/paste/ai_photo), `telegram_aliases` (выученные сопоставления `kind` product/supplier: `alias_key` → `target_id` / `variant_id`, по филиалу) |
+| Telegram-приходы | `telegram_topics` (группа `chat_id` + тема `thread_id`, `mode` off/prihod, `branch_id`, `department_id`, флаги `auto_create` / `auto_confirm` / `notify`), `telegram_inbox` (сообщение → `part` на каждого поставщика; `parsed_json`, `doc_date`, `status` new/error/created/ignored, `document_id`, `source` telegram/paste/ai_photo, `media_file_name` / `media_mime` — исходное фото в `uploads/telegram-inbox/{id}/`), `telegram_aliases` (выученные сопоставления `kind` product/supplier: `alias_key` → `target_id` / `variant_id`, по филиалу) |
 | Прочее | `telegram_messages`, `settings` (в т.ч. `openrouter_config` — API-ключ, модель, кэш списка моделей), `branches` |
 
 ---
@@ -551,7 +551,7 @@ GET  /api/auth/roles
 |---------|------|-------|
 | `/` | Dashboard.jsx | dashboard.view; «Топ по стоимости остатка» — `stock × avg_cost` склада; **телефон (≤768px):** «Рабочий стол» в стиле 1С — сетка «Быстрый доступ» (`MobileWorkspaceHome` + `mobileQuickLinks.js`) + Telegram внизу; dock скрыт; desktop-дашборд без изменений |
 | `/products` | Products.jsx | products.view; поле **Ключевые слова** в карточке и в `ProductCreateModal` (другие названия через запятую; под названием в списке «Также: …»; поиск в списке и `ProductSelect` ищет и по ним); колонки **Цена справочника** и **Себест. склада** (филиал); у цен стрелка ▲/▼ по последним двум приходам (дороже/дешевле); в карточке — avg по отделам; клик по названию (при `documents.prihod` / `documents.view`) → модалка приходов с фильтром **Месяц / Год** и даты **С/По**; у варианта — только его строки (`variant_id`); у родителя — все по `product_id`; строка открывает `/prihod?open={id}` в **новой вкладке**; архивировать / удалить товар — только admin (как на сервере) |
-| `/prihod-telegram` | TelegramPrihod.jsx | documents.prihod; меню «Закупки → Из Telegram». Вкладка **Входящие**: карточки сообщений (текст + распознанный поставщик/товары зелёным/красным, статус), фильтры Ждут проверки / Созданы / Пропущены / Все; «Разобрать и создать» → окно сопоставления (поставщик, товар через `ProductSelect` с подсказками, кол-во, цена, «Запомнить сопоставления», «+ Новый вариант» если у товара нет такого варианта), «Создать готовые (N)», «Вставить из Telegram» (история). Вкладка **Темы**: инструкция подключения + таблица групп/тем (режим, склад, автосоздание/автопроведение/ответ — правка `telegram.settings`) |
+| `/prihod-telegram` | TelegramPrihod.jsx | documents.prihod; меню «Закупки → Из Telegram». Вкладка **Входящие**: карточки с бейджем источника **Фото / Текст / Вставка**, для фото — превью исходного снимка (`media_url`); распознанный поставщик/товары; фильтры Ждут проверки / Созданы / Пропущены / Все; «Разобрать и создать» → окно сопоставления (тоже с превью фото); «Создать готовые (N)», «Вставить из Telegram». Вкладка **Темы**: группы/темы (режим, склад, флаги — `telegram.settings`) |
 | `/supplier-prices` | SupplierPrices.jsx | products.view; документы прайса поставщика (дата, поставщик, цены); edit — `products.edit` |
 | `/product-categories` | ProductCategories.jsx | products.view |
 | `/units` | Units.jsx | products.view |
@@ -957,6 +957,7 @@ GET  /api/auth/roles
 | 2026-10-12 | Telegram-приход: в окне разбора «+ Новый вариант» — недостающий вариант добавляется товару (`addProductVariant`, `new_variant_name`, право `products.edit`) и запоминается |
 | 2026-10-16 | OpenRouter: настройки ИИ на `/telegram` (API-ключ, модель, «Обновить» список моделей); фото в теме прихода → vision → черновик с `ai_recognized`, жёлтый фон и «Неподтв.» в списке приходов; API `/api/ai/*` |
 | 2026-10-16 | Приход: вложения `document_attachments` — фото из Telegram сохраняется к документу; в карточке блок «Файл прихода» + ручная загрузка; `/uploads/documents/{id}/…` |
+| 2026-10-17 | Входящие Telegram: источник Фото/Текст/Вставка + превью снимка (`media_file_name` в inbox, `/uploads/telegram-inbox/…`); при ручном создании прихода фото переносится во вложение |
 
 ---
 

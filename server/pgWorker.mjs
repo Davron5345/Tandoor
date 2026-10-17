@@ -94,6 +94,8 @@ async function ensureBootstrap() {
   await execRaw('ALTER TABLE documents ADD COLUMN IF NOT EXISTS ai_unconfirmed_count INTEGER DEFAULT 0');
   await execRaw('ALTER TABLE document_items ADD COLUMN IF NOT EXISTS ai_confirmed INTEGER DEFAULT 1');
   await execRaw('ALTER TABLE document_items ADD COLUMN IF NOT EXISTS ai_raw_name TEXT');
+  await execRaw('ALTER TABLE telegram_inbox ADD COLUMN IF NOT EXISTS media_file_name TEXT');
+  await execRaw('ALTER TABLE telegram_inbox ADD COLUMN IF NOT EXISTS media_mime TEXT');
   await execRaw('ALTER TABLE payments ADD COLUMN IF NOT EXISTS liable_user_id TEXT');
   await execRaw('ALTER TABLE payments ADD COLUMN IF NOT EXISTS liable_department_id TEXT');
   await execRaw('ALTER TABLE opening_balance_lines ADD COLUMN IF NOT EXISTS bank_account_id TEXT');

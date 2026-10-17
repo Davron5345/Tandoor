@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import { existsSync, mkdirSync, writeFileSync, unlinkSync, rmSync } from 'fs';
+import { existsSync, mkdirSync, writeFileSync, unlinkSync, rmSync, readFileSync } from 'fs';
 import { join } from 'path';
 import db from './db.js';
 import { uploadsDir } from './dbBackup.js';
@@ -120,4 +120,46 @@ export function deleteAllDocumentAttachments(documentId) {
   try {
     if (existsSync(dir)) rmSync(dir, { recursive: true, force: true });
   } catch { /* */ }
+}
+
+// ── Медиа входящих Telegram (фото до создания прихода) ─────────────────
+
+export function getInboxMediaDir(inboxId) {
+  return join(uploadsDir, 'telegram-inbox', inboxId);
+}
+
+export function ensureInboxMediaDir(inboxId) {
+  if (!existsSync(uploadsDir)) mkdirSync(uploadsDir, { recursive: true });
+  const dir = getInboxMediaDir(inboxId);
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+export function saveInboxMediaBuffer(inboxId, buffer, mimeType = 'image/jpeg') {
+  if (!inboxId || !buffer?.length) return null;
+  const mime = isAllowedDocMime(mimeType) ? mimeType : 'image/jpeg';
+  const ext = extFromDocMime(mime) || '.jpg';
+  const fileName = `source${ext}`;
+  const dir = ensureInboxMediaDir(inboxId);
+  // одно фото на сообщение — перезаписываем
+  writeFileSync(join(dir, fileName), buffer);
+  return { file_name: fileName, mime_type: mime, url: `/uploads/telegram-inbox/${inboxId}/${fileName}` };
+}
+
+export function readInboxMediaBuffer(inboxId, fileName) {
+  if (!inboxId || !fileName) return null;
+  if (fileName.includes('..') || fileName.includes('/') || fileName.includes('\\')) return null;
+  const path = join(getInboxMediaDir(inboxId), fileName);
+  if (!existsSync(path)) return null;
+  return readFileSync(path);
+}
+
+export function isRegisteredInboxMedia(inboxId, fileName) {
+  if (!inboxId || !fileName) return false;
+  if (fileName.includes('..') || fileName.includes('/') || fileName.includes('\\')) return false;
+  const row = queryOne(
+    'SELECT id FROM telegram_inbox WHERE id = ? AND media_file_name = ?',
+    [inboxId, fileName],
+  );
+  return !!row;
 }

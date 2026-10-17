@@ -19393,6 +19393,47 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
   margin-top: 10px;
 }
 
+.tg-prihod-source-col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.tg-prihod-media {
+  display: block;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border, #e2e8f0);
+  background: #f8fafc;
+  text-decoration: none;
+  color: inherit;
+}
+.tg-prihod-media img {
+  display: block;
+  width: 100%;
+  max-height: 220px;
+  object-fit: contain;
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+}
+.tg-prihod-media-caption {
+  display: block;
+  padding: 6px 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.tg-prihod-media-review {
+  max-width: 360px;
+  margin: 8px 0;
+}
+.tg-prihod-media-review img {
+  max-height: 280px;
+}
+
+.tg-prihod-card-source .badge {
+  vertical-align: middle;
+}
+
 .tg-prihod-text {
   margin: 0;
   white-space: pre-wrap;

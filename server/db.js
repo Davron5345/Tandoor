@@ -556,7 +556,18 @@ function migrateSchema() {
   migrateTelegramPrihod();
   migrateAiPrihod();
   migrateDocumentAttachments();
+  migrateTelegramInboxMedia();
   addPerformanceIndexes();
+}
+
+function migrateTelegramInboxMedia() {
+  const cols = queryAll('PRAGMA table_info(telegram_inbox)').map((c) => c.name);
+  if (!cols.includes('media_file_name')) {
+    run('ALTER TABLE telegram_inbox ADD COLUMN media_file_name TEXT');
+  }
+  if (!cols.includes('media_mime')) {
+    run('ALTER TABLE telegram_inbox ADD COLUMN media_mime TEXT');
+  }
 }
 
 function migrateDocumentAttachments() {

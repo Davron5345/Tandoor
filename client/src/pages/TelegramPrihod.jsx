@@ -34,6 +34,14 @@ function entrySource(entry) {
   return [entry.chat_title, entry.topic_title].filter(Boolean).join(' · ') || 'Telegram';
 }
 
+function SourceKindBadge({ entry }) {
+  const kind = entry.source_kind || (entry.source === 'paste' ? 'paste' : entry.source === 'ai_photo' ? 'photo' : 'text');
+  const label = entry.source_label
+    || (kind === 'paste' ? 'Вставка' : kind === 'photo' ? 'Фото' : 'Текст');
+  const cls = kind === 'photo' ? 'badge-ai' : kind === 'paste' ? 'badge-draft' : 'badge-primary';
+  return <span className={`badge ${cls}`} title="Источник сообщения">{label}</span>;
+}
+
 function EntryStatus({ entry }) {
   if (entry.status === 'created') {
     return (
@@ -59,6 +67,8 @@ function EntryCard({ entry, onReview, onStatus }) {
           {messageTime(entry.message_at) && <span className="muted"> {messageTime(entry.message_at)}</span>}
           {entry.from_name && <span> · {entry.from_name}</span>}
           <div className="muted tg-prihod-card-source">
+            <SourceKindBadge entry={entry} />
+            {' · '}
             {entrySource(entry)}
             {entry.department_name ? ` → ${entry.department_name}` : ''}
             {entry.edited ? ' · изменено' : ''}
@@ -68,7 +78,15 @@ function EntryCard({ entry, onReview, onStatus }) {
       </div>
 
       <div className="tg-prihod-card-body">
-        <pre className="tg-prihod-text">{entry.text}</pre>
+        <div className="tg-prihod-source-col">
+          {entry.media_url ? (
+            <a href={entry.media_url} target="_blank" rel="noreferrer" className="tg-prihod-media">
+              <img src={entry.media_url} alt="Исходное фото" />
+              <span className="tg-prihod-media-caption">Исходное фото / скрин</span>
+            </a>
+          ) : null}
+          <pre className="tg-prihod-text">{entry.text}</pre>
+        </div>
         <div className="tg-prihod-parsed">
           <div className="tg-prihod-parsed-row">
             <span className="muted">Поставщик:</span>{' '}
@@ -267,9 +285,18 @@ function ReviewModal({
     >
       <div className="tg-prihod-review">
         <div className="tg-prihod-review-source">
-          <div className="muted">
-            {entry.from_name || 'Сообщение'} · {formatDate(entry.doc_date)} {messageTime(entry.message_at)}
+          <div className="muted" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <SourceKindBadge entry={entry} />
+            <span>
+              {entry.from_name || 'Сообщение'} · {formatDate(entry.doc_date)} {messageTime(entry.message_at)}
+            </span>
           </div>
+          {entry.media_url && (
+            <a href={entry.media_url} target="_blank" rel="noreferrer" className="tg-prihod-media tg-prihod-media-review">
+              <img src={entry.media_url} alt="Исходное фото" />
+              <span className="tg-prihod-media-caption">Исходное фото / скрин — открыть</span>
+            </a>
+          )}
           <pre className="tg-prihod-text">{entry.text}</pre>
         </div>
 
