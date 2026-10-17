@@ -53,6 +53,39 @@ async function downloadTelegramFile(instance, fileId) {
   return { buffer: buf, mimeType };
 }
 
+/** Реакция на исходное сообщение: в группе видно, что приход уже взят в систему. */
+export async function reactToSourceMessage(chatId, messageId, emoji = '👍') {
+  const token = currentToken;
+  if (!token || chatId == null || messageId == null) return false;
+  const chat = String(chatId);
+  const msgId = Number(messageId);
+  if (!chat || chat === 'paste' || !Number.isFinite(msgId)) return false;
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${token}/setMessageReaction`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chat,
+        message_id: msgId,
+        reaction: [{ type: 'emoji', emoji }],
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!data.ok) {
+      console.error('Telegram реакция:', data.description || res.status);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error('Telegram реакция:', err.message);
+    return false;
+  }
+}
+
+function messageWasTaken(outcome) {
+  return (outcome?.results || []).some((r) => r && r.status && r.status !== 'ignored');
+}
+
 async function replyInTopic(instance, msg, threadId, outcome) {
   if (!outcome?.topic?.notify) return;
   for (const result of outcome.results || []) {
@@ -104,6 +137,9 @@ async function onGroupMessage(instance, msg, edited) {
       return;
     }
     await replyInTopic(instance, msg, threadId, outcome);
+    if (messageWasTaken(outcome)) {
+      await reactToSourceMessage(msg.chat.id, msg.message_id);
+    }
     return;
   }
 
@@ -126,6 +162,9 @@ async function onGroupMessage(instance, msg, edited) {
     return;
   }
   await replyInTopic(instance, msg, threadId, outcome);
+  if (messageWasTaken(outcome)) {
+    await reactToSourceMessage(msg.chat.id, msg.message_id);
+  }
 }
 
 function setupHandlers(instance) {

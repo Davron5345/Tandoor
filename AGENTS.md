@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-10-17 (Ссылка на исходное сообщение Telegram)
+**Последнее обновление документации:** 2026-10-17 (Реакция 👍 на сообщение Telegram)
 
 ---
 
@@ -472,7 +472,7 @@ Frontend зеркало: `client/src/permissions.js`.
 - Удаление прихода возвращает сообщение в «Входящие» (`deleteDocument` сбрасывает `telegram_inbox.document_id`). «Пропустить» нельзя при живом приходе
 - История до подключения бота: «Вставить из Telegram» — текст из Telegram Desktop (`Нодирбек, [09.10.2026 8:39]` или `[09.10.2026 8:39] Нодирбек: …`), отдел и дата по умолчанию; дубли отсекаются по хешу (`chat_id = 'paste'`)
 - Удаление филиала чистит `telegram_inbox` / `telegram_aliases` и отвязывает темы; сброс операционных данных чистит inbox и aliases
-- **Фото прихода (OpenRouter):** в теме с режимом «Приход» фото тетради/накладной скачивается ботом → `recognizePrihodPhoto` (`services/openRouter.js`, vision-модель) → JSON поставщик/позиции → то же сопоставление, что у текста → черновик `prihod` с `ai_recognized=1`, строки `ai_confirmed=0`, несопоставленные в `ai_pending_json`; **само фото сохраняется** и во входящие (`telegram_inbox.media_*`, `media_telegram_file_id`), и в `document_attachments` при создании прихода; в теме ответ с 🟡; в списке приходов строка **жёлтая** + бейджи «ИИ» / «Неподтв. N». Проведение запрещено, пока `ai_unconfirmed_count > 0`. Старые входящие без файла: на карточке **«Прикрепить фото / скрин»** → `POST /api/telegram-prihod/inbox/:id/media`. **Источник в Telegram:** синяя иконка (`telegram_url` из `chat_id`/`thread_id`/`message_id`, `server/telegramLinks.js`) во входящих, в приходе и в превью документа. Настройки: `/telegram` → «Искусственный интеллект». Ручная загрузка к документу: `POST /api/documents/:id/attachments`
+- **Фото прихода (OpenRouter):** в теме с режимом «Приход» фото тетради/накладной скачивается ботом → `recognizePrihodPhoto` (`services/openRouter.js`, vision-модель) → JSON поставщик/позиции → то же сопоставление, что у текста → черновик `prihod` с `ai_recognized=1`, строки `ai_confirmed=0`, несопоставленные в `ai_pending_json`; **само фото сохраняется** и во входящие (`telegram_inbox.media_*`, `media_telegram_file_id`), и в `document_attachments` при создании прихода; в теме ответ с 🟡; в списке приходов строка **жёлтая** + бейджи «ИИ» / «Неподтв. N». Проведение запрещено, пока `ai_unconfirmed_count > 0`. Старые входящие без файла: на карточке **«Прикрепить фото / скрин»** → `POST /api/telegram-prihod/inbox/:id/media`. **Источник в Telegram:** синяя иконка (`telegram_url` из `chat_id`/`thread_id`/`message_id`, `server/telegramLinks.js`) во входящих, в приходе и в превью документа. Когда сообщение принято в систему, бот ставит реакцию **👍** (`setMessageReaction`). Настройки: `/telegram` → «Искусственный интеллект». Ручная загрузка к документу: `POST /api/documents/:id/attachments`
 
 ---
 
@@ -960,6 +960,7 @@ GET  /api/auth/roles
 | 2026-10-17 | Входящие Telegram: источник Фото/Текст/Вставка + превью снимка (`media_file_name` в inbox, `/uploads/telegram-inbox/…`); при ручном создании прихода фото переносится во вложение |
 | 2026-10-17 | Входящие без файла: «Прикрепить фото» (`POST /inbox/:id/media`), `media_telegram_file_id` для новых фото; если приход уже есть — копия во вложение документа |
 | 2026-10-17 | Источник Telegram: иконка → `telegram_url` (`server/telegramLinks.js`, `t.me/c/{chat}/{thread?}/{msg}`); во входящих, списке/карточке прихода и превью документа |
+| 2026-10-17 | Реакция 👍 на исходное сообщение Telegram, когда приход принят (`reactToSourceMessage` / `setMessageReaction`) |
 
 ---
 

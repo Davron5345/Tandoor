@@ -431,6 +431,14 @@ export function attachInboxMedia(id, buffer, mimeType, branchId) {
   return enrichInboxRow(queryOne('SELECT * FROM telegram_inbox WHERE id = ?', [id]));
 }
 
+/** Реакция 👍 на сообщение в группе, когда из него создан приход (в т.ч. вручную из входящих). */
+function markTelegramSourceTaken(entry) {
+  if (!entry?.chat_id || entry.chat_id === 'paste' || !entry.message_id) return;
+  import('../telegram.js')
+    .then((mod) => mod.reactToSourceMessage(entry.chat_id, entry.message_id))
+    .catch((err) => console.error('Telegram реакция:', err.message));
+}
+
 function liveDocument(entry) {
   if (!entry.document_id) return null;
   return queryOne('SELECT id, number, status FROM documents WHERE id = ?', [entry.document_id]);
@@ -475,6 +483,7 @@ function createPrihodFromEntry(entry, payload, userId) {
     SET status = 'created', document_id = ?, department_id = ?, error = NULL, updated_at = datetime('now')
     WHERE id = ?
   `, [doc.id, departmentId, entry.id]);
+  markTelegramSourceTaken(entry);
 
   let confirmed = false;
   let confirmError = null;
