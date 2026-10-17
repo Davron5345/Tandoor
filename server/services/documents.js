@@ -45,8 +45,52 @@ import {
 import { snapshotDocument, addDocumentHistory } from '../documentSnapshot.js';
 import { getCashArticle, getCashArticles } from '../cashArticles.js';
 import { SHORTAGE_ARTICLE_CODE, cashArticleId } from '../cashArticleDefaults.js';
+import { telegramUrlFromInboxRow } from '../telegramLinks.js';
 
 const { queryAll, queryOne, run, transaction } = db;
+
+function lookupTelegramInboxForDocument(documentId) {
+  if (!documentId) return null;
+  return queryOne(`
+    SELECT chat_id, thread_id, message_id, source
+    FROM telegram_inbox
+    WHERE document_id = ?
+      AND chat_id IS NOT NULL AND chat_id != '' AND chat_id != 'paste'
+      AND message_id IS NOT NULL AND message_id != ''
+    ORDER BY part ASC
+    LIMIT 1
+  `, [documentId]);
+}
+
+function telegramSourceForDocument(documentId) {
+  const inbox = lookupTelegramInboxForDocument(documentId);
+  const url = telegramUrlFromInboxRow(inbox);
+  if (!url) return { telegram_url: null };
+  return { telegram_url: url };
+}
+
+/** Пакетно добавить telegram_url к списку документов (из telegram_inbox). */
+function attachTelegramUrlsToDocuments(rows) {
+  if (!rows?.length) return rows || [];
+  const ids = [...new Set(rows.map((r) => r.id).filter(Boolean))];
+  if (!ids.length) return rows;
+  const placeholders = ids.map(() => '?').join(',');
+  const links = queryAll(`
+    SELECT document_id, chat_id, thread_id, message_id
+    FROM telegram_inbox
+    WHERE document_id IN (${placeholders})
+      AND chat_id IS NOT NULL AND chat_id != '' AND chat_id != 'paste'
+      AND message_id IS NOT NULL AND message_id != ''
+    ORDER BY part ASC
+  `, ids);
+  const map = new Map();
+  for (const row of links) {
+    if (map.has(row.document_id)) continue;
+    const url = telegramUrlFromInboxRow(row);
+    if (url) map.set(row.document_id, url);
+  }
+  return rows.map((r) => ({ ...r, telegram_url: map.get(r.id) || null }));
+}
 
 function generateDocNumber(branchId = DEFAULT_BRANCH_ID, docType) {
   if (!docType) throw new Error('Тип документа обязателен для номера');
@@ -631,9 +675,9 @@ export function getDocuments(filters = {}) {
   sql += ' ORDER BY d.date DESC, d.created_at DESC';
   const rows = queryAll(sql, params);
   if (filters.type === 'inventory') {
-    return attachInventoryListAmounts(attachRemaindersToDocuments(rows));
+    return attachInventoryListAmounts(attachRemaindersToDocuments(attachTelegramUrlsToDocuments(rows)));
   }
-  return rows;
+  return attachTelegramUrlsToDocuments(rows);
 }
 
 function assertActiveBranchOwnership(requestedBranchId, activeBranchId) {
@@ -790,6 +834,7 @@ export function getDocument(id, branchId = null) {
     ai_unconfirmed_count: Number(doc.ai_unconfirmed_count) || 0,
     ai_pending_items,
     attachments: listDocumentAttachments(id),
+    ...telegramSourceForDocument(id),
     shortage_total: inventoryTotalsOut?.shortage ?? 0,
     surplus_total: inventoryTotalsOut?.surplus ?? 0,
     remainder_document,

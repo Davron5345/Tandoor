@@ -46,6 +46,7 @@ import {
   promptRestoreDraft,
 } from '../hooks/useFormDraft';
 import { useFormDirty } from '../hooks/useFormDirty';
+import TelegramMessageLink from '../components/TelegramMessageLink';
 
 const DEFAULT_CONTRACT_ID = '__default__';
 const RETURN_SUPPLIER_TYPE = 'return_supplier';
@@ -159,6 +160,7 @@ const emptyDoc = {
   ai_unconfirmed_count: 0,
   ai_pending_items: [],
   attachments: [],
+  telegram_url: null,
 };
 
 export default function Documents({ defaultType }) {
@@ -1127,6 +1129,7 @@ export default function Documents({ defaultType }) {
       ai_unconfirmed_count: Number(doc.ai_unconfirmed_count) || 0,
       ai_pending_items: Array.isArray(doc.ai_pending_items) ? doc.ai_pending_items : [],
       attachments: Array.isArray(doc.attachments) ? doc.attachments : [],
+      telegram_url: doc.telegram_url || null,
     };
     setForm(applyDocumentDraft(id, loadedForm));
     setPrihodBodyTab('items');
@@ -1765,6 +1768,9 @@ export default function Documents({ defaultType }) {
                   </div>
                 </button>
                 <div className="docs-doc-card-actions">
+                  {d.telegram_url && (
+                    <TelegramMessageLink url={d.telegram_url} className="tg-message-link--sm" />
+                  )}
                   <IconButton
                     title={isReadOnly ? 'Просмотр' : 'Открыть'}
                     onClick={() => openEdit(d.id, d.type)}
@@ -1816,7 +1822,14 @@ export default function Documents({ defaultType }) {
             <tbody>
               {visibleDocs.map((d) => (
                 <tr key={d.id} className={d.ai_recognized ? 'docs-row-ai' : undefined}>
-                  <td>{d.number}</td>
+                  <td>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                      {d.number}
+                      {d.telegram_url && (
+                        <TelegramMessageLink url={d.telegram_url} className="tg-message-link--sm" />
+                      )}
+                    </span>
+                  </td>
                   <td>{formatDate(d.date)}</td>
                   <td>
                     <span className={`badge badge-${d.type === 'peremeshchenie' ? 'supplier' : ((d.type === RETURN_SUPPLIER_TYPE || d.type === RETURN_CUSTOMER_TYPE) ? 'rashod' : d.type)}`}>
@@ -1976,7 +1989,10 @@ export default function Documents({ defaultType }) {
             <div className="doc-modal-fields">
               {form.ai_recognized && (
                 <div className="alert alert-ai" style={{ marginBottom: 12 }}>
-                  <strong>Распознано искусственным интеллектом</strong>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <strong>Распознано искусственным интеллектом</strong>
+                    <TelegramMessageLink url={form.telegram_url} />
+                  </div>
                   {Number(form.ai_unconfirmed_count) > 0
                     ? ` · неподтверждённых позиций: ${form.ai_unconfirmed_count}. Проверьте строки и сохраните.`
                     : ' · позиции проверены.'}
@@ -1990,6 +2006,12 @@ export default function Documents({ defaultType }) {
                       ))}
                     </ul>
                   )}
+                </div>
+              )}
+              {!form.ai_recognized && form.telegram_url && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                  <TelegramMessageLink url={form.telegram_url} />
+                  <span className="muted">Источник в Telegram</span>
                 </div>
               )}
               {form.type === 'prihod' && (

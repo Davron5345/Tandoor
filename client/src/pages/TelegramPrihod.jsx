@@ -10,6 +10,7 @@ import { useAuth } from '../AuthContext';
 import { useBranch } from '../BranchContext';
 import { hasPermission } from '../permissions';
 import { todayLocalIso } from '../utils/date';
+import TelegramMessageLink from '../components/TelegramMessageLink';
 
 const STATUS_FILTERS = [
   { id: 'pending', label: 'Ждут проверки' },
@@ -79,7 +80,7 @@ function EntryCard({ entry, onReview, onStatus, onMediaAttached, show }) {
 
   return (
     <div className={`tg-prihod-card${pending ? ' is-pending' : ''}`}>
-      <div className="tg-prihod-card-head">
+      <div className="tg-prihod-card-head tg-prihod-card-head-row">
         <div>
           <strong>{formatDate(entry.doc_date)}</strong>
           {messageTime(entry.message_at) && <span className="muted"> {messageTime(entry.message_at)}</span>}
@@ -92,7 +93,10 @@ function EntryCard({ entry, onReview, onStatus, onMediaAttached, show }) {
             {entry.edited ? ' · изменено' : ''}
           </div>
         </div>
-        <EntryStatus entry={entry} />
+        <div className="tg-prihod-card-head-actions">
+          <TelegramMessageLink url={entry.telegram_url} />
+          <EntryStatus entry={entry} />
+        </div>
       </div>
 
       <div className="tg-prihod-card-body">
@@ -322,6 +326,7 @@ function ReviewModal({
         <div className="tg-prihod-review-source">
           <div className="muted" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <SourceKindBadge entry={entry} />
+            <TelegramMessageLink url={entry.telegram_url} />
             <span>
               {entry.from_name || 'Сообщение'} · {formatDate(entry.doc_date)} {messageTime(entry.message_at)}
             </span>

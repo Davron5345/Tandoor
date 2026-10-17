@@ -4,6 +4,7 @@ import DocumentHistoryModal from './DocumentHistoryModal';
 import { api, formatDate, formatMoney, formatQty, STATUS_LABELS } from '../api';
 import { DOC_TYPE_LABELS, hasPermission } from '../permissions';
 import { useAuth } from '../AuthContext';
+import TelegramMessageLink from './TelegramMessageLink';
 
 const DOC_PAGE_BY_TYPE = {
   prihod: { path: '/prihod', perm: 'documents.prihod' },
@@ -94,6 +95,12 @@ export default function DocumentPreviewModal({ documentId, onClose }) {
       {doc && (
         <div className="doc-preview">
           <div className="doc-preview-readonly-note">Только просмотр — редактирование недоступно</div>
+          {doc.telegram_url && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+              <TelegramMessageLink url={doc.telegram_url} />
+              <span className="muted">Источник в Telegram</span>
+            </div>
+          )}
           <dl className="doc-preview-meta">
             <div><dt>Дата</dt><dd>{formatDate(doc.date)}</dd></div>
             <div>

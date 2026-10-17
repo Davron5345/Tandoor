@@ -19450,6 +19450,55 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
   font-size: 12px;
   color: var(--text-muted);
 }
+
+/* Ссылка на исходное сообщение в Telegram */
+.tg-message-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #2aabee;
+  color: #fff;
+  text-decoration: none;
+  vertical-align: middle;
+  transition: background 0.15s ease, transform 0.12s ease;
+}
+.tg-message-link:hover {
+  background: #229ed9;
+  transform: scale(1.06);
+}
+.tg-message-link svg {
+  width: 15px;
+  height: 15px;
+  display: block;
+}
+.tg-message-link svg path {
+  stroke: #fff;
+  fill: none;
+}
+.tg-message-link--sm {
+  width: 24px;
+  height: 24px;
+}
+.tg-message-link--sm svg {
+  width: 13px;
+  height: 13px;
+}
+.tg-prihod-card-head-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.tg-prihod-card-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
 .tg-prihod-media-review {
   max-width: 360px;
   margin: 8px 0;

@@ -15,6 +15,7 @@ import {
   saveInboxMediaBuffer,
   readInboxMediaBuffer,
 } from '../documentAttachments.js';
+import { telegramUrlFromInboxRow } from '../telegramLinks.js';
 import { addProductVariant, getPrihodPrefillPriceMap, lastPriceForItem } from './products.js';
 
 const { queryAll, queryOne, run } = db;
@@ -404,6 +405,8 @@ function enrichInboxRow(row) {
     media_url: mediaUrl,
     /** Фото-источник без сохранённого файла (старые записи до фикса) — нужна ручная привязка */
     media_missing: isPhoto && !mediaUrl,
+    /** Ссылка на исходное сообщение в группе/теме Telegram */
+    telegram_url: telegramUrlFromInboxRow(row),
   };
 }
 
