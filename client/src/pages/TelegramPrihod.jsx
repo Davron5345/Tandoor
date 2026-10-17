@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   api, formatDate, formatMoney, formatPriceInput, formatQty, parsePriceInput, STATUS_LABELS,
 } from '../api';
@@ -56,9 +56,27 @@ function EntryStatus({ entry }) {
   return <span className="badge badge-draft">Нужно сопоставить</span>;
 }
 
-function EntryCard({ entry, onReview, onStatus }) {
+function EntryCard({ entry, onReview, onStatus, onMediaAttached, show }) {
   const { analysis } = entry;
   const pending = entry.status === 'new' || entry.status === 'error';
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef(null);
+
+  const attachMedia = async (file) => {
+    if (!file) return;
+    setUploading(true);
+    try {
+      const updated = await api.uploadTelegramPrihodMedia(entry.id, file);
+      show?.('Фото прикреплено', 'success');
+      onMediaAttached?.(updated);
+    } catch (e) {
+      show?.(e.message, 'error');
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   return (
     <div className={`tg-prihod-card${pending ? ' is-pending' : ''}`}>
       <div className="tg-prihod-card-head">
@@ -84,6 +102,23 @@ function EntryCard({ entry, onReview, onStatus }) {
               <img src={entry.media_url} alt="Исходное фото" />
               <span className="tg-prihod-media-caption">Исходное фото / скрин</span>
             </a>
+          ) : entry.media_missing || entry.source_kind === 'photo' || entry.source === 'ai_photo' ? (
+            <label className={`tg-prihod-media-attach${uploading ? ' is-busy' : ''}`}>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif,application/pdf"
+                hidden
+                disabled={uploading}
+                onChange={(e) => attachMedia(e.target.files?.[0])}
+              />
+              <span className="tg-prihod-media-attach-title">
+                {uploading ? 'Загрузка…' : 'Прикрепить фото / скрин'}
+              </span>
+              <span className="tg-prihod-media-attach-hint">
+                Файл из Telegram не сохранился — загрузите снимок вручную
+              </span>
+            </label>
           ) : null}
           <pre className="tg-prihod-text">{entry.text}</pre>
         </div>
@@ -291,12 +326,16 @@ function ReviewModal({
               {entry.from_name || 'Сообщение'} · {formatDate(entry.doc_date)} {messageTime(entry.message_at)}
             </span>
           </div>
-          {entry.media_url && (
+          {entry.media_url ? (
             <a href={entry.media_url} target="_blank" rel="noreferrer" className="tg-prihod-media tg-prihod-media-review">
               <img src={entry.media_url} alt="Исходное фото" />
               <span className="tg-prihod-media-caption">Исходное фото / скрин — открыть</span>
             </a>
-          )}
+          ) : (entry.media_missing || entry.source_kind === 'photo' || entry.source === 'ai_photo') ? (
+            <p className="muted" style={{ margin: '8px 0' }}>
+              Фото не сохранено — прикрепите его на карточке входящих, затем откройте разбор снова.
+            </p>
+          ) : null}
           <pre className="tg-prihod-text">{entry.text}</pre>
         </div>
 
@@ -759,7 +798,22 @@ export default function TelegramPrihod() {
           ) : (
             <div className="tg-prihod-list">
               {inbox.items.map((entry) => (
-                <EntryCard key={entry.id} entry={entry} onReview={setReview} onStatus={setEntryStatus} />
+                <EntryCard
+                  key={entry.id}
+                  entry={entry}
+                  onReview={setReview}
+                  onStatus={setEntryStatus}
+                  show={show}
+                  onMediaAttached={(updated) => {
+                    setInbox((prev) => ({
+                      ...prev,
+                      items: prev.items.map((i) => (i.id === updated.id
+                        ? { ...i, ...updated, analysis: i.analysis }
+                        : i)),
+                    }));
+                    if (review?.id === updated.id) setReview((r) => (r ? { ...r, ...updated } : r));
+                  }}
+                />
               ))}
             </div>
           )}

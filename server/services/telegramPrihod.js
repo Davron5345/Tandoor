@@ -393,15 +393,39 @@ function enrichInboxRow(row) {
   const rest = { ...row };
   delete rest.parsed_json;
   const isPhoto = row.source === 'ai_photo' || !!row.media_file_name;
+  const mediaUrl = row.media_file_name
+    ? `/uploads/telegram-inbox/${row.id}/${row.media_file_name}`
+    : null;
   return {
     ...rest,
     edited: !!row.edited,
     source_kind: row.source === 'paste' ? 'paste' : isPhoto ? 'photo' : 'text',
     source_label: row.source === 'paste' ? 'Вставка' : isPhoto ? 'Фото' : 'Текст',
-    media_url: row.media_file_name
-      ? `/uploads/telegram-inbox/${row.id}/${row.media_file_name}`
-      : null,
+    media_url: mediaUrl,
+    /** Фото-источник без сохранённого файла (старые записи до фикса) — нужна ручная привязка */
+    media_missing: isPhoto && !mediaUrl,
   };
+}
+
+/** Прикрепить исходное фото/скрин к входящему (для сообщений без сохранённого файла). */
+export function attachInboxMedia(id, buffer, mimeType, branchId) {
+  const entry = getEntry(id, branchId);
+  if (!buffer?.length) throw new Error('Пустой файл');
+  const mediaMeta = saveInboxMediaBuffer(id, buffer, mimeType || 'image/jpeg');
+  if (!mediaMeta) throw new Error('Не удалось сохранить файл');
+  run(`
+    UPDATE telegram_inbox
+    SET media_file_name = ?, media_mime = ?,
+        source = CASE WHEN source IN ('paste', 'telegram') THEN 'ai_photo' ELSE source END,
+        updated_at = datetime('now')
+    WHERE id = ?
+  `, [mediaMeta.file_name, mediaMeta.mime_type, id]);
+
+  const updated = { ...entry, media_file_name: mediaMeta.file_name, media_mime: mediaMeta.mime_type };
+  if (entry.document_id && liveDocument(entry)) {
+    attachInboxMediaToDocument(updated, entry.document_id);
+  }
+  return enrichInboxRow(queryOne('SELECT * FROM telegram_inbox WHERE id = ?', [id]));
 }
 
 function liveDocument(entry) {
@@ -880,6 +904,7 @@ export async function handleIncomingPhoto(input) {
   } catch (e) {
     console.error('Telegram приход: не удалось сохранить фото во входящие:', e.message);
   }
+  const tgFileId = input.telegramFileId ? String(input.telegramFileId) : null;
 
   if (existing) {
     run(`
@@ -887,23 +912,25 @@ export async function handleIncomingPhoto(input) {
       SET text = ?, parsed_json = ?, from_name = ?, department_id = ?,
           message_at = ?, doc_date = ?, status = 'new', error = NULL, source = 'ai_photo',
           media_file_name = COALESCE(?, media_file_name), media_mime = COALESCE(?, media_mime),
+          media_telegram_file_id = COALESCE(?, media_telegram_file_id),
           updated_at = datetime('now')
       WHERE id = ?
     `, [
       textPreview, parsedJson, input.fromName || null, topic.department_id, when.at, when.date,
-      mediaMeta?.file_name || null, mediaMeta?.mime_type || null, inboxId,
+      mediaMeta?.file_name || null, mediaMeta?.mime_type || null, tgFileId, inboxId,
     ]);
   } else {
     run(`
       INSERT INTO telegram_inbox (id, branch_id, topic_id, department_id, chat_id, thread_id, message_id, part, source,
-        from_name, from_user_id, text, message_at, doc_date, parsed_json, status, media_file_name, media_mime)
-      VALUES (?, ?, ?, ?, ?, ?, ?, 0, 'ai_photo', ?, ?, ?, ?, ?, ?, 'new', ?, ?)
+        from_name, from_user_id, text, message_at, doc_date, parsed_json, status,
+        media_file_name, media_mime, media_telegram_file_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 0, 'ai_photo', ?, ?, ?, ?, ?, ?, 'new', ?, ?, ?)
     `, [
       inboxId, topic.branch_id, topic.id, topic.department_id, chatId,
       input.threadId ? String(input.threadId) : '', messageId,
       input.fromName || null, input.fromUserId ? String(input.fromUserId) : null,
       textPreview, when.at, when.date, parsedJson,
-      mediaMeta?.file_name || null, mediaMeta?.mime_type || null,
+      mediaMeta?.file_name || null, mediaMeta?.mime_type || null, tgFileId,
     ]);
   }
 

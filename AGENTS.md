@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-10-17 (Источник фото во входящих Telegram)
+**Последнее обновление документации:** 2026-10-17 (Ручное прикрепление фото во входящих Telegram)
 
 ---
 
@@ -181,7 +181,7 @@ npm run db:repair-transfers [-- --apply] # Старые межфилиальны
 | MyShop/Mobile | `shop_orders`, `shop_order_items`, `push_subscriptions`, `staff_locations`, `staff_location_history` |
 | Зарплата / Face ID | `payroll_employees` (синк из Face ID или Excel, `balance` = долг, `view_token` — единая ссылка `/e/{token}`), `payroll_attendance` (приход/уход), `payroll_ledger` (начисление/выплата); настройки в `settings` ключ `faceid_config_{branchId}` |
 | Отчёты | `reconciliation_marks` — отметки акта сверки (counterparty_id, срез `firm_id`/`contract_id` как в фильтре акта, `date`, снимок `balance`, comment, created_by) |
-| Telegram-приходы | `telegram_topics` (группа `chat_id` + тема `thread_id`, `mode` off/prihod, `branch_id`, `department_id`, флаги `auto_create` / `auto_confirm` / `notify`), `telegram_inbox` (сообщение → `part` на каждого поставщика; `parsed_json`, `doc_date`, `status` new/error/created/ignored, `document_id`, `source` telegram/paste/ai_photo, `media_file_name` / `media_mime` — исходное фото в `uploads/telegram-inbox/{id}/`), `telegram_aliases` (выученные сопоставления `kind` product/supplier: `alias_key` → `target_id` / `variant_id`, по филиалу) |
+| Telegram-приходы | `telegram_topics` (группа `chat_id` + тема `thread_id`, `mode` off/prihod, `branch_id`, `department_id`, флаги `auto_create` / `auto_confirm` / `notify`), `telegram_inbox` (сообщение → `part` на каждого поставщика; `parsed_json`, `doc_date`, `status` new/error/created/ignored, `document_id`, `source` telegram/paste/ai_photo, `media_file_name` / `media_mime` — исходное фото в `uploads/telegram-inbox/{id}/`, `media_telegram_file_id` — для повторной загрузки), `telegram_aliases` (выученные сопоставления `kind` product/supplier: `alias_key` → `target_id` / `variant_id`, по филиалу) |
 | Прочее | `telegram_messages`, `settings` (в т.ч. `openrouter_config` — API-ключ, модель, кэш списка моделей), `branches` |
 
 ---
@@ -472,7 +472,7 @@ Frontend зеркало: `client/src/permissions.js`.
 - Удаление прихода возвращает сообщение в «Входящие» (`deleteDocument` сбрасывает `telegram_inbox.document_id`). «Пропустить» нельзя при живом приходе
 - История до подключения бота: «Вставить из Telegram» — текст из Telegram Desktop (`Нодирбек, [09.10.2026 8:39]` или `[09.10.2026 8:39] Нодирбек: …`), отдел и дата по умолчанию; дубли отсекаются по хешу (`chat_id = 'paste'`)
 - Удаление филиала чистит `telegram_inbox` / `telegram_aliases` и отвязывает темы; сброс операционных данных чистит inbox и aliases
-- **Фото прихода (OpenRouter):** в теме с режимом «Приход» фото тетради/накладной скачивается ботом → `recognizePrihodPhoto` (`services/openRouter.js`, vision-модель) → JSON поставщик/позиции → то же сопоставление, что у текста → черновик `prihod` с `ai_recognized=1`, строки `ai_confirmed=0`, несопоставленные в `ai_pending_json`; **само фото сохраняется** в `document_attachments` (`source=telegram`, файл `/uploads/documents/{id}/…`) и видно в карточке прихода; в теме ответ с 🟡; в списке приходов строка **жёлтая** + бейджи «ИИ» / «Неподтв. N». Проведение запрещено, пока `ai_unconfirmed_count > 0` (после «Сохранить» несопоставленные сбрасываются, строки считаются проверенными). Настройки: `/telegram` → вкладка «Искусственный интеллект» (`telegram.settings`): API-ключ OpenRouter, выбор модели, кнопка **«Обновить»** тянет список с `GET openrouter.ai/api/v1/models` в кэш `settings.openrouter_config`. Ручная загрузка: `POST /api/documents/:id/attachments` (multipart `file`)
+- **Фото прихода (OpenRouter):** в теме с режимом «Приход» фото тетради/накладной скачивается ботом → `recognizePrihodPhoto` (`services/openRouter.js`, vision-модель) → JSON поставщик/позиции → то же сопоставление, что у текста → черновик `prihod` с `ai_recognized=1`, строки `ai_confirmed=0`, несопоставленные в `ai_pending_json`; **само фото сохраняется** и во входящие (`telegram_inbox.media_*`, `media_telegram_file_id`), и в `document_attachments` при создании прихода; в теме ответ с 🟡; в списке приходов строка **жёлтая** + бейджи «ИИ» / «Неподтв. N». Проведение запрещено, пока `ai_unconfirmed_count > 0`. Старые входящие без файла: на карточке **«Прикрепить фото / скрин»** → `POST /api/telegram-prihod/inbox/:id/media`. Настройки: `/telegram` → «Искусственный интеллект». Ручная загрузка к документу: `POST /api/documents/:id/attachments`
 
 ---
 
@@ -535,7 +535,7 @@ GET  /api/auth/roles
 | `/api/opening-balance` | openingBalance.routes.js | Начальное сальдо |
 | `/api/telegram/*` | telegram.routes.js | Telegram |
 | `/api/ai/*` | ai.routes.js | OpenRouter (`telegram.settings`): `GET/PUT /api/ai/settings` (api_key, model; ключ маскируется), `POST /api/ai/models/refresh` — актуальный список моделей, `GET /api/ai/models` — кэш |
-| `/api/telegram-prihod/*` | telegramPrihod.routes.js | Приходы из Telegram (`documents.prihod`): `GET /inbox?status=pending\|created\|ignored&date_from&date_to` (`items` с `analysis`: поставщик/строки/подсказки/`ready`, `counts`), `POST /inbox/:id/create` `{ date, department_id, counterparty_id, items[{line_index, product_id, variant_id, new_variant_name?, quantity, price}], remember, confirm }` (confirm требует `documents.confirm`; `new_variant_name` — добавить вариант товару, требует `products.edit`), `POST /inbox/create-ready` `{ ids }`, `POST /inbox/:id/status` `{ status: ignored\|new }`, `POST /import-text` `{ text, department_id, date }`, `GET /topics`; `PUT /topics/:id` `{ mode, department_id, auto_create, auto_confirm, notify }` — `telegram.settings` |
+| `/api/telegram-prihod/*` | telegramPrihod.routes.js | Приходы из Telegram (`documents.prihod`): `GET /inbox?status=pending\|created\|ignored&date_from&date_to` (`items` с `analysis`, `source_kind`/`media_url`/`media_missing`, `counts`), `POST /inbox/:id/media` multipart `file` — прикрепить исходное фото (старые записи без файла; если приход уже создан — копирует во вложение), `POST /inbox/:id/create` `{ date, department_id, counterparty_id, items[{line_index, product_id, variant_id, new_variant_name?, quantity, price}], remember, confirm }` (confirm требует `documents.confirm`; `new_variant_name` — добавить вариант товару, требует `products.edit`), `POST /inbox/create-ready` `{ ids }`, `POST /inbox/:id/status` `{ status: ignored\|new }`, `POST /import-text` `{ text, department_id, date }`, `GET /topics`; `PUT /topics/:id` `{ mode, department_id, auto_create, auto_confirm, notify }` — `telegram.settings` |
 | `/api/admin/*` | admin.routes.js | Аудит, бэкапы, сброс данных, сессии |
 | `/api/staff/location` | staff.routes.js | Геолокация снабженца (POST, текущая точка + история) |
 | `/api/admin/staff-locations` | staff.routes.js | Текущие позиции снабженцев (admin) |
@@ -551,7 +551,7 @@ GET  /api/auth/roles
 |---------|------|-------|
 | `/` | Dashboard.jsx | dashboard.view; «Топ по стоимости остатка» — `stock × avg_cost` склада; **телефон (≤768px):** «Рабочий стол» в стиле 1С — сетка «Быстрый доступ» (`MobileWorkspaceHome` + `mobileQuickLinks.js`) + Telegram внизу; dock скрыт; desktop-дашборд без изменений |
 | `/products` | Products.jsx | products.view; поле **Ключевые слова** в карточке и в `ProductCreateModal` (другие названия через запятую; под названием в списке «Также: …»; поиск в списке и `ProductSelect` ищет и по ним); колонки **Цена справочника** и **Себест. склада** (филиал); у цен стрелка ▲/▼ по последним двум приходам (дороже/дешевле); в карточке — avg по отделам; клик по названию (при `documents.prihod` / `documents.view`) → модалка приходов с фильтром **Месяц / Год** и даты **С/По**; у варианта — только его строки (`variant_id`); у родителя — все по `product_id`; строка открывает `/prihod?open={id}` в **новой вкладке**; архивировать / удалить товар — только admin (как на сервере) |
-| `/prihod-telegram` | TelegramPrihod.jsx | documents.prihod; меню «Закупки → Из Telegram». Вкладка **Входящие**: карточки с бейджем источника **Фото / Текст / Вставка**, для фото — превью исходного снимка (`media_url`); распознанный поставщик/товары; фильтры Ждут проверки / Созданы / Пропущены / Все; «Разобрать и создать» → окно сопоставления (тоже с превью фото); «Создать готовые (N)», «Вставить из Telegram». Вкладка **Темы**: группы/темы (режим, склад, флаги — `telegram.settings`) |
+| `/prihod-telegram` | TelegramPrihod.jsx | documents.prihod; меню «Закупки → Из Telegram». Вкладка **Входящие**: карточки с бейджем источника **Фото / Текст / Вставка**, для фото — превью (`media_url`) или зона **«Прикрепить фото / скрин»** если файл не сохранился (`media_missing`); распознанный поставщик/товары; фильтры Ждут проверки / Созданы / Пропущены / Все; «Разобрать и создать» → окно сопоставления (тоже с превью фото); «Создать готовые (N)», «Вставить из Telegram». Вкладка **Темы**: группы/темы (режим, склад, флаги — `telegram.settings`) |
 | `/supplier-prices` | SupplierPrices.jsx | products.view; документы прайса поставщика (дата, поставщик, цены); edit — `products.edit` |
 | `/product-categories` | ProductCategories.jsx | products.view |
 | `/units` | Units.jsx | products.view |
@@ -958,6 +958,7 @@ GET  /api/auth/roles
 | 2026-10-16 | OpenRouter: настройки ИИ на `/telegram` (API-ключ, модель, «Обновить» список моделей); фото в теме прихода → vision → черновик с `ai_recognized`, жёлтый фон и «Неподтв.» в списке приходов; API `/api/ai/*` |
 | 2026-10-16 | Приход: вложения `document_attachments` — фото из Telegram сохраняется к документу; в карточке блок «Файл прихода» + ручная загрузка; `/uploads/documents/{id}/…` |
 | 2026-10-17 | Входящие Telegram: источник Фото/Текст/Вставка + превью снимка (`media_file_name` в inbox, `/uploads/telegram-inbox/…`); при ручном создании прихода фото переносится во вложение |
+| 2026-10-17 | Входящие без файла: «Прикрепить фото» (`POST /inbox/:id/media`), `media_telegram_file_id` для новых фото; если приход уже есть — копия во вложение документа |
 
 ---
 

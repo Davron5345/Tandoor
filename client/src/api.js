@@ -570,6 +570,20 @@ export const api = {
   createTelegramPrihod: (id, data) => request(`/telegram-prihod/inbox/${id}/create`, { method: 'POST', body: JSON.stringify(data) }),
   createReadyTelegramPrihods: (ids = null) => request('/telegram-prihod/inbox/create-ready', { method: 'POST', body: JSON.stringify({ ids }) }),
   setTelegramPrihodStatus: (id, status) => request(`/telegram-prihod/inbox/${id}/status`, { method: 'POST', body: JSON.stringify({ status }) }),
+  uploadTelegramPrihodMedia: async (id, file) => {
+    const form = new FormData();
+    form.append('file', file);
+    const params = new URLSearchParams();
+    if (activeBranchId) params.set('branch_id', activeBranchId);
+    const qs = params.toString();
+    const res = await fetch(
+      `${getApiBaseUrl()}/api/telegram-prihod/inbox/${id}/media${qs ? `?${qs}` : ''}`,
+      { method: 'POST', credentials: 'include', body: form },
+    );
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Не удалось прикрепить фото');
+    return data;
+  },
   importTelegramPrihodText: (data) => request('/telegram-prihod/import-text', { method: 'POST', body: JSON.stringify(data) }),
   getTelegramPrihodTopics: () => request('/telegram-prihod/topics'),
   updateTelegramPrihodTopic: (id, data) => request(`/telegram-prihod/topics/${id}`, { method: 'PUT', body: JSON.stringify(data) }),

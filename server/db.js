@@ -568,6 +568,9 @@ function migrateTelegramInboxMedia() {
   if (!cols.includes('media_mime')) {
     run('ALTER TABLE telegram_inbox ADD COLUMN media_mime TEXT');
   }
+  if (!cols.includes('media_telegram_file_id')) {
+    run('ALTER TABLE telegram_inbox ADD COLUMN media_telegram_file_id TEXT');
+  }
 }
 
 function migrateDocumentAttachments() {

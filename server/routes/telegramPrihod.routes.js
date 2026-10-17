@@ -1,12 +1,56 @@
+import multer from 'multer';
 import * as telegramPrihod from '../services/telegramPrihod.js';
 import { requirePermission, attachBranch } from '../middleware.js';
 import { hasPermission } from '../permissions.js';
 import { logAudit } from '../auditLog.js';
+import { isAllowedDocMime, MAX_DOC_FILE_SIZE } from '../documentAttachments.js';
+
+const inboxMediaUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_DOC_FILE_SIZE },
+  fileFilter: (_req, file, cb) => {
+    if (isAllowedDocMime(file.mimetype)) cb(null, true);
+    else cb(new Error('Допустимы JPG, PNG, WEBP, GIF и PDF'));
+  },
+});
 
 export function registerTelegramPrihodRoutes(app) {
   app.get('/api/telegram-prihod/inbox', requirePermission('documents.prihod'), attachBranch, (req, res) => {
     res.json(telegramPrihod.listInbox(req.branchId, req.query));
   });
+
+  app.post(
+    '/api/telegram-prihod/inbox/:id/media',
+    requirePermission('documents.prihod'),
+    attachBranch,
+    (req, res, next) => {
+      inboxMediaUpload.single('file')(req, res, (err) => {
+        if (err) return res.status(400).json({ error: err.message || 'Ошибка загрузки' });
+        next();
+      });
+    },
+    (req, res) => {
+      try {
+        if (!req.file?.buffer?.length) {
+          return res.status(400).json({ error: 'Выберите файл' });
+        }
+        const entry = telegramPrihod.attachInboxMedia(
+          req.params.id,
+          req.file.buffer,
+          req.file.mimetype,
+          req.branchId,
+        );
+        logAudit(req, 'telegram_prihod.media', {
+          entity_type: 'telegram_inbox',
+          entity_id: req.params.id,
+          meta: { mime: req.file.mimetype, size: req.file.size },
+        });
+        res.status(201).json(entry);
+      } catch (e) {
+        res.status(400).json({ error: e.message });
+      }
+    },
+  );
 
   app.post('/api/telegram-prihod/inbox/:id/create', requirePermission('documents.prihod'), attachBranch, (req, res) => {
     try {

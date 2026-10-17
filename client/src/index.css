@@ -19422,6 +19422,34 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
   font-size: 12px;
   color: var(--text-muted);
 }
+.tg-prihod-media-attach {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+  padding: 14px 12px;
+  border-radius: 8px;
+  border: 1.5px dashed color-mix(in srgb, #f5c518 70%, #c8ccd0);
+  background: color-mix(in srgb, #f5c518 12%, #fff);
+  cursor: pointer;
+  color: inherit;
+}
+.tg-prihod-media-attach:hover {
+  border-color: #f5c518;
+  background: color-mix(in srgb, #f5c518 18%, #fff);
+}
+.tg-prihod-media-attach.is-busy {
+  opacity: 0.7;
+  pointer-events: none;
+}
+.tg-prihod-media-attach-title {
+  font-weight: 600;
+  font-size: 13px;
+}
+.tg-prihod-media-attach-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+}
 .tg-prihod-media-review {
   max-width: 360px;
   margin: 8px 0;

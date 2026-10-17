@@ -90,6 +90,7 @@ async function onGroupMessage(instance, msg, edited) {
         imageBuffer: buffer,
         mimeType,
         caption: msg.caption || '',
+        telegramFileId: photo.file_id,
       });
     } catch (err) {
       console.error('Telegram приход (фото):', err.message);
