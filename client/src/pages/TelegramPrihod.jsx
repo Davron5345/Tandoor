@@ -11,6 +11,8 @@ import { useBranch } from '../BranchContext';
 import { hasPermission } from '../permissions';
 import { todayLocalIso } from '../utils/date';
 import TelegramMessageLink from '../components/TelegramMessageLink';
+import CounterpartyCreateModal from '../components/CounterpartyCreateModal';
+import ProductCreateModal from '../components/ProductCreateModal';
 
 const STATUS_FILTERS = [
   { id: 'pending', label: 'Ждут проверки' },
@@ -191,7 +193,8 @@ function EntryCard({ entry, onReview, onStatus, onMediaAttached, show }) {
 }
 
 function ReviewModal({
-  entry, products, suppliers, departments, canConfirm, canAddVariant, onClose, onDone, show,
+  entry, products, suppliers, departments, canConfirm, canAddVariant, canAddSupplier, canAddProduct,
+  onProductsChange, onSuppliersChange, onClose, onDone, show,
 }) {
   const productPrice = useCallback((productId, variantId) => {
     const resolved = resolvePickFromProducts(products, encodeProductPick(productId, variantId));
@@ -210,6 +213,8 @@ function ReviewModal({
     })),
   }));
   const [saving, setSaving] = useState(false);
+  const [supplierModalOpen, setSupplierModalOpen] = useState(false);
+  const [productModal, setProductModal] = useState(null); // { lineIndex, name, unit }
 
   const updateLine = (idx, patch) => {
     setForm((f) => ({ ...f, lines: f.lines.map((l, i) => (i === idx ? { ...l, ...patch } : l)) }));
@@ -303,7 +308,49 @@ function ReviewModal({
 
   const supplierHint = entry.analysis.supplier;
 
+  const onSupplierCreated = (created) => {
+    onSuppliersChange?.(created);
+    setForm((f) => ({ ...f, counterparty_id: created.id }));
+    setSupplierModalOpen(false);
+    show(`Поставщик «${created.name}» создан и выбран`);
+  };
+
+  const onProductCreated = (created) => {
+    onProductsChange?.(created);
+    const lineIndex = productModal?.lineIndex;
+    const price = created.has_variants
+      ? (created.variant_price_min ?? created.price ?? 0)
+      : (created.price ?? 0);
+    if (lineIndex != null) {
+      setForm((f) => ({
+        ...f,
+        lines: f.lines.map((l, i) => (i === lineIndex
+          ? {
+            ...l,
+            product_id: created.id,
+            variant_id: null,
+            product_unit: created.unit || l.product_unit,
+            new_variant_name: null,
+            price: Number(l.price) || Number(price) || 0,
+          }
+          : l)),
+      }));
+    }
+    setProductModal(null);
+    show(`Товар «${created.name}» создан и выбран`);
+  };
+
+  const openNewProduct = (idx) => {
+    const line = form.lines[idx];
+    setProductModal({
+      lineIndex: idx,
+      name: line?.name || '',
+      unit: line?.product_unit || line?.parsed_unit || '',
+    });
+  };
+
   return (
+    <>
     <Modal
       title="Приход из сообщения"
       wide
@@ -357,12 +404,24 @@ function ReviewModal({
           </label>
           <label style={{ gridColumn: 'span 2' }}>
             Поставщик{supplierHint ? ` (в сообщении: «${supplierHint.name}»)` : ''}
-            <CounterpartySearchSelect
-              items={suppliers}
-              value={form.counterparty_id}
-              onChange={(id) => setForm({ ...form, counterparty_id: id || '' })}
-              placeholder="Найти поставщика…"
-            />
+            <div className="tg-prihod-supplier-row">
+              <CounterpartySearchSelect
+                items={suppliers}
+                value={form.counterparty_id}
+                onChange={(id) => setForm({ ...form, counterparty_id: id || '' })}
+                placeholder="Найти поставщика…"
+              />
+              {canAddSupplier && (
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  title="Создать нового поставщика"
+                  onClick={() => setSupplierModalOpen(true)}
+                >
+                  + Новый
+                </button>
+              )}
+            </div>
             {!form.counterparty_id && supplierHint?.suggestions?.length > 0 && (
               <span className="tg-prihod-suggest">
                 {supplierHint.suggestions.map((s) => (
@@ -370,6 +429,17 @@ function ReviewModal({
                     {s.name}
                   </button>
                 ))}
+              </span>
+            )}
+            {canAddSupplier && !form.counterparty_id && supplierHint?.name && (
+              <span className="tg-prihod-suggest">
+                <button
+                  type="button"
+                  className="tg-prihod-chip tg-prihod-chip-add"
+                  onClick={() => setSupplierModalOpen(true)}
+                >
+                  + Создать поставщика «{supplierHint.name}»
+                </button>
               </span>
             )}
           </label>
@@ -426,6 +496,18 @@ function ReviewModal({
                           value={encodeProductPick(line.product_id, line.variant_id)}
                           onChange={(v) => pickProduct(idx, v)}
                         />
+                      )}
+                      {canAddProduct && line.new_variant_name == null && (
+                        <span className="tg-prihod-suggest">
+                          <button
+                            type="button"
+                            className="tg-prihod-chip tg-prihod-chip-add"
+                            title="Создать новый товар в справочнике"
+                            onClick={() => openNewProduct(idx)}
+                          >
+                            + Новый товар{line.name ? ` «${line.name}»` : ''}
+                          </button>
+                        </span>
                       )}
                       {canAddVariant && line.new_variant_name == null && variantParents(line).length > 0 && (
                         <span className="tg-prihod-suggest">
@@ -494,6 +576,25 @@ function ReviewModal({
         </div>
       </div>
     </Modal>
+
+    <CounterpartyCreateModal
+      open={supplierModalOpen}
+      onClose={() => setSupplierModalOpen(false)}
+      lockType="supplier"
+      title="Новый поставщик"
+      initialName={supplierHint?.name || ''}
+      onCreated={onSupplierCreated}
+    />
+
+    <ProductCreateModal
+      open={productModal != null}
+      onClose={() => setProductModal(null)}
+      initialName={productModal?.name || ''}
+      initialUnit={productModal?.unit || ''}
+      initialSupplierIds={form.counterparty_id ? [form.counterparty_id] : []}
+      onCreated={onProductCreated}
+    />
+    </>
   );
 }
 
@@ -661,7 +762,23 @@ export default function TelegramPrihod() {
   const { show, Toast } = useToast();
   const canConfirm = hasPermission(user, 'documents.confirm');
   const canAddVariant = hasPermission(user, 'products.edit');
+  const canAddProduct = hasPermission(user, 'products.edit');
+  const canAddSupplier = hasPermission(user, 'counterparties.edit');
   const canEditTopics = hasPermission(user, 'telegram.settings');
+
+  const mergeSupplier = useCallback((created) => {
+    setSuppliers((prev) => {
+      const without = prev.filter((s) => s.id !== created.id);
+      return [...without, created].sort((a, b) => String(a.name).localeCompare(String(b.name), 'ru'));
+    });
+  }, []);
+
+  const mergeProduct = useCallback((created) => {
+    setProducts((prev) => {
+      const without = prev.filter((p) => p.id !== created.id);
+      return [...without, created].sort((a, b) => String(a.name).localeCompare(String(b.name), 'ru'));
+    });
+  }, []);
 
   const [tab, setTab] = useState('inbox');
   const [status, setStatus] = useState('pending');
@@ -833,6 +950,10 @@ export default function TelegramPrihod() {
           departments={departments}
           canConfirm={canConfirm}
           canAddVariant={canAddVariant}
+          canAddProduct={canAddProduct}
+          canAddSupplier={canAddSupplier}
+          onProductsChange={mergeProduct}
+          onSuppliersChange={mergeSupplier}
           show={show}
           onClose={() => setReview(null)}
           onDone={() => { setReview(null); loadInbox(); }}

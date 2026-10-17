@@ -19499,6 +19499,15 @@ html.public-shop-lock .warehouse-orders-mobile-shell {
   gap: 8px;
   flex-shrink: 0;
 }
+.tg-prihod-supplier-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tg-prihod-supplier-row > *:first-child {
+  flex: 1;
+  min-width: 0;
+}
 .tg-prihod-media-review {
   max-width: 360px;
   margin: 8px 0;

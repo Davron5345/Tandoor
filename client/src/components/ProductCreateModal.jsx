@@ -54,6 +54,10 @@ export default function ProductCreateModal({
   /** Уже известная карточка (из списка документа) — без полного getProducts */
   seedProduct = null,
   initialSupplierIds = [],
+  /** Префилл названия при создании (из Telegram / строки документа) */
+  initialName = '',
+  /** Префилл единицы (кг, шт…) */
+  initialUnit = '',
   initialTab = 'main',
 }) {
   const { show, Toast } = useToast();
@@ -223,10 +227,16 @@ export default function ProductCreateModal({
             setBranchSettings([]);
           }
         } else {
+          const unitPrefill = String(initialUnit || '').trim();
+          const unitNames = (unitRows || []).map((u) => u.name);
+          const resolvedUnit = unitPrefill && unitNames.includes(unitPrefill)
+            ? unitPrefill
+            : (unitRows[0]?.name || 'шт');
           setForm({
             ...emptyProduct,
+            name: String(initialName || '').trim(),
             category_id: cats[0]?.id || 'other',
-            unit: unitRows[0]?.name || 'шт',
+            unit: resolvedUnit,
             supplier_ids: supplierSeed,
           });
           setProductCardTab(tab);

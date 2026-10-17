@@ -15,6 +15,8 @@ export default function CounterpartyCreateModal({
   onCreated,
   lockType = 'supplier',
   title = 'Новый контрагент',
+  /** Префилл названия (из Telegram / поиска) */
+  initialName = '',
 }) {
   const defaultType = lockType === 'client' ? 'client' : 'supplier';
   const [saving, setSaving] = useState(false);
@@ -27,9 +29,13 @@ export default function CounterpartyCreateModal({
 
   useEffect(() => {
     if (!open) return;
-    setForm({ ...emptyCounterpartyForm, type: defaultType });
+    setForm({
+      ...emptyCounterpartyForm,
+      type: defaultType,
+      name: String(initialName || '').trim(),
+    });
     setError('');
-  }, [open, defaultType]);
+  }, [open, defaultType, initialName]);
 
   if (!open) return null;
 
