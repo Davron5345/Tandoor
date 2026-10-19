@@ -909,6 +909,16 @@ export default function Documents({ defaultType }) {
       ? (created.variant_price_min ?? created.price ?? 0)
       : (created.price ?? 0);
     mergeProductIntoLists(created);
+    if (productModal?.pendingIndex != null) {
+      assignPendingToCatalog(
+        productModal.pendingIndex,
+        encodeProductPick(created.id, null),
+        created,
+      );
+      setProductModal(null);
+      show('Товар создан и сопоставлен');
+      return;
+    }
     setForm((prev) => {
       const items = [...prev.items];
       const rowIndex = productModal?.rowIndex;
@@ -1243,6 +1253,48 @@ export default function Documents({ defaultType }) {
     return next;
   };
 
+  /** Строка «Не сопоставлено» с фото → товар из справочника в документ. */
+  const assignPendingToCatalog = (pendingIndex, pickValue, createdProduct = null) => {
+    setForm((prev) => {
+      const pending = prev.ai_pending_items?.[pendingIndex];
+      if (!pending) return prev;
+      const catalog = createdProduct
+        ? [...products.filter((p) => p.id !== createdProduct.id), createdProduct]
+        : products;
+      const resolved = resolvePickFromProducts(catalog, pickValue);
+      if (!resolved.productId) return prev;
+      const qty = Number(pending.quantity) > 0 ? Number(pending.quantity) : 1;
+      const fromPhotoPrice = Number(pending.price) > 0 ? Number(pending.price) : 0;
+      const catalogPrice = resolved.variant
+        ? resolveProductPrice(resolved.product, resolved.variant)
+        : resolveProductPrice(resolved.product);
+      const price = fromPhotoPrice || Number(catalogPrice) || 0;
+      const item = {
+        product_id: resolved.productId,
+        variant_id: resolved.variantId,
+        quantity: qty,
+        price,
+        amount: Number(pending.amount) > 0 ? Number(pending.amount) : undefined,
+        net_weight: hasNetColumn(prev.type)
+          ? (resolved.product?.net_weight != null && resolved.product.net_weight !== ''
+            ? resolved.product.net_weight
+            : '')
+          : '',
+        ai_confirmed: true,
+        ai_raw_name: pending.name,
+      };
+      const items = [...prev.items];
+      const emptyIdx = items.findIndex((it) => !it.product_id);
+      if (emptyIdx >= 0) items[emptyIdx] = item;
+      else items.push(item);
+      return {
+        ...prev,
+        items,
+        ai_pending_items: prev.ai_pending_items.filter((_, i) => i !== pendingIndex),
+      };
+    });
+  };
+
   const addProductPick = (pickValue) => {
     if (!pickValue) return;
     const catalog = selectableProducts.length ? selectableProducts : products;
@@ -1487,8 +1539,7 @@ export default function Documents({ defaultType }) {
           capitalize: e.capitalize !== false,
         }));
         if (form.ai_recognized) {
-          // После проверки сохраняем без «висящих» несопоставленных — их нужно добавить вручную или отбросить.
-          data.ai_pending_items = [];
+          data.ai_pending_items = Array.isArray(form.ai_pending_items) ? form.ai_pending_items : [];
         }
       }
       if (form.type === 'peremeshchenie') {
@@ -1997,14 +2048,50 @@ export default function Documents({ defaultType }) {
                     ? ` · неподтверждённых позиций: ${form.ai_unconfirmed_count}. Проверьте строки и сохраните.`
                     : ' · позиции проверены.'}
                   {Array.isArray(form.ai_pending_items) && form.ai_pending_items.length > 0 && (
-                    <ul style={{ margin: '8px 0 0', paddingLeft: 18 }}>
+                    <div className="ai-pending-map" style={{ marginTop: 10 }}>
+                      <div className="muted" style={{ marginBottom: 6 }}>
+                        Выберите наш товар напротив названия с фото. Поиск по всему справочнику.
+                      </div>
                       {form.ai_pending_items.map((p, i) => (
-                        <li key={`ai-pending-${i}`}>
-                          Не сопоставлено: {p.name}
-                          {p.quantity != null ? ` — ${p.quantity} ${p.unit || ''}` : ''}
-                        </li>
+                        <div key={`ai-pending-${i}`} className="ai-pending-map-row">
+                          <div className="ai-pending-map-src">
+                            <strong>{p.name}</strong>
+                            <span className="muted">
+                              {p.quantity != null ? ` ${p.quantity} ${p.unit || ''}` : ''}
+                              {Number(p.price) > 0 ? ` · ${formatMoney(p.price)}` : ''}
+                            </span>
+                          </div>
+                          <div className="quick-add-control">
+                            <ProductSelect
+                              products={products}
+                              allProducts={products}
+                              value=""
+                              disabled={isReadOnly}
+                              placeholder="Наш товар…"
+                              onChange={(pick) => {
+                                if (!pick) return;
+                                assignPendingToCatalog(i, pick);
+                              }}
+                            />
+                            {canCreateProduct && !isReadOnly && (
+                              <button
+                                type="button"
+                                className="btn btn-icon btn-ghost quick-add-button"
+                                title={`Создать товар «${p.name}»`}
+                                aria-label="Создать товар"
+                                onClick={() => setProductModal({
+                                  mode: 'create',
+                                  pendingIndex: i,
+                                  initialName: p.name || '',
+                                })}
+                              >
+                                <IconPlus />
+                              </button>
+                            )}
+                          </div>
+                        </div>
                       ))}
-                    </ul>
+                    </div>
                   )}
                 </div>
               )}
@@ -3207,6 +3294,7 @@ export default function Documents({ defaultType }) {
             : null
         }
         initialTab={productModal?.initialTab || 'main'}
+        initialName={productModal?.initialName || ''}
         initialSupplierIds={form.counterparty_id ? [form.counterparty_id] : []}
         onCreated={onQuickProductCreated}
         onSaved={productModal?.mode === 'edit' ? onProductSavedFromDoc : undefined}

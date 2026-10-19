@@ -2943,6 +2943,27 @@ tr:hover td {
   border-radius: 6px;
   padding: 10px 12px;
 }
+.ai-pending-map {
+  display: grid;
+  gap: 8px;
+}
+.ai-pending-map-row {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) minmax(180px, 1.2fr);
+  gap: 8px;
+  align-items: center;
+}
+.ai-pending-map-src {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+}
+@media (max-width: 720px) {
+  .ai-pending-map-row {
+    grid-template-columns: 1fr;
+  }
+}
 
 .doc-attachments {
   border: 1px solid var(--border, #e2e8f0);
