@@ -112,22 +112,48 @@ export async function refreshOpenRouterModels() {
   return getOpenRouterSettings();
 }
 
-const PRIHOD_VISION_PROMPT = `Ты помощник склада ресторана. На фото — рукописная тетрадь или накладная прихода товаров.
-Извлеки поставщика и позиции. Ответь ТОЛЬКО валидным JSON без markdown:
+const PRIHOD_VISION_PROMPT = `Ты опытный кладовщик ресторана в Узбекистане. На фото — рукописная тетрадь / накладная прихода (часто несколько блоков разных поставщиков).
+
+Задача: вытащить ВСЁ, что нужно для складского прихода. Ничего не пропускай — каждую строку товара.
+
+Ответь ТОЛЬКО валидным JSON (без markdown):
 {
-  "supplier": "имя поставщика или null",
-  "items": [
-    { "name": "название товара", "quantity": число, "unit": "кг|л|шт|г", "price": число или null }
+  "groups": [
+    {
+      "supplier": "имя поставщика или null",
+      "section": "заголовок блока как на фото или null",
+      "items": [
+        {
+          "name": "название товара без фасовки в конце",
+          "quantity": число,
+          "unit": "кг|л|шт|г",
+          "price": число или null,
+          "amount": число или null
+        }
+      ]
+    }
   ],
+  "extra_costs": [
+    { "title": "стоянка|бензин|доставка|…", "amount": число, "capitalize": false }
+  ],
+  "total": число или null,
   "notes": "краткие заметки или null"
 }
-Правила:
-- quantity — положительное число (запятая → точка)
-- unit: кг, л, шт или г; граммы можно оставить как г
-- если цены нет — price: null
-- не выдумывай товары, которых нет на фото
-- если поставщик неясен — supplier: null
-- если ничего не разобрал — items: []`;
+
+Правила чтения:
+1) Блоки поставщиков. Новый блок, если видишь заголовок вроде:
+   «Перег: …», «Перег; …», «от …», «…дан:», «Қолга олинган», имя фирмы/человека отдельной строкой.
+   Если заголовка нет — один group с supplier: null (товары всё равно перечисли).
+2) Строка товара обычно: название · кол-во · цена · сумма (итого строки).
+   - quantity > 0 (запятая → точка: 4,350 = 4.35)
+   - unit: кг / л / шт / г. Если в названии «250гр/500гр/1кг» — это фасовка: unit=шт (или кг если явно вес), а «250гр» можно оставить в name кратко.
+   - price — цена за единицу; amount — сумма строки. Если есть amount и quantity, а price нет — price = amount/quantity.
+   - Не путай вес/кол-во с ценой: цены обычно тысячи (10000…500000), веса чаще < 100 или с запятой.
+3) Доп. расходы внизу (стоянка, бенз/бензин, зав, доставка, такси) — в extra_costs, НЕ в items.
+   capitalize: false (это расходы, не в себестоимость товара), кроме явной доставки на товар — тогда true.
+4) Итог всей страницы (если есть крупное число внизу) — в total.
+5) Не выдумывай строки. Не пропускай середину длинного списка. Пиши все позиции по порядку сверху вниз.
+6) Язык названий как на фото (рус/узб). Поставщика пиши без слова «Перег».`;
 
 function extractJsonObject(text) {
   const raw = String(text || '').trim();
@@ -140,11 +166,111 @@ function extractJsonObject(text) {
   return JSON.parse(candidate.slice(start, end + 1));
 }
 
+function parseNum(value) {
+  if (value == null || value === '') return null;
+  const n = Number(String(value).replace(/\s/g, '').replace(',', '.'));
+  return Number.isFinite(n) ? n : null;
+}
+
+export function normalizeUnit(unit) {
+  const u = String(unit || 'шт').trim().toLowerCase();
+  if (['кг', 'kg', 'килограмм', 'кило'].includes(u)) return 'кг';
+  if (['л', 'l', 'литр', 'литра'].includes(u)) return 'л';
+  if (['г', 'гр', 'грамм', 'g'].includes(u)) return 'г';
+  if (['шт', 'штук', 'та', 'дона', 'pcs', 'коробка', 'корз', 'кор'].includes(u)) return 'шт';
+  return u || 'шт';
+}
+
+function cleanSupplierName(name) {
+  let s = String(name || '').trim();
+  if (!s) return null;
+  s = s.replace(/^(перег[.:;]?\s*|от\s+)/i, '').trim();
+  s = s.replace(/[-–—]?дан$/i, '').trim();
+  return s || null;
+}
+
+function normalizeItem(it) {
+  const name = String(it?.name || '').trim();
+  let quantity = parseNum(it?.quantity);
+  let price = parseNum(it?.price);
+  let amount = parseNum(it?.amount);
+  const unit = normalizeUnit(it?.unit);
+
+  if (!(quantity > 0) && amount != null && price > 0) {
+    quantity = Math.round((amount / price) * 1000) / 1000;
+  }
+  if (!(price > 0) && amount != null && quantity > 0) {
+    price = Math.round((amount / quantity) * 100) / 100;
+  }
+  if (!(amount > 0) && price > 0 && quantity > 0) {
+    amount = Math.round(price * quantity * 100) / 100;
+  }
+
+  if (!name || !(quantity > 0)) return null;
+  return {
+    name,
+    quantity,
+    unit,
+    price: price > 0 ? price : null,
+    amount: amount > 0 ? amount : null,
+  };
+}
+
+function normalizeExtraCost(row) {
+  const title = String(row?.title || row?.name || '').trim();
+  const amount = parseNum(row?.amount);
+  if (!title || !(amount > 0)) return null;
+  const cap = row?.capitalize;
+  // по умолчанию расходы (стоянка/бензин) не в себестоимость
+  const capitalize = cap === true || cap === 1 || String(cap).toLowerCase() === 'true';
+  return { title, amount, capitalize: !!capitalize };
+}
+
+/**
+ * Нормализация ответа vision → groups + extra_costs (совместимо со старым {supplier, items}).
+ * @param {object} parsed
+ */
+export function normalizePrihodExtraction(parsed = {}) {
+  const extra_costs = (Array.isArray(parsed.extra_costs) ? parsed.extra_costs : [])
+    .map(normalizeExtraCost)
+    .filter(Boolean);
+
+  let groups = [];
+  if (Array.isArray(parsed.groups) && parsed.groups.length) {
+    groups = parsed.groups.map((g) => {
+      const items = (Array.isArray(g.items) ? g.items : []).map(normalizeItem).filter(Boolean);
+      return {
+        supplier: cleanSupplierName(g.supplier),
+        section: g.section ? String(g.section).trim() || null : null,
+        items,
+      };
+    }).filter((g) => g.items.length > 0);
+  } else {
+    // старый формат: один supplier + items
+    const items = (Array.isArray(parsed.items) ? parsed.items : []).map(normalizeItem).filter(Boolean);
+    if (items.length) {
+      groups = [{
+        supplier: cleanSupplierName(parsed.supplier),
+        section: null,
+        items,
+      }];
+    }
+  }
+
+  const flatItems = groups.flatMap((g) => g.items);
+  return {
+    groups,
+    supplier: groups[0]?.supplier || cleanSupplierName(parsed.supplier) || null,
+    items: flatItems,
+    extra_costs,
+    total: parseNum(parsed.total),
+    notes: parsed.notes ? String(parsed.notes).trim() || null : null,
+  };
+}
+
 /**
  * Распознать фото прихода через OpenRouter (vision).
- * @param {Buffer} imageBuffer
- * @param {string} mimeType
- * @returns {Promise<{ supplier: string|null, items: Array<{name, quantity, unit, price}>, notes: string|null, raw: string }>}
+ * @returns {Promise<{ groups, supplier, items, extra_costs, total, notes, raw, model }>}
  */
 export async function recognizePrihodPhoto(imageBuffer, mimeType = 'image/jpeg') {
   const cfg = parseConfig();
@@ -155,55 +281,60 @@ export async function recognizePrihodPhoto(imageBuffer, mimeType = 'image/jpeg')
   const b64 = Buffer.from(imageBuffer).toString('base64');
   const dataUrl = `data:${mimeType || 'image/jpeg'};base64,${b64}`;
 
+  const payload = {
+    model: cfg.model,
+    temperature: 0.05,
+    max_tokens: 8000,
+    messages: [
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: PRIHOD_VISION_PROMPT },
+          { type: 'image_url', image_url: { url: dataUrl } },
+        ],
+      },
+    ],
+  };
+  // часть моделей поддерживает json_object
+  try {
+    payload.response_format = { type: 'json_object' };
+  } catch { /* */ }
+
   const res = await fetch(`${OPENROUTER_BASE}/chat/completions`, {
     method: 'POST',
     headers: authHeaders(cfg.api_key),
-    body: JSON.stringify({
-      model: cfg.model,
-      temperature: 0.1,
-      messages: [
-        {
-          role: 'user',
-          content: [
-            { type: 'text', text: PRIHOD_VISION_PROMPT },
-            { type: 'image_url', image_url: { url: dataUrl } },
-          ],
-        },
-      ],
-    }),
+    body: JSON.stringify(payload),
   });
 
   if (!res.ok) {
+    // если json_object не поддерживается — повтор без него
     const text = await res.text().catch(() => '');
+    if (/response_format|json_object/i.test(text) && payload.response_format) {
+      delete payload.response_format;
+      const retry = await fetch(`${OPENROUTER_BASE}/chat/completions`, {
+        method: 'POST',
+        headers: authHeaders(cfg.api_key),
+        body: JSON.stringify(payload),
+      });
+      if (!retry.ok) {
+        const t2 = await retry.text().catch(() => '');
+        throw new Error(`OpenRouter: ${retry.status} ${t2.slice(0, 300)}`);
+      }
+      return finalizeRecognition(await retry.json(), cfg.model);
+    }
     throw new Error(`OpenRouter: ${res.status} ${text.slice(0, 300)}`);
   }
 
-  const body = await res.json();
-  const content = body.choices?.[0]?.message?.content;
-  const parsed = extractJsonObject(typeof content === 'string' ? content : JSON.stringify(content));
-  const items = (Array.isArray(parsed.items) ? parsed.items : [])
-    .map((it) => ({
-      name: String(it.name || '').trim(),
-      quantity: Number(String(it.quantity ?? '').replace(',', '.')),
-      unit: normalizeUnit(it.unit),
-      price: it.price == null || it.price === '' ? null : Number(String(it.price).replace(',', '.')),
-    }))
-    .filter((it) => it.name && Number.isFinite(it.quantity) && it.quantity > 0);
-
-  return {
-    supplier: parsed.supplier ? String(parsed.supplier).trim() || null : null,
-    items,
-    notes: parsed.notes ? String(parsed.notes).trim() || null : null,
-    raw: typeof content === 'string' ? content : JSON.stringify(content),
-    model: cfg.model,
-  };
+  return finalizeRecognition(await res.json(), cfg.model);
 }
 
-function normalizeUnit(unit) {
-  const u = String(unit || 'шт').trim().toLowerCase();
-  if (['кг', 'kg', 'килограмм'].includes(u)) return 'кг';
-  if (['л', 'l', 'литр', 'литра'].includes(u)) return 'л';
-  if (['г', 'гр', 'грамм', 'g'].includes(u)) return 'г';
-  if (['шт', 'штук', 'та', 'дона', 'pcs'].includes(u)) return 'шт';
-  return u || 'шт';
+function finalizeRecognition(body, model) {
+  const content = body.choices?.[0]?.message?.content;
+  const parsed = extractJsonObject(typeof content === 'string' ? content : JSON.stringify(content));
+  const normalized = normalizePrihodExtraction(parsed);
+  return {
+    ...normalized,
+    raw: typeof content === 'string' ? content : JSON.stringify(content),
+    model,
+  };
 }

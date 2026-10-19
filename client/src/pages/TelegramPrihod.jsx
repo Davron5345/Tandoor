@@ -265,14 +265,21 @@ function ReviewModal({
     }
     const items = form.lines
       .filter((l) => l.product_id)
-      .map((l) => ({
-        line_index: l.index,
-        product_id: l.product_id,
-        variant_id: l.new_variant_name != null ? null : (l.variant_id || null),
-        new_variant_name: l.new_variant_name != null ? l.new_variant_name.trim() : undefined,
-        quantity: parseQtyInput(l.quantity),
-        price: Number(l.price) || 0,
-      }));
+      .map((l) => {
+        const quantity = parseQtyInput(l.quantity);
+        const price = Number(l.price) || 0;
+        const row = {
+          line_index: l.index,
+          product_id: l.product_id,
+          variant_id: l.new_variant_name != null ? null : (l.variant_id || null),
+          new_variant_name: l.new_variant_name != null ? l.new_variant_name.trim() : undefined,
+          quantity,
+          price,
+        };
+        if (l.amount != null && Number(l.amount) > 0) row.amount = Number(l.amount);
+        else if (quantity > 0 && price > 0) row.amount = Math.round(quantity * price * 100) / 100;
+        return row;
+      });
     if (!items.length) {
       show('Выберите товары', 'error');
       return;
@@ -389,6 +396,13 @@ function ReviewModal({
             </p>
           ) : null}
           <pre className="tg-prihod-text">{entry.text}</pre>
+          {Array.isArray(entry.analysis?.extra_costs) && entry.analysis.extra_costs.length > 0 && (
+            <div className="muted" style={{ marginTop: 8, fontSize: 13 }}>
+              Доп. расходы с фото:{' '}
+              {entry.analysis.extra_costs.map((e) => `${e.title} ${formatMoney(e.amount)}`).join(' · ')}
+              {' '}(попадут в приход при создании)
+            </div>
+          )}
         </div>
 
         <div className="form-grid tg-prihod-review-head">

@@ -322,6 +322,14 @@ function analyzeEntry(entry, ctx) {
   const lines = parsed.lines.map((line, index) => {
     const m = matchProduct(ctx, line.name, supplierId);
     const cand = m.match;
+    const qty = cand ? convertQuantity(line, cand.unit) : line.quantity;
+    const rawPrice = line.price != null && Number(line.price) > 0 ? Number(line.price) : null;
+    const rawAmount = line.amount != null && Number(line.amount) > 0 ? Number(line.amount) : null;
+    let price = rawPrice;
+    if (!(price > 0) && rawAmount > 0 && qty > 0) price = rawAmount / qty;
+    if (!(price > 0) && cand) {
+      price = ctx.priceFor(supplierId, entry.doc_date, cand.product_id, cand.variant_id) || 0;
+    }
     return {
       index,
       raw: line.raw,
@@ -329,12 +337,13 @@ function analyzeEntry(entry, ctx) {
       parsed_quantity: line.quantity,
       parsed_unit: line.unit,
       pieces: line.pieces,
+      amount: rawAmount,
       product_id: cand?.product_id || null,
       variant_id: cand?.variant_id || null,
       product_label: cand?.label || null,
       product_unit: cand?.unit || null,
-      quantity: cand ? convertQuantity(line, cand.unit) : line.quantity,
-      price: cand ? ctx.priceFor(supplierId, entry.doc_date, cand.product_id, cand.variant_id) : 0,
+      quantity: qty,
+      price: price || 0,
       matched_via: m.via,
       suggestions: m.suggestions,
     };
@@ -353,6 +362,8 @@ function analyzeEntry(entry, ctx) {
       : null,
     lines,
     notes: parsed.notes,
+    extra_costs: Array.isArray(parsed.extra_costs) ? parsed.extra_costs : [],
+    total: parsed.total ?? null,
     ready: !!supplierId && lines.length > 0 && lines.every((l) => l.product_id),
   };
 }
@@ -453,16 +464,24 @@ function createPrihodFromEntry(entry, payload, userId) {
   assertDepartmentInBranch(departmentId, entry.branch_id);
   const items = (payload.items || [])
     .filter((i) => i.product_id)
-    .map((i) => ({
-      product_id: i.product_id,
-      variant_id: i.variant_id || null,
-      quantity: Number(i.quantity),
-      price: Number(i.price) || 0,
-    }));
+    .map((i) => {
+      const row = {
+        product_id: i.product_id,
+        variant_id: i.variant_id || null,
+        quantity: Number(i.quantity),
+        price: Number(i.price) || 0,
+      };
+      if (i.amount != null && Number(i.amount) > 0) row.amount = Number(i.amount);
+      return row;
+    });
   if (!items.length) throw new Error('Сопоставьте хотя бы один товар');
 
   ensureSupplierLinks(entry.branch_id, payload.counterparty_id, items);
   const fromPhoto = entry.source === 'ai_photo' || !!entry.media_file_name;
+  const parsed = readParsed(entry);
+  const extraCosts = Array.isArray(payload.extra_costs)
+    ? payload.extra_costs
+    : (Array.isArray(parsed.extra_costs) ? parsed.extra_costs : undefined);
   const doc = createDocument({
     type: 'prihod',
     date: payload.date || entry.doc_date,
@@ -472,6 +491,7 @@ function createPrihodFromEntry(entry, payload, userId) {
     items: fromPhoto
       ? items.map((i) => ({ ...i, ai_confirmed: 0, ai_raw_name: i.ai_raw_name || null }))
       : items,
+    extra_costs: extraCosts?.length ? extraCosts : undefined,
     ai_recognized: fromPhoto,
     ai_pending_items: fromPhoto ? (payload.ai_pending_items || []) : undefined,
   }, userId, entry.branch_id);
@@ -814,9 +834,57 @@ export function importPastedText(branchId, { text, department_id: departmentId, 
   return { added, duplicates, skipped };
 }
 
+function aiPhotoTextPreview(group) {
+  const head = group.supplier || group.section || 'Фото прихода';
+  const lines = (group.items || []).map((i) => {
+    const priceBit = i.price != null ? ` · ${formatQty(i.price)}` : '';
+    const amountBit = i.amount != null ? ` = ${formatQty(i.amount)}` : '';
+    return `${i.name} — ${formatQty(i.quantity)} ${i.unit || ''}${priceBit}${amountBit}`.trim();
+  });
+  return [head.includes(':') ? head : `${head}:`, ...lines].join('\n');
+}
+
+function matchAiGroupItems(group, ctx, supplierId, date) {
+  const matchedItems = [];
+  const pendingItems = [];
+  for (const line of group.items || []) {
+    const m = matchProduct(ctx, line.name, supplierId);
+    if (!m.match) {
+      pendingItems.push({
+        name: line.name,
+        quantity: line.quantity,
+        unit: line.unit,
+        price: line.price,
+        amount: line.amount,
+      });
+      continue;
+    }
+    const qty = convertQuantity(
+      { quantity: line.quantity, unit: line.unit, pieces: null },
+      m.match.unit,
+    );
+    let price = line.price != null && Number.isFinite(line.price) && line.price > 0
+      ? line.price
+      : ctx.priceFor(supplierId, date, m.match.product_id, m.match.variant_id);
+    const row = {
+      product_id: m.match.product_id,
+      variant_id: m.match.variant_id,
+      quantity: qty,
+      price: price || 0,
+      ai_confirmed: 0,
+      ai_raw_name: line.name,
+    };
+    if (line.amount != null && Number.isFinite(line.amount) && line.amount > 0) {
+      row.amount = line.amount;
+    }
+    matchedItems.push(row);
+  }
+  return { matchedItems, pendingItems };
+}
+
 /**
- * Фото из темы прихода → OpenRouter vision → черновик прихода с пометкой ИИ.
- * @param {{ chatId, threadId, chatTitle, topicTitle, messageId, fromName, fromUserId, date: Date, imageBuffer: Buffer, mimeType?: string, caption?: string }} input
+ * Фото из темы прихода → OpenRouter vision → умный приход:
+ * несколько поставщиков/блоков → отдельные черновики; цены/суммы; доп. расходы.
  */
 export async function handleIncomingPhoto(input) {
   const topic = recordTopic(input);
@@ -834,11 +902,11 @@ export async function handleIncomingPhoto(input) {
 
   const chatId = String(input.chatId);
   const messageId = String(input.messageId);
-  const existing = queryOne(
-    'SELECT id, document_id, status FROM telegram_inbox WHERE chat_id = ? AND message_id = ? AND part = 0',
+  const existingParts = queryAll(
+    'SELECT * FROM telegram_inbox WHERE chat_id = ? AND message_id = ? ORDER BY part',
     [chatId, messageId],
   );
-  if (existing?.document_id && liveDocument(existing)) {
+  if (existingParts.some((e) => e.document_id && liveDocument(e))) {
     return { topic, results: [] };
   }
 
@@ -853,7 +921,13 @@ export async function handleIncomingPhoto(input) {
     };
   }
 
-  if (!extraction.items.length) {
+  const groups = Array.isArray(extraction.groups) && extraction.groups.length
+    ? extraction.groups
+    : (extraction.items?.length
+      ? [{ supplier: extraction.supplier, section: null, items: extraction.items }]
+      : []);
+
+  if (!groups.length) {
     return {
       topic,
       results: [{ reply: '📷 Фото принято, но позиции не найдены. Проверьте снимок или напишите текстом.' }],
@@ -861,188 +935,194 @@ export async function handleIncomingPhoto(input) {
   }
 
   const ctx = buildMatchContext(topic.branch_id);
-  const supplierRaw = extraction.supplier
-    ? { raw: extraction.supplier, name: extraction.supplier.replace(/[-–—]?дан$/i, '').trim() }
-    : null;
-  const supplierMatch = matchSupplier(ctx, supplierRaw);
-  const supplierId = supplierMatch.match?.id || null;
+  const tgFileId = input.telegramFileId ? String(input.telegramFileId) : null;
+  const extras = Array.isArray(extraction.extra_costs) ? extraction.extra_costs : [];
+  const results = [];
+  let firstCreatedDocId = null;
+  let extrasAttached = false;
 
-  const matchedItems = [];
-  const pendingItems = [];
-  for (const line of extraction.items) {
-    const m = matchProduct(ctx, line.name, supplierId);
-    if (!m.match) {
-      pendingItems.push({
-        name: line.name,
-        quantity: line.quantity,
-        unit: line.unit,
-        price: line.price,
+  // старые части без документа — перезапишем / лишние пометим ignored
+  for (const stale of existingParts) {
+    if (Number(stale.part) >= groups.length && stale.status !== 'created') {
+      run("UPDATE telegram_inbox SET status = 'ignored', updated_at = datetime('now') WHERE id = ?", [stale.id]);
+    }
+  }
+
+  for (let part = 0; part < groups.length; part += 1) {
+    const group = groups[part];
+    const supplierName = group.supplier || null;
+    const supplierRaw = supplierName ? { raw: supplierName, name: supplierName } : null;
+    const supplierMatch = matchSupplier(ctx, supplierRaw);
+    const supplierId = supplierMatch.match?.id || null;
+    const { matchedItems, pendingItems } = matchAiGroupItems(group, ctx, supplierId, when.date);
+
+    const prev = existingParts.find((e) => Number(e.part) === part);
+    const inboxId = prev?.id || uuidv4();
+    const parsedJson = JSON.stringify({
+      source: 'ai_photo',
+      model: extraction.model,
+      supplier: supplierRaw,
+      section: group.section || null,
+      lines: group.items,
+      notes: part === 0 && extraction.notes ? [extraction.notes] : [],
+      extra_costs: part === 0 ? extras : [],
+      total: part === 0 ? extraction.total : null,
+      groups_count: groups.length,
+    });
+    const textPreview = aiPhotoTextPreview(group);
+
+    let mediaMeta = null;
+    if (part === 0) {
+      try {
+        mediaMeta = saveInboxMediaBuffer(inboxId, input.imageBuffer, input.mimeType || 'image/jpeg');
+      } catch (e) {
+        console.error('Telegram приход: не удалось сохранить фото во входящие:', e.message);
+      }
+    }
+
+    if (prev) {
+      run(`
+        UPDATE telegram_inbox
+        SET text = ?, parsed_json = ?, from_name = ?, department_id = ?,
+            message_at = ?, doc_date = ?, status = 'new', error = NULL, source = 'ai_photo',
+            media_file_name = COALESCE(?, media_file_name), media_mime = COALESCE(?, media_mime),
+            media_telegram_file_id = COALESCE(?, media_telegram_file_id),
+            updated_at = datetime('now')
+        WHERE id = ?
+      `, [
+        textPreview, parsedJson, input.fromName || null, topic.department_id, when.at, when.date,
+        mediaMeta?.file_name || null, mediaMeta?.mime_type || null, part === 0 ? tgFileId : null, inboxId,
+      ]);
+    } else {
+      run(`
+        INSERT INTO telegram_inbox (id, branch_id, topic_id, department_id, chat_id, thread_id, message_id, part, source,
+          from_name, from_user_id, text, message_at, doc_date, parsed_json, status,
+          media_file_name, media_mime, media_telegram_file_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ai_photo', ?, ?, ?, ?, ?, ?, 'new', ?, ?, ?)
+      `, [
+        inboxId, topic.branch_id, topic.id, topic.department_id, chatId,
+        input.threadId ? String(input.threadId) : '', messageId, part,
+        input.fromName || null, input.fromUserId ? String(input.fromUserId) : null,
+        textPreview, when.at, when.date, parsedJson,
+        mediaMeta?.file_name || null, mediaMeta?.mime_type || null, part === 0 ? tgFileId : null,
+      ]);
+    }
+
+    if (!matchedItems.length) {
+      const why = supplierId
+        ? 'Товары не сопоставлены со справочником'
+        : 'ИИ распознал блок, но поставщик/товары не сопоставлены';
+      run("UPDATE telegram_inbox SET status = 'error', error = ? WHERE id = ?", [why, inboxId]);
+      const pendingList = pendingItems.slice(0, 12)
+        .map((p) => `• ${p.name} — ${formatQty(p.quantity)} ${p.unit || ''}`)
+        .join('\n');
+      const more = pendingItems.length > 12 ? `\n… ещё ${pendingItems.length - 12}` : '';
+      results.push({
+        status: 'error',
+        reply: (
+          `🟡 Блок ${part + 1}/${groups.length}`
+          + `${supplierName ? ` · ${supplierName}` : ''}: нужно сопоставить вручную\n`
+          + `Позиций: ${group.items.length}\n${pendingList}${more}`
+        ),
       });
       continue;
     }
-    const qty = convertQuantity(
-      { quantity: line.quantity, unit: line.unit, pieces: null },
-      m.match.unit,
-    );
-    let price = line.price != null && Number.isFinite(line.price) && line.price > 0
-      ? line.price
-      : ctx.priceFor(supplierId, when.date, m.match.product_id, m.match.variant_id);
-    matchedItems.push({
-      product_id: m.match.product_id,
-      variant_id: m.match.variant_id,
-      quantity: qty,
-      price: price || 0,
-      ai_confirmed: 0,
-      ai_raw_name: line.name,
-    });
-  }
 
-  const inboxId = existing?.id || uuidv4();
-  const parsedJson = JSON.stringify({
-    source: 'ai_photo',
-    model: extraction.model,
-    supplier: supplierRaw,
-    lines: extraction.items,
-    notes: extraction.notes ? [extraction.notes] : [],
-  });
-  const textPreview = [
-    extraction.supplier ? `${extraction.supplier}:` : 'Фото прихода',
-    ...extraction.items.map((i) => `${i.name} — ${i.quantity} ${i.unit}`),
-  ].join('\n');
+    if (supplierId) ensureSupplierLinks(topic.branch_id, supplierId, matchedItems);
 
-  let mediaMeta = null;
-  try {
-    mediaMeta = saveInboxMediaBuffer(inboxId, input.imageBuffer, input.mimeType || 'image/jpeg');
-  } catch (e) {
-    console.error('Telegram приход: не удалось сохранить фото во входящие:', e.message);
-  }
-  const tgFileId = input.telegramFileId ? String(input.telegramFileId) : null;
+    const commentParts = ['🟡 Из Telegram · ИИ'];
+    if (input.fromName) commentParts.push(input.fromName);
+    commentParts.push(formatMessageAt(when.at));
+    if (group.section) commentParts.push(group.section);
+    if (part === 0 && extraction.notes) commentParts.push(extraction.notes);
+    if (groups.length > 1) commentParts.push(`блок ${part + 1}/${groups.length}`);
 
-  if (existing) {
-    run(`
-      UPDATE telegram_inbox
-      SET text = ?, parsed_json = ?, from_name = ?, department_id = ?,
-          message_at = ?, doc_date = ?, status = 'new', error = NULL, source = 'ai_photo',
-          media_file_name = COALESCE(?, media_file_name), media_mime = COALESCE(?, media_mime),
-          media_telegram_file_id = COALESCE(?, media_telegram_file_id),
-          updated_at = datetime('now')
-      WHERE id = ?
-    `, [
-      textPreview, parsedJson, input.fromName || null, topic.department_id, when.at, when.date,
-      mediaMeta?.file_name || null, mediaMeta?.mime_type || null, tgFileId, inboxId,
-    ]);
-  } else {
-    run(`
-      INSERT INTO telegram_inbox (id, branch_id, topic_id, department_id, chat_id, thread_id, message_id, part, source,
-        from_name, from_user_id, text, message_at, doc_date, parsed_json, status,
-        media_file_name, media_mime, media_telegram_file_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, 0, 'ai_photo', ?, ?, ?, ?, ?, ?, 'new', ?, ?, ?)
-    `, [
-      inboxId, topic.branch_id, topic.id, topic.department_id, chatId,
-      input.threadId ? String(input.threadId) : '', messageId,
-      input.fromName || null, input.fromUserId ? String(input.fromUserId) : null,
-      textPreview, when.at, when.date, parsedJson,
-      mediaMeta?.file_name || null, mediaMeta?.mime_type || null, tgFileId,
-    ]);
-  }
-
-  if (!matchedItems.length && !supplierId) {
-    run("UPDATE telegram_inbox SET status = 'error', error = ? WHERE id = ?", [
-      'ИИ распознал позиции, но не удалось сопоставить поставщика и товары',
-      inboxId,
-    ]);
-    return {
-      topic,
-      results: [{
-        reply: `🟡 Распознано ИИ, но нужно сопоставить вручную в системе (Закупки → Из Telegram).\nПозиций: ${extraction.items.length}`,
-      }],
-    };
-  }
-
-  // Без поставщика всё равно создаём черновик, если есть сопоставленные товары
-  if (!matchedItems.length) {
-    run("UPDATE telegram_inbox SET status = 'error', error = ? WHERE id = ?", [
-      'Товары не сопоставлены со справочником',
-      inboxId,
-    ]);
-    const pendingList = pendingItems.map((p) => `• ${p.name} — ${formatQty(p.quantity)} ${p.unit}`).join('\n');
-    return {
-      topic,
-      results: [{
-        reply: `🟡 Распознано ИИ, товары не найдены в справочнике — проверьте в системе.\n${pendingList}`,
-      }],
-    };
-  }
-
-  if (supplierId) ensureSupplierLinks(topic.branch_id, supplierId, matchedItems);
-
-  const commentParts = ['🟡 Из Telegram · ИИ'];
-  if (input.fromName) commentParts.push(input.fromName);
-  commentParts.push(formatMessageAt(when.at));
-  if (extraction.notes) commentParts.push(extraction.notes);
-
-  try {
-    const doc = createDocument({
-      type: 'prihod',
-      date: when.date,
-      counterparty_id: supplierId,
-      to_department_id: topic.department_id,
-      comment: commentParts.join(' · '),
-      items: matchedItems,
-      ai_recognized: true,
-      ai_pending_items: pendingItems,
-    }, null, topic.branch_id);
+    const extraForDoc = (!extrasAttached && extras.length)
+      ? extras.map((e) => ({
+        title: e.title,
+        amount: e.amount,
+        capitalize: !!e.capitalize,
+      }))
+      : undefined;
 
     try {
-      const mime = input.mimeType || 'image/jpeg';
-      const ext = mime.includes('png') ? '.png' : mime.includes('webp') ? '.webp' : mime.includes('gif') ? '.gif' : '.jpg';
-      saveDocumentAttachmentBuffer(doc.id, input.imageBuffer, {
-        mimeType: mime,
-        originalName: `telegram-${messageId}${ext}`,
-        source: 'telegram',
-      });
-    } catch (attachErr) {
-      console.error('Telegram приход: не удалось сохранить фото к документу:', attachErr.message);
-    }
+      const doc = createDocument({
+        type: 'prihod',
+        date: when.date,
+        counterparty_id: supplierId,
+        to_department_id: topic.department_id,
+        comment: commentParts.join(' · '),
+        items: matchedItems,
+        extra_costs: extraForDoc,
+        ai_recognized: true,
+        ai_pending_items: pendingItems,
+      }, null, topic.branch_id);
 
-    run(`
-      UPDATE telegram_inbox
-      SET status = 'created', document_id = ?, error = NULL, updated_at = datetime('now')
-      WHERE id = ?
-    `, [doc.id, inboxId]);
+      if (extraForDoc?.length) extrasAttached = true;
+      if (!firstCreatedDocId) firstCreatedDocId = doc.id;
 
-    const unconfirmed = Number(doc.ai_unconfirmed_count) || matchedItems.length + pendingItems.length;
-    const lines = matchedItems.map((i) => {
-      const label = ctx.candidateIndex.get(`${i.product_id}:${i.variant_id || ''}`)?.label || i.ai_raw_name;
-      return `• ${label} — ${formatQty(i.quantity)}`;
-    }).join('\n');
-    const pendingTail = pendingItems.length
-      ? `\n⚠️ Не сопоставлено (${pendingItems.length}):\n${pendingItems.map((p) => `• ${p.name}`).join('\n')}`
-      : '';
-    const supplierLabel = supplierMatch.match?.name || extraction.supplier || 'поставщик не указан';
+      try {
+        const mime = input.mimeType || 'image/jpeg';
+        const ext = mime.includes('png') ? '.png' : mime.includes('webp') ? '.webp' : mime.includes('gif') ? '.gif' : '.jpg';
+        saveDocumentAttachmentBuffer(doc.id, input.imageBuffer, {
+          mimeType: mime,
+          originalName: `telegram-${messageId}${groups.length > 1 ? `-p${part}` : ''}${ext}`,
+          source: 'telegram',
+        });
+      } catch (attachErr) {
+        console.error('Telegram приход: не удалось сохранить фото к документу:', attachErr.message);
+      }
 
-    return {
-      topic,
-      results: [{
+      run(`
+        UPDATE telegram_inbox
+        SET status = 'created', document_id = ?, error = NULL, updated_at = datetime('now')
+        WHERE id = ?
+      `, [doc.id, inboxId]);
+
+      const unconfirmed = Number(doc.ai_unconfirmed_count) || matchedItems.length + pendingItems.length;
+      const supplierLabel = supplierMatch.match?.name || supplierName || 'поставщик не указан';
+      const pendingTail = pendingItems.length
+        ? `\n⚠️ Не сопоставлено (${pendingItems.length}): ${pendingItems.slice(0, 5).map((p) => p.name).join(', ')}`
+        : '';
+      const extrasTail = extraForDoc?.length
+        ? `\nДоп. расходы: ${extraForDoc.map((e) => `${e.title} ${formatQty(e.amount)}`).join(', ')}`
+        : '';
+
+      results.push({
         status: 'created',
         document: doc,
         reply: (
-          `🟡 Распознано искусственным интеллектом\n`
+          `🟡 ИИ · блок ${part + 1}/${groups.length}\n`
           + `✅ Приход №${doc.number} (черновик) · ${supplierLabel}\n`
-          + `Неподтверждённых позиций: ${unconfirmed}\n`
-          + `${lines}${pendingTail}\n`
-          + `Проверьте в системе — строка будет жёлтой.`
+          + `Позиций: ${matchedItems.length}, неподтв.: ${unconfirmed}`
+          + `${pendingTail}${extrasTail}`
         ),
-      }],
-    };
-  } catch (e) {
-    run("UPDATE telegram_inbox SET status = 'error', error = ?, updated_at = datetime('now') WHERE id = ?", [
-      e.message, inboxId,
-    ]);
-    return {
-      topic,
-      results: [{ reply: `⚠️ ИИ распознал, но не удалось создать приход: ${e.message}` }],
-    };
+      });
+    } catch (e) {
+      run("UPDATE telegram_inbox SET status = 'error', error = ?, updated_at = datetime('now') WHERE id = ?", [
+        e.message, inboxId,
+      ]);
+      results.push({
+        status: 'error',
+        reply: `⚠️ Блок ${part + 1}: не удалось создать приход — ${e.message}`,
+      });
+    }
   }
+
+  const created = results.filter((r) => r.status === 'created').length;
+  const summary = (
+    `📷 Умный приход: блоков ${groups.length}, создано черновиков ${created}`
+    + (extraction.total ? `, итог на фото ≈ ${formatQty(extraction.total)}` : '')
+    + (extras.length && !extrasAttached ? `\n⚠️ Доп. расходы распознаны, но не привязаны (нет черновика)` : '')
+    + `\nПроверьте жёлтые приходы в системе.`
+  );
+
+  return {
+    topic,
+    results: [
+      { reply: summary },
+      ...results,
+    ],
+  };
 }
 
