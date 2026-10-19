@@ -2946,6 +2946,11 @@ tr:hover td {
 .ai-pending-map {
   display: grid;
   gap: 8px;
+  max-height: min(46vh, 420px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 4px;
 }
 .ai-pending-map-row {
   display: grid;
