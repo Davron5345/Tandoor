@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-10-19 (Скролл списка несопоставленных в приходе ИИ)
+**Последнее обновление документации:** 2026-10-20 (Ленивая загрузка страниц, FCM HTTP v1)
 
 ---
 
@@ -74,6 +74,7 @@ prihod-rashod/
 │   ├── telegram.js         # Telegram-бот (уведомления + сообщения групп/тем → приходы)
 │   ├── telegramPrihodParser.js # Разбор «Жалилдан: / Сон-45,8кг», вставки истории, matchKey
 │   ├── push.js             # Push: Web Push (VAPID) + FCM (Android native)
+│   ├── fcm.js              # FCM HTTP v1 (service account → OAuth) + legacy fallback
 │   ├── snabAppVersion.js   # Метаданные APK, URL скачивания
 │   ├── staffLocation.js    # Геолокация снабженцев
 │   └── test/               # Unit/integration тесты backend
@@ -88,7 +89,7 @@ prihod-rashod/
 │   │   ├── pages/          # Страницы приложения
 │   │   ├── components/     # Переиспользуемые компоненты
 │   │   ├── hooks/          # React-хуки
-│   │   ├── utils/          # nativeApp, nativePush, nativeApkUpdate, pwaPush, date...
+│   │   ├── utils/          # nativeApp, nativePush, nativeApkUpdate, pwaPush, date, lazyPage...
 │   │   └── components/     # SnabProfileView, SnabAppPanel, AdminPushTab (в pages/)...
 │   └── public/             # Статика, PWA; APK — зеркало на GitHub Releases
 ├── android/                # Capacitor Android (com.tandoor.snab)
@@ -624,11 +625,11 @@ GET  /api/auth/roles
 
 При **выходе** из системы клиент снимает Web Push-подписку этого устройства (`POST /api/push/unsubscribe`), чтобы уведомления не шли вышедшему сотруднику.
 
-Сервер (`server/push.js`): endpoint `fcm:<token>` для native; обычный Web Push endpoint для браузера. Отправка FCM через `FCM_SERVER_KEY` (Legacy HTTP API). Динамический манифест: `server/pwaManifest.js`.
+Сервер (`server/push.js`): endpoint `fcm:<token>` для native; обычный Web Push endpoint для браузера. Отправка FCM — `server/fcm.js`: **HTTP v1** (`FCM_SERVICE_ACCOUNT_JSON` → JWT RS256 через `crypto` → OAuth-токен, кэш ~1 ч → `v1/projects/{id}/messages:send`); `UNREGISTERED` удаляет подписку. `FCM_SERVER_KEY` (Legacy API, отключён Google) — только запасной путь, при старте предупреждение. Динамический манифест: `server/pwaManifest.js`.
 
 **Настройка FCM (один раз):**
 1. Firebase Console → Android app `com.tandoor.snab` → `google-services.json` → `android/app/`
-2. Railway: `FCM_SERVER_KEY` (Cloud Messaging → Server key)
+2. Railway: `FCM_SERVICE_ACCOUNT_JSON` (Project settings → Service accounts → Generate new private key; JSON целиком или base64)
 3. GitHub Secret: `GOOGLE_SERVICES_JSON` (содержимое файла) для CI сборки APK
 
 ### Обновление APK в приложении
@@ -668,7 +669,8 @@ GET  /api/auth/roles
 | `TELEGRAM_BOT_TOKEN` | Токен бота |
 | `TELEGRAM_ENABLED` | `false` для отключения |
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | Web Push (браузер/PWA) |
-| `FCM_SERVER_KEY` | FCM push для Android APK (Legacy HTTP API) |
+| `FCM_SERVICE_ACCOUNT_JSON` | FCM HTTP v1 для Android APK: JSON-ключ сервисного аккаунта Firebase (как есть или base64) |
+| `FCM_SERVER_KEY` | Legacy FCM (отключён Google) — запасной путь, если нет `FCM_SERVICE_ACCOUNT_JSON` |
 | `CAPACITOR_SERVER_URL` | URL прод-сервера при сборке APK (CI / локально) |
 | `GOOGLE_SERVICES_JSON` | GitHub Actions secret → `android/app/google-services.json` при сборке |
 | `SNAB_APK_URL` | Переопределить URL скачивания APK (default: GitHub Releases) |
@@ -705,6 +707,8 @@ GET  /api/auth/roles
 
 ### Frontend
 - Функциональные компоненты, hooks
+- **Страницы грузятся лениво:** в `App.jsx` / `main.jsx` — `lazyPage(() => import('./pages/X'))` (`utils/lazyPage.js`) внутри `<Suspense>`; статически только `Login` / `ChangePassword`. Новая страница — тоже через `lazyPage`. При ошибке загрузки чанка (после деплоя) — одна перезагрузка (не чаще раза в 30 с). Сервер: `/assets/*` — `Cache-Control: immutable` на год, `index.html` — `no-cache`, отсутствующий `/assets/*` → 404 (не index.html)
+- ESLint `react-hooks/exhaustive-deps` «unnecessary dependency: branchId» — **намеренно**: `branchId` в deps перезагружает данные при смене филиала (API добавляет `branch_id` неявно). Не удалять
 - Стили: `index.css` + page-specific CSS
 - Черновики документов: `sessionStorage` / `localStorage`; инвентаризация — `form-draft:inventory:*` (восстанавливает окно после F5/деплоя); AppUpdateManager не перезагружает, пока открыта модалка
 - Даты: `utils/date.js`, локальные ISO строки `YYYY-MM-DD`
@@ -732,7 +736,7 @@ GET  /api/auth/roles
 | Telegram | `server/telegram.js`, `server/services/telegram.js` |
 | Приходы из Telegram | `server/telegramPrihodParser.js`, `server/services/telegramPrihod.js`, `server/routes/telegramPrihod.routes.js`, `client/src/pages/TelegramPrihod.jsx` |
 | ИИ / OpenRouter (фото прихода) | `server/services/openRouter.js`, `server/routes/ai.routes.js`, вкладка ИИ в `Telegram.jsx`; фото — `handleIncomingPhoto` в `telegramPrihod.js` + `telegram.js` |
-| Push (FCM + Web) | `server/push.js`, `client/src/utils/nativePush.js`, `client/src/utils/pwaPush.js` |
+| Push (FCM + Web) | `server/push.js`, `server/fcm.js`, `client/src/utils/nativePush.js`, `client/src/utils/pwaPush.js` |
 | APK снабжения | `server/snabAppVersion.js`, `nativeApkUpdate.js`, `.github/workflows/android-apk.yml` |
 | Тема UI | `client/src/theme.js`, `ThemeContext.jsx` — не дублировать цвета в `:root` |
 | Тест | `server/test/<feature>.test.js` |
@@ -965,6 +969,7 @@ GET  /api/auth/roles
 | 2026-10-19 | Умный приход с фото: multi-supplier `groups`, price/amount, `extra_costs`; отдельный черновик на блок; улучшенный vision-промпт |
 | 2026-10-19 | Приход ИИ: у «Не сопоставлено» выбор товара из всего справочника или «+» новый; сохранение не стирает оставшиеся pending |
 | 2026-10-19 | Список «Не сопоставлено» в карточке прихода скроллится внутри жёлтого блока (окно документа само не растёт) |
+| 2026-10-20 | Ленивая загрузка страниц (`utils/lazyPage.js`, основной JS 274→88 КБ gzip), заголовки кэша для `/assets`; FCM HTTP v1 (`server/fcm.js`, `FCM_SERVICE_ACCOUNT_JSON`); чистка неиспользуемых переменных ESLint |
 
 ---
 
