@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-10-20 (Ленивая загрузка страниц, FCM HTTP v1)
+**Последнее обновление документации:** 2026-10-20 (Ленивая загрузка, FCM HTTP v1, разбиение Documents/Reports/documents.js)
 
 ---
 
@@ -58,7 +58,7 @@ prihod-rashod/
 │   ├── permissions.js      # Роли, права, пресеты (источник истины для backend)
 │   ├── middleware.js       # requireAuth, requirePermission, branch context
 │   ├── routes/             # Тонкие HTTP-маршруты (делегируют в services/)
-│   ├── services/           # Бизнес-логика: documents, products, payments, reports...
+│   ├── services/           # Бизнес-логика: documents (+ documentCore / documentInventory / documentRazdelka), products, payments, reports...
 │   ├── inventoryCost.js    # Средневзвешенная себестоимость, движение по отделам
 │   ├── stockMovementGuard.js # Запрет отмены, если есть более поздние движения склада
 │   ├── documentSnapshot.js # Полный снимок документа → document_history (addDocumentHistory)
@@ -86,7 +86,7 @@ prihod-rashod/
 │   │   ├── permissions.js  # Проверка прав на frontend (зеркало backend)
 │   │   ├── AuthContext.jsx # Сессия пользователя
 │   │   ├── BranchContext.jsx # Активный филиал
-│   │   ├── pages/          # Страницы приложения
+│   │   ├── pages/          # Страницы приложения (pages/reports/ — отчёты, pages/documents/ — части Documents.jsx)
 │   │   ├── components/     # Переиспользуемые компоненты
 │   │   ├── hooks/          # React-хуки
 │   │   ├── utils/          # nativeApp, nativePush, nativeApkUpdate, pwaPush, date, lazyPage...
@@ -691,6 +691,8 @@ GET  /api/auth/roles
 | `npm run test:e2e` | Playwright: UI flows |
 | `npm run lint` | ESLint server + client + e2e |
 
+E2E: `e2e/seed.mjs` пересоздаёт `e2e/.data`, но Playwright поднимает `webServer` (sql.js в памяти) **до** `globalSetup` — после правки seed первый прогон видит старые данные, со второго — новые. Товар для прихода должен иметь `product_branches` (visible) и `product_suppliers`. Браузер: `npx playwright install chromium`.
+
 Тесты в `server/test/` используют in-memory или temp DB. При добавлении бизнес-логики — добавляй тесты в соответствующий `*.test.js`.
 
 ---
@@ -725,11 +727,12 @@ GET  /api/auth/roles
 | Задача | Файлы |
 |--------|-------|
 | Новый API endpoint | `server/routes/*.routes.js` + `server/services/*.js` + `client/src/api.js` |
-| Бизнес-правило документа | `server/services/documents.js` |
+| Бизнес-правило документа | `server/services/documents.js` (CRUD, проведение/отмена); проводка остатков `updateStock`, история, нумерация — `documentCore.js`; инвентаризация — `documentInventory.js`; разделка — `documentRazdelka.js`. `documents.js` реэкспортирует `addHistory`, `getInventoryStockSnapshot`, `getInventoryConfirmOptions`. `documentCore` ↔ `documentInventory` импортируют друг друга (взаимная рекурсия `updateStock` / `applyInventoryStock`) — на верхнем уровне этих модулей только объявления функций, без вызовов |
+| UI складских документов | `client/src/pages/Documents.jsx` (окно документа); `pages/documents/docUtils.jsx` (константы, хелперы строк, `useDocsPhone`), `DocumentsList.jsx` (список: карточки на телефоне / таблица + пагинация, общие кнопки `DocRowActions`), `DocPaymentModal.jsx` |
 | Схема БД | `server/db.js` (SQLite миграции) + `server/pgSchema.js` (Postgres) |
 | Новая страница UI | `client/src/pages/*.jsx` + маршрут в `App.jsx` + навигация |
 | Права доступа | `server/permissions.js` + `client/src/permissions.js` |
-| Отчёт | `server/services/reports.js` + `client/src/pages/Reports.jsx` |
+| Отчёт | `server/services/reports.js` + `client/src/pages/reports/<Отчёт>.jsx`; `pages/Reports.jsx` — только маршруты; общие `formatQty` / `SortHeader` — `pages/reports/reportUtils.jsx` |
 | Вид товара / ограничения | `server/productKinds.js` |
 | Себестоимость / остатки | `server/inventoryCost.js`, `server/departments.js`, `server/documentExtraCosts.js` |
 | MyShop | `server/myShop.js`, `server/publicShop.js`, `client/src/pages/MyShop*.jsx` |
@@ -970,6 +973,7 @@ GET  /api/auth/roles
 | 2026-10-19 | Приход ИИ: у «Не сопоставлено» выбор товара из всего справочника или «+» новый; сохранение не стирает оставшиеся pending |
 | 2026-10-19 | Список «Не сопоставлено» в карточке прихода скроллится внутри жёлтого блока (окно документа само не растёт) |
 | 2026-10-20 | Ленивая загрузка страниц (`utils/lazyPage.js`, основной JS 274→88 КБ gzip), заголовки кэша для `/assets`; FCM HTTP v1 (`server/fcm.js`, `FCM_SERVICE_ACCOUNT_JSON`); чистка неиспользуемых переменных ESLint |
+| 2026-10-20 | Разбиение: `Reports.jsx` → `pages/reports/*`; из `Documents.jsx` — `pages/documents/` (docUtils, DocumentsList, DocPaymentModal); `services/documents.js` → + `documentCore.js` / `documentInventory.js` / `documentRazdelka.js`. E2E починены (seed: `product_branches`; селекторы строк документа) |
 
 ---
 

@@ -48,6 +48,12 @@ export async function prepareE2eDatabase() {
     );
   }
 
+  run(
+    `INSERT OR IGNORE INTO product_branches (id, product_id, branch_id, visible)
+     VALUES (?, ?, 'main', 1)`,
+    [uuidv4(), productId],
+  );
+
   run('DELETE FROM product_suppliers WHERE product_id = ? AND branch_id = ?', [productId, 'main']);
   run(
     `INSERT INTO product_suppliers (id, product_id, supplier_id, branch_id)

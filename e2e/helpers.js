@@ -19,7 +19,7 @@ export async function pickCategoryOption(page, labelText, optionName, searchPlac
   const group = page.locator('.form-group').filter({ has: page.getByText(labelText, { exact: true }) });
   await group.locator('.category-select-trigger').click();
   await page.getByPlaceholder(searchPlaceholder).fill(optionName);
-  await page.getByRole('option', { name: optionName }).click();
+  await page.locator('.category-select-option').filter({ hasText: optionName }).first().click();
 }
 
 export async function pickProductOption(page, productName) {
@@ -33,8 +33,9 @@ export async function selectDepartment(page, labelText, departmentName) {
 }
 
 export async function fillDocLine(page, { qty, price }) {
-  await page.locator('.doc-items-table input[type="number"]').first().fill(String(qty));
-  await page.locator('.doc-items-table input[inputmode="numeric"]').first().fill(String(price));
+  const row = page.locator('.doc-items-table tbody tr').first();
+  await row.locator('.doc-items-qty-col input').fill(String(qty));
+  await row.locator('.doc-items-amount-col').locator('xpath=preceding-sibling::td[1]').locator('input').fill(String(price));
 }
 
 export async function confirmDocModal(page) {
