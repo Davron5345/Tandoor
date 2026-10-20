@@ -1,38 +1,40 @@
 import { Routes, Route, NavLink, useLocation, useNavigate, Navigate } from 'react-router-dom';
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, Suspense } from 'react';
 import { createPortal } from 'react-dom';
-import Dashboard from './pages/Dashboard';
-import Products from './pages/Products';
-import ProductCategories from './pages/ProductCategories';
-import Units from './pages/Units';
-import Counterparties from './pages/Counterparties';
-import Documents from './pages/Documents';
-import TelegramPage from './pages/Telegram';
-import Payments from './pages/Payments';
-import Cashier from './pages/Cashier';
-import CashArticles from './pages/CashArticles';
-import Employees from './pages/Employees';
-import Roles from './pages/Roles';
-import Branches from './pages/Branches';
-import Departments from './pages/Departments';
-import AuditLog from './pages/AuditLog';
-import SecurityAdmin from './pages/SecurityAdmin';
-import StaffTracking from './pages/StaffTracking';
 import ErrorBoundary from './components/ErrorBoundary';
-import Razdelka from './pages/Razdelka';
-import DishSales from './pages/DishSales';
-import Inventory from './pages/Inventory';
-import Calculations from './pages/Calculations';
-import Reports from './pages/Reports';
-import OpeningBalance from './pages/OpeningBalance';
-import SupplierPrices from './pages/SupplierPrices';
-import TelegramPrihod from './pages/TelegramPrihod';
-import MyShop from './pages/MyShop';
-import MyShopConstructor from './pages/MyShopConstructor';
-import ShopOrders from './pages/ShopOrders';
 import Login from './pages/Login';
 import ChangePassword from './pages/ChangePassword';
-import EmployeeCabinet from './pages/EmployeeCabinet';
+import { lazyPage } from './utils/lazyPage';
+
+const Dashboard = lazyPage(() => import('./pages/Dashboard'));
+const Products = lazyPage(() => import('./pages/Products'));
+const ProductCategories = lazyPage(() => import('./pages/ProductCategories'));
+const Units = lazyPage(() => import('./pages/Units'));
+const Counterparties = lazyPage(() => import('./pages/Counterparties'));
+const Documents = lazyPage(() => import('./pages/Documents'));
+const TelegramPage = lazyPage(() => import('./pages/Telegram'));
+const Payments = lazyPage(() => import('./pages/Payments'));
+const Cashier = lazyPage(() => import('./pages/Cashier'));
+const CashArticles = lazyPage(() => import('./pages/CashArticles'));
+const Employees = lazyPage(() => import('./pages/Employees'));
+const Roles = lazyPage(() => import('./pages/Roles'));
+const Branches = lazyPage(() => import('./pages/Branches'));
+const Departments = lazyPage(() => import('./pages/Departments'));
+const AuditLog = lazyPage(() => import('./pages/AuditLog'));
+const SecurityAdmin = lazyPage(() => import('./pages/SecurityAdmin'));
+const StaffTracking = lazyPage(() => import('./pages/StaffTracking'));
+const Razdelka = lazyPage(() => import('./pages/Razdelka'));
+const DishSales = lazyPage(() => import('./pages/DishSales'));
+const Inventory = lazyPage(() => import('./pages/Inventory'));
+const Calculations = lazyPage(() => import('./pages/Calculations'));
+const Reports = lazyPage(() => import('./pages/Reports'));
+const OpeningBalance = lazyPage(() => import('./pages/OpeningBalance'));
+const SupplierPrices = lazyPage(() => import('./pages/SupplierPrices'));
+const TelegramPrihod = lazyPage(() => import('./pages/TelegramPrihod'));
+const MyShop = lazyPage(() => import('./pages/MyShop'));
+const MyShopConstructor = lazyPage(() => import('./pages/MyShopConstructor'));
+const ShopOrders = lazyPage(() => import('./pages/ShopOrders'));
+const EmployeeCabinet = lazyPage(() => import('./pages/EmployeeCabinet'));
 import { api } from './api';
 import { useTheme } from './ThemeContext';
 import { useAuth } from './AuthContext';
@@ -785,14 +787,11 @@ function AppContent() {
   const canViewCashier = hasAnyPermission(user, ['cashier.view', 'cashier.edit', 'payments.view', 'payments.edit']);
   const canViewCashArticles = hasPermission(user, 'cash_articles.view');
   const canViewOpeningBalance = hasPermission(user, 'opening_balance.view');
-  const canViewCounterparties = hasPermission(user, 'counterparties.view');
   const canViewTelegram = hasPermission(user, 'telegram.view');
   const canViewDashboard = hasPermission(user, 'dashboard.view');
-  const canEditProducts = hasPermission(user, 'products.edit');
   const canViewMyShop = hasPermission(user, 'myshop.view');
   const canEditMyShop = hasPermission(user, 'myshop.edit');
   const canViewShopOrders = hasPermission(user, 'shop_orders.view');
-  const canEditShopOrders = hasPermission(user, 'shop_orders.edit');
   const isMyShopStore = isMyShopStorePreview;
   const isMyShopConstructor = isMyShopConstructorPreview;
 
@@ -1093,6 +1092,7 @@ function AppContent() {
         {isCashierLayout && location.pathname !== '/cashier' && location.pathname !== '/me' ? (
           <Navigate to="/cashier" replace />
         ) : (
+        <Suspense fallback={<div className="empty">Загрузка…</div>}>
         <Routes key={branchId || 'default'}>
           <Route path="/" element={canViewDashboard ? <Dashboard /> : <Navigate to={firstNavPath} />} />
           <Route path="/me" element={<EmployeeCabinet embedded backTo={isCashierLayout ? '/cashier' : '/'} showBack={isCashierLayout} />} />
@@ -1130,6 +1130,7 @@ function AppContent() {
           <Route path="/audit-log" element={isAdmin ? <AuditLog /> : <Navigate to={firstNavPath} />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
+        </Suspense>
         )}
         </div>
         {useMobileChrome && !isWorkspaceHome && (

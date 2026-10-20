@@ -1,11 +1,7 @@
-import React from 'react';
+import React, { Suspense } from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import PublicShop from './pages/PublicShop';
-import EmployeeLogin from './pages/EmployeeLogin';
-import ShopOrdersMobile from './pages/ShopOrdersMobile';
-import PrihodMobile from './pages/PrihodMobile';
-import TransferMobile from './pages/TransferMobile';
+import { lazyPage } from './utils/lazyPage';
 import { ThemeProvider } from './ThemeContext';
 import { AuthProvider } from './AuthContext';
 import { BranchProvider } from './BranchContext';
@@ -14,12 +10,19 @@ import ErrorBoundary from './components/ErrorBoundary';
 import RootEntry from './RootEntry';
 import './index.css';
 
+const PublicShop = lazyPage(() => import('./pages/PublicShop'));
+const EmployeeLogin = lazyPage(() => import('./pages/EmployeeLogin'));
+const ShopOrdersMobile = lazyPage(() => import('./pages/ShopOrdersMobile'));
+const PrihodMobile = lazyPage(() => import('./pages/PrihodMobile'));
+const TransferMobile = lazyPage(() => import('./pages/TransferMobile'));
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <ErrorBoundary>
       <ThemeProvider>
         <BrowserRouter>
           <AppUpdateManager />
+          <Suspense fallback={<div className="empty">Загрузка…</div>}>
           <Routes>
             <Route path="/shop/:branchId/dept/:departmentId" element={<PublicShop />} />
             <Route path="/shop/:branchId" element={<PublicShop />} />
@@ -58,6 +61,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             />
             <Route path="/*" element={<RootEntry />} />
           </Routes>
+          </Suspense>
         </BrowserRouter>
       </ThemeProvider>
     </ErrorBoundary>

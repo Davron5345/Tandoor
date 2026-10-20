@@ -101,6 +101,10 @@ export function createApp() {
       if (filePath.endsWith('.apk')) {
         res.setHeader('Content-Type', 'application/vnd.android.package-archive');
         res.setHeader('Content-Disposition', 'attachment; filename="snabzenie.apk"');
+      } else if (/[\\/]assets[\\/]/.test(filePath)) {
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      } else if (filePath.endsWith('index.html')) {
+        res.setHeader('Cache-Control', 'no-cache');
       }
     },
   }));
@@ -108,6 +112,10 @@ export function createApp() {
     if (req.path.startsWith('/api')) {
       return res.status(404).json({ error: 'Not found' });
     }
+    if (req.path.startsWith('/assets/')) {
+      return res.status(404).send('Not found');
+    }
+    res.setHeader('Cache-Control', 'no-cache');
     res.sendFile(join(clientDist, 'index.html'), (err) => {
       if (err) res.status(404).send('Frontend not built. Run: npm run build');
     });
