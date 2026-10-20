@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-10-20 (Ленивая загрузка, FCM HTTP v1, разбиение Documents/Reports/documents.js)
+**Последнее обновление документации:** 2026-10-20 (миграция Coolify budavron)
 
 ---
 
@@ -748,10 +748,11 @@ E2E: seed (`e2e/seed.mjs`, пересоздаёт `e2e/.data`) запускае�
 
 ## 17. Деплой
 
-- **Railway / VPS:** смонтировать persistent volume на `DATA_DIR`
-- Без persistent storage данные теряются при каждом деплое
-- `npm run build && npm start`
-- OpenAPI docs доступны на `/api/docs`
+- **Coolify (основной, budavron):** проект `tandoor` (`yeudig9erfaexf3qcwos0fk8`), app `tandoor-app` (`kkkfxb8t2hlzk1f9t4d2wjct`), Postgres 18 `tandoor-db`, volume `/data`, домен `https://tandoor.budavron.uz`. Сборка — `Dockerfile` (Node 20, `curl` для healthcheck). Env: `DATABASE_URL`, `DATA_DIR=/data`, `DISABLE_DEMO_SEED=true`, VAPID, `APP_PUBLIC_URL`, `COOKIE_SECURE` — **только runtime** (не build-time). После `git push` на `main` — автодеплой.
+- **Railway (старый):** `https://tandoor-production.up.railway.app` — можно выключить после проверки Coolify и DNS. Пока Railway жив, на Coolify держать `TELEGRAM_ENABLED=false` (иначе 409 у бота).
+- Volume `/data` обязателен (uploads). Без него файлы приходов/фото теряются при редеплое.
+- `npm run build && npm start` (локально / Dockerfile)
+- OpenAPI docs: `/api/docs`
 
 ---
 
@@ -974,6 +975,7 @@ E2E: seed (`e2e/seed.mjs`, пересоздаёт `e2e/.data`) запускае�
 | 2026-10-19 | Список «Не сопоставлено» в карточке прихода скроллится внутри жёлтого блока (окно документа само не растёт) |
 | 2026-10-20 | Ленивая загрузка страниц (`utils/lazyPage.js`, основной JS 274→88 КБ gzip), заголовки кэша для `/assets`; FCM HTTP v1 (`server/fcm.js`, `FCM_SERVICE_ACCOUNT_JSON`); чистка неиспользуемых переменных ESLint |
 | 2026-10-20 | Разбиение: `Reports.jsx` → `pages/reports/*`; из `Documents.jsx` — `pages/documents/` (docUtils, DocumentsList, DocPaymentModal); `services/documents.js` → + `documentCore.js` / `documentInventory.js` / `documentRazdelka.js`. E2E починены (seed: `product_branches`; селекторы строк документа) |
+| 2026-10-20 | Миграция на Coolify (budavron): проект `tandoor`, Postgres 18 + volume `/data`, Dockerfile; дамп Railway без потерь (792 док. / 404 тов. / 435 опл.); домен `tandoor.budavron.uz` |
 
 ---
 
