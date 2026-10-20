@@ -13,7 +13,8 @@ FROM node:20-bookworm-slim AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV DATA_DIR=/data
-RUN apt-get update -y && apt-get install -y --no-install-recommends ca-certificates \
+# curl — для healthcheck Coolify (CMD-SHELL curl … /api/health)
+RUN apt-get update -y && apt-get install -y --no-install-recommends ca-certificates curl \
   && rm -rf /var/lib/apt/lists/* \
   && mkdir -p /data \
   && chown -R node:node /data
