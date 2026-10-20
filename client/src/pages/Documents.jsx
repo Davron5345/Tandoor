@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { createPortal } from 'react-dom';
-import { api, formatMoney, formatDate, formatPriceInput, parsePriceInput, parseQuantityInput, normalizeQuantityInput, lineMoneyFromItem, STATUS_LABELS } from '../api';
+import { api, formatMoney, formatDate, formatPriceInput, parsePriceInput, parseQuantityInput, normalizeQuantityInput, lineMoneyFromItem } from '../api';
 import Modal, { useToast, ModalCancelButton } from '../components/Modal';
 import DocumentHistoryModal from '../components/DocumentHistoryModal';
 import CategorySelect from '../components/CategorySelect';
@@ -19,23 +19,14 @@ import {
   IconButton,
   IconCheck,
   IconCopy,
-  IconEye,
   IconHistory,
-  IconMore,
   IconPlus,
   IconTelegram,
-  IconTransfer,
   IconTrash,
   IconUndo,
-  IconWallet,
 } from '../components/ActionIcons';
-
 import { PriceWithTrend, prihodLinePriceTrend } from '../components/PriceTrendMark';
-import {
-  encodeProductPick,
-  getPickStock,
-  resolvePickFromProducts,
-} from '../utils/productVariants';
+import { encodeProductPick, getPickStock, resolvePickFromProducts } from '../utils/productVariants';
 import { todayLocalIso } from '../utils/date';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import {
@@ -47,121 +38,29 @@ import {
 } from '../hooks/useFormDraft';
 import { useFormDirty } from '../hooks/useFormDirty';
 import TelegramMessageLink from '../components/TelegramMessageLink';
-
-const DEFAULT_CONTRACT_ID = '__default__';
-const RETURN_SUPPLIER_TYPE = 'return_supplier';
-const RETURN_CUSTOMER_TYPE = 'return_customer';
-const DOCS_PHONE_MQ = '(max-width: 768px)';
-
-function useDocsPhone() {
-  const [isPhone, setIsPhone] = useState(() => (
-    typeof window !== 'undefined' && window.matchMedia(DOCS_PHONE_MQ).matches
-  ));
-  useEffect(() => {
-    const mq = window.matchMedia(DOCS_PHONE_MQ);
-    const apply = () => setIsPhone(mq.matches);
-    apply();
-    mq.addEventListener('change', apply);
-    return () => mq.removeEventListener('change', apply);
-  }, []);
-  return isPhone;
-}
-
-function hasRealSupplierContracts(contracts = []) {
-  return contracts.some((c) => c.id !== DEFAULT_CONTRACT_ID && !c.virtual);
-}
-
-function isSupplierReturnType(type) {
-  return type === RETURN_SUPPLIER_TYPE;
-}
-
-function isCustomerReturnType(type) {
-  return type === RETURN_CUSTOMER_TYPE;
-}
-
-function isAnyReturnType(type) {
-  return isSupplierReturnType(type) || isCustomerReturnType(type);
-}
-
-function isOutgoingDocType(type) {
-  return type === 'rashod' || type === RETURN_SUPPLIER_TYPE;
-}
-
-function formatContractLabel(contract) {
-  if (!contract) return 'Основной договор';
-  const title = (contract.title || '').trim();
-  const number = contract.number || 'Основной договор';
-  const head = title && title !== number ? `${title} · ${number}` : number;
-  if (!contract.date) return head;
-  return `${head} — ${formatDate(contract.date)}`;
-}
-
-const emptyItem = { product_id: '', variant_id: null, quantity: 1, price: 0, net_weight: '' };
-const emptyExtraCost = { title: '', amount: '', capitalize: true };
-
-function hasNetColumn(type) {
-  return type === 'prihod' || type === 'peremeshchenie';
-}
-
-function lineStockQty(item) {
-  const qty = parseQuantityInput(item.quantity) ?? 0;
-  const net = Number(item.net_weight) || 0;
-  if (!(qty > 0)) return 0;
-  return net > 0 ? net * qty : qty;
-}
-
-function formatRemainQty(n) {
-  const v = Number(n);
-  if (!Number.isFinite(v)) return '0';
-  return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 3 }).format(Math.round(v * 1000) / 1000);
-}
-
-function lineAmountOf(item) {
-  return lineMoneyFromItem(item).amount;
-}
-
-function priceFromAmount(qty, amount) {
-  if (!(qty > 0)) return 0;
-  return amount / qty;
-}
-
-function TransferStockHint({ value, unit, over }) {
-  return (
-    <span className={`doc-items-stock-hint${over ? ' is-over' : ''}`}>
-      ост: {formatRemainQty(value)}{unit ? ` ${unit}` : ''}
-    </span>
-  );
-}
-
-const emptyPayment = {
-  type: 'supplier_payment',
-  counterparty_id: '',
-  document_id: '',
-  amount: 0,
-  date: todayLocalIso(),
-  comment: '',
-};
-const emptyDoc = {
-  type: 'prihod',
-  counterparty_id: '',
-  source_document_id: '',
-  contract_id: '',
-  from_branch_id: '',
-  to_branch_id: '',
-  from_department_id: '',
-  to_department_id: '',
-  transfer_mode: 'department',
-  date: todayLocalIso(),
-  comment: '',
-  status: 'draft',
-  items: [{ ...emptyItem }],
-  extra_costs: [],
-  ai_recognized: false,
-  ai_unconfirmed_count: 0,
-  ai_pending_items: [],
-  attachments: [],
-  telegram_url: null,
-};
+import {
+  DEFAULT_CONTRACT_ID,
+  RETURN_CUSTOMER_TYPE,
+  RETURN_SUPPLIER_TYPE,
+  TransferStockHint,
+  emptyDoc,
+  emptyExtraCost,
+  emptyItem,
+  emptyPayment,
+  formatContractLabel,
+  hasNetColumn,
+  hasRealSupplierContracts,
+  isAnyReturnType,
+  isCustomerReturnType,
+  isOutgoingDocType,
+  isSupplierReturnType,
+  lineAmountOf,
+  lineStockQty,
+  priceFromAmount,
+  useDocsPhone,
+} from './documents/docUtils';
+import DocumentsList from './documents/DocumentsList';
+import DocPaymentModal from './documents/DocPaymentModal';
 
 export default function Documents({ defaultType }) {
   const isPhone = useDocsPhone();
@@ -1782,178 +1681,26 @@ export default function Documents({ defaultType }) {
         )}
       </div>
 
-      <div className="card docs-list-card">
-        {isPhone ? (
-          <div className="docs-list-cards">
-            {visibleDocs.map((d) => (
-              <article
-                key={d.id}
-                className={`docs-doc-card${d.ai_recognized ? ' docs-doc-card--ai' : ''}`}
-              >
-                <button
-                  type="button"
-                  className="docs-doc-card-main"
-                  onClick={() => openEdit(d.id, d.type)}
-                >
-                  <div className="docs-doc-card-top">
-                    <strong>№{d.number}</strong>
-                    <span className={`badge badge-${d.status}`}>{STATUS_LABELS[d.status]}</span>
-                    {!!d.ai_recognized && (
-                      <span className="badge badge-ai" title="Распознано искусственным интеллектом">ИИ</span>
-                    )}
-                    {!!d.ai_recognized && Number(d.ai_unconfirmed_count) > 0 && (
-                      <span className="badge badge-ai-pending">
-                        Неподтв. {d.ai_unconfirmed_count}
-                      </span>
-                    )}
-                  </div>
-                  <div className="docs-doc-card-meta">
-                    <span className="docs-doc-card-meta-left">
-                      {formatDate(d.date)}
-                      {!defaultType ? ` · ${typeLabel(d.type)}` : ''}
-                    </span>
-                    <span className="docs-doc-card-sum">{formatMoney(d.total_amount)}</span>
-                  </div>
-                  <div className="docs-doc-card-party">
-                    {d.counterparty_name || docBranchLabel(d) || '—'}
-                  </div>
-                </button>
-                <div className="docs-doc-card-actions">
-                  {d.telegram_url && (
-                    <TelegramMessageLink url={d.telegram_url} className="tg-message-link--sm" />
-                  )}
-                  <IconButton
-                    title={isReadOnly ? 'Просмотр' : 'Открыть'}
-                    onClick={() => openEdit(d.id, d.type)}
-                  >
-                    <IconEye />
-                  </IconButton>
-                  {canTransfer && d.status === 'confirmed' && d.type === 'prihod' && (
-                    <IconButton title="Перемещение" onClick={() => openTransferFromDoc(d)}>
-                      <IconTransfer />
-                    </IconButton>
-                  )}
-                  {canPay && d.status === 'confirmed'
-                    && (d.type === 'prihod' || d.type === 'rashod')
-                    && d.counterparty_id
-                    && getDocRemaining(d) > 0 && (
-                    <IconButton title="Оплатить" onClick={() => openPay(d)}>
-                      <IconWallet />
-                    </IconButton>
-                  )}
-                  <div className="doc-actions-more">
-                    <IconButton
-                      title="Ещё"
-                      onClick={(e) => toggleActionsMenu(d.id, e.currentTarget.closest('.doc-actions-more'))}
-                    >
-                      <IconMore />
-                    </IconButton>
-                  </div>
-                </div>
-              </article>
-            ))}
-            {docs.length === 0 && (
-              <div className="empty docs-list-empty">Нет документов</div>
-            )}
-          </div>
-        ) : (
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Номер</th>
-                <th>Дата</th>
-                <th>Тип</th>
-                <th>Контрагент</th>
-                <th>Сумма</th>
-                <th>Статус</th>
-                <th>Действия</th>
-              </tr>
-            </thead>
-            <tbody>
-              {visibleDocs.map((d) => (
-                <tr key={d.id} className={d.ai_recognized ? 'docs-row-ai' : undefined}>
-                  <td>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                      {d.number}
-                      {d.telegram_url && (
-                        <TelegramMessageLink url={d.telegram_url} className="tg-message-link--sm" />
-                      )}
-                    </span>
-                  </td>
-                  <td>{formatDate(d.date)}</td>
-                  <td>
-                    <span className={`badge badge-${d.type === 'peremeshchenie' ? 'supplier' : ((d.type === RETURN_SUPPLIER_TYPE || d.type === RETURN_CUSTOMER_TYPE) ? 'rashod' : d.type)}`}>
-                      {typeLabel(d.type)}
-                    </span>
-                    {!!d.ai_recognized && (
-                      <span className="badge badge-ai" style={{ marginLeft: 6 }} title="Распознано ИИ">ИИ</span>
-                    )}
-                  </td>
-                  <td>{d.counterparty_name || docBranchLabel(d) || '—'}</td>
-                  <td>{formatMoney(d.total_amount)}</td>
-                  <td>
-                    <span className={`badge badge-${d.status}`}>{STATUS_LABELS[d.status]}</span>
-                    {!!d.ai_recognized && Number(d.ai_unconfirmed_count) > 0 && (
-                      <span className="badge badge-ai-pending" style={{ marginLeft: 6 }}>
-                        Неподтв. {d.ai_unconfirmed_count}
-                      </span>
-                    )}
-                  </td>
-                  <td>
-                    <div className="btn-group btn-group-icons doc-actions">
-                      <IconButton
-                        title={isReadOnly ? 'Просмотр' : 'Открыть'}
-                        onClick={() => openEdit(d.id, d.type)}
-                      >
-                        <IconEye />
-                      </IconButton>
-                      {canTransfer && d.status === 'confirmed' && d.type === 'prihod' && (
-                        <IconButton title="Перемещение" onClick={() => openTransferFromDoc(d)}>
-                          <IconTransfer />
-                        </IconButton>
-                      )}
-                      {canPay && d.status === 'confirmed'
-                        && (d.type === 'prihod' || d.type === 'rashod')
-                        && d.counterparty_id
-                        && getDocRemaining(d) > 0 && (
-                        <IconButton title="Оплатить" onClick={() => openPay(d)}>
-                          <IconWallet />
-                        </IconButton>
-                      )}
-                      <div className="doc-actions-more">
-                        <IconButton
-                          title="Ещё"
-                          onClick={(e) => toggleActionsMenu(d.id, e.currentTarget.closest('.doc-actions-more'))}
-                        >
-                          <IconMore />
-                        </IconButton>
-                      </div>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {docs.length === 0 && (
-                <tr><td colSpan={7} className="empty">Нет документов</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-        )}
-        {docPages > 1 && (
-          <div className="table-pagination" style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '12px 16px', justifyContent: 'flex-end' }}>
-            <span style={{ color: 'var(--text-muted)', fontSize: 14 }}>
-              {docTotal} документов · стр. {docPage} из {docPages}
-            </span>
-            <button type="button" className="btn btn-ghost" disabled={docPage <= 1} onClick={() => setDocPage((p) => p - 1)}>
-              ← Назад
-            </button>
-            <button type="button" className="btn btn-ghost" disabled={docPage >= docPages} onClick={() => setDocPage((p) => p + 1)}>
-              Вперёд →
-            </button>
-          </div>
-        )}
-      </div>
+      <DocumentsList
+        docs={docs}
+        visibleDocs={visibleDocs}
+        isPhone={isPhone}
+        defaultType={defaultType}
+        typeLabel={typeLabel}
+        docBranchLabel={docBranchLabel}
+        docPage={docPage}
+        docPages={docPages}
+        docTotal={docTotal}
+        setDocPage={setDocPage}
+        isReadOnly={isReadOnly}
+        canTransfer={canTransfer}
+        canPay={canPay}
+        getDocRemaining={getDocRemaining}
+        onOpen={openEdit}
+        onTransfer={openTransferFromDoc}
+        onPay={openPay}
+        onToggleMenu={toggleActionsMenu}
+      />
 
       {modal && (
         <Modal
@@ -3301,56 +3048,14 @@ export default function Documents({ defaultType }) {
       />
 
       {paymentModal && (
-        <Modal
-          title={`Оплата по документу №${paymentModal.number}`}
+        <DocPaymentModal
+          doc={paymentModal}
+          paid={getDocPaid(paymentModal.id)}
+          form={paymentForm}
+          setForm={setPaymentForm}
+          onSave={savePayment}
           onClose={() => setPaymentModal(null)}
-          footer={
-            <>
-              <button className="btn btn-ghost" onClick={() => setPaymentModal(null)}>Отмена</button>
-              <button className="btn btn-primary" onClick={savePayment}>Сохранить оплату</button>
-            </>
-          }
-        >
-          <div className="form-grid">
-            <div className="form-group">
-              <label>Контрагент</label>
-              <input value={paymentModal.counterparty_name || '—'} disabled />
-            </div>
-            <div className="form-group">
-              <label>Сумма документа</label>
-              <input value={formatMoney(paymentModal.total_amount)} disabled />
-            </div>
-            <div className="form-group">
-              <label>Уже оплачено</label>
-              <input value={formatMoney(getDocPaid(paymentModal.id))} disabled />
-            </div>
-            <div className="form-group">
-              <label>Дата оплаты</label>
-              <input
-                type="date"
-                value={paymentForm.date}
-                onChange={(e) => setPaymentForm({ ...paymentForm, date: e.target.value })}
-              />
-            </div>
-            <div className="form-group">
-              <label>Сумма оплаты *</label>
-              <input
-                type="number"
-                min="0"
-                value={paymentForm.amount}
-                onChange={(e) => setPaymentForm({ ...paymentForm, amount: +e.target.value })}
-              />
-            </div>
-            <div className="form-group full">
-              <label>Комментарий</label>
-              <textarea
-                rows={2}
-                value={paymentForm.comment}
-                onChange={(e) => setPaymentForm({ ...paymentForm, comment: e.target.value })}
-              />
-            </div>
-          </div>
-        </Modal>
+        />
       )}
 
       {historyModal && (
