@@ -5,7 +5,7 @@ import * as departments from './departments.js';
 import { initPermissions } from './permissions.js';
 import { seedDefaultUsers } from './auth.js';
 import { initTelegram } from './telegram.js';
-import { initWebPush } from './push.js';
+import { initWebPush, warnFcmConfig } from './push.js';
 import * as svc from './services.js';
 import { createApp } from './app.js';
 import { setServerReady, setServerInitError } from './readiness.js';
@@ -19,6 +19,7 @@ async function startBackgroundServices() {
   if (initWebPush()) {
     console.log('🔔 Push-уведомления включены');
   }
+  warnFcmConfig();
 
   if (process.env.TELEGRAM_ENABLED !== 'false') {
     const dbToken = svc.getSetting('telegram_bot_token');

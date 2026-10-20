@@ -2,6 +2,7 @@ import webpush from 'web-push';
 import { v4 as uuidv4 } from 'uuid';
 import db from './db.js';
 import { hasPermission } from './permissions.js';
+import { isFcmV1Enabled, isLegacyFcmEnabled, sendFcmV1, sendFcmLegacy } from './fcm.js';
 
 const { queryAll, queryOne, run } = db;
 
@@ -26,12 +27,18 @@ export function initWebPush() {
   return true;
 }
 
+export function warnFcmConfig() {
+  if (!isFcmV1Enabled() && isLegacyFcmEnabled()) {
+    console.warn('⚠️ FCM_SERVER_KEY — старый API Firebase, Google его отключил. Задайте FCM_SERVICE_ACCOUNT_JSON (ключ сервисного аккаунта) для push в Android-приложении.');
+  }
+}
+
 export function isPushEnabled() {
   return vapidReady || isFcmEnabled();
 }
 
 export function isFcmEnabled() {
-  return Boolean(process.env.FCM_SERVER_KEY?.trim());
+  return isFcmV1Enabled() || isLegacyFcmEnabled();
 }
 
 export function getVapidPublicKey() {
@@ -41,7 +48,7 @@ export function getVapidPublicKey() {
 export function savePushSubscription(userId, branchId, subscription, userAgent = '') {
   if (subscription?.type === 'fcm' && subscription?.token) {
     if (!isFcmEnabled()) {
-      throw new Error('Push на сервере не настроен — задайте FCM_SERVER_KEY');
+      throw new Error('Push на сервере не настроен — задайте FCM_SERVICE_ACCOUNT_JSON');
     }
     const endpoint = `fcm:${subscription.token}`;
     run('DELETE FROM push_subscriptions WHERE endpoint = ?', [endpoint]);
@@ -104,46 +111,18 @@ function subscriptionPayload(row) {
 }
 
 async function sendFcmNotification(token, payload) {
-  const key = process.env.FCM_SERVER_KEY?.trim();
-  if (!key) {
-    return { ok: false, error: 'FCM not configured' };
-  }
-
-  const res = await fetch('https://fcm.googleapis.com/fcm/send', {
-    method: 'POST',
-    headers: {
-      Authorization: `key=${key}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      to: token,
-      priority: 'high',
-      notification: {
-        title: payload.title,
-        body: payload.body,
-      },
-      data: {
-        url: payload.url || '/warehouse/orders',
-        tag: payload.tag || 'notification',
-      },
-    }),
-  });
-
-  let data = {};
+  let result;
   try {
-    data = await res.json();
-  } catch {
-    // ignore
+    result = isFcmV1Enabled()
+      ? await sendFcmV1(token, payload)
+      : await sendFcmLegacy(token, payload);
+  } catch (err) {
+    return { ok: false, error: err.message };
   }
-
-  const errorCode = data?.results?.[0]?.error;
-  if (!res.ok || data?.failure) {
-    if (errorCode === 'NotRegistered' || errorCode === 'InvalidRegistration') {
-      run('DELETE FROM push_subscriptions WHERE endpoint = ?', [`fcm:${token}`]);
-    }
-    return { ok: false, error: errorCode || res.statusText };
+  if (result.unregistered) {
+    run('DELETE FROM push_subscriptions WHERE endpoint = ?', [`fcm:${token}`]);
   }
-  return { ok: true };
+  return { ok: result.ok, error: result.error };
 }
 
 async function sendToSubscription(row, payload) {
