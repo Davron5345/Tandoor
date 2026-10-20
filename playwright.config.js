@@ -9,14 +9,14 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? 'github' : 'list',
   timeout: 60_000,
-  globalSetup: './e2e/global-setup.mjs',
   use: {
     baseURL: E2E_BASE_URL,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
   webServer: {
-    command: 'node server/index.js',
+    // Playwright поднимает webServer раньше globalSetup — seed должен идти до старта сервера.
+    command: 'node e2e/seed-cli.mjs && node server/index.js',
     url: E2E_BASE_URL,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

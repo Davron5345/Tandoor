@@ -691,7 +691,7 @@ GET  /api/auth/roles
 | `npm run test:e2e` | Playwright: UI flows |
 | `npm run lint` | ESLint server + client + e2e |
 
-E2E: `e2e/seed.mjs` пересоздаёт `e2e/.data`, но Playwright поднимает `webServer` (sql.js в памяти) **до** `globalSetup` — после правки seed первый прогон видит старые данные, со второго — новые. Товар для прихода должен иметь `product_branches` (visible) и `product_suppliers`. Браузер: `npx playwright install chromium`.
+E2E: seed (`e2e/seed.mjs`, пересоздаёт `e2e/.data`) запускается в команде `webServer` **перед** сервером (`node e2e/seed-cli.mjs && node server/index.js`) — Playwright стартует `webServer` раньше `globalSetup`, поэтому `globalSetup` не используем. Товар для прихода должен иметь `product_branches` (visible) и `product_suppliers`. Локально при уже запущенном сервере на :3001 Playwright переиспользует его (`reuseExistingServer`). Браузер: `npx playwright install chromium`.
 
 Тесты в `server/test/` используют in-memory или temp DB. При добавлении бизнес-логики — добавляй тесты в соответствующий `*.test.js`.
 
