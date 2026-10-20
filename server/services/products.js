@@ -15,7 +15,6 @@ import {
   normalizeProductKind,
   parseProductKindFilter,
   productKindLabel,
-  PRODUCT_KIND_GOODS,
 } from '../productKinds.js';
 import {
   ensureProductBranchOnCreate,

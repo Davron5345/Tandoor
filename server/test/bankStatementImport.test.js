@@ -1,8 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
 import { parseAccReferenceReportBuffer } from '../services/bankStatementImport.js';
 
 const samplePath = '/Users/davron/Downloads/AccReferenceReport20260727142114.xlsx';

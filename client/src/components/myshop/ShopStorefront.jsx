@@ -340,12 +340,7 @@ function CategoryGridBlock({
   categoryImages,
   settings,
   onCategoryClick,
-  publicMode = false,
-  productsByCategory,
-  onProductOpen,
-  onProductAdd,
   activeCategoryId = '',
-  catalogBrowseMode = false,
 }) {
   const meta = getBlockMeta(block.type);
   const items = block.categoryIds

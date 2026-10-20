@@ -31,7 +31,7 @@ function getPublicBaseUrl(req) {
   return `${proto}://${host}`;
 }
 
-function resolveApkDownloadUrl(req) {
+function resolveApkDownloadUrl() {
   return process.env.SNAB_APK_URL || DEFAULT_GITHUB_APK_URL;
 }
 

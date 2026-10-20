@@ -32,15 +32,10 @@ function readVersionMeta() {
   }
 }
 
-export function getSnabUpdateInfo(req) {
+export function getSnabUpdateInfo() {
   const { versionCode, versionName } = readVersionMeta();
   const apkPath = getSnabApkPath();
   const apkOnServer = existsSync(apkPath);
-  const proto = req?.headers?.['x-forwarded-proto'] || req?.protocol || 'https';
-  const host = req?.headers?.['x-forwarded-host'] || req?.get?.('host');
-  const base = process.env.APP_PUBLIC_URL?.replace(/\/$/, '')
-    || (host ? `${proto}://${host}` : '');
-
   let apkUrl = process.env.SNAB_APK_URL
     || 'https://github.com/Davron5345/Tandoor/releases/latest/download/snabzenie.apk';
 

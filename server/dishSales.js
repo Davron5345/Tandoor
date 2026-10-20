@@ -157,7 +157,7 @@ function mergeConsumptionLines(lines) {
   return [...map.values()];
 }
 
-export function validateConsumptionStock(consumptionLines, departmentId, branchId = DEFAULT_BRANCH_ID) {
+export function validateConsumptionStock(consumptionLines, departmentId) {
   for (const line of consumptionLines) {
     const stock = getDepartmentStock(line.product_id, departmentId, line.variant_id || null);
     if (stock + 1e-9 < line.quantity) {

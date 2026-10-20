@@ -310,13 +310,13 @@ export default function OpeningBalance() {
     }
     setCreateSaving(true);
     try {
-      let doc = await api.createOpeningBalanceDocument({
+      const doc = await api.createOpeningBalanceDocument({
         date: createForm.date,
         comment: createForm.comment,
         lines: serializeObLines(lines),
       });
       if (andConfirm) {
-        doc = await api.confirmOpeningBalanceDocument(doc.id);
+        await api.confirmOpeningBalanceDocument(doc.id);
         show('Документ проведён');
       } else {
         show('Черновик сохранён');

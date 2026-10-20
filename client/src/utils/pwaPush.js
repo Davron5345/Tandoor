@@ -4,7 +4,6 @@ import {
   getNativePushState,
   markNativePushSubscribed,
   requestNativeNotificationPermission,
-  resumeNativePushIfNeeded,
 } from './nativePush';
 
 function urlBase64ToUint8Array(base64String) {

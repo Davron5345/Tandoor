@@ -5,7 +5,6 @@ import { DEFAULT_BRANCH_ID } from './branches.js';
 const { queryAll, queryOne, run } = db;
 
 import {
-  LEGACY_ARTICLE_CODES,
   DEFAULT_CASH_ARTICLES,
   PURCHASE_ARTICLE_CODE,
   CLIENT_DEBT_ARTICLE_CODE,

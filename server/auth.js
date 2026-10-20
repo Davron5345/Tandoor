@@ -2,7 +2,7 @@ import { scryptSync, randomBytes, timingSafeEqual } from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import db from './db.js';
 import { getUserPayload, roleExists, assertRoleMatchesBranch, phoneHomePath } from './permissions.js';
-import { getBranch, canViewAllBranches } from './branches.js';
+import { getBranch } from './branches.js';
 import { getDepartment } from './departments.js';
 import { getPayrollCabinetByToken } from './services/faceidPayroll.js';
 import {

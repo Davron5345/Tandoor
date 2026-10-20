@@ -334,7 +334,7 @@ test('inventory snapshot for a variant uses the product unit', async () => {
   const { initPermissions } = await import('../permissions.js');
   const { seedDefaultUsers } = await import('../auth.js');
   const svc = await import('../services.js');
-  const { getDefaultDepartmentId, createDepartment } = await import('../departments.js');
+  const { createDepartment } = await import('../departments.js');
 
   await initDb();
   initPermissions(db);
@@ -411,7 +411,7 @@ test('inventory: partial leaves unlisted stock; full writes off leftovers with a
   const { initPermissions } = await import('../permissions.js');
   const { seedDefaultUsers } = await import('../auth.js');
   const svc = await import('../services.js');
-  const { getDefaultDepartmentId, createDepartment } = await import('../departments.js');
+  const { createDepartment } = await import('../departments.js');
   const { getDepartmentStockWithCost } = await import('../inventoryCost.js');
   const { cashArticleId, SHORTAGE_ARTICLE_CODE, DEBT_RETURN_ARTICLE_CODE } = await import('../cashArticleDefaults.js');
 
@@ -577,7 +577,7 @@ test('inventory: full leftover can hang on a department', async () => {
   const { initPermissions } = await import('../permissions.js');
   const { seedDefaultUsers } = await import('../auth.js');
   const svc = await import('../services.js');
-  const { getDefaultDepartmentId, createDepartment } = await import('../departments.js');
+  const { createDepartment } = await import('../departments.js');
   const { getDepartmentStockWithCost } = await import('../inventoryCost.js');
   const { cashArticleId, SHORTAGE_ARTICLE_CODE } = await import('../cashArticleDefaults.js');
 

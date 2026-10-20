@@ -143,7 +143,7 @@ export default function SupplierPrices() {
         doc = await api.createSupplierPrice(payload);
       }
       if (andConfirm) {
-        doc = await api.confirmSupplierPrice(doc.id);
+        await api.confirmSupplierPrice(doc.id);
       }
       show(andConfirm ? 'Прайс проведён' : 'Сохранено');
       setModal(null);

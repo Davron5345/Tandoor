@@ -10,9 +10,7 @@ import {
   createCounterpartyFirm,
   updateCounterpartyFirm,
   getCounterparties,
-  getCounterpartyContracts,
   findCounterpartyFirmByInn,
-  DEFAULT_CONTRACT_ID,
 } from './counterparties.js';
 import { BANK_SERVICE_ARTICLE_CODE } from '../cashArticleDefaults.js';
 import { ensureDefaultCashArticle } from '../cashArticles.js';
@@ -43,8 +41,6 @@ export function isBankServiceFee(raw) {
 }
 
 const OWN_NAME_RE = /MAHALLA|МАХАЛЛ/i;
-const CLIENT_NAME_RE = /^клиент$/i;
-
 function normalizeInn(value) {
   const digits = String(value || '').replace(/\D/g, '');
   if (digits.length === 9) return digits;
@@ -204,13 +200,6 @@ function suggestedCounterpartyType(paymentType) {
   if (paymentType === 'supplier_payment' || paymentType === 'other_income') return 'supplier';
   if (paymentType === 'customer_income' || paymentType === 'other_expense') return 'client';
   return 'supplier';
-}
-
-function findRetailClient(counterparties) {
-  const clients = counterparties.filter((c) => c.type === 'client');
-  return clients.find((c) => CLIENT_NAME_RE.test(String(c.name || '').trim()))
-    || clients.find((c) => normalizeName(c.name) === 'клиент')
-    || null;
 }
 
 function buildOwnInns(rawRows) {
