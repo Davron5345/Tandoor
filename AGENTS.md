@@ -4,7 +4,7 @@
 >
 > **При любом изменении кода обязательно обнови соответствующий раздел этого файла** (см. правило `.cursor/rules/update-agent-docs.mdc`).
 
-**Последнее обновление документации:** 2026-10-21 (импорт листа кассы с фото ИИ)
+**Последнее обновление документации:** 2026-10-21 (cutover Railway→Coolify)
 
 ---
 
@@ -748,8 +748,8 @@ E2E: seed (`e2e/seed.mjs`, пересоздаёт `e2e/.data`) запускае�
 
 ## 17. Деплой
 
-- **Coolify (основной, budavron):** проект `tandoor` (`yeudig9erfaexf3qcwos0fk8`), app `tandoor-app` (`kkkfxb8t2hlzk1f9t4d2wjct`), Postgres 18 `tandoor-db`, volume `/data`, домен `https://tandoor.budavron.uz`. Сборка — `Dockerfile` (Node 20, `curl` для healthcheck). Env: `DATABASE_URL`, `DATA_DIR=/data`, `DISABLE_DEMO_SEED=true`, VAPID, `APP_PUBLIC_URL`, `COOKIE_SECURE` — **только runtime** (не build-time). После `git push` на `main` — автодеплой.
-- **Railway (старый):** `https://tandoor-production.up.railway.app` — можно выключить после проверки Coolify и DNS. Пока Railway жив, на Coolify держать `TELEGRAM_ENABLED=false` (иначе 409 у бота).
+- **Coolify (основной, budavron):** проект `tandoor` (`yeudig9erfaexf3qcwos0fk8`), app `tandoor-app` (`kkkfxb8t2hlzk1f9t4d2wjct`), Postgres 18 `tandoor-db`, volume `/data`, домен `https://tandoor.budavron.uz`. Сборка — `Dockerfile` (Node 20, `curl` для healthcheck). Env: `DATABASE_URL`, `DATA_DIR=/data`, `DISABLE_DEMO_SEED=true`, VAPID, `APP_PUBLIC_URL`, `COOKIE_SECURE`, `TELEGRAM_ENABLED=true` — **только runtime**. После `git push` на `main` — автодеплой. Cutover с Railway: 2026-10-21 (дамп 799 док. / 12220 строк; ИИ-касса 13 операций сохранена).
+- **Railway:** выключен (Postgres Offline, app 404). Не включать обратно — бот и данные только на Coolify.
 - Volume `/data` обязателен (uploads). Без него файлы приходов/фото теряются при редеплое.
 - `npm run build && npm start` (локально / Dockerfile)
 - OpenAPI docs: `/api/docs`
@@ -977,6 +977,7 @@ E2E: seed (`e2e/seed.mjs`, пересоздаёт `e2e/.data`) запускае�
 | 2026-10-20 | Разбиение: `Reports.jsx` → `pages/reports/*`; из `Documents.jsx` — `pages/documents/` (docUtils, DocumentsList, DocPaymentModal); `services/documents.js` → + `documentCore.js` / `documentInventory.js` / `documentRazdelka.js`. E2E починены (seed: `product_branches`; селекторы строк документа) |
 | 2026-10-20 | Миграция на Coolify (budavron): проект `tandoor`, Postgres 18 + volume `/data`, Dockerfile; дамп Railway без потерь (792 док. / 404 тов. / 435 опл.); домен `tandoor.budavron.uz` |
 | 2026-10-21 | Импорт дневного листа кассы с фото (OpenRouter): `payments.ai_recognized`, `recognizeCashSheetPhoto`, `cashSheetImport.js`, скрипт `import-cash-sheet-day.mjs`; жёлтые строки ИИ в `/cashier`; тест 20.10.2026 из папки (Telegram-группа — позже) |
+| 2026-10-21 | Cutover: свежий дамп Railway→Coolify (+7 приходов 482–487, inbox 38); ИИ-оплаты кассы сохранены; Railway Postgres Offline / app 404; Telegram на Coolify |
 
 ---
 
