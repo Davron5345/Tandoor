@@ -29,10 +29,15 @@ async function main() {
   const apply = process.argv.includes('--apply');
   const date = argValue('--date=');
   const branchId = argValue('--branch=') || 'main';
-  const filePath = process.argv.find((a) => !a.startsWith('-') && !a.endsWith('.mjs'));
+  const model = argValue('--model=');
+  // Не брать process.execPath / node — только явный путь к картинке среди аргументов
+  const filePath = process.argv.slice(2).find((a) => {
+    if (a.startsWith('-')) return false;
+    return /\.(jpe?g|png|webp|gif)$/i.test(a);
+  });
 
   if (!filePath) {
-    console.error('Укажите путь к jpg/png');
+    console.error('Укажите путь к jpg/png (например: …/лист.jpg --date=2026-10-20)');
     process.exit(1);
   }
   if (!fs.existsSync(filePath)) {
@@ -52,6 +57,7 @@ async function main() {
     mimeType: guessMime(filePath),
     date: date || null,
     branchId,
+    model: model || null,
   });
 
   console.log(JSON.stringify({

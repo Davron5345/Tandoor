@@ -26,17 +26,21 @@ function formatDateRu(iso) {
   return `${d}.${m}.${y}`;
 }
 
-/** Подбор статьи расхода по тексту строки. */
+/**
+ * Подбор статьи расхода по тексту строки.
+ * «Закуп» в кассе требует поставщика + тип supplier_payment — для листа без контрагента
+ * бозор/авансы/продукты пишем как хозрасход или прочий расход.
+ */
 export function resolveCashSheetArticleCode(kind, label) {
-  if (kind === 'market') return 'exp_purchase';
+  if (kind === 'market') return 'exp_other';
   if (kind === 'payroll') return 'exp_salary';
 
   const t = String(label || '').toLowerCase();
-  if (/бозор|bozor|аванс|avonс|abon|закуп|сырь|хом.?ашё|хамир|тухум|яйц|балиқ|балик|гўшт|гушт|помидор|напитк|комир|уголь/.test(t)) {
-    return 'exp_purchase';
-  }
   if (/инкасс|inkass/.test(t)) return 'exp_other';
   if (/аренд|ижара|ijara/.test(t)) return 'exp_rent';
+  if (/бозор|bozor|аванс|abon|закуп|сырь|хом.?ашё|хамир|тухум|яйц|балиқ|балик|гўшт|гушт|помидор|напитк|комир|уголь/.test(t)) {
+    return 'exp_household';
+  }
   if (/мусор|мусур|такси|gazel|газел|бензин|хоз|налет|майда|чийд|кофе|coffee|чай|сантех|электрик|мебел|уста|охрана|фартук/.test(t)) {
     return 'exp_household';
   }
@@ -50,7 +54,7 @@ function buildRows(extraction, date) {
       kind: 'market',
       label: m.label || 'Бозор',
       amount: m.amount,
-      article_code: 'exp_purchase',
+      article_code: 'exp_other',
     });
   }
   for (const p of extraction.payroll || []) {
@@ -85,8 +89,9 @@ export async function previewCashSheetFromPhoto({
   mimeType = 'image/jpeg',
   date: forceDate = null,
   branchId = DEFAULT_BRANCH_ID,
+  model = null,
 } = {}) {
-  const extraction = await recognizeCashSheetPhoto(imageBuffer, mimeType);
+  const extraction = await recognizeCashSheetPhoto(imageBuffer, mimeType, model ? { model } : {});
   const date = forceDate || extraction.date;
   if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     throw new Error('Не удалось определить дату листа — укажите --date=YYYY-MM-DD');

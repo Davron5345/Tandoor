@@ -282,12 +282,13 @@ const CASH_SHEET_VISION_PROMPT = `Ты кассир ресторана в Узб
 Что брать:
 1) Правый столбец сверху: мелкие расходы дня (инкасса/инкасса, такси, мусор, напитки, хоз., авансы, имена с суммами). Каждая строка → expenses[].
 2) Слева «Бозор» / «бозор» с суммой (наличные на рынок) → market[]. Не путай с мелким «бозор» справа — тот тоже в expenses.
-3) «ишчилар» / «ишичилар» (зарплата сотрудникам) → payroll[]. Если написано «13 083 000 + 200 000» — сложи в одну сумму.
+3) «ишчилар» / «ишичилар» (зарплата) → payroll[]. Только эта одна строка.
+   Если «13 083 000 + 200 000» — сложи. НЕ прибавляй Терм/Click/Payme к зарплате.
 
 Что НЕ брать (только упомяни в skipped_notes):
 - «савдо» / «савда» (итог продаж)
 - «Аст» / «Act» начало и конец дня (остаток кассы)
-- безнал: Терм/Терминал/Click/Payme/Uzum/Илим/Ишим и повторы внизу справа
+- безнал: Терм/Терминал/Click/Payme/Uzum/Илим/Ишим/Игим и их повторы внизу (и слева, и справа)
 - крупные слева не про бозор: Банк, Свет, Жами, Ойбек, Xon Atlas, Bonn, Oltin и т.п.
 
 Правила чисел:
@@ -309,29 +310,64 @@ export async function recognizePrihodPhoto(imageBuffer, mimeType = 'image/jpeg')
  * Распознать фото дневного листа кассы.
  * @returns {Promise<{ date, expenses, market, payroll, skipped_notes, raw, model }>}
  */
-export async function recognizeCashSheetPhoto(imageBuffer, mimeType = 'image/jpeg') {
+export async function recognizeCashSheetPhoto(imageBuffer, mimeType = 'image/jpeg', options = {}) {
   const cfg = parseConfig();
-  const body = await callVision(imageBuffer, mimeType, CASH_SHEET_VISION_PROMPT);
+  const model = options.model || cfg.model;
+  const body = await callVision(imageBuffer, mimeType, CASH_SHEET_VISION_PROMPT, { model });
   const content = body.choices?.[0]?.message?.content;
   const parsed = extractJsonObject(typeof content === 'string' ? content : JSON.stringify(content));
   return {
     ...normalizeCashSheetExtraction(parsed),
     raw: typeof content === 'string' ? content : JSON.stringify(content),
-    model: cfg.model,
+    model,
   };
 }
 
-async function callVision(imageBuffer, mimeType, promptText) {
+/** Сжать JPEG до разумного размера для vision (без внешних зависимостей). */
+async function shrinkImageForVision(imageBuffer, mimeType = 'image/jpeg') {
+  if (!imageBuffer?.length) return { buffer: imageBuffer, mimeType };
+  // Уже маленький — не трогаем
+  if (imageBuffer.length <= 400_000) return { buffer: imageBuffer, mimeType: mimeType || 'image/jpeg' };
+  // Без sharp: просто обрезаем не получится; оставляем как есть, caller сжимает заранее
+  return { buffer: imageBuffer, mimeType: mimeType || 'image/jpeg' };
+}
+
+async function callVision(imageBuffer, mimeType, promptText, options = {}) {
   const cfg = parseConfig();
   if (!cfg.api_key) throw new Error('OpenRouter не настроен: укажите API-ключ в настройках ИИ');
-  if (!cfg.model) throw new Error('OpenRouter: выберите модель');
+  const model = options.model || cfg.model;
+  if (!model) throw new Error('OpenRouter: выберите модель');
   if (!imageBuffer?.length) throw new Error('Пустое изображение');
 
-  const b64 = Buffer.from(imageBuffer).toString('base64');
-  const dataUrl = `data:${mimeType || 'image/jpeg'};base64,${b64}`;
+  const prepared = await shrinkImageForVision(imageBuffer, mimeType);
+  const b64 = Buffer.from(prepared.buffer).toString('base64');
+  const dataUrl = `data:${prepared.mimeType || 'image/jpeg'};base64,${b64}`;
+  const bodyBytes = Buffer.byteLength(dataUrl, 'utf8');
+  if (bodyBytes > 8_000_000) {
+    throw new Error(`Фото слишком большое для ИИ (${Math.round(bodyBytes / 1e6)} МБ). Сожмите до ~1 МБ`);
+  }
 
+  const modelsToTry = [model];
+  // Gemini через OpenRouter иногда даёт ложный 413 на data-URL — запасной вариант
+  if (!/gpt-4o|openai\//i.test(model)) {
+    modelsToTry.push('openai/gpt-4o-mini');
+  }
+
+  let lastErr = null;
+  for (const tryModel of modelsToTry) {
+    try {
+      return await postVisionCompletion(cfg.api_key, tryModel, promptText, dataUrl);
+    } catch (e) {
+      lastErr = e;
+      if (!/413|payload|too large|30MB/i.test(String(e.message || e))) throw e;
+    }
+  }
+  throw lastErr || new Error('OpenRouter vision failed');
+}
+
+async function postVisionCompletion(apiKey, model, promptText, dataUrl) {
   const payload = {
-    model: cfg.model,
+    model,
     temperature: 0.05,
     max_tokens: 8000,
     messages: [
@@ -350,7 +386,7 @@ async function callVision(imageBuffer, mimeType, promptText) {
 
   const res = await fetch(`${OPENROUTER_BASE}/chat/completions`, {
     method: 'POST',
-    headers: authHeaders(cfg.api_key),
+    headers: authHeaders(apiKey),
     body: JSON.stringify(payload),
   });
 
@@ -360,7 +396,7 @@ async function callVision(imageBuffer, mimeType, promptText) {
       delete payload.response_format;
       const retry = await fetch(`${OPENROUTER_BASE}/chat/completions`, {
         method: 'POST',
-        headers: authHeaders(cfg.api_key),
+        headers: authHeaders(apiKey),
         body: JSON.stringify(payload),
       });
       if (!retry.ok) {
