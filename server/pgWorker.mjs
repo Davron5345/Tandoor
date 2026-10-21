@@ -312,7 +312,7 @@ async function ensureBootstrap() {
   if (!wh.rows.length) {
     await execRaw(
       `INSERT INTO departments (id, branch_id, name, active) VALUES ('main_wh', 'main', 'Склад', 1)
-       ON CONFLICT DO NOTHING`,
+       ON CONFLICT (id) DO NOTHING`,
     );
   }
 
@@ -321,7 +321,7 @@ async function ensureBootstrap() {
     await execRaw(
       `INSERT INTO departments (id, branch_id, name, active)
        VALUES ('razdel_cn', 'main', 'Разделочный цех', 1)
-       ON CONFLICT DO NOTHING`,
+       ON CONFLICT (id) DO NOTHING`,
     );
   }
 }
