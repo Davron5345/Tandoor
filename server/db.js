@@ -544,6 +544,7 @@ function migrateSchema() {
   migrateUnits();
   migrateCounterpartyInn();
   migratePaymentBankImport();
+  migratePaymentAiRecognized();
   migrateCounterpartyFirms();
   migrateBankAccounts();
   sanitizeOrphanBranchReferences();
@@ -930,6 +931,13 @@ function migratePaymentBankImport() {
   if (!done) {
     run("INSERT OR REPLACE INTO settings (key, value) VALUES ('payment_bank_import_v1', '1')");
     saveDb();
+  }
+}
+
+function migratePaymentAiRecognized() {
+  const cols = queryAll('PRAGMA table_info(payments)').map((c) => c.name);
+  if (!cols.includes('ai_recognized')) {
+    run('ALTER TABLE payments ADD COLUMN ai_recognized INTEGER DEFAULT 0');
   }
 }
 

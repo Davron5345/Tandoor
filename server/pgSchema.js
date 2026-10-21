@@ -471,7 +471,8 @@ CREATE TABLE IF NOT EXISTS payments (
   firm_id TEXT REFERENCES counterparty_firms(id),
   bank_account_id TEXT,
   liable_user_id TEXT,
-  liable_department_id TEXT
+  liable_department_id TEXT,
+  ai_recognized INTEGER DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS payroll_employees (

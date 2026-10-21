@@ -2936,6 +2936,23 @@ tr:hover td {
   background: #fff8db;
   border-color: #f0d78c;
 }
+.cashier-row-ai td {
+  background: #fff8db !important;
+}
+.cashier-row-ai:hover td {
+  background: #fff1b8 !important;
+}
+.cashier-op-card--ai {
+  background: #fff8db;
+  border-color: #f0d78c;
+}
+.cashier-op-card--ai .cashier-op-card-top {
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.cashier-row-ai .badge-ai {
+  margin-left: 6px;
+}
 .alert-ai {
   background: #fff8db;
   color: #5c4a00;

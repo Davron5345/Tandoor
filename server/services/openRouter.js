@@ -268,11 +268,60 @@ export function normalizePrihodExtraction(parsed = {}) {
   };
 }
 
+const CASH_SHEET_VISION_PROMPT = `Ты кассир ресторана в Узбекистане. На фото — рукописный дневной лист кассы (тетрадь в клетку).
+
+Нужны ТОЛЬКО операции, которые реально уходят из наличной кассы. Ответь ТОЛЬКО валидным JSON (без markdown):
+{
+  "date": "YYYY-MM-DD или null",
+  "expenses": [ { "label": "как на листе", "amount": число } ],
+  "market": [ { "amount": число, "label": "Бозор" } ],
+  "payroll": [ { "amount": число, "label": "ишчилар" } ],
+  "skipped_notes": "что намеренно не внесли (кратко) или null"
+}
+
+Что брать:
+1) Правый столбец сверху: мелкие расходы дня (инкасса/инкасса, такси, мусор, напитки, хоз., авансы, имена с суммами). Каждая строка → expenses[].
+2) Слева «Бозор» / «бозор» с суммой (наличные на рынок) → market[]. Не путай с мелким «бозор» справа — тот тоже в expenses.
+3) «ишчилар» / «ишичилар» (зарплата сотрудникам) → payroll[]. Если написано «13 083 000 + 200 000» — сложи в одну сумму.
+
+Что НЕ брать (только упомяни в skipped_notes):
+- «савдо» / «савда» (итог продаж)
+- «Аст» / «Act» начало и конец дня (остаток кассы)
+- безнал: Терм/Терминал/Click/Payme/Uzum/Илим/Ишим и повторы внизу справа
+- крупные слева не про бозор: Банк, Свет, Жами, Ойбек, Xon Atlas, Bonn, Oltin и т.п.
+
+Правила чисел:
+- Точки/пробелы в тысячах: 18.684.000 или 18 684 000 → 18684000
+- Запятая — десятичная только если явно копейки; обычно целые сумы
+- date: если на листе «20 октябрь» / «20 Октябрь» без года — год 2026 → 2026-10-20
+- Не выдумывай строки. Язык label как на фото.`;
+
 /**
  * Распознать фото прихода через OpenRouter (vision).
  * @returns {Promise<{ groups, supplier, items, extra_costs, total, notes, raw, model }>}
  */
 export async function recognizePrihodPhoto(imageBuffer, mimeType = 'image/jpeg') {
+  const body = await callVision(imageBuffer, mimeType, PRIHOD_VISION_PROMPT);
+  return finalizeRecognition(body, parseConfig().model);
+}
+
+/**
+ * Распознать фото дневного листа кассы.
+ * @returns {Promise<{ date, expenses, market, payroll, skipped_notes, raw, model }>}
+ */
+export async function recognizeCashSheetPhoto(imageBuffer, mimeType = 'image/jpeg') {
+  const cfg = parseConfig();
+  const body = await callVision(imageBuffer, mimeType, CASH_SHEET_VISION_PROMPT);
+  const content = body.choices?.[0]?.message?.content;
+  const parsed = extractJsonObject(typeof content === 'string' ? content : JSON.stringify(content));
+  return {
+    ...normalizeCashSheetExtraction(parsed),
+    raw: typeof content === 'string' ? content : JSON.stringify(content),
+    model: cfg.model,
+  };
+}
+
+async function callVision(imageBuffer, mimeType, promptText) {
   const cfg = parseConfig();
   if (!cfg.api_key) throw new Error('OpenRouter не настроен: укажите API-ключ в настройках ИИ');
   if (!cfg.model) throw new Error('OpenRouter: выберите модель');
@@ -289,13 +338,12 @@ export async function recognizePrihodPhoto(imageBuffer, mimeType = 'image/jpeg')
       {
         role: 'user',
         content: [
-          { type: 'text', text: PRIHOD_VISION_PROMPT },
+          { type: 'text', text: promptText },
           { type: 'image_url', image_url: { url: dataUrl } },
         ],
       },
     ],
   };
-  // часть моделей поддерживает json_object
   try {
     payload.response_format = { type: 'json_object' };
   } catch { /* */ }
@@ -307,7 +355,6 @@ export async function recognizePrihodPhoto(imageBuffer, mimeType = 'image/jpeg')
   });
 
   if (!res.ok) {
-    // если json_object не поддерживается — повтор без него
     const text = await res.text().catch(() => '');
     if (/response_format|json_object/i.test(text) && payload.response_format) {
       delete payload.response_format;
@@ -320,12 +367,12 @@ export async function recognizePrihodPhoto(imageBuffer, mimeType = 'image/jpeg')
         const t2 = await retry.text().catch(() => '');
         throw new Error(`OpenRouter: ${retry.status} ${t2.slice(0, 300)}`);
       }
-      return finalizeRecognition(await retry.json(), cfg.model);
+      return retry.json();
     }
     throw new Error(`OpenRouter: ${res.status} ${text.slice(0, 300)}`);
   }
 
-  return finalizeRecognition(await res.json(), cfg.model);
+  return res.json();
 }
 
 function finalizeRecognition(body, model) {
@@ -337,4 +384,60 @@ function finalizeRecognition(body, model) {
     raw: typeof content === 'string' ? content : JSON.stringify(content),
     model,
   };
+}
+
+/** Нормализация ответа vision по листу кассы. */
+export function normalizeCashSheetExtraction(parsed = {}) {
+  const expenses = (Array.isArray(parsed.expenses) ? parsed.expenses : [])
+    .map((row) => {
+      const label = String(row?.label || row?.name || '').trim();
+      const amount = parseCashAmount(row?.amount);
+      if (!label || !(amount > 0)) return null;
+      return { label, amount };
+    })
+    .filter(Boolean);
+
+  const market = (Array.isArray(parsed.market) ? parsed.market : [])
+    .map((row) => {
+      const amount = parseCashAmount(row?.amount);
+      if (!(amount > 0)) return null;
+      return { label: String(row?.label || 'Бозор').trim() || 'Бозор', amount };
+    })
+    .filter(Boolean);
+
+  const payroll = (Array.isArray(parsed.payroll) ? parsed.payroll : [])
+    .map((row) => {
+      const amount = parseCashAmount(row?.amount);
+      if (!(amount > 0)) return null;
+      return { label: String(row?.label || 'ишчилар').trim() || 'ишчилар', amount };
+    })
+    .filter(Boolean);
+
+  let date = null;
+  const rawDate = String(parsed.date || '').trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(rawDate)) date = rawDate;
+
+  return {
+    date,
+    expenses,
+    market,
+    payroll,
+    skipped_notes: parsed.skipped_notes ? String(parsed.skipped_notes).trim() || null : null,
+  };
+}
+
+/** Суммы с листа: 18.684.000 / 18 684 000 / 18684000 */
+export function parseCashAmount(value) {
+  if (value == null || value === '') return null;
+  if (typeof value === 'number' && Number.isFinite(value)) return Math.round(value);
+  let s = String(value).trim().replace(/\s/g, '');
+  if (!s) return null;
+  // 18.684.000 или 18,684,000 → убрать разделители тысяч
+  if (/^\d{1,3}([.,]\d{3})+$/.test(s)) {
+    s = s.replace(/[.,]/g, '');
+  } else {
+    s = s.replace(',', '.');
+  }
+  const n = Number(s);
+  return Number.isFinite(n) && n > 0 ? Math.round(n) : null;
 }

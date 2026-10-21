@@ -360,13 +360,15 @@ export function createPayment(data, userId = null, branchId = DEFAULT_BRANCH_ID,
     if (dup) throw new Error('Эта операция из выписки уже загружена');
   }
 
+  const aiRecognized = data.ai_recognized === true || data.ai_recognized === 1 ? 1 : 0;
+
   run(`
     INSERT INTO payments (
       id, number, type, counterparty_id, document_id, amount, date, comment,
       created_by, branch_id, article_id, external_ref, import_batch_id, contract_id, firm_id,
-      bank_account_id, liable_user_id, liable_department_id
+      bank_account_id, liable_user_id, liable_department_id, ai_recognized
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, [
     id, number, data.type, data.counterparty_id || linkedDoc?.counterparty_id || null, data.document_id || null,
     data.amount, data.date, data.comment || '', userId, payBranchId, data.article_id || null,
@@ -374,6 +376,7 @@ export function createPayment(data, userId = null, branchId = DEFAULT_BRANCH_ID,
     data.firm_id || null, data.bank_account_id || null,
     data.liable_user_id || linkedDoc?.liable_user_id || null,
     data.liable_department_id || linkedDoc?.liable_department_id || null,
+    aiRecognized,
   ]);
 
   return queryOne(`

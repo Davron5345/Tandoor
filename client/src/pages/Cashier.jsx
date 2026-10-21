@@ -1172,12 +1172,14 @@ export default function Cashier() {
         {sortedPayments.map((p) => {
           const income = isIncomeType(p.type);
           const canModify = canModifyPaymentDate(user, p.date);
+          const ai = !!p.ai_recognized;
           return (
-            <li key={p.id} className={`cashier-op-card${income ? ' is-income' : ' is-expense'}`}>
+            <li key={p.id} className={`cashier-op-card${income ? ' is-income' : ' is-expense'}${ai ? ' cashier-op-card--ai' : ''}`}>
               <div className="cashier-op-card-top">
                 <span className={`badge ${income ? 'badge-prihod' : 'badge-rashod'}`}>
                   {income ? 'Приход' : 'Расход'}
                 </span>
+                {ai && <span className="badge badge-ai" title="Внесено ИИ с фото листа кассы">ИИ</span>}
                 <strong className={income ? 'text-income' : 'text-expense'}>
                   {income ? '+' : '−'}{formatMoney(p.amount)}
                 </strong>
@@ -1279,13 +1281,15 @@ export default function Cashier() {
             {sortedPayments.map((p) => {
               const income = isIncomeType(p.type);
               const canModify = canModifyPaymentDate(user, p.date);
+              const ai = !!p.ai_recognized;
               return (
-                <tr key={p.id} className={income ? 'cashier-row-income' : 'cashier-row-expense'}>
+                <tr key={p.id} className={`${income ? 'cashier-row-income' : 'cashier-row-expense'}${ai ? ' cashier-row-ai' : ''}`}>
                   <td className="muted">{p.number}</td>
                   <td>
                     <span className={`badge ${income ? 'badge-prihod' : 'badge-rashod'}`}>
                       {income ? 'Приход' : 'Расход'}
                     </span>
+                    {ai && <span className="badge badge-ai" title="Внесено ИИ с фото листа кассы">ИИ</span>}
                   </td>
                   <td className="cashier-cell-article">{p.article_name || '—'}</td>
                   <td className="muted">{p.counterparty_name || '—'}</td>
