@@ -115,6 +115,97 @@ test('cancel is blocked by linked payments and confirmed returns', () => {
   assert.throws(() => svc.cancelDocument(withReturn.id, 'test-user'), /проведён возврат поставщику/);
 });
 
+test('admin cascade cancel detaches payments and cancels linked returns', async () => {
+  const { default: db } = await import('../db.js');
+  const supplier = svc.createCounterparty({ name: 'Поставщик админ-каскад', type: 'supplier' }, 'main');
+  const p = product('LINK-ADMIN-CASCADE', supplier.id);
+
+  const paid = svc.createDocument({
+    type: 'prihod',
+    date: '2026-09-04',
+    to_department_id: deptId,
+    counterparty_id: supplier.id,
+    items: [{ product_id: p.id, quantity: 5, price: 100 }],
+    status: 'confirmed',
+  }, 'test-user', 'main');
+  const payment = svc.createPayment({
+    type: 'supplier_payment',
+    amount: 500,
+    date: '2026-09-04',
+    counterparty_id: supplier.id,
+    document_id: paid.id,
+  }, 'test-user', 'main');
+
+  svc.cancelDocument(paid.id, 'test-user', { role: 'admin' });
+  const paidAfter = svc.getDocument(paid.id);
+  assert.equal(paidAfter.status, 'cancelled');
+  const payRow = db.queryOne('SELECT document_id, comment FROM payments WHERE id = ?', [payment.id]);
+  assert.equal(payRow.document_id, null);
+  assert.match(payRow.comment || '', /Отвязано при отмене/);
+
+  const withReturn = svc.createDocument({
+    type: 'prihod',
+    date: '2026-09-04',
+    to_department_id: deptId,
+    counterparty_id: supplier.id,
+    items: [{ product_id: p.id, quantity: 8, price: 100 }],
+    status: 'confirmed',
+  }, 'test-user', 'main');
+  const ret = svc.createDocument({
+    type: 'return_supplier',
+    date: '2026-09-04',
+    from_department_id: deptId,
+    counterparty_id: supplier.id,
+    source_document_id: withReturn.id,
+    items: [{ product_id: p.id, quantity: 2, price: 100 }],
+    status: 'confirmed',
+  }, 'test-user', 'main');
+  assert.equal(deps.getDepartmentStock(p.id, deptId), 6);
+
+  svc.cancelDocument(withReturn.id, 'test-user', { role: 'admin' });
+  assert.equal(svc.getDocument(ret.id).status, 'cancelled');
+  assert.equal(svc.getDocument(withReturn.id).status, 'cancelled');
+  assert.equal(deps.getDepartmentStock(p.id, deptId), 0);
+});
+
+test('admin cascade delete removes linked returns and detaches payments', async () => {
+  const { default: db } = await import('../db.js');
+  const supplier = svc.createCounterparty({ name: 'Поставщик админ-удал', type: 'supplier' }, 'main');
+  const p = product('LINK-ADMIN-DEL', supplier.id);
+  const prihod = svc.createDocument({
+    type: 'prihod',
+    date: '2026-09-05',
+    to_department_id: deptId,
+    counterparty_id: supplier.id,
+    items: [{ product_id: p.id, quantity: 4, price: 50 }],
+    status: 'confirmed',
+  }, 'test-user', 'main');
+  const ret = svc.createDocument({
+    type: 'return_supplier',
+    date: '2026-09-05',
+    from_department_id: deptId,
+    counterparty_id: supplier.id,
+    source_document_id: prihod.id,
+    items: [{ product_id: p.id, quantity: 1, price: 50 }],
+    status: 'confirmed',
+  }, 'test-user', 'main');
+  const payment = svc.createPayment({
+    type: 'supplier_payment',
+    amount: 150,
+    date: '2026-09-05',
+    counterparty_id: supplier.id,
+    document_id: prihod.id,
+  }, 'test-user', 'main');
+
+  assert.throws(() => svc.deleteDocument(prihod.id), /привязаны возвраты/);
+  svc.deleteDocument(prihod.id, { role: 'admin' });
+  assert.equal(svc.getDocument(prihod.id), null);
+  assert.equal(svc.getDocument(ret.id), null);
+  const payRow = db.queryOne('SELECT document_id FROM payments WHERE id = ?', [payment.id]);
+  assert.equal(payRow.document_id, null);
+  assert.equal(deps.getDepartmentStock(p.id, deptId), 0);
+});
+
 test('debtors and reconciliation act account for customer returns and period opening', () => {
   const client = svc.createCounterparty({ name: 'Клиент сверка', type: 'client' }, 'main');
   const p = product('LINK-RECON');

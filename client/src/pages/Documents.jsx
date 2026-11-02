@@ -128,6 +128,7 @@ export default function Documents({ defaultType }) {
   const canTelegram = hasPermission(user, 'telegram.view');
   const canPay = hasPermission(user, 'payments.edit');
   const canTransfer = hasPermission(user, 'documents.transfer') && canEdit;
+  const isAdmin = user?.role === 'admin';
   const isReadOnly = !canEdit;
 
   const loadDocProducts = (type, counterpartyId, departmentId) => {
@@ -1486,7 +1487,10 @@ export default function Documents({ defaultType }) {
   };
 
   const cancelDoc = async (id) => {
-    if (!window.confirm('Отменить документ?')) return;
+    const msg = isAdmin
+      ? 'Отменить документ?\n\nАдмин: связанные возвраты тоже отменятся, оплаты отвяжутся (сами оплаты останутся). Если после этого документа есть более поздние движения склада — сначала отмените их.'
+      : 'Отменить документ?';
+    if (!window.confirm(msg)) return;
     try {
       await api.cancelDocument(id);
       show('Документ отменён');
@@ -1497,8 +1501,10 @@ export default function Documents({ defaultType }) {
   };
 
   const removeDoc = async (doc) => {
-    const typeLabel = doc.type === 'prihod' ? 'Приход' : 'Расход';
-    const msg = `Удалить документ №${doc.number} (${typeLabel}) полностью?\n\nЭто действие нельзя отменить. Документ будет удалён из базы данных.`;
+    const label = DOC_TYPE_LABELS[doc.type] || doc.type;
+    const msg = isAdmin
+      ? `Удалить документ №${doc.number} (${label})?\n\nАдмин: связанные возвраты удалятся, оплаты отвяжутся. Поздние складские документы по тем же товарам по-прежнему мешают — отмените их сначала.\n\nЭто нельзя откатить.`
+      : `Удалить документ №${doc.number} (${label}) полностью?\n\nЭто действие нельзя отменить. Документ будет удалён из базы данных.`;
     if (!window.confirm(msg)) return;
     try {
       await api.deleteDocument(doc.id);

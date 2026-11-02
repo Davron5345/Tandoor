@@ -1602,12 +1602,57 @@ function assertNoLinkedPayments(id, remainder, action) {
   }
 }
 
-export function cancelDocument(id, userId = null) {
+/** Админ: каскад по умолчанию; остальные роли — никогда. cascade:false отключает даже у admin. */
+function isAdminCascade(opts = {}) {
+  return opts.role === 'admin' && opts.cascade !== false;
+}
+
+function listLinkedChildDocs(id) {
+  return queryAll(`
+    SELECT id, type, status, number, inventory_coverage FROM documents
+    WHERE source_document_id = ?
+      AND NOT (type = 'inventory' AND inventory_coverage = 'remainder')
+    ORDER BY CASE WHEN status = 'confirmed' THEN 0 ELSE 1 END, created_at ASC
+  `, [id]);
+}
+
+/** Оплаты остаются в кассе/банке, только снимается привязка к документу. */
+function detachPaymentsForDocument(documentId, reason) {
+  const payments = queryAll('SELECT id, comment FROM payments WHERE document_id = ?', [documentId]);
+  for (const p of payments) {
+    const base = String(p.comment || '').trim();
+    const note = base ? `${base} · ${reason}` : reason;
+    run('UPDATE payments SET document_id = NULL, comment = ? WHERE id = ?', [note.slice(0, 500), p.id]);
+  }
+  return payments.length;
+}
+
+function cancelLinkedConfirmedReturns(sourceId, userId, opts) {
+  const returns = queryAll(`
+    SELECT id, number, type FROM documents
+    WHERE source_document_id = ? AND status = 'confirmed'
+      AND type IN ('return_supplier', 'return_customer')
+    ORDER BY date ASC, created_at ASC
+  `, [sourceId]);
+  for (const r of returns) {
+    cancelDocument(r.id, userId, { ...opts, cascade: true });
+  }
+  return returns.length;
+}
+
+/**
+ * Отмена документа.
+ * opts.role === 'admin' (+ cascade !== false): сначала отменяет связанные возвраты,
+ * отвязывает оплаты (сами оплаты не удаляет). Проверки склада и поздних движений
+ * остаются — иначе ломается avg_cost / остатки.
+ */
+export function cancelDocument(id, userId = null, opts = {}) {
   const doc = queryOne('SELECT * FROM documents WHERE id = ?', [id]);
   if (!doc) throw new Error('Документ не найден');
 
   const inventoryParent = isInventoryParentDoc(doc);
   const branchId = doc.branch_id || DEFAULT_BRANCH_ID;
+  const adminCascade = isAdminCascade(opts);
 
   if (doc.status === 'cancelled') {
     if (!inventoryParent) return getDocument(id);
@@ -1625,8 +1670,12 @@ export function cancelDocument(id, userId = null) {
     if (doc.inventory_coverage === 'remainder') {
       throw new Error('Списание непересчитанного отменяется вместе с инвентаризацией — снимите проведение у неё');
     }
-    assertNoLinkedConfirmedReturns(id);
-    assertNoLinkedPayments(id, null, 'отменить');
+    if (adminCascade) {
+      cancelLinkedConfirmedReturns(id, userId, opts);
+    } else {
+      assertNoLinkedConfirmedReturns(id);
+      assertNoLinkedPayments(id, null, 'отменить');
+    }
     assertConfirmedDocCanReverse(doc);
   }
 
@@ -1636,6 +1685,12 @@ export function cancelDocument(id, userId = null) {
 
   const nextStatus = inventoryParent ? 'draft' : 'cancelled';
   transaction(() => {
+    if (adminCascade && doc.status === 'confirmed') {
+      detachPaymentsForDocument(id, 'Отвязано при отмене документа админом');
+      if (remainder) {
+        detachPaymentsForDocument(remainder.id, 'Отвязано при отмене инвентаризации админом');
+      }
+    }
     if (remainder) reverseInventoryRemainder(id, userId);
     if (doc.status === 'confirmed') updateStock(id, true);
     run(`UPDATE documents SET status=?, updated_at=datetime('now') WHERE id=?`, [nextStatus, id]);
@@ -1645,28 +1700,48 @@ export function cancelDocument(id, userId = null) {
   return getDocument(id);
 }
 
-export function deleteDocument(id) {
+/**
+ * Удаление документа.
+ * opts.role === 'admin' (+ cascade !== false): удаляет связанные возвраты (с откатом склада),
+ * отвязывает оплаты. Поздние складские движения по-прежнему блокируют.
+ */
+export function deleteDocument(id, opts = {}) {
   const doc = queryOne('SELECT * FROM documents WHERE id = ?', [id]);
   if (!doc) throw new Error('Документ не найден');
   if (doc.inventory_coverage === 'remainder' && doc.status === 'confirmed') {
     throw new Error('Сначала отмените списание непересчитанного');
   }
-  const linkedReturns = queryOne(`
-    SELECT COUNT(*) as c FROM documents
-    WHERE source_document_id = ?
-      AND NOT (type = 'inventory' AND inventory_coverage = 'remainder')
-  `, [id])?.c || 0;
-  if (linkedReturns > 0) {
-    throw new Error('Нельзя удалить документ: к нему привязаны возвраты поставщику.');
+
+  const adminCascade = isAdminCascade(opts);
+  const children = listLinkedChildDocs(id);
+  if (children.length > 0) {
+    if (!adminCascade) {
+      throw new Error('Нельзя удалить документ: к нему привязаны возвраты. Сначала отмените и удалите возвраты.');
+    }
+    for (const child of children) {
+      if (child.status === 'confirmed') {
+        cancelDocument(child.id, opts.userId || null, { role: 'admin', cascade: true });
+      }
+      deleteDocument(child.id, { role: 'admin', cascade: true, userId: opts.userId });
+    }
   }
+
   const remainder = doc.type === 'inventory' ? findInventoryRemainder(id) : null;
-  assertNoLinkedPayments(id, remainder, 'удалить');
+  if (!adminCascade) {
+    assertNoLinkedPayments(id, remainder, 'удалить');
+  }
 
   if (doc.status === 'confirmed') {
     assertConfirmedDocCanReverse(doc, 'удалить');
   }
 
   transaction(() => {
+    if (adminCascade) {
+      detachPaymentsForDocument(id, 'Отвязано при удалении документа админом');
+      if (remainder) {
+        detachPaymentsForDocument(remainder.id, 'Отвязано при удалении инвентаризации админом');
+      }
+    }
     if (remainder) {
       if (remainder.status === 'confirmed') updateStock(remainder.id, true);
       deleteAllDocumentAttachments(remainder.id);

@@ -212,11 +212,19 @@ export function registerDocumentRoutes(app) {
       assertDocumentBranchAccess(req.user, existing, req.branchId);
       assertDocumentDepartmentAccess(req.user, existing);
       assertDocumentMutableInBranch(existing, req.branchId, req.user);
-      const doc = svc.cancelDocument(req.params.id, req.user.id);
+      const cascade = req.body?.cascade;
+      const doc = svc.cancelDocument(req.params.id, req.user.id, {
+        role: req.user.role,
+        cascade,
+      });
       logAudit(req, 'document.cancel', {
         entity_type: 'document',
         entity_id: doc.id,
-        meta: { type: doc.type, number: doc.number },
+        meta: {
+          type: doc.type,
+          number: doc.number,
+          admin_cascade: req.user.role === 'admin' && cascade !== false,
+        },
       });
       res.json(doc);
     } catch (e) {
@@ -232,7 +240,22 @@ export function registerDocumentRoutes(app) {
       assertDocumentBranchAccess(req.user, existing, req.branchId);
       assertDocumentDepartmentAccess(req.user, existing);
       assertDocumentMutableInBranch(existing, req.branchId, req.user);
-      res.json(svc.deleteDocument(req.params.id));
+      const cascade = req.body?.cascade ?? (req.query.cascade === '0' ? false : undefined);
+      const result = svc.deleteDocument(req.params.id, {
+        role: req.user.role,
+        cascade,
+        userId: req.user.id,
+      });
+      logAudit(req, 'document.delete', {
+        entity_type: 'document',
+        entity_id: req.params.id,
+        meta: {
+          type: existing.type,
+          number: existing.number,
+          admin_cascade: req.user.role === 'admin' && cascade !== false,
+        },
+      });
+      res.json(result);
     } catch (e) {
       res.status(400).json({ error: e.message });
     }

@@ -721,6 +721,7 @@ export default function Inventory() {
   const { show, Toast } = useToast();
   const canEdit = hasPermission(user, 'documents.edit') && hasPermission(user, 'documents.inventory');
   const canConfirm = hasPermission(user, 'documents.confirm') && canEdit;
+  const isAdmin = user?.role === 'admin';
   const canDelete = hasPermission(user, 'documents.delete');
   const canCreateProduct = hasPermission(user, 'products.edit');
 
@@ -1137,7 +1138,10 @@ export default function Inventory() {
       return;
     }
     if (d.status === 'confirmed') {
-      if (!window.confirm('Документ проведён. Отменить проведение и редактировать?')) return;
+      const editMsg = isAdmin
+        ? 'Документ проведён. Отменить проведение и редактировать?\n\nАдмин: оплаты по списанию отвяжутся. Если мешают более поздние движения склада — сначала отмените их.'
+        : 'Документ проведён. Отменить проведение и редактировать?';
+      if (!window.confirm(editMsg)) return;
       try {
         await api.cancelDocument(d.id);
         show('Проведение отменено — можно править');
@@ -1411,7 +1415,10 @@ export default function Inventory() {
 
   const cancelDoc = async () => {
     if (!form.id) return;
-    if (!window.confirm('Отменить проведение? Остатки и P&L откатятся, документ снова станет черновиком.')) return;
+    const msg = isAdmin
+      ? 'Отменить проведение? Остатки и P&L откатятся, документ снова станет черновиком.\n\nАдмин: оплаты по списанию отвяжутся. Поздние складские движения по тем же товарам по-прежнему блокируют.'
+      : 'Отменить проведение? Остатки и P&L откатятся, документ снова станет черновиком.';
+    if (!window.confirm(msg)) return;
     setSaving(true);
     try {
       await api.cancelDocument(form.id);
@@ -1426,7 +1433,10 @@ export default function Inventory() {
   };
 
   const deleteDoc = async (id) => {
-    if (!window.confirm('Удалить документ инвентаризации?')) return;
+    const msg = isAdmin
+      ? 'Удалить документ инвентаризации?\n\nАдмин: оплаты отвяжутся. Поздние складские документы по тем же товарам мешают — отмените их сначала.'
+      : 'Удалить документ инвентаризации?';
+    if (!window.confirm(msg)) return;
     try {
       await api.deleteDocument(id);
       show('Удалено');

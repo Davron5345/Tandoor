@@ -403,8 +403,14 @@ export const api = {
     { method: 'DELETE' },
   ),
   confirmDocument: (id) => request(`/documents/${id}/confirm`, { method: 'POST' }),
-  cancelDocument: (id) => request(`/documents/${id}/cancel`, { method: 'POST' }),
-  deleteDocument: (id) => request(`/documents/${id}`, { method: 'DELETE' }),
+  cancelDocument: (id, opts = {}) => request(`/documents/${id}/cancel`, {
+    method: 'POST',
+    body: JSON.stringify(opts),
+  }),
+  deleteDocument: (id, opts = {}) => request(`/documents/${id}`, {
+    method: 'DELETE',
+    body: Object.keys(opts).length ? JSON.stringify(opts) : undefined,
+  }),
   getDocumentHistory: (id) => request(`/documents/${id}/history`),
   getInventoryStock: (departmentId, opts = {}) => {
     const q = new URLSearchParams({ department_id: departmentId });
