@@ -11,6 +11,7 @@ import { buildDocumentHistoryDiff } from '../documentHistoryDiff.js';
 import { listDocumentAttachments, deleteAllDocumentAttachments } from '../documentAttachments.js';
 import { snapshotDocument } from '../documentSnapshot.js';
 import { telegramUrlFromInboxRow } from '../telegramLinks.js';
+import { buildSearchMatcher } from '../searchText.js';
 import {
   addHistory,
   generateDocNumber,
@@ -420,11 +421,76 @@ export function getDocuments(filters = {}) {
   }
 
   sql += ' ORDER BY d.date DESC, d.created_at DESC';
-  const rows = queryAll(sql, params);
+  const rows = applyDocumentTextSearch(queryAll(sql, params), filters.q);
   if (filters.type === 'inventory') {
     return attachInventoryListAmounts(attachRemaindersToDocuments(attachTelegramUrlsToDocuments(rows)));
   }
   return attachTelegramUrlsToDocuments(rows);
+}
+
+const SEARCH_ID_CHUNK = 400;
+const SEARCH_MATCHES_LIMIT = 3;
+
+/** Названия строк документов (товар · вариант, ключевые слова) для текстового поиска. */
+function loadDocumentItemSearchRows(docIds) {
+  const out = [];
+  for (let i = 0; i < docIds.length; i += SEARCH_ID_CHUNK) {
+    const chunk = docIds.slice(i, i + SEARCH_ID_CHUNK);
+    const placeholders = chunk.map(() => '?').join(',');
+    out.push(...queryAll(`
+      SELECT di.document_id, p.name AS product_name, p.sku, p.keywords, pv.name AS variant_name
+      FROM document_items di
+      JOIN products p ON p.id = di.product_id
+      LEFT JOIN product_variants pv ON pv.id = di.variant_id
+      WHERE di.document_id IN (${placeholders})
+        AND COALESCE(di.item_role, '') != 'consumption'
+    `, chunk));
+  }
+  return out;
+}
+
+/**
+ * Текстовый поиск по списку документов: номер, контрагент, комментарий, отделы/филиалы,
+ * товары в строках (название, вариант, артикул, ключевые слова).
+ * Совпавшие товары возвращаются в `search_matches` (для подсветки в списке).
+ */
+export function applyDocumentTextSearch(rows, query) {
+  const matches = buildSearchMatcher(query);
+  if (!matches || !rows.length) return rows;
+
+  const itemMatches = new Map();
+  const itemRows = loadDocumentItemSearchRows(rows.map((r) => r.id));
+  for (const row of itemRows) {
+    const label = row.variant_name ? `${row.product_name} — ${row.variant_name}` : row.product_name;
+    const hit = matches(row.product_name)
+      || matches(row.variant_name)
+      || matches(row.sku)
+      || matches(row.keywords)
+      || (row.variant_name && matches(label));
+    if (!hit) continue;
+    const list = itemMatches.get(row.document_id) || [];
+    if (!list.includes(label)) list.push(label);
+    itemMatches.set(row.document_id, list);
+  }
+
+  const result = [];
+  for (const d of rows) {
+    const items = itemMatches.get(d.id) || [];
+    const headHit = matches(d.number)
+      || matches(d.counterparty_name)
+      || matches(d.comment)
+      || matches(d.from_department_name)
+      || matches(d.to_department_name)
+      || matches(d.from_branch_name)
+      || matches(d.to_branch_name);
+    if (!headHit && !items.length) continue;
+    result.push({
+      ...d,
+      search_matches: items.slice(0, SEARCH_MATCHES_LIMIT),
+      search_matches_more: Math.max(0, items.length - SEARCH_MATCHES_LIMIT),
+    });
+  }
+  return result;
 }
 
 function assertActiveBranchOwnership(requestedBranchId, activeBranchId) {

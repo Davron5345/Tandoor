@@ -7,7 +7,30 @@ import {
   IconWallet,
 } from '../../components/ActionIcons';
 import TelegramMessageLink from '../../components/TelegramMessageLink';
+import SearchHighlight from '../../components/SearchHighlight';
 import { RETURN_SUPPLIER_TYPE, RETURN_CUSTOMER_TYPE } from './docUtils';
+
+/** Товары, совпавшие с поиском (сервер отдаёт `search_matches` при `q`). */
+function DocSearchMatches({ doc: d, query }) {
+  const items = Array.isArray(d.search_matches) ? d.search_matches : [];
+  if (!query || !items.length) return null;
+  const more = Number(d.search_matches_more) || 0;
+  return (
+    <div className="docs-search-matches" title="Найдено в позициях документа">
+      {items.map((label) => (
+        <span key={label} className="docs-search-match">
+          <SearchHighlight text={label} query={query} />
+        </span>
+      ))}
+      {more > 0 && <span className="docs-search-match docs-search-match--more">+{more}</span>}
+    </div>
+  );
+}
+
+function DocPartyName({ doc: d, query, docBranchLabel }) {
+  const name = d.counterparty_name || docBranchLabel(d) || '—';
+  return query ? <SearchHighlight text={name} query={query} /> : name;
+}
 
 function DocRowActions({
   doc: d,
@@ -64,6 +87,7 @@ export default function DocumentsList({
   docPages,
   docTotal,
   setDocPage,
+  searchQuery = '',
   ...actionProps
 }) {
   const { onOpen } = actionProps;
@@ -82,7 +106,7 @@ export default function DocumentsList({
                 onClick={() => onOpen(d.id, d.type)}
               >
                 <div className="docs-doc-card-top">
-                  <strong>№{d.number}</strong>
+                  <strong>№<SearchHighlight text={String(d.number ?? '')} query={searchQuery} /></strong>
                   <span className={`badge badge-${d.status}`}>{STATUS_LABELS[d.status]}</span>
                   {!!d.ai_recognized && (
                     <span className="badge badge-ai" title="Распознано искусственным интеллектом">ИИ</span>
@@ -101,8 +125,9 @@ export default function DocumentsList({
                   <span className="docs-doc-card-sum">{formatMoney(d.total_amount)}</span>
                 </div>
                 <div className="docs-doc-card-party">
-                  {d.counterparty_name || docBranchLabel(d) || '—'}
+                  <DocPartyName doc={d} query={searchQuery} docBranchLabel={docBranchLabel} />
                 </div>
+                <DocSearchMatches doc={d} query={searchQuery} />
               </button>
               <div className="docs-doc-card-actions">
                 {d.telegram_url && (
@@ -113,7 +138,9 @@ export default function DocumentsList({
             </article>
           ))}
           {docs.length === 0 && (
-            <div className="empty docs-list-empty">Нет документов</div>
+            <div className="empty docs-list-empty">
+              {searchQuery ? `Ничего не найдено по «${searchQuery}»` : 'Нет документов'}
+            </div>
           )}
         </div>
       ) : (
@@ -135,7 +162,7 @@ export default function DocumentsList({
               <tr key={d.id} className={d.ai_recognized ? 'docs-row-ai' : undefined}>
                 <td>
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                    {d.number}
+                    <SearchHighlight text={String(d.number ?? '')} query={searchQuery} />
                     {d.telegram_url && (
                       <TelegramMessageLink url={d.telegram_url} className="tg-message-link--sm" />
                     )}
@@ -150,7 +177,10 @@ export default function DocumentsList({
                     <span className="badge badge-ai" style={{ marginLeft: 6 }} title="Распознано ИИ">ИИ</span>
                   )}
                 </td>
-                <td>{d.counterparty_name || docBranchLabel(d) || '—'}</td>
+                <td>
+                  <DocPartyName doc={d} query={searchQuery} docBranchLabel={docBranchLabel} />
+                  <DocSearchMatches doc={d} query={searchQuery} />
+                </td>
                 <td>{formatMoney(d.total_amount)}</td>
                 <td>
                   <span className={`badge badge-${d.status}`}>{STATUS_LABELS[d.status]}</span>
@@ -168,7 +198,11 @@ export default function DocumentsList({
               </tr>
             ))}
             {docs.length === 0 && (
-              <tr><td colSpan={7} className="empty">Нет документов</td></tr>
+              <tr>
+                <td colSpan={7} className="empty">
+                  {searchQuery ? `Ничего не найдено по «${searchQuery}»` : 'Нет документов'}
+                </td>
+              </tr>
             )}
           </tbody>
         </table>

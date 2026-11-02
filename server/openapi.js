@@ -234,6 +234,7 @@ export function buildOpenApiSpec() {
             { name: 'date_from', in: 'query', schema: { type: 'string', format: 'date' } },
             { name: 'date_to', in: 'query', schema: { type: 'string', format: 'date' } },
             { name: 'counterparty_id', in: 'query', schema: { type: 'string' }, description: 'Фильтр по контрагенту / поставщику' },
+            { name: 'q', in: 'query', schema: { type: 'string' }, description: 'Текстовый поиск: номер, контрагент, комментарий, отделы, товары в строках (название, вариант, артикул, ключевые слова); латиница/кириллица и раскладка не важны. В ответе у документов `search_matches` — совпавшие товары' },
           ],
           responses: {
             200: {

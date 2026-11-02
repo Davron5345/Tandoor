@@ -6698,6 +6698,93 @@ input[type='number']::-webkit-inner-spin-button {
   max-width: 360px;
 }
 
+/* ===== Документы: поиск по списку и выбор контрагента ===== */
+.docs-filters .docs-filter-search {
+  flex: 1 1 260px;
+  min-width: 220px;
+  max-width: 420px;
+}
+
+.docs-filters .docs-filter-search input[type="search"] {
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+}
+
+.docs-filters .docs-filter-counterparty {
+  flex: 0 1 260px;
+  min-width: 200px;
+}
+
+.docs-filters .docs-filter-counterparty .counterparty-search-select-input {
+  min-width: 0;
+  min-height: 0;
+  padding: 10px 12px;
+  background: var(--control-bg);
+  border: 1px solid var(--control-border);
+  border-radius: var(--control-radius);
+  font-size: var(--font-base);
+  font-weight: 400;
+  line-height: normal;
+}
+
+.docs-filters .docs-filter-counterparty .counterparty-search-select-input:focus {
+  border-color: color-mix(in srgb, var(--primary) 45%, var(--control-border));
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.docs-search-matches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.docs-search-match {
+  display: inline-block;
+  max-width: 260px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.docs-search-match--more {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+@media (max-width: 768px) {
+  .docs-filters .docs-filter-search {
+    grid-column: 1 / -1;
+    max-width: none;
+  }
+
+  .docs-filters .docs-filter-counterparty {
+    max-width: none;
+  }
+
+  .docs-filters .docs-filter-counterparty .counterparty-search-select-input {
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  .docs-doc-card .docs-search-matches {
+    margin-top: 6px;
+  }
+
+  .docs-doc-card .docs-search-match {
+    border-radius: 2px;
+    max-width: 100%;
+  }
+}
+
 .subcategory-group-header {
   display: flex;
   align-items: center;

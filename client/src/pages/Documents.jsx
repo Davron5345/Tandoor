@@ -7,6 +7,7 @@ import DocumentHistoryModal from '../components/DocumentHistoryModal';
 import CategorySelect from '../components/CategorySelect';
 import ProductSelect, { ProductThumb } from '../components/ProductSelect';
 import CounterpartyCreateModal from '../components/CounterpartyCreateModal';
+import CounterpartySearchSelect from '../components/CounterpartySearchSelect';
 import ProductCreateModal from '../components/ProductCreateModal';
 import ContractSelect from '../components/ContractSelect';
 import PhoneDateInput from '../components/PhoneDateInput';
@@ -74,6 +75,8 @@ export default function Documents({ defaultType }) {
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
   const [filterCounterpartyId, setFilterCounterpartyId] = useState('');
+  const [filterQuery, setFilterQuery] = useState('');
+  const [filterQueryDebounced, setFilterQueryDebounced] = useState('');
   const [docPage, setDocPage] = useState(1);
   const [docPages, setDocPages] = useState(1);
   const [docTotal, setDocTotal] = useState(0);
@@ -376,13 +379,25 @@ export default function Documents({ defaultType }) {
     if (filterDateFrom) params.date_from = filterDateFrom;
     if (filterDateTo) params.date_to = filterDateTo;
     if (filterCounterpartyId) params.counterparty_id = filterCounterpartyId;
+    if (filterQueryDebounced) params.q = filterQueryDebounced;
     api.getDocuments(params).then((data) => {
       setDocs(data.items);
       setDocPages(data.pages);
       setDocTotal(data.total);
       setDocsAmountSum(Number(data.amount_sum) || 0);
     }).catch(console.error);
-  }, [defaultType, filterType, filterStatus, filterDateFrom, filterDateTo, filterCounterpartyId, docPage, branchId]);
+  }, [defaultType, filterType, filterStatus, filterDateFrom, filterDateTo, filterCounterpartyId, filterQueryDebounced, docPage, branchId]);
+
+  // Поиск по списку: запрос уходит на сервер с задержкой, чтобы не дёргать API на каждую букву
+  useEffect(() => {
+    const next = filterQuery.trim();
+    if (!next) {
+      setFilterQueryDebounced('');
+      return undefined;
+    }
+    const timer = setTimeout(() => setFilterQueryDebounced(next), 300);
+    return () => clearTimeout(timer);
+  }, [filterQuery]);
 
   useEffect(() => {
     let cancelled = false;
@@ -468,7 +483,7 @@ export default function Documents({ defaultType }) {
 
   useEffect(() => {
     setDocPage(1);
-  }, [filterType, filterStatus, filterDateFrom, filterDateTo, filterCounterpartyId, branchId]);
+  }, [filterType, filterStatus, filterDateFrom, filterDateTo, filterCounterpartyId, filterQueryDebounced, branchId]);
 
   useEffect(() => {
     const type = defaultType || filterType;
@@ -591,8 +606,14 @@ export default function Documents({ defaultType }) {
       ? 'Клиент'
       : 'Контрагент';
   const hasListFilters = Boolean(
-    filterStatus || filterDateFrom || filterDateTo || filterCounterpartyId || (!defaultType && filterType),
+    filterStatus || filterDateFrom || filterDateTo || filterCounterpartyId || filterQuery
+    || (!defaultType && filterType),
   );
+  const searchPlaceholder = listType === 'prihod' || listType === RETURN_SUPPLIER_TYPE
+    ? 'Номер, поставщик, товар, комментарий…'
+    : listType === 'rashod' || listType === RETURN_CUSTOMER_TYPE
+      ? 'Номер, клиент, товар, комментарий…'
+      : 'Номер, контрагент, товар, комментарий…';
   const showFilteredAmountSum = Boolean(
     filterCounterpartyId
     && (filterDateFrom || filterDateTo)
@@ -610,6 +631,8 @@ export default function Documents({ defaultType }) {
     setFilterDateFrom('');
     setFilterDateTo('');
     setFilterCounterpartyId('');
+    setFilterQuery('');
+    setFilterQueryDebounced('');
   };
 
   const prihodNeedsSupplier = form.type === 'prihod' && !form.counterparty_id;
@@ -1611,7 +1634,24 @@ export default function Documents({ defaultType }) {
         </div>
       </div>
 
-      <div className="filters">
+      <div className="filters docs-filters">
+        <label className="filter-field docs-filter-search">
+          <span className="filter-field-caption">Поиск</span>
+          <input
+            type="search"
+            value={filterQuery}
+            placeholder={searchPlaceholder}
+            onChange={(e) => setFilterQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape' && filterQuery) {
+                e.preventDefault();
+                setFilterQuery('');
+              }
+            }}
+            autoComplete="off"
+            enterKeyHint="search"
+          />
+        </label>
         {!defaultType && (
           <label className="filter-field">
             <span className="filter-field-caption">Тип</span>
@@ -1647,18 +1687,15 @@ export default function Documents({ defaultType }) {
           />
         </label>
         {showCounterpartyFilter && (
-          <label className="filter-field">
+          <div className="filter-field docs-filter-counterparty">
             <span className="filter-field-caption">{counterpartyFilterLabel}</span>
-            <select
+            <CounterpartySearchSelect
+              items={filterCounterparties}
               value={filterCounterpartyId}
-              onChange={(e) => setFilterCounterpartyId(e.target.value)}
-            >
-              <option value="">Все</option>
-              {filterCounterparties.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-          </label>
+              onChange={(id) => setFilterCounterpartyId(id || '')}
+              placeholder="Все"
+            />
+          </div>
         )}
         <label className="filter-field">
           <span className="filter-field-caption">Статус</span>
@@ -1698,6 +1735,7 @@ export default function Documents({ defaultType }) {
         docPages={docPages}
         docTotal={docTotal}
         setDocPage={setDocPage}
+        searchQuery={filterQueryDebounced}
         isReadOnly={isReadOnly}
         canTransfer={canTransfer}
         canPay={canPay}
