@@ -1834,6 +1834,11 @@ html.app-modal-open .main-content {
   letter-spacing: normal;
 }
 
+.report-filters-reset {
+  align-self: flex-end;
+  margin-bottom: 1px;
+}
+
 .report-filters input[type="search"],
 .report-filters .report-search {
   min-width: 220px;

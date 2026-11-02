@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, formatDate, formatDateTime, formatMoney } from '../../api';
 import { useAuth } from '../../AuthContext';
 import { useBranch } from '../../BranchContext';
@@ -6,14 +6,55 @@ import BranchChip from '../../components/BranchChip';
 import Modal, { ModalCancelButton, useToast } from '../../components/Modal';
 import DocumentPreviewModal from '../../components/DocumentPreviewModal';
 import CounterpartySearchSelect from '../../components/CounterpartySearchSelect';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 import { todayLocalIso } from '../../utils/date';
+
+const RECON_STORAGE_PREFIX = 'recon-act:';
+
+function defaultPeriod() {
+  const d = new Date();
+  d.setMonth(d.getMonth() - 1);
+  return { dateFrom: todayLocalIso(d), dateTo: todayLocalIso() };
+}
+
+/** Сохранённый срез акта по филиалу. null — страница ещё не открывалась. */
+function readReconFilters(branchId) {
+  try {
+    const raw = sessionStorage.getItem(RECON_STORAGE_PREFIX + (branchId || 'main'));
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    if (!data || typeof data !== 'object') return null;
+    return {
+      counterpartyId: data.counterpartyId || '',
+      dateFrom: data.dateFrom || '',
+      dateTo: data.dateTo || '',
+      firmId: data.firmId || '',
+      contractId: data.contractId || '',
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writeReconFilters(branchId, filters) {
+  try {
+    sessionStorage.setItem(RECON_STORAGE_PREFIX + (branchId || 'main'), JSON.stringify(filters));
+  } catch {
+    /* приватный режим — акт просто не запомнится */
+  }
+}
 
 export function ReconciliationReport() {
   const DEFAULT_CONTRACT_ID = '__default__';
+  const { user } = useAuth();
+  const { show, Toast } = useToast();
+  const { branchName, branchId } = useBranch();
+  const savedOnOpen = readReconFilters(branchId);
+  const periodOnOpen = defaultPeriod();
   const [counterparties, setCounterparties] = useState([]);
-  const [counterpartyId, setCounterpartyId] = useState('');
-  const [contractId, setContractId] = useState('');
-  const [firmId, setFirmId] = useState('');
+  const [counterpartyId, setCounterpartyId] = useState(savedOnOpen?.counterpartyId || '');
+  const [contractId, setContractId] = useState(savedOnOpen?.contractId || '');
+  const [firmId, setFirmId] = useState(savedOnOpen?.firmId || '');
   const [contracts, setContracts] = useState([]);
   const [firms, setFirms] = useState([]);
   const [act, setAct] = useState(null);
@@ -23,15 +64,9 @@ export function ReconciliationReport() {
   const [marks, setMarks] = useState([]);
   const [markForm, setMarkForm] = useState(null);
   const [markSaving, setMarkSaving] = useState(false);
-  const { user } = useAuth();
-  const { show, Toast } = useToast();
-  const [dateFrom, setDateFrom] = useState(() => {
-    const d = new Date();
-    d.setMonth(d.getMonth() - 1);
-    return todayLocalIso(d);
-  });
-  const [dateTo, setDateTo] = useState(() => todayLocalIso());
-  const { branchName, branchId } = useBranch();
+  const [dateFrom, setDateFrom] = useState(savedOnOpen ? savedOnOpen.dateFrom : periodOnOpen.dateFrom);
+  const [dateTo, setDateTo] = useState(savedOnOpen ? savedOnOpen.dateTo : periodOnOpen.dateTo);
+  const filtersBranchRef = useRef(branchId);
 
   useEffect(() => {
     api.getCounterparties()
@@ -54,9 +89,26 @@ export function ReconciliationReport() {
 
   const isSupplier = selectedCounterparty?.type === 'supplier';
 
+  // Поставщик и период живут в sessionStorage: обновление страницы возвращает тот же срез.
+  // Смена филиала читает его собственный срез и не затирает чужой.
   useEffect(() => {
-    setContractId('');
-    setFirmId('');
+    if (filtersBranchRef.current !== branchId) {
+      filtersBranchRef.current = branchId;
+      const saved = readReconFilters(branchId);
+      const period = defaultPeriod();
+      setCounterpartyId(saved?.counterpartyId || '');
+      setDateFrom(saved ? saved.dateFrom : period.dateFrom);
+      setDateTo(saved ? saved.dateTo : period.dateTo);
+      setFirmId(saved?.firmId || '');
+      setContractId(saved?.contractId || '');
+      return;
+    }
+    writeReconFilters(branchId, {
+      counterpartyId, dateFrom, dateTo, firmId, contractId,
+    });
+  }, [branchId, counterpartyId, dateFrom, dateTo, firmId, contractId]);
+
+  useEffect(() => {
     if (!counterpartyId || !isSupplier) {
       setContracts([]);
       setFirms([]);
@@ -93,13 +145,14 @@ export function ReconciliationReport() {
     return `${c.number} — ${formatDate(c.date)}`;
   };
 
-  const load = useCallback(() => {
+  const load = useCallback((opts = {}) => {
     if (!counterpartyId) {
       setAct(null);
       setLoadError('');
+      setLoading(false);
       return;
     }
-    setLoading(true);
+    if (!opts.silent) setLoading(true);
     setLoadError('');
     api.getReconciliationAct({
       counterparty_id: counterpartyId,
@@ -120,6 +173,19 @@ export function ReconciliationReport() {
     load();
   }, [branchId, load]);
 
+  const resetFilters = () => {
+    setCounterpartyId('');
+    setDateFrom('');
+    setDateTo('');
+    setFirmId('');
+    setContractId('');
+    setAct(null);
+    setMarks([]);
+    setLoadError('');
+  };
+
+  const filtersActive = Boolean(counterpartyId || dateFrom || dateTo || firmId || contractId);
+
   const loadMarks = useCallback(() => {
     if (!counterpartyId) {
       setMarks([]);
@@ -133,6 +199,16 @@ export function ReconciliationReport() {
   useEffect(() => {
     loadMarks();
   }, [branchId, loadMarks]);
+
+  // Документ поправили в другой вкладке — суммы акта подтягиваются сами
+  useAutoRefresh(
+    () => {
+      load({ silent: true });
+      loadMarks();
+    },
+    [load, loadMarks, branchId],
+    { enabled: Boolean(counterpartyId) && !previewDocId && !markForm },
+  );
 
   const rows = useMemo(() => {
     if (!act || act.counterparty?.id !== counterpartyId) return [];
@@ -295,13 +371,22 @@ export function ReconciliationReport() {
               По
               <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
             </label>
+            {filtersActive && (
+              <button type="button" className="btn btn-ghost btn-sm report-filters-reset" onClick={resetFilters}>
+                Сбросить
+              </button>
+            )}
           </div>
           <span className="report-meta">{loading ? 'Загрузка…' : `Записей: ${rows.length}`}</span>
         </div>
       </div>
       <div className="card">
         {loadError && <div className="alert alert-error" style={{ margin: '12px 16px 0' }}>{loadError}</div>}
-        {!counterpartyId && <div className="empty" style={{ padding: 16 }}>Выберите контрагента для сверки.</div>}
+        {!counterpartyId && (
+          <div className="empty" style={{ padding: 16 }}>
+            {dateFrom || dateTo ? 'Выберите контрагента для сверки.' : 'Выберите контрагента и период.'}
+          </div>
+        )}
         {counterpartyId && (
           <>
             <div className="report-summary">
