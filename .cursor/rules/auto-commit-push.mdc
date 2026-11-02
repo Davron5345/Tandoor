@@ -9,7 +9,11 @@ After completing any code update in this project:
 
 1. Commit all relevant changes with a concise message (focus on why, not what).
 2. Push to `origin` on the current branch without waiting for the user to ask.
-3. Briefly confirm commit hash and that push succeeded in the final reply.
+3. **Always update the server.** Push to `main` auto-deploys on Coolify (app `MAHALLA90`, uuid `kkkfxb8t2hlzk1f9t4d2wjct`). After the push, wait for the deployment to finish and verify it:
+   - `~/.local/bin/coolify app deployments list kkkfxb8t2hlzk1f9t4d2wjct --format json` → newest row must be `finished` with the pushed commit;
+   - if no deployment was triggered, start it: `~/.local/bin/coolify deploy uuid kkkfxb8t2hlzk1f9t4d2wjct`;
+   - `curl -s https://tandoor.budavron.uz/api/health` → `"ready":true`.
+4. In the final reply give the commit hash, state that the deploy finished, and **always include the production link `https://tandoor.budavron.uz`** (plus the specific page, e.g. `https://tandoor.budavron.uz/prihod`).
 
 Do not commit files with secrets (`.env`, credentials). Do not force-push to main.
 
