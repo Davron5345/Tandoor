@@ -2,7 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import db from '../db.js';
 import { getBranchStock, DEFAULT_BRANCH_ID } from '../branches.js';
 import { assertDepartmentInBranch, getDefaultDepartmentId, getDepartmentStock } from '../departments.js';
-import { getVariantBranchStock } from '../inventoryCost.js';
+import { getVariantBranchStock, isForcedStockReverse, withForcedStockReverse } from '../inventoryCost.js';
 import { applyDishSaleConsumption, buildDishSalePlan } from '../dishSales.js';
 import { DEFAULT_CONTRACT_ID, isSupplierCounterpartyDoc, assertCounterpartyBranch } from './counterparties.js';
 import { allocateExtraCosts, extraCostsTotal, capitalizedExtraTotal, normalizeExtraCosts } from '../documentExtraCosts.js';
@@ -1243,7 +1243,16 @@ export function createDocument(data, userId = null, branchId = DEFAULT_BRANCH_ID
   return getDocument(id, docBranchId);
 }
 
-export function updateDocument(id, data, userId = null, branchId = DEFAULT_BRANCH_ID) {
+/**
+ * Правка документа. opts.role === 'admin' (+ force !== false): правка проведённого не
+ * блокируется поздними движениями / нехваткой остатка (как отмена у админа).
+ */
+export function updateDocument(id, data, userId = null, branchId = DEFAULT_BRANCH_ID, opts = {}) {
+  const force = opts.role === 'admin' && opts.force !== false;
+  return runMaybeForced(force, () => updateDocumentImpl(id, data, userId, branchId));
+}
+
+function updateDocumentImpl(id, data, userId, branchId) {
   const existingDoc = queryOne(
     `SELECT * FROM documents WHERE id = ?
       AND (branch_id = ? OR from_branch_id = ? OR to_branch_id = ?)`,
@@ -1627,9 +1636,14 @@ function isInventoryParentDoc(doc) {
   return doc?.type === 'inventory' && doc.inventory_coverage !== 'remainder';
 }
 
-/** Все проверки перед откатом остатков проведённого документа (отмена / удаление / правка). */
+/**
+ * Все проверки перед откатом остатков проведённого документа (отмена / удаление / правка).
+ * В режиме админа (`withForcedStockReverse`) не выполняются: поздние движения и нехватка
+ * остатка не блокируют, `reverseReceiveDepartmentStock` обнуляет то, чего уже нет.
+ */
 function assertConfirmedDocCanReverse(doc, action = 'отменить') {
   if (doc?.status !== 'confirmed') return;
+  if (isForcedStockReverse()) return;
   assertRazdelkaCanReverse(doc.id, doc);
   const items = queryAll('SELECT * FROM document_items WHERE document_id = ?', [doc.id]);
   assertTransferCanReverse(doc, items);
@@ -1668,9 +1682,17 @@ function assertNoLinkedPayments(id, remainder, action) {
   }
 }
 
-/** Админ: каскад по умолчанию; остальные роли — никогда. cascade:false отключает даже у admin. */
+/**
+ * Админ: каскад + принудительный откат по умолчанию; остальные роли — никогда.
+ * cascade:false отключает даже у admin (тогда работают все обычные проверки).
+ */
 function isAdminCascade(opts = {}) {
   return opts.role === 'admin' && opts.cascade !== false;
+}
+
+/** Выполнить fn в режиме админа (без проверок поздних движений / нехватки остатка) или как обычно. */
+function runMaybeForced(force, fn) {
+  return force ? withForcedStockReverse(fn) : fn();
 }
 
 function listLinkedChildDocs(id) {
@@ -1709,10 +1731,15 @@ function cancelLinkedConfirmedReturns(sourceId, userId, opts) {
 /**
  * Отмена документа.
  * opts.role === 'admin' (+ cascade !== false): сначала отменяет связанные возвраты,
- * отвязывает оплаты (сами оплаты не удаляет). Проверки склада и поздних движений
- * остаются — иначе ломается avg_cost / остатки.
+ * отвязывает оплаты (сами оплаты не удаляет), поздние движения и нехватка остатка
+ * не блокируют (остаток, которого уже нет, обнуляется — avg_cost по этим позициям
+ * может разойтись, это осознанный выбор админа).
  */
 export function cancelDocument(id, userId = null, opts = {}) {
+  return runMaybeForced(isAdminCascade(opts), () => cancelDocumentImpl(id, userId, opts));
+}
+
+function cancelDocumentImpl(id, userId, opts) {
   const doc = queryOne('SELECT * FROM documents WHERE id = ?', [id]);
   if (!doc) throw new Error('Документ не найден');
 
@@ -1769,9 +1796,13 @@ export function cancelDocument(id, userId = null, opts = {}) {
 /**
  * Удаление документа.
  * opts.role === 'admin' (+ cascade !== false): удаляет связанные возвраты (с откатом склада),
- * отвязывает оплаты. Поздние складские движения по-прежнему блокируют.
+ * отвязывает оплаты, поздние движения и нехватка остатка не блокируют.
  */
 export function deleteDocument(id, opts = {}) {
+  return runMaybeForced(isAdminCascade(opts), () => deleteDocumentImpl(id, opts));
+}
+
+function deleteDocumentImpl(id, opts) {
   const doc = queryOne('SELECT * FROM documents WHERE id = ?', [id]);
   if (!doc) throw new Error('Документ не найден');
   if (doc.inventory_coverage === 'remainder' && doc.status === 'confirmed') {

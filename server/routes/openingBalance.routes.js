@@ -69,11 +69,13 @@ export function registerOpeningBalanceRoutes(app) {
 
   app.post('/api/opening-balance/documents/:id/cancel', requirePermission('opening_balance.edit'), attachBranch, (req, res) => {
     try {
-      const doc = cancelOpeningBalanceDocument(req.params.id, req.user.id, req.branchId);
+      const doc = cancelOpeningBalanceDocument(req.params.id, req.user.id, req.branchId, {
+        role: req.user.role,
+      });
       logAudit(req, 'opening_balance.cancel', {
         entity_type: 'document',
         entity_id: doc.id,
-        meta: { number: doc.number },
+        meta: { number: doc.number, admin_force: req.user.role === 'admin' },
       });
       res.json(doc);
     } catch (e) {

@@ -128,6 +128,26 @@ export function transferDepartmentStock(fromDepartmentId, toDepartmentId, produc
   receiveDepartmentStock(toDepartmentId, productId, qty, unitCost, variantId);
 }
 
+/**
+ * Режим принудительного отката (админ): проверки «есть более поздние движения» и
+ * «недостаточно остатка для отмены» не блокируют — остаток, которого уже нет, обнуляется.
+ * Код синхронный (sync-адаптер БД), поэтому флаг на модуль безопасен.
+ */
+let forcedStockReverseDepth = 0;
+
+export function isForcedStockReverse() {
+  return forcedStockReverseDepth > 0;
+}
+
+export function withForcedStockReverse(fn) {
+  forcedStockReverseDepth += 1;
+  try {
+    return fn();
+  } finally {
+    forcedStockReverseDepth -= 1;
+  }
+}
+
 export function reverseReceiveDepartmentStock(departmentId, productId, qty, unitCost, variantId = null) {
   if (!departmentId || !productId || qty <= 0) return;
   const cost = Math.max(0, Number(unitCost) || 0);
@@ -135,6 +155,11 @@ export function reverseReceiveDepartmentStock(departmentId, productId, qty, unit
   const oldStock = row?.stock || 0;
   const oldAvg = row?.avg_cost || 0;
   if (oldStock + 1e-6 < qty) {
+    if (isForcedStockReverse()) {
+      // Товар уже списан другими документами — админ откатывает принудительно, остаток → 0
+      upsertRow(departmentId, productId, 0, 0, variantId);
+      return;
+    }
     throw new Error(`Недостаточно остатка для отмены: на складе ${roundQty(oldStock)}, нужно вернуть ${roundQty(qty)}. Товар уже списан другими документами.`);
   }
   const newStock = oldStock - qty;

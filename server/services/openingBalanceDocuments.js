@@ -6,6 +6,7 @@ import {
   receiveDepartmentStock,
   reverseReceiveDepartmentStock,
   syncVariantCatalogStock,
+  withForcedStockReverse,
 } from '../inventoryCost.js';
 import { assertNoLaterStockMovements } from '../stockMovementGuard.js';
 import { getCounterparty } from './counterparties.js';
@@ -362,20 +363,27 @@ export function confirmOpeningBalanceDocument(id, userId = null, branchId = DEFA
   return getOpeningBalanceDocument(id, branchId);
 }
 
-export function cancelOpeningBalanceDocument(id, userId = null, branchId = DEFAULT_BRANCH_ID) {
+/**
+ * Снятие проведения НС. opts.role === 'admin' (+ force !== false): поздние движения и
+ * нехватка остатка не блокируют (остаток, которого уже нет, обнуляется).
+ */
+export function cancelOpeningBalanceDocument(id, userId = null, branchId = DEFAULT_BRANCH_ID, opts = {}) {
   const doc = getDocRow(id, branchId);
   if (!doc) throw new Error('Документ не найден');
   if (doc.status !== 'confirmed') throw new Error('Отменить можно только проведённый документ');
 
+  const force = opts.role === 'admin' && opts.force !== false;
   const lines = loadLines(id);
-  assertNoLaterStockMovements(doc, lines);
+  if (!force) assertNoLaterStockMovements(doc, lines);
 
-  transaction(() => {
+  const apply = () => transaction(() => {
     // Снова черновик — можно править и провести заново (не «отменён навсегда»)
     run(`UPDATE documents SET status = 'draft', updated_at = datetime('now') WHERE id = ?`, [id]);
     reverseStockLines(lines, branchId);
     addHistory(id, 'unconfirmed', userId);
   });
+  if (force) withForcedStockReverse(apply);
+  else apply();
 
   return getOpeningBalanceDocument(id, branchId);
 }

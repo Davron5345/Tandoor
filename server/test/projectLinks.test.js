@@ -423,3 +423,86 @@ test('legacy inter-branch transfer repair moves department stock once', async ()
   assert.equal(deps.getDepartmentStock(p.id, toDept), 4);
   assert.equal(repairLegacyInterBranchTransfers().fixed.length, 0);
 });
+
+test('admin cancels/edits a receipt despite later movements; stock never goes negative', () => {
+  const supplier = svc.createCounterparty({ name: 'Поставщик форс', type: 'supplier' }, 'main');
+  const p = product('LINK-FORCE', supplier.id);
+  const prihod = svc.createDocument({
+    type: 'prihod',
+    date: '2026-09-10',
+    to_department_id: deptId,
+    counterparty_id: supplier.id,
+    items: [{ product_id: p.id, quantity: 10, price: 100 }],
+    status: 'confirmed',
+  }, 'test-user', 'main');
+  svc.createDocument({
+    type: 'rashod',
+    date: '2026-09-11',
+    from_department_id: deptId,
+    items: [{ product_id: p.id, quantity: 8, price: 150 }],
+    status: 'confirmed',
+  }, 'test-user', 'main');
+  assert.equal(deps.getDepartmentStock(p.id, deptId), 2);
+
+  // Обычная роль — по-прежнему блок
+  assert.throws(() => svc.cancelDocument(prihod.id, 'test-user'), /Сначала отмените более поздние/);
+  // Админ с cascade:false — тоже обычные проверки
+  assert.throws(
+    () => svc.cancelDocument(prihod.id, 'test-user', { role: 'admin', cascade: false }),
+    /Сначала отмените более поздние/,
+  );
+
+  // Админ правит проведённый приход (10 → 12 шт): остаток 2 → 0 (откат) → 12
+  svc.updateDocument(prihod.id, {
+    items: [{ product_id: p.id, quantity: 12, price: 120 }],
+    status: 'confirmed',
+  }, 'test-user', 'main', { role: 'admin' });
+  assert.equal(deps.getDepartmentStock(p.id, deptId), 12);
+
+  // Админ отменяет: вернуть надо 12, есть 12 → 0
+  svc.cancelDocument(prihod.id, 'test-user', { role: 'admin' });
+  assert.equal(svc.getDocument(prihod.id).status, 'cancelled');
+  assert.equal(deps.getDepartmentStock(p.id, deptId), 0);
+
+  // Второй приход + расход всего товара, потом админ отменяет приход — остаток не уходит в минус
+  const second = svc.createDocument({
+    type: 'prihod',
+    date: '2026-09-12',
+    to_department_id: deptId,
+    counterparty_id: supplier.id,
+    items: [{ product_id: p.id, quantity: 5, price: 100 }],
+    status: 'confirmed',
+  }, 'test-user', 'main');
+  svc.createDocument({
+    type: 'rashod',
+    date: '2026-09-13',
+    from_department_id: deptId,
+    items: [{ product_id: p.id, quantity: 5, price: 150 }],
+    status: 'confirmed',
+  }, 'test-user', 'main');
+  assert.equal(deps.getDepartmentStock(p.id, deptId), 0);
+  svc.deleteDocument(second.id, { role: 'admin' });
+  assert.equal(svc.getDocument(second.id), null);
+  assert.equal(deps.getDepartmentStock(p.id, deptId), 0);
+});
+
+test('admin unconfirms opening balance despite later movements', async () => {
+  const ob = await import('../services/openingBalanceDocuments.js');
+  const p = product('LINK-OB-FORCE');
+  const doc = ob.createOpeningBalanceDocument({
+    date: '2026-09-01',
+    lines: [{ line_type: 'stock', product_id: p.id, department_id: deptId, quantity: 10, unit_cost: 50 }],
+    status: 'confirmed',
+  }, 'test-user', 'main');
+  svc.createDocument({
+    type: 'rashod',
+    date: '2026-09-02',
+    from_department_id: deptId,
+    items: [{ product_id: p.id, quantity: 7, price: 100 }],
+    status: 'confirmed',
+  }, 'test-user', 'main');
+  assert.throws(() => ob.cancelOpeningBalanceDocument(doc.id, 'test-user', 'main'), /более поздние/);
+  const res = ob.cancelOpeningBalanceDocument(doc.id, 'test-user', 'main', { role: 'admin' });
+  assert.equal(res.status, 'draft');
+  assert.equal(deps.getDepartmentStock(p.id, deptId), 0);
+});

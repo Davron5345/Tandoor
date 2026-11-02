@@ -171,7 +171,16 @@ export function registerDocumentRoutes(app) {
           to_department_id: req.body.to_department_id ?? existing.to_department_id,
         }, req.user, req.branchId)
         : req.body;
-      const doc = svc.updateDocument(req.params.id, body, req.user.id, req.branchId);
+      const doc = svc.updateDocument(req.params.id, body, req.user.id, req.branchId, {
+        role: req.user.role,
+      });
+      if (existing.status === 'confirmed' && req.user.role === 'admin') {
+        logAudit(req, 'document.edit_confirmed', {
+          entity_type: 'document',
+          entity_id: doc.id,
+          meta: { type: doc.type, number: doc.number, admin_force: true },
+        });
+      }
       res.json(doc);
     } catch (e) {
       res.status(400).json({ error: e.message });
