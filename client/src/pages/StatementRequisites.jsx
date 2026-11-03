@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
-import { useToast } from '../components/Modal';
+import Modal, { useToast, ModalCancelButton } from '../components/Modal';
 import BranchChip from '../components/BranchChip';
 import { useAuth } from '../AuthContext';
 import { useBranch } from '../BranchContext';
@@ -30,6 +30,7 @@ export default function StatementRequisites() {
   const canEdit = hasPermission(user, 'counterparties.edit');
   const fileRef = useRef(null);
 
+  const [createOpen, setCreateOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [applyBusy, setApplyBusy] = useState(false);
   const [pasteText, setPasteText] = useState('');
@@ -50,11 +51,23 @@ export default function StatementRequisites() {
     return items;
   }, [items, filter]);
 
+  const openCreate = () => {
+    setPasteText('');
+    setCreateOpen(true);
+  };
+
+  const closeCreate = () => {
+    if (busy) return;
+    setCreateOpen(false);
+  };
+
   const applyPreview = (preview) => {
     setMeta(preview);
     setItems((preview.items || []).map((row) => ({ ...row })));
     setFilter('new');
     setResult(null);
+    setCreateOpen(false);
+    setPasteText('');
     show(
       `Найдено контрагентов: ${preview.total}`
         + (preview.new_count ? `, новых: ${preview.new_count}` : ''),
@@ -141,79 +154,24 @@ export default function StatementRequisites() {
         <div>
           <h1>Реквизиты из выписки</h1>
           <p className="page-subtitle">
-            Вставьте текст из Client Bank или загрузите Excel AccReferenceReport — названия, ИНН, р/с и договоры без сумм.
+            Текст Client Bank или Excel — названия, ИНН, р/с и договоры без сумм. Можно одну операцию или несколько лет.
             {' '}
             <BranchChip>{branchName}</BranchChip>
           </p>
         </div>
         <div className="page-header-actions">
           <Link to="/counterparties" className="btn btn-secondary">К контрагентам</Link>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            disabled={busy}
-            onClick={() => fileRef.current?.click()}
-          >
-            {busy ? 'Чтение…' : 'Excel (.xlsx)'}
+          <button type="button" className="btn btn-primary" onClick={openCreate}>
+            + Создать
           </button>
-          <input
-            ref={fileRef}
-            type="file"
-            accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            style={{ display: 'none' }}
-            onChange={onPick}
-          />
-        </div>
-      </div>
-
-      <div className="card" style={{ padding: 16, marginBottom: 16 }}>
-        <label className="filter-field" style={{ display: 'block', width: '100%' }}>
-          <span className="filter-field-caption">Вставить выписку (Справка о работе счета)</span>
-          <textarea
-            value={pasteText}
-            onChange={(e) => setPasteText(e.target.value)}
-            rows={10}
-            placeholder={'Скопируйте таблицу из Client Bank Ipak Yuli и вставьте сюда.\nКолонки: Дата | Счет | N док-та | VO | МФО | Дебет | Кредит | Назначение | ИНН'}
-            style={{
-              width: '100%',
-              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
-              fontSize: 12,
-              lineHeight: 1.35,
-              resize: 'vertical',
-              marginTop: 6,
-            }}
-          />
-        </label>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
-          <button
-            type="button"
-            className="btn btn-primary"
-            disabled={busy || !pasteText.trim()}
-            onClick={onParsePaste}
-          >
-            {busy ? 'Разбор…' : 'Разобрать текст'}
-          </button>
-          {pasteText && (
-            <button
-              type="button"
-              className="btn btn-secondary"
-              disabled={busy}
-              onClick={() => setPasteText('')}
-            >
-              Очистить
-            </button>
-          )}
         </div>
       </div>
 
       {!meta && (
         <div className="card" style={{ padding: 24 }}>
           <p style={{ margin: 0, maxWidth: 640, lineHeight: 1.5 }}>
-            Система соберёт уникальных контрагентов по ИНН и названию, все р/с и номера/даты
-            договоров из назначения. Эквайринг (Click/Payme/…) и комиссии банка пропускаются.
-          </p>
-          <p style={{ marginTop: 12 }}>
-            <a href="/templates/AccReferenceReport-template.xlsx">Шаблон Excel AccReferenceReport</a>
+            Нажмите «+ Создать», вставьте выписку из Client Bank (или загрузите Excel).
+            Система соберёт уникальных контрагентов по ИНН и названию, все р/с и договоры из назначения.
           </p>
         </div>
       )}
@@ -226,7 +184,6 @@ export default function StatementRequisites() {
               {meta.own_account ? ` · наш счёт ${meta.own_account}` : ''}
               {' · '}контрагентов {meta.total}
               {' · '}новых {meta.new_count}
-              {meta.format ? ` · ${meta.format}` : ''}
             </span>
             <label className="filter-field">
               <span className="filter-field-caption">Показать</span>
@@ -336,6 +293,68 @@ export default function StatementRequisites() {
             </table>
           </div>
         </>
+      )}
+
+      {createOpen && (
+        <Modal
+          title="Выписка → реквизиты"
+          wide
+          dirty={Boolean(pasteText.trim())}
+          onClose={closeCreate}
+          footer={(
+            <>
+              <ModalCancelButton disabled={busy} />
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={busy}
+                onClick={() => fileRef.current?.click()}
+              >
+                Excel (.xlsx)
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={busy || !pasteText.trim()}
+                onClick={onParsePaste}
+              >
+                {busy ? 'Разбор…' : 'Разобрать'}
+              </button>
+            </>
+          )}
+        >
+          <label className="filter-field" style={{ display: 'block', width: '100%' }}>
+            <span className="filter-field-caption">
+              Вставьте текст из Client Bank — хоть одну строку, хоть несколько лет
+            </span>
+            <textarea
+              value={pasteText}
+              onChange={(e) => setPasteText(e.target.value)}
+              rows={16}
+              autoFocus
+              placeholder={'Дата | Счет | N док-та | VO | МФО | Дебет | Кредит | Назначение | ИНН\n05.01.26|20208…|…'}
+              style={{
+                width: '100%',
+                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+                fontSize: 12,
+                lineHeight: 1.35,
+                resize: 'vertical',
+                marginTop: 6,
+                minHeight: 280,
+              }}
+            />
+          </label>
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            style={{ display: 'none' }}
+            onChange={onPick}
+          />
+          <p className="muted" style={{ marginTop: 10, marginBottom: 0, fontSize: 13 }}>
+            Эквайринг (Click/Payme/…) и наш счёт в список не попадают. Суммы не сохраняются.
+          </p>
+        </Modal>
       )}
       {Toast}
     </div>

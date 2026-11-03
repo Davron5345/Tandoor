@@ -4,7 +4,7 @@ import { requirePermission, requireAnyPermission, attachBranch } from '../middle
 
 const statementUpload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 8 * 1024 * 1024 },
+  limits: { fileSize: 64 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     const name = String(file.originalname || '').toLowerCase();
     if (name.endsWith('.xlsx') || name.endsWith('.xls')) cb(null, true);

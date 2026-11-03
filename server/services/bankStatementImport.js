@@ -283,11 +283,13 @@ function looksLikeInnCell(value) {
 function detectTextDelimiter(lines) {
   let pipeScore = 0;
   let tabScore = 0;
-  for (const line of lines.slice(0, 40)) {
+  // Смотрим и короткий фрагмент, и длинную выписку за годы
+  const sample = lines.length <= 300 ? lines : [...lines.slice(0, 150), ...lines.slice(-150)];
+  for (const line of sample) {
     const pipes = (line.match(/\|/g) || []).length;
     const tabs = (line.match(/\t/g) || []).length;
-    if (pipes >= 5) pipeScore += 1;
-    if (tabs >= 5) tabScore += 1;
+    if (pipes >= 3) pipeScore += 1;
+    if (tabs >= 3) tabScore += 1;
   }
   if (pipeScore === 0 && tabScore === 0) return null;
   return pipeScore >= tabScore ? '|' : '\t';
@@ -364,16 +366,22 @@ function finalizeTextOp(op, rowIndex) {
   if (!op) return null;
   const debit = parseAmount(op.debit);
   const credit = parseAmount(op.credit);
-  if (debit <= 0 && credit <= 0) return null;
+  const name = String(op.name || '').replace(/\s+/g, ' ').trim();
+  const account = op.account || '';
+  const innCol = op.innCol || '';
+  const purpose = String(op.purpose || '').replace(/\s+/g, ' ').trim();
+  // Для реквизитов суммы не обязательны — достаточно даты + р/с/имени/ИНН
+  if (debit <= 0 && credit <= 0 && !account && !name && !innCol) return null;
+  if (!op.date) return null;
   return {
     date: op.date,
-    account: op.account || '',
-    name: String(op.name || '').replace(/\s+/g, ' ').trim(),
+    account,
+    name,
     docNo: op.docNo || '',
     debit,
     credit,
-    purpose: String(op.purpose || '').replace(/\s+/g, ' ').trim(),
-    innCol: op.innCol || '',
+    purpose,
+    innCol,
     rowIndex,
   };
 }
@@ -382,17 +390,49 @@ function finalizeTextOp(op, rowIndex) {
  * Текстовая выписка Client Bank / Ipak Yuli (копипаст из «Справка о работе счета»).
  * Колонки через | или таб; название часто на второй строке под р/с.
  */
+function parseLooseTextLine(line) {
+  // Одна строка без |/Tab: дата + р/с + … + ИНН в конце
+  const m = String(line || '').match(
+    /^(\d{1,2}\.\d{1,2}\.\d{2,4})\s+(\d{16,20})\b(.*?)(?:\s+(\d{9}))?\s*$/,
+  );
+  if (!m) return null;
+  const rest = String(m[3] || '').trim();
+  const amounts = [...rest.matchAll(/(\d{1,3}(?:[ \u00a0]\d{3})*(?:[.,]\d{2})|\d+[.,]\d{2}|0(?:[.,]00)?)/g)]
+    .map((x) => x[1]);
+  let debit = '0';
+  let credit = '0';
+  if (amounts.length >= 2) {
+    debit = amounts[amounts.length - 2];
+    credit = amounts[amounts.length - 1];
+  } else if (amounts.length === 1) {
+    credit = amounts[0];
+  }
+  const purpose = rest
+    .replace(/(\d{1,3}(?:[ \u00a0]\d{3})*(?:[.,]\d{2})|\d+[.,]\d{2}|0(?:[.,]00)?)/g, ' ')
+    .replace(/\b\d{2}\b/g, ' ')
+    .replace(/\b\d{5}\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return {
+    date: parseStatementDate(m[1]),
+    account: m[2],
+    name: '',
+    docNo: '',
+    debit,
+    credit,
+    purpose,
+    innCol: m[4] || '',
+  };
+}
+
 export function parseAccReferenceReportText(text) {
   const raw = String(text || '').replace(/^\uFEFF/, '');
   if (!raw.trim()) throw new Error('Вставьте текст выписки');
   const lines = raw.split(/\r?\n/).map((l) => l.replace(/\u00a0/g, ' '));
   const delimiter = detectTextDelimiter(lines);
-  if (!delimiter) {
-    throw new Error('Не распознан формат выписки. Скопируйте таблицу из Client Bank (колонки через | или Tab)');
-  }
 
   const meta = parseTextMeta(lines);
-  const headerIdx = findTextHeaderIndex(lines, delimiter);
+  const headerIdx = delimiter ? findTextHeaderIndex(lines, delimiter) : -1;
   const startIdx = headerIdx >= 0 ? headerIdx + 1 : 0;
   const cols = headerIdx >= 0
     ? mapTextColumns(splitTextRow(lines[headerIdx], delimiter))
@@ -414,8 +454,24 @@ export function parseAccReferenceReportText(text) {
     if (lower.includes('остаток на начало') || lower.includes('остаток на конец') || lower.startsWith('итого')) {
       continue;
     }
+
+    if (!delimiter) {
+      const loose = parseLooseTextLine(line);
+      if (loose) {
+        flush();
+        current = loose;
+      } else if (current) {
+        const t = String(line).trim();
+        if (t && !looksLikeDateCell(t.slice(0, 10))) {
+          if (!current.name && !looksLikeAccountCell(t)) current.name = t;
+          else current.purpose = `${current.purpose || ''} ${t}`.trim();
+        }
+      }
+      continue;
+    }
+
     const cells = splitTextRow(line, delimiter);
-    if (cells.length < 3) continue;
+    if (cells.length < 2) continue;
 
     const dateCell = cells[cols.date] || '';
     const accountOrName = cells[cols.account] || '';

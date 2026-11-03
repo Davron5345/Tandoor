@@ -60,6 +60,17 @@ test('parseAccReferenceReportText reads pipe Client Bank paste', () => {
   assert.ok(supplier.debit > 0);
 });
 
+test('parseAccReferenceReportText accepts a single operation without header', () => {
+  const one = [
+    '12.03.26|20208000909988776655|55|01|00444|100.00|0.00|Оплата по дог. №9 от 01.01.2025|308112233',
+    '|ООО ОДНА СТРОКА|||||||',
+  ].join('\n');
+  const { rows } = parseAccReferenceReportText(one);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].innCol, '308112233');
+  assert.match(rows[0].name, /ОДНА СТРОКА/);
+});
+
 test('previewStatementRequisitesText dedupes and skips own/acquiring', async () => {
   await initDb();
   const preview = previewStatementRequisitesText(SAMPLE_TEXT, 'main');
