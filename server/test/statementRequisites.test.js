@@ -28,6 +28,12 @@ Internet Bank IPAK YULI
 test('cleanPartyName strips INN from title', () => {
   assert.equal(cleanPartyName('ООО TEST 309876543', '309876543'), 'ООО TEST');
   assert.equal(cleanPartyName('  Firm  ', null), 'Firm');
+  // AccReferenceReport: ИНН в конце наименования без пробела
+  assert.equal(
+    cleanPartyName('"CLICK" AJ                                         302134733', '302134733'),
+    '"CLICK" AJ',
+  );
+  assert.equal(cleanPartyName('mexani200541002', '200541002'), 'mexani');
 });
 
 test('extractContractsFromPurpose finds number and date', () => {

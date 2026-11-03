@@ -43,7 +43,12 @@ function normalizeName(name) {
 export function cleanPartyName(name, inn = null) {
   let n = String(name || '').replace(/\s+/g, ' ').trim();
   if (!n) return '';
-  if (inn) n = n.replace(new RegExp(`\\b${inn}\\b`, 'g'), ' ');
+  // В AccReferenceReport ИНН часто в конце «Наименования», иногда без пробела
+  if (inn) {
+    n = n.replace(new RegExp(`${inn}\\s*$`), '');
+    n = n.replace(new RegExp(`\\b${inn}\\b`, 'g'), ' ');
+  }
+  n = n.replace(/\d{9}\s*$/g, '');
   n = n.replace(/\b\d{9}\b/g, ' ').replace(/\s+/g, ' ').trim();
   return n;
 }
@@ -103,10 +108,13 @@ function isOwnParty(name, inn, ownInns) {
 }
 
 function pickRequisiteInn(raw, ownInns) {
-  const fromName = pickCounterpartyInnFromName(raw.name, ownInns);
-  if (fromName) return fromName;
+  // В шаблоне AccReferenceReport колонка «ИНН» — основной источник
   const col = normalizeInn(raw.innCol);
   if (col && !ownInns.has(col)) return col;
+  const fromName = pickCounterpartyInnFromName(raw.name, ownInns);
+  if (fromName) return fromName;
+  const trailing = String(raw.name || '').match(/(\d{9})\s*$/);
+  if (trailing && !ownInns.has(trailing[1])) return trailing[1];
   return null;
 }
 

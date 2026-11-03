@@ -98,30 +98,37 @@ function findHeaderRow(rows) {
 function mapColumns(headerRow) {
   const map = {};
   (headerRow || []).forEach((h, idx) => {
-    const key = String(h || '').trim().toLowerCase();
+    const key = String(h || '').trim().toLowerCase().replace(/ё/g, 'е');
     if (!key) return;
+    // AccReferenceReport Ipak Yuli:
+    // Дата документа | Счёт | Наименование | Номер документа | Тип документа | Филиал |
+    // Оборот Дебет | Оборот кредит | Назначение платежа | Кассовый символ | ИНН
     if (key.includes('дата')) map.date = idx;
-    else if (key === 'счёт' || key === 'счет') map.account = idx;
+    else if (key === 'счет' || key === 'счёт') map.account = idx;
     else if (key.includes('наименование')) map.name = idx;
-    else if (key.includes('номер документа')) map.docNo = idx;
+    else if (key.includes('номер документа') || (key.includes('док') && key.includes('номер'))) map.docNo = idx;
     else if (key.includes('тип документа')) map.docType = idx;
     else if (key.includes('филиал')) map.branch = idx;
-    else if (key.includes('оборот дебет')) map.debit = idx;
-    else if (key.includes('оборот кредит')) map.credit = idx;
+    else if (key.includes('оборот') && key.includes('дебет')) map.debit = idx;
+    else if (key.includes('оборот') && key.includes('кредит')) map.credit = idx;
     else if (key.includes('назначение')) map.purpose = idx;
-    else if (key.includes('инн')) map.inn = idx;
+    else if (key.includes('кассовый')) map.cashSymbol = idx;
+    else if (key === 'инн' || key.includes('инн')) map.inn = idx;
   });
   return map;
 }
 
 function isMetaRow(row, cols) {
   const name = cell(row, cols.name) || cell(row, 0);
-  const lower = name.toLowerCase();
-  if (!name && !cell(row, cols.date)) return true;
-  if (lower.startsWith('счет:') || lower.startsWith('счёт:')) return true;
-  if (lower.includes('остаток на начало') || lower.includes('остаток на конец')) return true;
-  if (lower.startsWith('итого')) return true;
-  if (lower.includes('internet bank') || lower.includes('справка о работе')) return true;
+  const lower = name.toLowerCase().trim();
+  const dateCell = cell(row, cols.date).toLowerCase().trim();
+  if (!name && !dateCell) return true;
+  if (lower.startsWith('счет:') || lower.startsWith('счёт:') || dateCell.startsWith('счет:') || dateCell.startsWith('счёт:')) return true;
+  if (lower.includes('остаток на начало') || lower.includes('остаток на конец')
+    || dateCell.includes('остаток на начало') || dateCell.includes('остаток на конец')) return true;
+  if (lower.startsWith('итого') || dateCell.startsWith('итого')) return true;
+  if (lower.includes('internet bank') || lower.includes('справка о работе')
+    || dateCell.includes('internet bank') || dateCell.includes('справка о работе')) return true;
   return false;
 }
 
@@ -150,8 +157,10 @@ function cleanFirmName(name, inn = null) {
   let n = String(name || '').replace(/\s+/g, ' ').trim();
   if (!n) return '';
   if (inn) {
-    n = n.replace(new RegExp(`\\b${inn}\\b`, 'g'), ' ').replace(/\s+/g, ' ').trim();
+    n = n.replace(new RegExp(`${inn}\\s*$`), '');
+    n = n.replace(new RegExp(`\\b${inn}\\b`, 'g'), ' ');
   }
+  n = n.replace(/\d{9}\s*$/g, '');
   n = n.replace(/\b\d{9}\b/g, ' ').replace(/\s+/g, ' ').trim();
   return n;
 }
@@ -215,10 +224,14 @@ function buildOwnInns(rawRows) {
   return own;
 }
 
-function pickCounterpartyInn(name, _purpose, _colInn, ownInns) {
-  // Только из названия контрагента — в назначении платежа часто чужой/ошибочный ИНН
+function pickCounterpartyInn(name, _purpose, colInn, ownInns) {
+  // Колонка «ИНН» AccReferenceReport — надёжнее; из назначения не берём (там часто чужой)
+  const fromCol = String(colInn || '').replace(/\D/g, '');
+  if (fromCol.length === 9 && !ownInns.has(fromCol)) return fromCol;
   const fromName = extractInns(name).filter((inn) => !ownInns.has(inn));
   if (fromName.length) return fromName[fromName.length - 1];
+  const trailing = String(name || '').match(/(\d{9})\s*$/);
+  if (trailing && !ownInns.has(trailing[1])) return trailing[1];
   return null;
 }
 
@@ -576,7 +589,7 @@ export function parseAccReferenceReportBuffer(buffer) {
       rowIndex: dataRows.length,
     });
   }
-  return { rows: dataRows, cols, meta };
+  return { rows: dataRows, cols, meta, format: 'AccReferenceReport' };
 }
 
 function parseStatementMeta(rows) {
@@ -587,15 +600,16 @@ function parseStatementMeta(rows) {
   for (const row of rows) {
     const text = String(row?.[0] || row?.[1] || '');
     if (!ownAccount) {
-      const m = text.match(/Сч[её]т\s*:\s*(\d{16,20})/i);
+      const m = text.match(/Сч[её]т\s*:\s*(\d{16,20})\s*(.*)$/i);
       if (m) {
         ownAccount = normalizeBankAccountNumber(m[1]);
-        const namePart = text.replace(/Сч[её]т\s*:\s*\d{16,20}/i, '').trim();
-        if (namePart) ownName = namePart.replace(/^["«]|["»]$/g, '').trim() || null;
+        const namePart = String(m[2] || '').trim();
+        if (namePart) ownName = namePart.replace(/^["«]+|["»]+$/g, '').trim() || null;
       }
     }
     if (openingBalance == null && /Остаток на начало/i.test(text)) {
-      const nums = text.match(/([\d\s]+[.,]\d{2})/g) || [];
+      // 137,384,289.81 — тысячи через запятую (Ipak Yuli AccReferenceReport)
+      const nums = text.match(/\d{1,3}(?:,\d{3})+\.\d{2}|\d+\.\d{2}/g) || [];
       if (nums[0]) openingBalance = parseAmount(nums[0]);
       if (nums[1]) closingBalance = parseAmount(nums[1]);
     }
