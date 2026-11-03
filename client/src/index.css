@@ -4482,12 +4482,64 @@ input[type='number']::-webkit-inner-spin-button {
   }
 }
 
+.doc-modal-fields .form-grid-prihod-header {
+  grid-template-columns:
+    minmax(8.25rem, 9.25rem)
+    minmax(7.5rem, 0.85fr)
+    minmax(11rem, 1.35fr)
+    minmax(11rem, 1.35fr);
+  gap: 6px 10px;
+  align-items: end;
+}
+
+.doc-modal-fields .form-grid-prihod-header .form-group {
+  gap: 2px;
+  margin: 0;
+  min-width: 0;
+}
+
+.doc-modal-fields .form-grid-prihod-header .form-group label {
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.2;
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.doc-modal-fields .form-grid-prihod-header .form-group input,
+.doc-modal-fields .form-grid-prihod-header .form-group select,
+.doc-modal-fields .form-grid-prihod-header .category-select-trigger,
+.doc-modal-fields .form-grid-prihod-header .contract-select-trigger {
+  min-height: 34px;
+  height: 34px;
+  padding: 4px 8px;
+  font-size: 13px;
+  box-sizing: border-box;
+}
+
+.doc-modal-fields .form-grid-prihod-header .quick-add-control {
+  gap: 4px;
+}
+
+.doc-modal-fields .form-grid-prihod-header .quick-add-button {
+  flex-basis: 34px;
+  width: 34px;
+  min-width: 34px;
+  min-height: 34px;
+  height: 34px;
+  padding: 0;
+}
+
 .doc-modal-fields .form-grid-prihod-header .form-group-date input,
-.doc-modal-fields .form-grid-prihod-header .form-group-number input,
 .doc-modal-fields .form-grid-transfer-header .form-group-date input,
 .doc-modal-fields .form-grid-transfer-header .form-group-transfer-mode select {
   padding-left: 8px;
   padding-right: 8px;
+}
+
+.doc-modal-fields .form-grid-prihod-header + .alert,
+.doc-modal-fields .alert {
+  margin-bottom: 8px;
 }
 
 .doc-modal-fields .form-grid-transfer-header {

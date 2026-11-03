@@ -1593,13 +1593,22 @@ export default function Documents({ defaultType }) {
     peremeshchenie: 'Новое перемещение',
   };
 
-  const modalTitle = modal === 'transfer'
-    ? 'Перемещение по документу'
-    : modal === 'create'
-      ? (docTypeCreateLabel[form.type] || docTypeCreateLabel[defaultType] || 'Новый документ')
-      : (isReadOnly ? 'Просмотр документа' : 'Редактирование документа');
+  const docNumberShown = form.number || previewDocNumber || '';
+  const modalTitle = (() => {
+    if (modal === 'transfer') return 'Перемещение по документу';
+    if (form.type === 'prihod' && docNumberShown) {
+      if (modal === 'create') return `Новый приход №${docNumberShown}`;
+      return isReadOnly ? `Приход №${docNumberShown}` : `Приход №${docNumberShown}`;
+    }
+    if (modal === 'create') {
+      return docTypeCreateLabel[form.type] || docTypeCreateLabel[defaultType] || 'Новый документ';
+    }
+    return isReadOnly ? 'Просмотр документа' : 'Редактирование документа';
+  })();
 
-  const phoneModalTitle = DOC_TYPE_LABELS[form.type] || 'Документ';
+  const phoneModalTitle = form.type === 'prihod' && docNumberShown
+    ? `Приход №${docNumberShown}`
+    : (DOC_TYPE_LABELS[form.type] || 'Документ');
   const isTransferDoc = form.type === 'peremeshchenie';
   const hideDocMoney = isTransferDoc;
 
@@ -2111,12 +2120,14 @@ export default function Documents({ defaultType }) {
                         />
                       )}
                     </div>
-                    <div className="form-group form-group-number">
-                      <label>Номер</label>
-                      <input value={form.number || previewDocNumber || '—'} disabled />
-                    </div>
+                    {form.type !== 'prihod' && (
+                      <div className="form-group form-group-number">
+                        <label>Номер</label>
+                        <input value={form.number || previewDocNumber || '—'} disabled />
+                      </div>
+                    )}
                     {form.type === 'prihod' && (
-                      <div className="form-group">
+                      <div className="form-group form-group-prihod-dept">
                         <label>Отдел *</label>
                         <select
                           value={form.to_department_id || ''}
@@ -2131,7 +2142,7 @@ export default function Documents({ defaultType }) {
                         </select>
                       </div>
                     )}
-                    <div className="form-group">
+                    <div className={`form-group${form.type === 'prihod' ? ' form-group-prihod-supplier' : ''}`}>
                       <label>{isCustomerReturnType(form.type) ? 'Клиент' : 'Поставщик'}</label>
                       <div className="quick-add-control">
                         <CategorySelect
@@ -2159,7 +2170,7 @@ export default function Documents({ defaultType }) {
                       </div>
                     </div>
                     {form.type === 'prihod' && (
-                      <div className="form-group">
+                      <div className="form-group form-group-prihod-contract">
                         <label>Договор{hasRealSupplierContracts(supplierContracts) ? ' *' : ''}</label>
                         <div className="quick-add-control">
                           <ContractSelect
