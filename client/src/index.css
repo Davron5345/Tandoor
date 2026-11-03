@@ -3372,6 +3372,7 @@ input[type='number']::-webkit-inner-spin-button {
   padding: 12px 20px;
 }
 
+.modal-doc:not(.modal-doc-phone) .modal-header-actions .modal-footer-actions,
 .modal-inventory .modal-header-actions .modal-footer-actions {
   display: flex;
   flex-wrap: wrap;
@@ -3381,12 +3382,21 @@ input[type='number']::-webkit-inner-spin-button {
   width: auto;
 }
 
+.modal-doc:not(.modal-doc-phone) .modal-header-actions .modal-footer-actions .btn,
 .modal-inventory .modal-header-actions .modal-footer-actions .btn {
   width: auto;
   min-width: 0;
   min-height: 40px;
   padding: 8px 14px;
   white-space: nowrap;
+}
+
+.modal-doc:not(.modal-doc-phone) .modal-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .modal-doc .modal-body {

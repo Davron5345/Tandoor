@@ -1821,7 +1821,7 @@ export default function Documents({ defaultType }) {
           className={`modal-doc${isPhone ? ' modal-doc-phone' : ''}`}
           title={isPhone ? phoneModalTitle : modalTitle}
           dirty={isFormDirty}
-          footerPlacement="end"
+          footerPlacement={isPhone ? 'end' : 'header'}
           onClose={() => {
             clearFormDraft(draftKey);
             setPrihodBodyTab('items');
