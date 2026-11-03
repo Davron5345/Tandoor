@@ -125,7 +125,7 @@ export default function StatementRequisites() {
             AccReferenceReport (Ipak Yuli) → названия, ИНН, р/с и договоры для справочника.
             Суммы не загружаются.
             {' '}
-            <BranchChip name={branchName} />
+            <BranchChip>{branchName}</BranchChip>
           </p>
         </div>
         <div className="page-header-actions">
@@ -279,7 +279,7 @@ export default function StatementRequisites() {
           </div>
         </>
       )}
-      <Toast />
+      {Toast}
     </div>
   );
 }
