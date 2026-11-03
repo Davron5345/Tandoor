@@ -363,6 +363,39 @@ export const api = {
   createCounterparty: (data) => request('/counterparties', { method: 'POST', body: JSON.stringify(data) }),
   updateCounterparty: (id, data) => request(`/counterparties/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteCounterparty: (id) => request(`/counterparties/${id}`, { method: 'DELETE' }),
+  parseStatementRequisites: async (file) => {
+    const form = new FormData();
+    form.append('file', file);
+    const params = new URLSearchParams();
+    if (activeBranchId) params.set('branch_id', activeBranchId);
+    const qs = params.toString();
+    const url = `${getApiBaseUrl()}/api/counterparties/from-statement/parse${qs ? `?${qs}` : ''}`;
+    const headers = {};
+    const nativeToken = getNativeSessionToken();
+    if (nativeToken) {
+      headers.Authorization = `Bearer ${nativeToken}`;
+      headers['X-Native-Client'] = '1';
+    }
+    const res = await fetch(url, { method: 'POST', credentials: 'include', headers, body: form });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Ошибка разбора выписки');
+    return data;
+  },
+  applyStatementRequisites: (items) => request('/counterparties/from-statement/apply', {
+    method: 'POST',
+    body: JSON.stringify({
+      items: items.map((r) => ({
+        key: r.key,
+        selected: r.selected !== false,
+        name: r.name,
+        inn: r.inn || null,
+        type: r.type,
+        accounts: r.accounts || [],
+        contracts: r.contracts || [],
+        match: r.match || null,
+      })),
+    }),
+  }),
 
   getDocuments: async (params = {}) => {
     const q = new URLSearchParams(

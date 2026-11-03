@@ -96,6 +96,13 @@ export {
 } from './services/bankStatementImport.js';
 
 export {
+  previewStatementRequisites,
+  applyStatementRequisites,
+  extractContractsFromPurpose,
+  cleanPartyName,
+} from './services/statementRequisites.js';
+
+export {
   logTelegramMessage,
   getTelegramMessages,
   getSetting,

@@ -1,7 +1,53 @@
+import multer from 'multer';
 import * as svc from '../services.js';
 import { requirePermission, requireAnyPermission, attachBranch } from '../middleware.js';
 
+const statementUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 8 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const name = String(file.originalname || '').toLowerCase();
+    if (name.endsWith('.xlsx') || name.endsWith('.xls')) cb(null, true);
+    else cb(new Error('Загрузите файл Excel (.xlsx) выписки AccReferenceReport'));
+  },
+});
+
 export function registerCounterpartyRoutes(app) {
+  app.post(
+    '/api/counterparties/from-statement/parse',
+    requireAnyPermission('counterparties.view', 'counterparties.edit'),
+    attachBranch,
+    (req, res, next) => {
+      statementUpload.single('file')(req, res, (err) => {
+        if (err) return res.status(400).json({ error: err.message });
+        next();
+      });
+    },
+    (req, res) => {
+      try {
+        if (!req.file?.buffer?.length) {
+          return res.status(400).json({ error: 'Прикрепите файл выписки (.xlsx)' });
+        }
+        res.json(svc.previewStatementRequisites(req.file.buffer, req.branchId));
+      } catch (e) {
+        res.status(400).json({ error: e.message });
+      }
+    },
+  );
+
+  app.post(
+    '/api/counterparties/from-statement/apply',
+    requirePermission('counterparties.edit'),
+    attachBranch,
+    (req, res) => {
+      try {
+        res.status(201).json(svc.applyStatementRequisites(req.body?.items || [], req.branchId));
+      } catch (e) {
+        res.status(400).json({ error: e.message });
+      }
+    },
+  );
+
   app.get('/api/counterparties', requireAnyPermission(
     'counterparties.view', 'counterparties.edit',
     'payments.view', 'payments.edit',

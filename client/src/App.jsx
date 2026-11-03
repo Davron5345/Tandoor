@@ -30,6 +30,7 @@ const Calculations = lazyPage(() => import('./pages/Calculations'));
 const Reports = lazyPage(() => import('./pages/Reports'));
 const OpeningBalance = lazyPage(() => import('./pages/OpeningBalance'));
 const SupplierPrices = lazyPage(() => import('./pages/SupplierPrices'));
+const StatementRequisites = lazyPage(() => import('./pages/StatementRequisites'));
 const TelegramPrihod = lazyPage(() => import('./pages/TelegramPrihod'));
 const MyShop = lazyPage(() => import('./pages/MyShop'));
 const MyShopConstructor = lazyPage(() => import('./pages/MyShopConstructor'));
@@ -105,7 +106,10 @@ function buildAppNav(user) {
       { to: '/product-categories', label: 'Категории' },
       { to: '/units', label: 'Ед. измерения' },
     ] : []),
-    ...(canViewCounterparties ? [{ to: '/counterparties', label: 'Контрагенты' }] : []),
+    ...(canViewCounterparties ? [
+      { to: '/counterparties', label: 'Контрагенты' },
+      { to: '/statement-requisites', label: 'Реквизиты из выписки' },
+    ] : []),
     ...(canViewCashArticles ? [{ to: '/cash-articles', label: 'Статьи кассы' }] : []),
   ];
 
@@ -1120,6 +1124,7 @@ function AppContent() {
           <Route path="/product-categories" element={canViewProducts ? <ProductCategories /> : <Navigate to="/" />} />
           <Route path="/units" element={canViewProducts ? <Units /> : <Navigate to="/" />} />
           <Route path="/counterparties" element={hasPermission(user, 'counterparties.view') ? <Counterparties /> : <Navigate to="/" />} />
+          <Route path="/statement-requisites" element={hasPermission(user, 'counterparties.view') ? <StatementRequisites /> : <Navigate to="/" />} />
           <Route path="/telegram" element={hasPermission(user, 'telegram.view') ? <TelegramPage onStatusChange={refreshTelegramStatus} /> : <Navigate to="/" />} />
           <Route path="/employees" element={canViewUsers ? <Employees /> : <Navigate to={firstNavPath} />} />
           <Route path="/roles" element={isAdmin ? <Roles /> : <Navigate to={firstNavPath} />} />
