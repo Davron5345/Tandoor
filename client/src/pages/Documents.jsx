@@ -1907,6 +1907,7 @@ export default function Documents({ defaultType }) {
                 )}
               </div>
             )}
+            <div className="doc-modal-scroll">
             <div className="doc-modal-fields">
               {isPhone && prihodAttachButton && (
                 <div className="doc-attach-phone-row">
@@ -2992,6 +2993,7 @@ export default function Documents({ defaultType }) {
                   )}
                 </div>
               )}
+            </div>
             </div>
 
             <div className="doc-modal-footer">
