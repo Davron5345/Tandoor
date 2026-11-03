@@ -97,6 +97,7 @@ export {
 
 export {
   previewStatementRequisites,
+  previewStatementRequisitesText,
   applyStatementRequisites,
   extractContractsFromPurpose,
   cleanPartyName,

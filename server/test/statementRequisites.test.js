@@ -5,8 +5,25 @@ import {
   extractContractsFromPurpose,
   cleanPartyName,
   previewStatementRequisites,
+  previewStatementRequisitesText,
 } from '../services/statementRequisites.js';
+import { parseAccReferenceReportText } from '../services/bankStatementImport.js';
 import { initDb } from '../db.js';
+
+const SAMPLE_TEXT = `
+Internet Bank IPAK YULI
+Справка о работе счета
+Счет: 20208000707073001001 OOO "MAHALLA90"
+Дата|Счет|N док-та|VO|МФО|Оборот Дебет|Оборот Кредит|Назначение платежа|ИНН
+05.01.26|23508000007073001002|903|06|00444|0.00|182,634.00|ПК 2219UNIONPAY УЗКАРД|311330873
+|OOO "MAHALLA90"-транзитный счет для инкассации||||||зачисление|
+05.01.26|29896000804942713020|181|09|00401|0.00|500,000.00|ОПЛАТА ЗА ТОВАРЫ СОГ-НО ДОГ.№I-2308/U ОТ 2024-09-09 ЧЕРЕЗ CLICK|302134733
+|"CLICK" AJ|||||||
+05.01.26|20208000901234567890|100|01|00444|1,250,000.00|0.00|Оплата за мясо по договору №45/2024 от 12.03.2024|309876543
+|ООО "ПОСТАВЩИК МЯСО"|||||||
+05.01.26|20208000901234567890|101|01|00444|800,000.00|0.00|Доплата по дог. №45/2024 от 12.03.2024|309876543
+|ООО "ПОСТАВЩИК МЯСО"|||||||
+`.trim();
 
 test('cleanPartyName strips INN from title', () => {
   assert.equal(cleanPartyName('ООО TEST 309876543', '309876543'), 'ООО TEST');
@@ -24,7 +41,37 @@ test('extractContractsFromPurpose finds number and date', () => {
   assert.equal(b[0].number, '12-А');
   assert.equal(b[0].date, '2025-02-01');
 
+  const c = extractContractsFromPurpose('СОГ-НО ДОГ.№I-2308/U ОТ 2024-09-09 ЧЕРЕЗ CLICK');
+  assert.equal(c.length, 1);
+  assert.equal(c[0].number, 'I-2308/U');
+  assert.equal(c[0].date, '2024-09-09');
+
   assert.deepEqual(extractContractsFromPurpose('без договора'), []);
+});
+
+test('parseAccReferenceReportText reads pipe Client Bank paste', () => {
+  const { rows, meta } = parseAccReferenceReportText(SAMPLE_TEXT);
+  assert.equal(meta.own_account, '20208000707073001001');
+  assert.ok(rows.length >= 3);
+  const supplier = rows.find((r) => r.innCol === '309876543');
+  assert.ok(supplier);
+  assert.match(supplier.name, /ПОСТАВЩИК/i);
+  assert.equal(supplier.account, '20208000901234567890');
+  assert.ok(supplier.debit > 0);
+});
+
+test('previewStatementRequisitesText dedupes and skips own/acquiring', async () => {
+  await initDb();
+  const preview = previewStatementRequisitesText(SAMPLE_TEXT, 'main');
+  assert.equal(preview.format, 'AccReferenceReportText');
+  assert.ok(preview.total >= 1);
+  const supplier = preview.items.find((i) => i.inn === '309876543');
+  assert.ok(supplier);
+  assert.match(supplier.name, /ПОСТАВЩИК/i);
+  assert.deepEqual(supplier.accounts, ['20208000901234567890']);
+  assert.ok(supplier.contracts.some((c) => c.number === '45/2024'));
+  assert.ok(!preview.items.some((i) => /CLICK/i.test(i.name)));
+  assert.ok(!preview.items.some((i) => i.inn === '311330873'));
 });
 
 const samplePath = '/Users/davron/Downloads/AccReferenceReport20261102144053.xlsx';

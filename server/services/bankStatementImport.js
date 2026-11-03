@@ -266,6 +266,220 @@ function makeExternalRef(parts) {
   return crypto.createHash('sha256').update(raw).digest('hex').slice(0, 40);
 }
 
+function looksLikeDateCell(value) {
+  return Boolean(parseStatementDate(value));
+}
+
+function looksLikeAccountCell(value) {
+  const digits = String(value || '').replace(/\D/g, '');
+  return digits.length >= 16 && digits.length <= 20;
+}
+
+function looksLikeInnCell(value) {
+  const digits = String(value || '').replace(/\D/g, '');
+  return digits.length === 9;
+}
+
+function detectTextDelimiter(lines) {
+  let pipeScore = 0;
+  let tabScore = 0;
+  for (const line of lines.slice(0, 40)) {
+    const pipes = (line.match(/\|/g) || []).length;
+    const tabs = (line.match(/\t/g) || []).length;
+    if (pipes >= 5) pipeScore += 1;
+    if (tabs >= 5) tabScore += 1;
+  }
+  if (pipeScore === 0 && tabScore === 0) return null;
+  return pipeScore >= tabScore ? '|' : '\t';
+}
+
+function splitTextRow(line, delimiter) {
+  return String(line || '')
+    .split(delimiter)
+    .map((c) => c.replace(/\u00a0/g, ' ').trim());
+}
+
+function parseTextMeta(lines) {
+  let ownAccount = null;
+  let ownName = null;
+  for (const line of lines.slice(0, 40)) {
+    const m = String(line || '').match(/Сч[её]т\s*:\s*(\d{16,20})(.*)$/i);
+    if (m) {
+      ownAccount = normalizeBankAccountNumber(m[1]);
+      const namePart = String(m[2] || '').replace(/[|]/g, ' ').trim();
+      if (namePart) ownName = namePart.replace(/^["«]|["»]$/g, '').trim() || null;
+      break;
+    }
+  }
+  return { own_account: ownAccount, own_name: ownName, opening_balance: null, closing_balance: null };
+}
+
+function findTextHeaderIndex(lines, delimiter) {
+  for (let i = 0; i < Math.min(lines.length, 40); i += 1) {
+    const cells = splitTextRow(lines[i], delimiter).map((c) => c.toLowerCase());
+    const joined = cells.join(' | ');
+    if (HEADER_MARKERS.every((m) => joined.includes(m))) return i;
+    // Client Bank: Дата | Счет | … | Назначение | ИНН
+    if (cells.some((c) => c.includes('дата'))
+      && cells.some((c) => c.includes('назначение') || c === 'инн' || c.includes('инн'))
+      && (cells.some((c) => c.includes('дебет')) || cells.some((c) => c.includes('кредит')))) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+function mapTextColumns(headerCells) {
+  const map = {
+    date: 0,
+    account: 1,
+    docNo: 2,
+    debit: null,
+    credit: null,
+    purpose: null,
+    inn: null,
+  };
+  headerCells.forEach((h, idx) => {
+    const key = String(h || '').trim().toLowerCase();
+    if (!key) return;
+    if (key.includes('дата')) map.date = idx;
+    else if (key === 'счёт' || key === 'счет') map.account = idx;
+    else if (key.includes('док')) map.docNo = idx;
+    else if (key.includes('дебет')) map.debit = idx;
+    else if (key.includes('кредит')) map.credit = idx;
+    else if (key.includes('назначение')) map.purpose = idx;
+    else if (key.includes('инн')) map.inn = idx;
+  });
+  // Типичная раскладка Client Bank без точных заголовков
+  if (map.debit == null || map.credit == null) {
+    map.debit = 5;
+    map.credit = 6;
+    map.purpose = map.purpose ?? 7;
+    map.inn = map.inn ?? 8;
+  }
+  return map;
+}
+
+function finalizeTextOp(op, rowIndex) {
+  if (!op) return null;
+  const debit = parseAmount(op.debit);
+  const credit = parseAmount(op.credit);
+  if (debit <= 0 && credit <= 0) return null;
+  return {
+    date: op.date,
+    account: op.account || '',
+    name: String(op.name || '').replace(/\s+/g, ' ').trim(),
+    docNo: op.docNo || '',
+    debit,
+    credit,
+    purpose: String(op.purpose || '').replace(/\s+/g, ' ').trim(),
+    innCol: op.innCol || '',
+    rowIndex,
+  };
+}
+
+/**
+ * Текстовая выписка Client Bank / Ipak Yuli (копипаст из «Справка о работе счета»).
+ * Колонки через | или таб; название часто на второй строке под р/с.
+ */
+export function parseAccReferenceReportText(text) {
+  const raw = String(text || '').replace(/^\uFEFF/, '');
+  if (!raw.trim()) throw new Error('Вставьте текст выписки');
+  const lines = raw.split(/\r?\n/).map((l) => l.replace(/\u00a0/g, ' '));
+  const delimiter = detectTextDelimiter(lines);
+  if (!delimiter) {
+    throw new Error('Не распознан формат выписки. Скопируйте таблицу из Client Bank (колонки через | или Tab)');
+  }
+
+  const meta = parseTextMeta(lines);
+  const headerIdx = findTextHeaderIndex(lines, delimiter);
+  const startIdx = headerIdx >= 0 ? headerIdx + 1 : 0;
+  const cols = headerIdx >= 0
+    ? mapTextColumns(splitTextRow(lines[headerIdx], delimiter))
+    : mapTextColumns([]);
+
+  const dataRows = [];
+  let current = null;
+
+  const flush = () => {
+    const row = finalizeTextOp(current, dataRows.length);
+    if (row) dataRows.push(row);
+    current = null;
+  };
+
+  for (let i = startIdx; i < lines.length; i += 1) {
+    const line = lines[i];
+    if (!String(line || '').trim()) continue;
+    const lower = String(line).toLowerCase();
+    if (lower.includes('остаток на начало') || lower.includes('остаток на конец') || lower.startsWith('итого')) {
+      continue;
+    }
+    const cells = splitTextRow(line, delimiter);
+    if (cells.length < 3) continue;
+
+    const dateCell = cells[cols.date] || '';
+    const accountOrName = cells[cols.account] || '';
+    const isNew = looksLikeDateCell(dateCell);
+
+    if (isNew) {
+      flush();
+      current = {
+        date: parseStatementDate(dateCell),
+        account: looksLikeAccountCell(accountOrName) ? String(accountOrName).replace(/\D/g, '') : '',
+        name: looksLikeAccountCell(accountOrName) ? '' : accountOrName,
+        docNo: cells[cols.docNo] || '',
+        debit: cells[cols.debit] || '0',
+        credit: cells[cols.credit] || '0',
+        purpose: cells[cols.purpose] || '',
+        innCol: cells[cols.inn] || '',
+      };
+      if (!current.innCol) {
+        const last = cells[cells.length - 1];
+        if (looksLikeInnCell(last)) current.innCol = last;
+      }
+      continue;
+    }
+
+    if (!current) continue;
+    // Продолжение операции: имя под счётом / хвост назначения
+    if (accountOrName && !looksLikeAccountCell(accountOrName) && !looksLikeDateCell(accountOrName)) {
+      current.name = current.name
+        ? `${current.name} ${accountOrName}`.trim()
+        : accountOrName;
+    }
+    const purposeExtra = cells[cols.purpose] || '';
+    if (purposeExtra) {
+      current.purpose = current.purpose
+        ? `${current.purpose} ${purposeExtra}`.trim()
+        : purposeExtra;
+    }
+    // Иногда назначение расползается по пустым колонкам
+    if (!purposeExtra) {
+      const extras = cells
+        .slice(2)
+        .filter((c) => c && !looksLikeInnCell(c) && !/^[\d\s.,]+$/.test(c));
+      if (extras.length) {
+        current.purpose = `${current.purpose || ''} ${extras.join(' ')}`.trim();
+      }
+    }
+    if (!current.innCol) {
+      const innHit = cells.find((c) => looksLikeInnCell(c));
+      if (innHit) current.innCol = innHit;
+    }
+  }
+  flush();
+
+  if (!dataRows.length) {
+    throw new Error('В тексте не найдены операции выписки (строки с датой дд.мм.гг)');
+  }
+  return {
+    rows: dataRows,
+    cols,
+    meta,
+    format: 'AccReferenceReportText',
+  };
+}
+
 /**
  * Parse Ipak Yuli AccReferenceReport xlsx buffer into raw operation rows.
  */

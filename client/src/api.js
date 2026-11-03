@@ -381,6 +381,10 @@ export const api = {
     if (!res.ok) throw new Error(data.error || 'Ошибка разбора выписки');
     return data;
   },
+  parseStatementRequisitesText: (text) => request('/counterparties/from-statement/parse-text', {
+    method: 'POST',
+    body: JSON.stringify({ text }),
+  }),
   applyStatementRequisites: (items) => request('/counterparties/from-statement/apply', {
     method: 'POST',
     body: JSON.stringify({

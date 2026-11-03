@@ -2,6 +2,7 @@ import db from '../db.js';
 import { DEFAULT_BRANCH_ID } from '../branches.js';
 import {
   parseAccReferenceReportBuffer,
+  parseAccReferenceReportText,
   isBankServiceFee,
   pickCounterpartyInnFromName,
   detectAcquiringChannelLabel,
@@ -101,15 +102,21 @@ function isOwnParty(name, inn, ownInns) {
   return OWN_NAME_RE.test(name || '');
 }
 
-/**
- * Разобрать выписку → уникальные контрагенты для справочника (без сумм).
- */
-export function previewStatementRequisites(buffer, branchId = DEFAULT_BRANCH_ID) {
-  const { rows: rawRows, meta } = parseAccReferenceReportBuffer(buffer);
+function pickRequisiteInn(raw, ownInns) {
+  const fromName = pickCounterpartyInnFromName(raw.name, ownInns);
+  if (fromName) return fromName;
+  const col = normalizeInn(raw.innCol);
+  if (col && !ownInns.has(col)) return col;
+  return null;
+}
+
+function buildRequisitesPreview(parsed, branchId = DEFAULT_BRANCH_ID) {
+  const rawRows = parsed.rows || [];
+  const meta = parsed.meta || {};
   const ownInns = new Set();
   for (const row of rawRows) {
     if (isBankServiceFee(row) || OWN_NAME_RE.test(row.name || '')) {
-      const inn = pickCounterpartyInnFromName(row.name, new Set());
+      const inn = pickCounterpartyInnFromName(row.name, new Set()) || normalizeInn(row.innCol);
       if (inn) ownInns.add(inn);
     }
   }
@@ -121,7 +128,7 @@ export function previewStatementRequisites(buffer, branchId = DEFAULT_BRANCH_ID)
     if (isBankServiceFee(raw)) continue;
     // Эквайринг (Click/Payme/…) — уже в справочнике «Клиент», в список не тащим
     if (detectAcquiringChannelLabel(raw.name, raw.purpose)) continue;
-    const inn = pickCounterpartyInnFromName(raw.name, ownInns);
+    const inn = pickRequisiteInn(raw, ownInns);
     const name = cleanPartyName(raw.name, inn);
     if (!name && !inn) continue;
     if (isOwnParty(name, inn, ownInns)) continue;
@@ -229,7 +236,7 @@ export function previewStatementRequisites(buffer, branchId = DEFAULT_BRANCH_ID)
   });
 
   return {
-    format: 'AccReferenceReport',
+    format: parsed.format || 'AccReferenceReport',
     bank: 'Ipak Yuli',
     own_account: meta?.own_account || null,
     own_name: meta?.own_name || null,
@@ -238,6 +245,16 @@ export function previewStatementRequisites(buffer, branchId = DEFAULT_BRANCH_ID)
     new_count: items.filter((i) => !i.in_directory).length,
     items,
   };
+}
+
+/** Excel AccReferenceReport → уникальные реквизиты. */
+export function previewStatementRequisites(buffer, branchId = DEFAULT_BRANCH_ID) {
+  return buildRequisitesPreview(parseAccReferenceReportBuffer(buffer), branchId);
+}
+
+/** Текст Client Bank (копипаст) → уникальные реквизиты. */
+export function previewStatementRequisitesText(text, branchId = DEFAULT_BRANCH_ID) {
+  return buildRequisitesPreview(parseAccReferenceReportText(text), branchId);
 }
 
 function existingContractNumbers(counterpartyId, branchId) {

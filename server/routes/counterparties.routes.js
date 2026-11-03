@@ -36,6 +36,23 @@ export function registerCounterpartyRoutes(app) {
   );
 
   app.post(
+    '/api/counterparties/from-statement/parse-text',
+    requireAnyPermission('counterparties.view', 'counterparties.edit'),
+    attachBranch,
+    (req, res) => {
+      try {
+        const text = String(req.body?.text || '');
+        if (!text.trim()) {
+          return res.status(400).json({ error: 'Вставьте текст выписки' });
+        }
+        res.json(svc.previewStatementRequisitesText(text, req.branchId));
+      } catch (e) {
+        res.status(400).json({ error: e.message });
+      }
+    },
+  );
+
+  app.post(
     '/api/counterparties/from-statement/apply',
     requirePermission('counterparties.edit'),
     attachBranch,

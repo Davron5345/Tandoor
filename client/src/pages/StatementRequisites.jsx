@@ -32,6 +32,7 @@ export default function StatementRequisites() {
 
   const [busy, setBusy] = useState(false);
   const [applyBusy, setApplyBusy] = useState(false);
+  const [pasteText, setPasteText] = useState('');
   const [meta, setMeta] = useState(null);
   const [items, setItems] = useState([]);
   const [filter, setFilter] = useState('new');
@@ -49,23 +50,41 @@ export default function StatementRequisites() {
     return items;
   }, [items, filter]);
 
+  const applyPreview = (preview) => {
+    setMeta(preview);
+    setItems((preview.items || []).map((row) => ({ ...row })));
+    setFilter('new');
+    setResult(null);
+    show(
+      `Найдено контрагентов: ${preview.total}`
+        + (preview.new_count ? `, новых: ${preview.new_count}` : ''),
+    );
+  };
+
   const onPick = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
     setBusy(true);
-    setResult(null);
     try {
-      const preview = await api.parseStatementRequisites(file);
-      setMeta(preview);
-      setItems((preview.items || []).map((row) => ({ ...row })));
-      setFilter('new');
-      show(
-        `Найдено контрагентов: ${preview.total}`
-          + (preview.new_count ? `, новых: ${preview.new_count}` : ''),
-      );
+      applyPreview(await api.parseStatementRequisites(file));
     } catch (err) {
       show(err.message || 'Не удалось разобрать выписку', 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onParsePaste = async () => {
+    if (!pasteText.trim()) {
+      show('Вставьте текст выписки из Client Bank', 'error');
+      return;
+    }
+    setBusy(true);
+    try {
+      applyPreview(await api.parseStatementRequisitesText(pasteText));
+    } catch (err) {
+      show(err.message || 'Не удалось разобрать текст', 'error');
     } finally {
       setBusy(false);
     }
@@ -122,8 +141,7 @@ export default function StatementRequisites() {
         <div>
           <h1>Реквизиты из выписки</h1>
           <p className="page-subtitle">
-            AccReferenceReport (Ipak Yuli) → названия, ИНН, р/с и договоры для справочника.
-            Суммы не загружаются.
+            Вставьте текст из Client Bank или загрузите Excel AccReferenceReport — названия, ИНН, р/с и договоры без сумм.
             {' '}
             <BranchChip>{branchName}</BranchChip>
           </p>
@@ -132,11 +150,11 @@ export default function StatementRequisites() {
           <Link to="/counterparties" className="btn btn-secondary">К контрагентам</Link>
           <button
             type="button"
-            className="btn btn-primary"
+            className="btn btn-secondary"
             disabled={busy}
             onClick={() => fileRef.current?.click()}
           >
-            {busy ? 'Чтение…' : 'Загрузить выписку'}
+            {busy ? 'Чтение…' : 'Excel (.xlsx)'}
           </button>
           <input
             ref={fileRef}
@@ -148,15 +166,54 @@ export default function StatementRequisites() {
         </div>
       </div>
 
+      <div className="card" style={{ padding: 16, marginBottom: 16 }}>
+        <label className="filter-field" style={{ display: 'block', width: '100%' }}>
+          <span className="filter-field-caption">Вставить выписку (Справка о работе счета)</span>
+          <textarea
+            value={pasteText}
+            onChange={(e) => setPasteText(e.target.value)}
+            rows={10}
+            placeholder={'Скопируйте таблицу из Client Bank Ipak Yuli и вставьте сюда.\nКолонки: Дата | Счет | N док-та | VO | МФО | Дебет | Кредит | Назначение | ИНН'}
+            style={{
+              width: '100%',
+              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+              fontSize: 12,
+              lineHeight: 1.35,
+              resize: 'vertical',
+              marginTop: 6,
+            }}
+          />
+        </label>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={busy || !pasteText.trim()}
+            onClick={onParsePaste}
+          >
+            {busy ? 'Разбор…' : 'Разобрать текст'}
+          </button>
+          {pasteText && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={busy}
+              onClick={() => setPasteText('')}
+            >
+              Очистить
+            </button>
+          )}
+        </div>
+      </div>
+
       {!meta && (
         <div className="card" style={{ padding: 24 }}>
-          <p style={{ margin: 0, maxWidth: 560, lineHeight: 1.5 }}>
-            Загрузите Excel-выписку банка. Система соберёт уникальных контрагентов:
-            сравнит по ИНН и названию, соберёт все расчётные счета и номера/даты договоров
-            из назначения платежа. Эквайринг и комиссии банка пропускаются.
+          <p style={{ margin: 0, maxWidth: 640, lineHeight: 1.5 }}>
+            Система соберёт уникальных контрагентов по ИНН и названию, все р/с и номера/даты
+            договоров из назначения. Эквайринг (Click/Payme/…) и комиссии банка пропускаются.
           </p>
           <p style={{ marginTop: 12 }}>
-            <a href="/templates/AccReferenceReport-template.xlsx">Скачать шаблон AccReferenceReport</a>
+            <a href="/templates/AccReferenceReport-template.xlsx">Шаблон Excel AccReferenceReport</a>
           </p>
         </div>
       )}
@@ -165,10 +222,11 @@ export default function StatementRequisites() {
         <>
           <div className="filters" style={{ alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             <span className="muted">
-              Операций в файле: {meta.total_ops}
+              Операций: {meta.total_ops}
               {meta.own_account ? ` · наш счёт ${meta.own_account}` : ''}
               {' · '}контрагентов {meta.total}
               {' · '}новых {meta.new_count}
+              {meta.format ? ` · ${meta.format}` : ''}
             </span>
             <label className="filter-field">
               <span className="filter-field-caption">Показать</span>
