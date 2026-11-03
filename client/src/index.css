@@ -3541,16 +3541,15 @@ input[type='number']::-webkit-inner-spin-button {
 .doc-modal-scroll {
   flex: 1 1 auto;
   min-height: 0;
-  overflow-x: hidden;
+  overflow-x: auto;
   overflow-y: auto;
   overscroll-behavior: contain;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  /* block, not flex: sticky tabs/thead need a normal scrollport */
 }
 
 .doc-modal-fields {
   flex-shrink: 0;
+  margin-bottom: 12px;
 }
 
 .modal-inventory .inv-sheet-scroll {
@@ -4887,20 +4886,26 @@ input[type='number']::-webkit-inner-spin-button {
 .modal-doc:not(.modal-doc-phone) .doc-modal-items-scroll {
   flex: 0 0 auto;
   min-height: 0;
-  overflow-x: auto;
-  overflow-y: visible;
+  /* overflow-x:auto forces overflow-y:auto and breaks sticky vs parent scroll */
+  overflow: visible;
+}
+
+.modal-doc:not(.modal-doc-phone) .doc-modal-items-scroll > table {
+  border-collapse: separate;
+  border-spacing: 0;
+  min-width: 100%;
 }
 
 .doc-modal-items-scroll thead th {
   position: sticky;
   top: 0;
-  background: var(--surface);
+  background: var(--surface2, var(--surface));
   z-index: 5;
   box-shadow: 0 1px 0 var(--border);
 }
 
 .modal-doc:not(.modal-doc-phone) .doc-modal-items:has(.doc-prihod-tabs) .doc-modal-items-scroll thead th {
-  top: 42px;
+  top: var(--doc-sticky-tabs-h, 44px);
 }
 
 .doc-modal-items-header .btn {
@@ -6101,14 +6106,16 @@ input[type='number']::-webkit-inner-spin-button {
 }
 
 .modal-doc:not(.modal-doc-phone) .doc-prihod-tabs {
+  --doc-sticky-tabs-h: 44px;
   position: sticky;
   top: 0;
   z-index: 6;
-  margin-bottom: 0;
-  padding: 4px 0 6px;
+  margin: 0;
+  padding: 6px 0;
+  min-height: var(--doc-sticky-tabs-h);
+  box-sizing: border-box;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
-  box-shadow: 0 1px 0 color-mix(in srgb, var(--surface) 80%, transparent);
 }
 
 .doc-prihod-tabs .tab {
@@ -9549,6 +9556,10 @@ html.inventory-phone-lock.inventory-modal-open .inventory-topbar-new {
     display: flex;
     flex-direction: column;
     gap: 0;
+  }
+
+  .modal-doc.modal-doc-phone .doc-modal-fields {
+    margin-bottom: 0;
   }
 
   .modal-doc.modal-doc-phone .doc-modal-phone-summary {
