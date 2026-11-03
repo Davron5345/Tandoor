@@ -189,6 +189,7 @@ export async function initDb() {
     pgInit(process.env.DATABASE_URL, dataDir);
     bootstrapPostgresSeeds();
     migrateCashArticlesBankService();
+    migrateBranchRenameMahalle90();
     migratePayrollFaceId();
     migrateReconciliationMarks();
     try {
@@ -493,6 +494,7 @@ function migrateSchema() {
   migrateRolesAndUsers();
   migrateRolesFlexible();
   migrateBranches();
+  migrateBranchRenameMahalle90();
   sanitizeOrphanBranchReferences();
   migrateRolesBranch();
   migrateDepartments();
@@ -2165,6 +2167,18 @@ function migrateBranches() {
 
   run("INSERT OR REPLACE INTO settings (key, value) VALUES ('branches_v1', '1')");
   saveDb();
+}
+
+/** One-time: sidebar branch label Тандур/Tandoor → Mahalle 90 */
+function migrateBranchRenameMahalle90() {
+  const done = queryOne("SELECT value FROM settings WHERE key = 'branch_rename_mahalle90_v1'");
+  if (done) return;
+  run(
+    `UPDATE branches SET name = 'Mahalle 90'
+     WHERE name IN ('Тандур', 'Tandoor', 'Тандыр')`,
+  );
+  run("INSERT OR REPLACE INTO settings (key, value) VALUES ('branch_rename_mahalle90_v1', '1')");
+  if (!usePostgres) saveDb();
 }
 
 function migrateDepartments() {
