@@ -1,6 +1,7 @@
 import multer from 'multer';
 import * as svc from '../services.js';
 import { requirePermission, requireAnyPermission, attachBranch } from '../middleware.js';
+import { logAudit } from '../auditLog.js';
 
 const statementUpload = multer({
   storage: multer.memoryStorage(),
@@ -98,6 +99,30 @@ export function registerCounterpartyRoutes(app) {
     }
   });
 
+  app.post('/api/counterparties/:id/merge-into', requirePermission('counterparties.edit'), attachBranch, (req, res) => {
+    try {
+      const result = svc.mergeCounterpartyInto(
+        req.params.id,
+        req.body?.target_id || req.body?.targetId,
+        req.branchId,
+      );
+      logAudit(req, 'counterparty.merge', {
+        entity_type: 'counterparty',
+        entity_id: result.target_id,
+        meta: {
+          source_id: result.source_id,
+          source_name: result.source_name,
+          target_name: result.target_name,
+          firms_moved: result.firms_moved,
+          source_deleted: result.source_deleted,
+        },
+      });
+      res.json(result);
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
   app.get('/api/counterparties/:id/contracts', requireAnyPermission('counterparties.view', 'counterparties.edit', 'documents.view', 'documents.edit'), attachBranch, (req, res) => {
     try {
       res.json(svc.getCounterpartyContracts(req.params.id, req.branchId, {
@@ -163,6 +188,32 @@ export function registerCounterpartyRoutes(app) {
     try {
       svc.deleteCounterpartyFirm(req.params.id, req.params.firmId, req.branchId);
       res.json({ ok: true });
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
+  app.post('/api/counterparties/:id/firms/:firmId/move', requirePermission('counterparties.edit'), attachBranch, (req, res) => {
+    try {
+      const result = svc.moveCounterpartyFirm(
+        req.params.id,
+        req.params.firmId,
+        req.body?.target_id || req.body?.targetId,
+        req.branchId,
+      );
+      logAudit(req, 'counterparty.firm_move', {
+        entity_type: 'counterparty_firm',
+        entity_id: result.firm_id,
+        meta: {
+          source_id: result.source_id,
+          source_name: result.source_name,
+          target_id: result.target_id,
+          target_name: result.target_name,
+          collapsed: result.collapsed,
+          source_deleted: result.source_deleted,
+        },
+      });
+      res.json(result);
     } catch (e) {
       res.status(400).json({ error: e.message });
     }

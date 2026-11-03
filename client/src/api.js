@@ -360,6 +360,14 @@ export const api = {
   createCounterpartyFirm: (id, data) => request(`/counterparties/${id}/firms`, { method: 'POST', body: JSON.stringify(data) }),
   updateCounterpartyFirm: (id, firmId, data) => request(`/counterparties/${id}/firms/${firmId}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteCounterpartyFirm: (id, firmId) => request(`/counterparties/${id}/firms/${firmId}`, { method: 'DELETE' }),
+  mergeCounterpartyInto: (id, targetId) => request(`/counterparties/${id}/merge-into`, {
+    method: 'POST',
+    body: JSON.stringify({ target_id: targetId }),
+  }),
+  moveCounterpartyFirm: (id, firmId, targetId) => request(`/counterparties/${id}/firms/${firmId}/move`, {
+    method: 'POST',
+    body: JSON.stringify({ target_id: targetId }),
+  }),
   createCounterparty: (data) => request('/counterparties', { method: 'POST', body: JSON.stringify(data) }),
   updateCounterparty: (id, data) => request(`/counterparties/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteCounterparty: (id) => request(`/counterparties/${id}`, { method: 'DELETE' }),

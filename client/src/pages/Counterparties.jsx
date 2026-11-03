@@ -17,6 +17,7 @@ import {
 } from '../hooks/useFormDraft';
 import CounterpartyFirmsModal from '../components/CounterpartyFirmsModal';
 import CounterpartyContractsModal from '../components/CounterpartyContractsModal';
+import MergeCounterpartyModal from '../components/MergeCounterpartyModal';
 import { useFormDirty } from '../hooks/useFormDirty';
 import { hasPermission } from '../permissions';
 import { textMatchesSearch } from '../utils/searchNormalize';
@@ -32,6 +33,8 @@ export default function Counterparties() {
   const [firms, setFirms] = useState([]);
   const [firmsModalOpen, setFirmsModalOpen] = useState(false);
   const [contractsModalOpen, setContractsModalOpen] = useState(false);
+  const [mergeOpen, setMergeOpen] = useState(false);
+  const [mergeBusy, setMergeBusy] = useState(false);
   const draftKey = formDraftKey('counterparties', modal);
   const draftPayload = useMemo(() => ({ form }), [form]);
   useFormDraft(draftKey, draftPayload, Boolean(modal));
@@ -136,6 +139,7 @@ export default function Counterparties() {
     clearFormDraft(draftKey);
     setFirmsModalOpen(false);
     setContractsModalOpen(false);
+    setMergeOpen(false);
     setModal(null);
   };
 
@@ -258,6 +262,15 @@ export default function Counterparties() {
           footer={(
             <>
               <ModalCancelButton />
+              {canEdit && modal !== 'create' && (form.type === 'supplier' || form.type === 'client') && (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setMergeOpen(true)}
+                >
+                  Присоединить к…
+                </button>
+              )}
               <button type="button" className="btn btn-primary" onClick={save}>Сохранить</button>
             </>
           )}
@@ -313,14 +326,52 @@ export default function Counterparties() {
         </Modal>
       )}
 
+      {mergeOpen && modal && modal !== 'create' && (
+        <MergeCounterpartyModal
+          sourceId={modal}
+          sourceName={form.name}
+          sourceType={form.type}
+          counterparties={items}
+          busy={mergeBusy}
+          onClose={() => !mergeBusy && setMergeOpen(false)}
+          onConfirm={async (targetId) => {
+            setMergeBusy(true);
+            try {
+              const res = await api.mergeCounterpartyInto(modal, targetId);
+              show(
+                res.source_deleted
+                  ? `Присоединено к «${res.target_name}», карточка «${res.source_name}» удалена`
+                  : `Присоединено к «${res.target_name}»`,
+              );
+              setMergeOpen(false);
+              setFirmsModalOpen(false);
+              setContractsModalOpen(false);
+              closeMainModal();
+              await load();
+            } catch (err) {
+              show(err.message || 'Не удалось объединить', 'error');
+            } finally {
+              setMergeBusy(false);
+            }
+          }}
+        />
+      )}
+
       {firmsModalOpen && modal && modal !== 'create' && (form.type === 'supplier' || form.type === 'client') && (
         <CounterpartyFirmsModal
           counterpartyId={modal}
+          counterpartyType={form.type}
+          counterparties={items}
           canEdit={canEdit}
           title={form.type === 'client' ? 'Каналы оплаты' : 'Фирмы поставщика'}
           onClose={() => setFirmsModalOpen(false)}
           onChanged={() => {
             loadFirms(modal);
+            load();
+          }}
+          onMerged={() => {
+            setFirmsModalOpen(false);
+            closeMainModal();
             load();
           }}
           onContractsChanged={() => loadContracts(modal)}

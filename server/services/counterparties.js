@@ -2,7 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import db from '../db.js';
 import { DEFAULT_BRANCH_ID } from '../branches.js';
 
-const { queryAll, queryOne, run } = db;
+const { queryAll, queryOne, run, transaction } = db;
 
 export const DEFAULT_CONTRACT_ID = '__default__';
 
@@ -524,4 +524,257 @@ export function enrichCounterpartiesWithFirms(rows, branchId = DEFAULT_BRANCH_ID
       mentions_count: documentsCount + paymentsCount + (obByCp.get(cp.id) || 0),
     };
   });
+}
+
+function assertMergePair(sourceId, targetId, branchId) {
+  if (!targetId) throw new Error('Выберите контрагента, к которому присоединить');
+  if (sourceId === targetId) throw new Error('Нельзя присоединить контрагента к самому себе');
+  const source = getCounterparty(sourceId, branchId);
+  const target = getCounterparty(targetId, branchId);
+  if (!source) throw new Error('Исходный контрагент не найден');
+  if (!target) throw new Error('Целевой контрагент не найден');
+  if (source.type !== target.type) {
+    throw new Error('Объединять можно только контрагентов одного типа (поставщик с поставщиком, клиент с клиентом)');
+  }
+  if (target.type !== 'supplier' && target.type !== 'client') {
+    throw new Error('Фирмы доступны у поставщиков и клиента');
+  }
+  return { source, target };
+}
+
+function reassignCounterpartyRefs(fromId, toId, branchId) {
+  run('UPDATE documents SET counterparty_id = ? WHERE counterparty_id = ?', [toId, fromId]);
+  run('UPDATE payments SET counterparty_id = ? WHERE counterparty_id = ?', [toId, fromId]);
+  run('UPDATE opening_balance_lines SET counterparty_id = ? WHERE counterparty_id = ?', [toId, fromId]);
+  run('UPDATE reconciliation_marks SET counterparty_id = ? WHERE counterparty_id = ?', [toId, fromId]);
+  run('UPDATE telegram_messages SET counterparty_id = ? WHERE counterparty_id = ?', [toId, fromId]);
+
+  const links = queryAll(
+    'SELECT id, product_id FROM product_suppliers WHERE supplier_id = ? AND branch_id = ?',
+    [fromId, branchId],
+  );
+  for (const link of links) {
+    const exists = queryOne(
+      'SELECT id FROM product_suppliers WHERE product_id = ? AND supplier_id = ? AND branch_id = ?',
+      [link.product_id, toId, branchId],
+    );
+    if (exists) run('DELETE FROM product_suppliers WHERE id = ?', [link.id]);
+    else run('UPDATE product_suppliers SET supplier_id = ? WHERE id = ?', [toId, link.id]);
+  }
+
+  const aliases = queryAll(
+    `SELECT id, alias_key FROM telegram_aliases
+     WHERE branch_id = ? AND kind = 'supplier' AND target_id = ?`,
+    [branchId, fromId],
+  );
+  for (const alias of aliases) {
+    const clash = queryOne(
+      `SELECT id FROM telegram_aliases
+       WHERE branch_id = ? AND kind = 'supplier' AND alias_key = ?`,
+      [branchId, alias.alias_key],
+    );
+    // unique (branch_id, kind, alias_key) — если ключ уже есть (в т.ч. на цель), удаляем исходный
+    if (clash && clash.id !== alias.id) {
+      run('DELETE FROM telegram_aliases WHERE id = ?', [alias.id]);
+    } else {
+      run('UPDATE telegram_aliases SET target_id = ? WHERE id = ?', [toId, alias.id]);
+    }
+  }
+}
+
+function appendExtraAccountNote(targetCpId, firmName, account) {
+  if (!account) return;
+  const cp = queryOne('SELECT notes FROM counterparties WHERE id = ?', [targetCpId]);
+  const line = `Доп. р/с (${firmName}): ${account}`;
+  if (cp?.notes && String(cp.notes).includes(account)) return;
+  const notes = [cp?.notes, line].filter(Boolean).join('\n');
+  run("UPDATE counterparties SET notes = ?, updated_at = datetime('now') WHERE id = ?", [notes, targetCpId]);
+}
+
+/** Склеить фирму-дубль (тот же ИНН) в уже существующую у цели. */
+function collapseFirmInto(sourceFirm, targetFirm, targetCpId) {
+  run(
+    'UPDATE counterparty_contracts SET firm_id = ?, counterparty_id = ? WHERE firm_id = ?',
+    [targetFirm.id, targetCpId, sourceFirm.id],
+  );
+  run(
+    'UPDATE documents SET firm_id = ?, counterparty_id = ? WHERE firm_id = ?',
+    [targetFirm.id, targetCpId, sourceFirm.id],
+  );
+  run(
+    'UPDATE payments SET firm_id = ?, counterparty_id = ? WHERE firm_id = ?',
+    [targetFirm.id, targetCpId, sourceFirm.id],
+  );
+  run(
+    'UPDATE reconciliation_marks SET firm_id = ? WHERE firm_id = ?',
+    [targetFirm.id, sourceFirm.id],
+  );
+
+  if (sourceFirm.bank_account && !targetFirm.bank_account) {
+    run('UPDATE counterparty_firms SET bank_account = ? WHERE id = ?', [
+      sourceFirm.bank_account, targetFirm.id,
+    ]);
+  } else if (
+    sourceFirm.bank_account
+    && targetFirm.bank_account
+    && normalizeBankAccount(sourceFirm.bank_account) !== normalizeBankAccount(targetFirm.bank_account)
+  ) {
+    appendExtraAccountNote(targetCpId, sourceFirm.name, sourceFirm.bank_account);
+  }
+
+  run('UPDATE counterparty_firms SET contract_id = NULL WHERE id = ?', [sourceFirm.id]);
+  run('DELETE FROM counterparty_firms WHERE id = ?', [sourceFirm.id]);
+  return targetFirm.id;
+}
+
+/**
+ * Перенести фирму на целевого контрагента (или склеить по ИНН).
+ * @returns {{ firm_id: string, collapsed: boolean }}
+ */
+function relocateFirmToCounterparty(firm, targetId, branchId) {
+  const inn = normalizeFirmInn(firm.inn);
+  if (inn) {
+    const dup = findCounterpartyFirmByInn(inn, branchId);
+    if (dup && dup.id !== firm.id && dup.counterparty_id !== targetId) {
+      throw new Error(`ИНН ${inn} уже используется у «${dup.counterparty_name}» (${dup.name})`);
+    }
+    const onTarget = queryOne(
+      `SELECT * FROM counterparty_firms
+       WHERE branch_id = ? AND counterparty_id = ? AND inn = ? AND id != ?`,
+      [branchId, targetId, inn, firm.id],
+    );
+    if (onTarget) {
+      return { firm_id: collapseFirmInto(firm, onTarget, targetId), collapsed: true };
+    }
+  }
+
+  run(
+    'UPDATE counterparty_firms SET counterparty_id = ?, is_default = 0 WHERE id = ? AND branch_id = ?',
+    [targetId, firm.id, branchId],
+  );
+  run(
+    'UPDATE counterparty_contracts SET counterparty_id = ? WHERE firm_id = ? AND branch_id = ?',
+    [targetId, firm.id, branchId],
+  );
+  run('UPDATE documents SET counterparty_id = ? WHERE firm_id = ?', [targetId, firm.id]);
+  run('UPDATE payments SET counterparty_id = ? WHERE firm_id = ?', [targetId, firm.id]);
+  return { firm_id: firm.id, collapsed: false };
+}
+
+function ensureSourceHasFirm(source, targetId, branchId) {
+  const firms = queryAll(
+    'SELECT * FROM counterparty_firms WHERE counterparty_id = ? AND branch_id = ?',
+    [source.id, branchId],
+  );
+  if (firms.length) return firms;
+
+  const inn = normalizeFirmInn(source.inn);
+  if (inn) {
+    const dup = findCounterpartyFirmByInn(inn, branchId);
+    if (dup && dup.counterparty_id !== source.id) {
+      // ИНН уже у цели — фирму не создаём, только перепривяжем ссылки
+      if (dup.counterparty_id === targetId) return [];
+      throw new Error(`ИНН ${inn} уже используется у «${dup.counterparty_name}» (${dup.name})`);
+    }
+  }
+
+  const accountFromNotes = String(source.notes || '').match(/\b(\d{16,20})\b/);
+  createCounterpartyFirm(source.id, {
+    name: source.name,
+    inn: source.inn,
+    bank_account: accountFromNotes?.[1] || null,
+    is_default: true,
+  }, branchId);
+  return queryAll(
+    'SELECT * FROM counterparty_firms WHERE counterparty_id = ? AND branch_id = ?',
+    [source.id, branchId],
+  );
+}
+
+function tryDeleteEmptyCounterparty(sourceId, branchId) {
+  const left = queryOne(
+    'SELECT COUNT(*) as c FROM counterparty_firms WHERE counterparty_id = ? AND branch_id = ?',
+    [sourceId, branchId],
+  );
+  if (Number(left?.c || 0) > 0) return false;
+  try {
+    deleteCounterparty(sourceId, branchId);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Присоединить контрагента (все фирмы) к другому.
+ * Документы/оплаты перепривязываются; пустая карточка удаляется.
+ */
+export function mergeCounterpartyInto(sourceId, targetId, branchId = DEFAULT_BRANCH_ID) {
+  const { source, target } = assertMergePair(sourceId, targetId, branchId);
+  let result;
+
+  transaction(() => {
+    const firms = ensureSourceHasFirm(source, target.id, branchId);
+    const moved = [];
+    for (const firm of firms) {
+      // перечитать — ensure мог создать новую
+      const row = queryOne('SELECT * FROM counterparty_firms WHERE id = ?', [firm.id]) || firm;
+      if (row.counterparty_id !== source.id) continue;
+      moved.push(relocateFirmToCounterparty(row, target.id, branchId));
+    }
+
+    run(
+      'UPDATE counterparty_contracts SET counterparty_id = ? WHERE counterparty_id = ? AND branch_id = ?',
+      [target.id, source.id, branchId],
+    );
+    reassignCounterpartyRefs(source.id, target.id, branchId);
+
+    const deleted = tryDeleteEmptyCounterparty(source.id, branchId);
+    result = {
+      ok: true,
+      source_id: source.id,
+      source_name: source.name,
+      target_id: target.id,
+      target_name: target.name,
+      firms_moved: moved.length,
+      firms_collapsed: moved.filter((m) => m.collapsed).length,
+      source_deleted: deleted,
+      target: getCounterparty(target.id, branchId),
+      firms: getCounterpartyFirms(target.id, branchId),
+    };
+  });
+
+  return result;
+}
+
+/**
+ * Перенести одну фирму к другому контрагенту.
+ */
+export function moveCounterpartyFirm(sourceId, firmId, targetId, branchId = DEFAULT_BRANCH_ID) {
+  const { source, target } = assertMergePair(sourceId, targetId, branchId);
+  const firm = queryOne(
+    'SELECT * FROM counterparty_firms WHERE id = ? AND counterparty_id = ? AND branch_id = ?',
+    [firmId, sourceId, branchId],
+  );
+  if (!firm) throw new Error('Фирма не найдена');
+
+  let result;
+  transaction(() => {
+    const moved = relocateFirmToCounterparty(firm, target.id, branchId);
+    const deleted = tryDeleteEmptyCounterparty(source.id, branchId);
+    result = {
+      ok: true,
+      source_id: source.id,
+      source_name: source.name,
+      target_id: target.id,
+      target_name: target.name,
+      firm_id: moved.firm_id,
+      collapsed: moved.collapsed,
+      source_deleted: deleted,
+      target: getCounterparty(target.id, branchId),
+      firms: getCounterpartyFirms(target.id, branchId),
+    };
+  });
+
+  return result;
 }

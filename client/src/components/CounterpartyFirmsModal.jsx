@@ -6,6 +6,7 @@ import { IconButton, IconContract, IconEdit, IconPlus, IconTrash } from './Actio
 import { useFormDirty } from '../hooks/useFormDirty';
 import CounterpartyContractsModal from './CounterpartyContractsModal';
 import ContractEditModal from './ContractEditModal';
+import MergeCounterpartyModal from './MergeCounterpartyModal';
 
 const emptyFirm = {
   name: '',
@@ -27,9 +28,12 @@ function firmToForm(f) {
 
 export default function CounterpartyFirmsModal({
   counterpartyId,
+  counterpartyType = 'supplier',
+  counterparties = [],
   canEdit,
   onClose,
   onChanged,
+  onMerged,
   onContractsChanged,
   title = 'Фирмы для оплаты',
 }) {
@@ -41,9 +45,12 @@ export default function CounterpartyFirmsModal({
   const [firmContracts, setFirmContracts] = useState([]);
   const [contractsFirm, setContractsFirm] = useState(null);
   const [contractEditor, setContractEditor] = useState(null); // { id, initial } | null
+  const [moveOpen, setMoveOpen] = useState(false);
+  const [moveBusy, setMoveBusy] = useState(false);
   const { show, Toast } = useToast();
   const isFirmDirty = useFormDirty(firmForm, editModal ? `firm-${editModal}` : null);
   const editingFirmId = editModal && editModal !== 'create' ? editModal : null;
+  const editingFirm = firms.find((f) => f.id === editingFirmId);
 
   const loadFirms = useCallback(() => {
     if (!counterpartyId) {
@@ -232,12 +239,22 @@ export default function CounterpartyFirmsModal({
           onClose={closeEdit}
           footer={(
             <>
-              <ModalCancelButton disabled={saving} />
+              <ModalCancelButton disabled={saving || moveBusy} />
+              {canEdit && editingFirmId && (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={saving || moveBusy}
+                  onClick={() => setMoveOpen(true)}
+                >
+                  Перенести к…
+                </button>
+              )}
               <button
                 type="button"
                 className="btn btn-primary"
                 onClick={saveFirm}
-                disabled={saving}
+                disabled={saving || moveBusy}
               >
                 {saving ? 'Сохранение…' : 'Сохранить'}
               </button>
@@ -379,6 +396,41 @@ export default function CounterpartyFirmsModal({
             if (editingFirmId === contractsFirm.id) loadFirmContracts(editingFirmId);
             onContractsChanged?.();
             onChanged?.();
+          }}
+        />
+      )}
+
+      {moveOpen && editingFirmId && (
+        <MergeCounterpartyModal
+          title="Перенести фирму к…"
+          hint="Фирма перейдёт к выбранному контрагенту. Документы и оплаты с этой фирмой перепривяжутся."
+          sourceId={counterpartyId}
+          sourceName={editingFirm?.name || firmForm.name || 'Фирма'}
+          sourceType={counterpartyType}
+          counterparties={counterparties}
+          busy={moveBusy}
+          onClose={() => !moveBusy && setMoveOpen(false)}
+          onConfirm={async (targetId) => {
+            setMoveBusy(true);
+            try {
+              const res = await api.moveCounterpartyFirm(counterpartyId, editingFirmId, targetId);
+              show(
+                res.source_deleted
+                  ? `Фирма перенесена к «${res.target_name}», пустая карточка удалена`
+                  : `Фирма перенесена к «${res.target_name}»`,
+              );
+              setMoveOpen(false);
+              closeEdit();
+              onChanged?.();
+              if (res.source_deleted) onMerged?.();
+              else {
+                loadFirms();
+              }
+            } catch (err) {
+              show(err.message || 'Не удалось перенести фирму', 'error');
+            } finally {
+              setMoveBusy(false);
+            }
           }}
         />
       )}

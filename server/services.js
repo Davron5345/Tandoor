@@ -14,6 +14,8 @@ export {
   updateCounterpartyFirm,
   deleteCounterpartyFirm,
   findCounterpartyFirmByInn,
+  mergeCounterpartyInto,
+  moveCounterpartyFirm,
 } from './services/counterparties.js';
 
 export {
