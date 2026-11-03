@@ -223,17 +223,15 @@ async function ensureBootstrap() {
        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
     );
   }
-  const renameMahalle = await execRaw(
+  const restoreTandoor = await execRaw(
     'SELECT value FROM settings WHERE key = $1',
-    ['branch_rename_mahalle90_v1'],
+    ['branch_restore_tandoor_v1'],
   );
-  if (!renameMahalle.rows.length) {
+  if (!restoreTandoor.rows.length) {
+    await execRaw(`UPDATE branches SET name = 'Tandoor' WHERE name = 'Mahalle 90'`);
+    await execRaw(`DELETE FROM settings WHERE key = 'branch_rename_mahalle90_v1'`);
     await execRaw(
-      `UPDATE branches SET name = 'Mahalle 90'
-       WHERE name IN ('Тандур', 'Tandoor', 'Тандыр')`,
-    );
-    await execRaw(
-      `INSERT INTO settings (key, value) VALUES ('branch_rename_mahalle90_v1', '1')
+      `INSERT INTO settings (key, value) VALUES ('branch_restore_tandoor_v1', '1')
        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
     );
   }

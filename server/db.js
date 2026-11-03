@@ -189,7 +189,7 @@ export async function initDb() {
     pgInit(process.env.DATABASE_URL, dataDir);
     bootstrapPostgresSeeds();
     migrateCashArticlesBankService();
-    migrateBranchRenameMahalle90();
+    migrateBranchRestoreTandoor();
     migratePayrollFaceId();
     migrateReconciliationMarks();
     try {
@@ -494,7 +494,7 @@ function migrateSchema() {
   migrateRolesAndUsers();
   migrateRolesFlexible();
   migrateBranches();
-  migrateBranchRenameMahalle90();
+  migrateBranchRestoreTandoor();
   sanitizeOrphanBranchReferences();
   migrateRolesBranch();
   migrateDepartments();
@@ -2169,15 +2169,13 @@ function migrateBranches() {
   saveDb();
 }
 
-/** One-time: sidebar branch label Тандур/Tandoor → Mahalle 90 */
-function migrateBranchRenameMahalle90() {
-  const done = queryOne("SELECT value FROM settings WHERE key = 'branch_rename_mahalle90_v1'");
+/** Undo mistaken Mahalle 90 rename — restore branch label Tandoor */
+function migrateBranchRestoreTandoor() {
+  const done = queryOne("SELECT value FROM settings WHERE key = 'branch_restore_tandoor_v1'");
   if (done) return;
-  run(
-    `UPDATE branches SET name = 'Mahalle 90'
-     WHERE name IN ('Тандур', 'Tandoor', 'Тандыр')`,
-  );
-  run("INSERT OR REPLACE INTO settings (key, value) VALUES ('branch_rename_mahalle90_v1', '1')");
+  run(`UPDATE branches SET name = 'Tandoor' WHERE name = 'Mahalle 90'`);
+  run("DELETE FROM settings WHERE key = 'branch_rename_mahalle90_v1'");
+  run("INSERT OR REPLACE INTO settings (key, value) VALUES ('branch_restore_tandoor_v1', '1')");
   if (!usePostgres) saveDb();
 }
 
