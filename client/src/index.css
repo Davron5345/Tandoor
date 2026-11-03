@@ -4719,7 +4719,9 @@ input[type='number']::-webkit-inner-spin-button {
   color: var(--primary);
 }
 
-/* Шапка + поиск остаются на экране при прокрутке списка */
+/* Шапка + поиск остаются на экране при прокрутке списка.
+   Negative margin съедает padding-top скролла (.main-content), иначе при sticky
+   сверху остаётся щель, через которую виден список. */
 .cp-page-sticky {
   position: sticky;
   top: 0;
@@ -4727,8 +4729,8 @@ input[type='number']::-webkit-inner-spin-button {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 0 0 12px;
-  margin: 0 0 4px;
+  margin: calc(-1 * var(--main-pad, 0px)) 0 4px;
+  padding: var(--main-pad, 0px) 0 12px;
   background: var(--bg);
   box-shadow: 0 8px 12px -8px color-mix(in srgb, #000 18%, transparent);
 }
@@ -4739,12 +4741,9 @@ input[type='number']::-webkit-inner-spin-button {
 
 .app-mobile-admin .cp-page-sticky {
   background: var(--ones-bg, var(--bg));
-  /* компенсируем горизонтальный padding скролл-контейнера */
-  margin-left: -12px;
-  margin-right: -12px;
-  padding-left: 12px;
-  padding-right: 12px;
-  padding-top: 4px;
+  /* компенсируем padding скролл-контейнера (.main-content > div: 8px 12px) */
+  margin: -8px -12px 4px;
+  padding: 8px 12px 12px;
 }
 
 .cp-contracts-compact-table th,
