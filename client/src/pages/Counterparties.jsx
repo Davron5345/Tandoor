@@ -153,27 +153,29 @@ export default function Counterparties() {
   return (
     <div className="cp-page">
       {Toast}
-      <div className="page-header">
-        <h1>Контрагенты</h1>
-        <div className="btn-group">
-          <BranchChip>{branchName}</BranchChip>
-          {canEdit && <button className="btn btn-primary" onClick={openCreate}>+ Добавить</button>}
+      <div className="cp-page-sticky">
+        <div className="page-header">
+          <h1>Контрагенты</h1>
+          <div className="btn-group">
+            <BranchChip>{branchName}</BranchChip>
+            {canEdit && <button className="btn btn-primary" onClick={openCreate}>+ Добавить</button>}
+          </div>
         </div>
-      </div>
 
-      <div className="filters">
-        <input
-          type="search"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Поиск по названию, ИНН, телефону…"
-          aria-label="Поиск контрагентов"
-        />
-        <select value={filter} onChange={(e) => setFilter(e.target.value)}>
-          <option value="">Все</option>
-          <option value="supplier">Поставщики</option>
-          <option value="client">Клиенты</option>
-        </select>
+        <div className="filters cp-page-filters">
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Поиск по названию, ИНН, телефону…"
+            aria-label="Поиск контрагентов"
+          />
+          <select value={filter} onChange={(e) => setFilter(e.target.value)}>
+            <option value="">Все</option>
+            <option value="supplier">Поставщики</option>
+            <option value="client">Клиенты</option>
+          </select>
+        </div>
       </div>
 
       <div className="card">
