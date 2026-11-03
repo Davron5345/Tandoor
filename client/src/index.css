@@ -3293,7 +3293,7 @@ input[type='number']::-webkit-inner-spin-button {
   overscroll-behavior: contain;
 }
 
-.modal-overlay:has(.modal-inventory) {
+.modal-overlay:has(.modal-doc) {
   padding: 0;
   align-items: stretch;
   justify-content: stretch;
@@ -3337,12 +3337,6 @@ input[type='number']::-webkit-inner-spin-button {
 }
 
 .modal-doc {
-  width: min(100%, 1440px);
-  max-height: min(96vh, 96dvh);
-  height: min(96vh, 96dvh);
-}
-
-.modal-doc.modal-inventory {
   width: 100%;
   max-width: 100%;
   height: 100%;
@@ -3505,10 +3499,14 @@ input[type='number']::-webkit-inner-spin-button {
 .doc-modal {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
   flex: 1;
   min-height: 0;
   overflow: hidden;
+}
+
+.doc-modal-fields {
+  flex-shrink: 0;
 }
 
 .modal-inventory .inv-sheet-scroll {
@@ -4781,8 +4779,8 @@ input[type='number']::-webkit-inner-spin-button {
 }
 
 .doc-modal-items-scroll {
-  flex: 1;
-  min-height: 180px;
+  flex: 1 1 auto;
+  min-height: 240px;
   overflow: auto;
 }
 
@@ -10181,11 +10179,6 @@ html.inventory-phone-lock.inventory-modal-open .inventory-topbar-new {
   .doc-modal-fields .form-grid-transfer-header,
   .doc-modal-fields .form-grid-transfer-header.is-department {
     grid-template-columns: 1fr 1fr;
-  }
-
-  .modal-doc {
-    width: min(100%, 960px);
-    max-height: min(94vh, 94dvh);
   }
 
   .modal-doc .modal-footer-actions .btn {
