@@ -70,6 +70,17 @@ test('opening balance document affects reports and money balances', async () => 
     ],
   }, 'test-user', 'main');
 
+  assert.equal(
+    draft.title,
+    'Склад, Касса, Банк, Дебиторская задолженность, Кредиторская задолженность',
+  );
+
+  const cashOnly = createOpeningBalanceDocument({
+    date: '2026-01-02',
+    lines: [{ line_type: 'cash', amount: 1 }],
+  }, 'test-user', 'main');
+  assert.equal(cashOnly.title, 'Касса');
+
   confirmOpeningBalanceDocument(draft.id, 'test-user', 'main');
 
   const debtors = getDebtorsReport('main', true, true);

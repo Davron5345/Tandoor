@@ -35,6 +35,21 @@ function createModalTitle(type) {
   return CREATE_DOC_OPTIONS.find((o) => o.type === type)?.label || 'Документ';
 }
 
+/** Fallback названия в списке, если API ещё без `title`. */
+function openingBalanceListTitle(doc) {
+  if (doc?.title) return doc.title;
+  const types = new Set((doc?.lines || []).map((l) => l.line_type));
+  if (types.size === 0 && doc?.totals) {
+    for (const opt of CREATE_DOC_OPTIONS) {
+      if (Number(doc.totals[opt.type]) !== 0) types.add(opt.type);
+    }
+  }
+  const parts = CREATE_DOC_OPTIONS
+    .filter((o) => types.has(o.type))
+    .map((o) => o.label);
+  return parts.length ? parts.join(', ') : 'Начальное сальдо';
+}
+
 function createModalHint(type) {
   return CREATE_DOC_OPTIONS.find((o) => o.type === type)?.hint || '';
 }
@@ -910,6 +925,7 @@ export default function OpeningBalance() {
                   <thead>
                     <tr>
                       <th>№</th>
+                      <th>Название</th>
                       <th>Дата</th>
                       <th>Статус</th>
                       <th className="col-num">Касса</th>
@@ -924,6 +940,9 @@ export default function OpeningBalance() {
                     {documents.map((d) => (
                       <tr key={d.id}>
                         <td>{d.number}</td>
+                        <td>
+                          <strong>{d.title || openingBalanceListTitle(d)}</strong>
+                        </td>
                         <td>{formatDate(d.date)}</td>
                         <td>
                           <span className={`badge ${statusClass(d.status)}`}>

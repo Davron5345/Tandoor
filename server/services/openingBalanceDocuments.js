@@ -161,6 +161,27 @@ function loadLines(documentId) {
   `, [documentId]);
 }
 
+const LINE_TYPE_TITLES = {
+  stock: 'Склад',
+  cash: 'Касса',
+  bank: 'Банк',
+  debtor: 'Дебиторская задолженность',
+  creditor: 'Кредиторская задолженность',
+};
+
+const LINE_TYPE_TITLE_ORDER = ['stock', 'cash', 'bank', 'debtor', 'creditor'];
+
+/** Название документа по составу строк (Склад / Касса / …). */
+export function openingBalanceDocTitle(lines = []) {
+  const types = new Set(
+    (lines || []).map((l) => l.line_type).filter((t) => LINE_TYPE_TITLES[t]),
+  );
+  const parts = LINE_TYPE_TITLE_ORDER
+    .filter((t) => types.has(t))
+    .map((t) => LINE_TYPE_TITLES[t]);
+  return parts.length ? parts.join(', ') : 'Начальное сальдо';
+}
+
 export function enrichOpeningBalanceDocument(doc) {
   if (!doc) return null;
   const lines = loadLines(doc.id);
@@ -177,11 +198,13 @@ export function enrichOpeningBalanceDocument(doc) {
       : (line.amount || 0);
     if (totals[line.line_type] !== undefined) totals[line.line_type] += amt;
   }
+  const title = openingBalanceDocTitle(lines);
   return {
     ...doc,
     lines,
     totals,
-    type_label: 'Начальное сальдо',
+    title,
+    type_label: title,
   };
 }
 
