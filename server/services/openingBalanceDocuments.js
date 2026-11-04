@@ -162,11 +162,11 @@ function loadLines(documentId) {
 }
 
 const LINE_TYPE_TITLES = {
-  stock: 'Склад',
-  cash: 'Касса',
-  bank: 'Банк',
-  debtor: 'Дебиторская задолженность',
-  creditor: 'Кредиторская задолженность',
+  stock: 'Сальдо товаров',
+  cash: 'Сальдо кассы',
+  bank: 'Сальдо банка',
+  debtor: 'Клиенты нам должны',
+  creditor: 'Долг поставщикам',
 };
 
 const LINE_TYPE_TITLE_ORDER = ['stock', 'cash', 'bank', 'debtor', 'creditor'];

@@ -72,14 +72,14 @@ test('opening balance document affects reports and money balances', async () => 
 
   assert.equal(
     draft.title,
-    'Склад, Касса, Банк, Дебиторская задолженность, Кредиторская задолженность',
+    'Сальдо товаров, Сальдо кассы, Сальдо банка, Клиенты нам должны, Долг поставщикам',
   );
 
   const cashOnly = createOpeningBalanceDocument({
     date: '2026-01-02',
     lines: [{ line_type: 'cash', amount: 1 }],
   }, 'test-user', 'main');
-  assert.equal(cashOnly.title, 'Касса');
+  assert.equal(cashOnly.title, 'Сальдо кассы');
 
   confirmOpeningBalanceDocument(draft.id, 'test-user', 'main');
 
