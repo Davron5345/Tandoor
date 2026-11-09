@@ -153,3 +153,52 @@ test('admin set-as-of-today writes delta and dated recon/report rows', async () 
   assert.equal(novRow.saldo_adjust, -800_000);
   assert.equal(novRow.closing_debt, 1_500_000);
 });
+
+test('empty amount for selected supplier is zero debt', async () => {
+  const { default: db, initDb } = await import('../db.js');
+  const { initPermissions } = await import('../permissions.js');
+  const { seedDefaultUsers } = await import('../auth.js');
+  const { createCounterparty } = await import('../services/counterparties.js');
+  const { getCreditorsReport, getCounterpartyDebtAsOf } = await import('../services/reports.js');
+  const {
+    createOpeningBalanceDocument,
+    confirmOpeningBalanceDocument,
+  } = await import('../services/openingBalanceDocuments.js');
+
+  await initDb();
+  initPermissions(db);
+  seedDefaultUsers();
+
+  const none = createCounterparty({ name: 'Без долга', type: 'supplier' }, 'main');
+  const owed = createCounterparty({ name: 'Был долг', type: 'supplier' }, 'main');
+
+  const zeroDraft = createOpeningBalanceDocument({
+    date: '2026-01-01',
+    lines: [{ line_type: 'creditor', counterparty_id: none.id }],
+  }, 'test-user', 'main');
+  assert.equal(zeroDraft.lines[0].amount, 0);
+  confirmOpeningBalanceDocument(zeroDraft.id, 'test-user', 'main');
+  const noneRow = getCreditorsReport('main', true, true).rows.find((r) => r.id === none.id);
+  assert.equal(noneRow?.balance || 0, 0);
+
+  const start = createOpeningBalanceDocument({
+    date: '2026-01-01',
+    lines: [{ line_type: 'creditor', counterparty_id: owed.id, amount: 900_000 }],
+  }, 'test-user', 'main');
+  confirmOpeningBalanceDocument(start.id, 'test-user', 'main');
+  assert.equal(getCounterpartyDebtAsOf('main', owed.id, '2026-11-09').balance, 900_000);
+
+  const zeroSet = createOpeningBalanceDocument({
+    date: '2026-11-09',
+    lines: [{
+      line_type: 'creditor',
+      counterparty_id: owed.id,
+      balance_mode: 'set',
+    }],
+  }, 'test-user', 'main', { role: 'admin' });
+  assert.equal(zeroSet.lines[0].amount, 0);
+  assert.equal(zeroSet.lines[0].target_amount, 0);
+  const confirmed = confirmOpeningBalanceDocument(zeroSet.id, 'test-user', 'main');
+  assert.equal(confirmed.lines[0].amount, -900_000);
+  assert.equal(getCounterpartyDebtAsOf('main', owed.id, '2026-11-09').balance, 0);
+});

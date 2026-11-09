@@ -81,16 +81,14 @@ function normalizeLine(raw, branchId = DEFAULT_BRANCH_ID) {
     }
     const balanceMode = raw.balance_mode === 'set' ? 'set' : 'add';
     if (balanceMode === 'set') {
-      const target = Number(raw.target_amount != null ? raw.target_amount : raw.amount);
-      if (!Number.isFinite(target)) throw new Error('Укажите сумму задолженности');
+      let target = Number(raw.target_amount != null ? raw.target_amount : raw.amount);
+      if (!Number.isFinite(target)) target = 0;
       base.balance_mode = 'set';
       base.target_amount = target;
       base.amount = target;
       return base;
     }
-    if (!Number.isFinite(base.amount) || base.amount === 0) {
-      throw new Error('Укажите сумму задолженности');
-    }
+    if (!Number.isFinite(base.amount)) base.amount = 0;
     return base;
   }
 
@@ -337,8 +335,7 @@ function applySetBalanceLines(documentId, date, branchId) {
     if (line.line_type !== 'debtor' && line.line_type !== 'creditor') {
       throw new Error('Установить долг можно только для контрагента');
     }
-    const target = Number(line.target_amount);
-    if (!Number.isFinite(target)) throw new Error('Укажите сумму задолженности');
+    const target = Number.isFinite(Number(line.target_amount)) ? Number(line.target_amount) : 0;
     const asOf = getCounterpartyDebtAsOf(branchId, line.counterparty_id, date, {
       excludeDocumentId: documentId,
     });

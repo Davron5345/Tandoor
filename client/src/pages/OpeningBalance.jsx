@@ -177,7 +177,12 @@ function lineTotal(line) {
 }
 
 function serializeObLines(lines, { setDebtToday = false } = {}) {
-  return (lines || []).map((l) => {
+  return (lines || []).filter((l) => {
+    if (l.line_type === 'debtor' || l.line_type === 'creditor') return Boolean(l.counterparty_id);
+    if (l.line_type === 'stock') return Boolean(l.product_id);
+    if (l.line_type === 'bank') return Boolean(l.bank_account_id);
+    return true;
+  }).map((l) => {
     const quantity = asQtyNumber(l.quantity);
     const unit_cost = asMoneyNumber(l.unit_cost);
     const amount = l.line_type === 'stock'
@@ -438,7 +443,10 @@ export default function OpeningBalance() {
       show('Укажите дату документа', 'error');
       return;
     }
-    const lines = createForm.lines.filter((l) => l.line_type === createModalType);
+    const lines = serializeObLines(
+      createForm.lines.filter((l) => l.line_type === createModalType),
+      { setDebtToday: isAdmin && setDebtToday },
+    );
     if (lines.length === 0) {
       show('Добавьте хотя бы одну строку', 'error');
       return;
@@ -448,7 +456,7 @@ export default function OpeningBalance() {
       const payload = {
         date: createForm.date,
         comment: createForm.comment,
-        lines: serializeObLines(lines, { setDebtToday: isAdmin && setDebtToday }),
+        lines,
       };
       let doc;
       if (editId) {
@@ -589,7 +597,8 @@ export default function OpeningBalance() {
       show('Укажите дату документа', 'error');
       return;
     }
-    if (form.lines.length === 0) {
+    const lines = serializeObLines(form.lines, { setDebtToday: isAdmin && setDebtToday });
+    if (lines.length === 0) {
       show('Добавьте хотя бы одну строку', 'error');
       return;
     }
@@ -598,7 +607,7 @@ export default function OpeningBalance() {
       const payload = {
         date: form.date,
         comment: form.comment,
-        lines: serializeObLines(form.lines, { setDebtToday: isAdmin && setDebtToday }),
+        lines,
       };
       let doc;
       if (editId) {
