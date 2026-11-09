@@ -12,6 +12,7 @@ import { assertNoLaterStockMovements } from '../stockMovementGuard.js';
 import { getCounterparty } from './counterparties.js';
 import { assertBankAccountInBranch } from './bankAccounts.js';
 import { addDocumentHistory } from '../documentSnapshot.js';
+import { getCounterpartyDebtAsOf } from './reports.js';
 
 const { queryAll, queryOne, run, transaction } = db;
 
@@ -54,6 +55,8 @@ function normalizeLine(raw, branchId = DEFAULT_BRANCH_ID) {
     unit_cost: Number(raw.unit_cost) || 0,
     amount: Number(raw.amount) || 0,
     comment: String(raw.comment || '').trim(),
+    balance_mode: 'add',
+    target_amount: null,
   };
 
   if (lineType === 'stock') {
@@ -76,6 +79,15 @@ function normalizeLine(raw, branchId = DEFAULT_BRANCH_ID) {
     if (lineType === 'creditor' && cp.type !== 'supplier') {
       throw new Error(`«${cp.name}» — не поставщик (кредитор)`);
     }
+    const balanceMode = raw.balance_mode === 'set' ? 'set' : 'add';
+    if (balanceMode === 'set') {
+      const target = Number(raw.target_amount != null ? raw.target_amount : raw.amount);
+      if (!Number.isFinite(target)) throw new Error('Укажите сумму задолженности');
+      base.balance_mode = 'set';
+      base.target_amount = target;
+      base.amount = target;
+      return base;
+    }
     if (!Number.isFinite(base.amount) || base.amount === 0) {
       throw new Error('Укажите сумму задолженности');
     }
@@ -94,16 +106,32 @@ function normalizeLine(raw, branchId = DEFAULT_BRANCH_ID) {
   return base;
 }
 
-function normalizeLines(lines, branchId = DEFAULT_BRANCH_ID) {
+function normalizeLines(lines, branchId = DEFAULT_BRANCH_ID, opts = {}) {
   if (!Array.isArray(lines)) return [];
   const normalized = lines.map((line) => normalizeLine(line, branchId));
   const bankAccounts = new Set();
+  const setKeys = new Set();
+  let hasSet = false;
   for (const line of normalized) {
-    if (line.line_type !== 'bank' || !line.bank_account_id) continue;
-    if (bankAccounts.has(line.bank_account_id)) {
-      throw new Error('Один банковский счёт нельзя указать дважды в начальном сальдо');
+    if (line.line_type === 'bank' && line.bank_account_id) {
+      if (bankAccounts.has(line.bank_account_id)) {
+        throw new Error('Один банковский счёт нельзя указать дважды в начальном сальдо');
+      }
+      bankAccounts.add(line.bank_account_id);
     }
-    bankAccounts.add(line.bank_account_id);
+    if (line.balance_mode === 'set') {
+      hasSet = true;
+      const key = `${line.line_type}:${line.counterparty_id}`;
+      if (setKeys.has(key)) {
+        throw new Error('Одного контрагента нельзя указать дважды при установке долга');
+      }
+      setKeys.add(key);
+    }
+  }
+  if (hasSet && opts.role !== 'admin') {
+    const err = new Error('Установить долг может только администратор');
+    err.status = 403;
+    throw err;
   }
   return normalized;
 }
@@ -117,8 +145,8 @@ function insertLines(documentId, lines) {
     run(
       `INSERT INTO opening_balance_lines
         (id, document_id, line_type, product_id, variant_id, department_id, counterparty_id,
-         bank_account_id, quantity, unit_cost, amount, comment, sort_order)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         bank_account_id, quantity, unit_cost, amount, comment, sort_order, balance_mode, target_amount)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         uuidv4(),
         documentId,
@@ -133,6 +161,8 @@ function insertLines(documentId, lines) {
         line.amount,
         line.comment,
         index,
+        line.balance_mode === 'set' ? 'set' : 'add',
+        line.balance_mode === 'set' ? line.target_amount : null,
       ],
     );
   });
@@ -299,13 +329,39 @@ function addHistory(documentId, action, userId = null) {
   addDocumentHistory(documentId, action, userId);
 }
 
-export function createOpeningBalanceDocument(data, userId = null, branchId = DEFAULT_BRANCH_ID) {
+function applySetBalanceLines(documentId, date, branchId) {
+  const lines = loadLines(documentId);
+  let changed = false;
+  for (const line of lines) {
+    if (line.balance_mode !== 'set') continue;
+    if (line.line_type !== 'debtor' && line.line_type !== 'creditor') {
+      throw new Error('Установить долг можно только для контрагента');
+    }
+    const target = Number(line.target_amount);
+    if (!Number.isFinite(target)) throw new Error('Укажите сумму задолженности');
+    const asOf = getCounterpartyDebtAsOf(branchId, line.counterparty_id, date, {
+      excludeDocumentId: documentId,
+    });
+    const delta = Math.round((target - asOf.balance) * 100) / 100;
+    if (Math.abs(delta) < 0.005) {
+      throw new Error(`Долг «${asOf.name}» уже равен указанной сумме`);
+    }
+    run('UPDATE opening_balance_lines SET amount = ? WHERE id = ?', [delta, line.id]);
+    changed = true;
+  }
+  if (!changed) return loadLines(documentId);
+  const updated = loadLines(documentId);
+  run('UPDATE documents SET total_amount = ? WHERE id = ?', [calcTotal(updated), documentId]);
+  return updated;
+}
+
+export function createOpeningBalanceDocument(data, userId = null, branchId = DEFAULT_BRANCH_ID, opts = {}) {
   if (!getBranch(branchId)) throw new Error('Филиал не найден');
 
   const date = String(data.date || '').slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Укажите дату документа');
 
-  const lines = normalizeLines(data.lines || [], branchId);
+  const lines = normalizeLines(data.lines || [], branchId, opts);
   if (lines.length === 0) throw new Error('Добавьте хотя бы одну строку');
 
   const id = uuidv4();
@@ -323,7 +379,8 @@ export function createOpeningBalanceDocument(data, userId = null, branchId = DEF
     insertLines(id, lines);
     addHistory(id, 'created', userId);
     if (status === 'confirmed') {
-      applyStockLines(lines, branchId);
+      const confirmedLines = applySetBalanceLines(id, date, branchId);
+      applyStockLines(confirmedLines, branchId);
       addHistory(id, 'confirmed', userId);
     }
   });
@@ -331,14 +388,14 @@ export function createOpeningBalanceDocument(data, userId = null, branchId = DEF
   return getOpeningBalanceDocument(id, branchId);
 }
 
-export function updateOpeningBalanceDocument(id, data, userId = null, branchId = DEFAULT_BRANCH_ID) {
+export function updateOpeningBalanceDocument(id, data, userId = null, branchId = DEFAULT_BRANCH_ID, opts = {}) {
   const doc = getDocRow(id, branchId);
   assertEditable(doc);
 
   const date = data.date !== undefined ? String(data.date).slice(0, 10) : doc.date;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Укажите дату документа');
 
-  const lines = data.lines !== undefined ? normalizeLines(data.lines, branchId) : loadLines(id).map((l) => ({
+  const lines = data.lines !== undefined ? normalizeLines(data.lines, branchId, opts) : loadLines(id).map((l) => ({
     line_type: l.line_type,
     product_id: l.product_id,
     variant_id: l.variant_id,
@@ -349,6 +406,8 @@ export function updateOpeningBalanceDocument(id, data, userId = null, branchId =
     unit_cost: l.unit_cost,
     amount: l.amount,
     comment: l.comment,
+    balance_mode: l.balance_mode === 'set' ? 'set' : 'add',
+    target_amount: l.target_amount,
   }));
 
   if (lines.length === 0) throw new Error('Добавьте хотя бы одну строку');
@@ -378,8 +437,9 @@ export function confirmOpeningBalanceDocument(id, userId = null, branchId = DEFA
   if (lines.length === 0) throw new Error('Нет строк для проведения');
 
   transaction(() => {
+    const confirmedLines = applySetBalanceLines(id, doc.date, branchId);
     run(`UPDATE documents SET status = 'confirmed', updated_at = datetime('now') WHERE id = ?`, [id]);
-    applyStockLines(lines, branchId);
+    applyStockLines(confirmedLines, branchId);
     addHistory(id, 'confirmed', userId);
   });
 

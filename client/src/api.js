@@ -230,6 +230,14 @@ export const api = {
   },
   getOpeningBalance: () => request('/opening-balance'),
   getOpeningBalanceDocument: (id) => request(`/opening-balance/documents/${id}`),
+  getOpeningBalanceCounterpartyDebt: (params = {}) => {
+    const q = new URLSearchParams();
+    if (params.counterparty_id) q.set('counterparty_id', params.counterparty_id);
+    if (params.date) q.set('date', params.date);
+    if (params.exclude_document_id) q.set('exclude_document_id', params.exclude_document_id);
+    const qs = q.toString();
+    return request(`/opening-balance/counterparty-debt${qs ? `?${qs}` : ''}`);
+  },
   createOpeningBalanceDocument: (data) => request('/opening-balance/documents', { method: 'POST', body: JSON.stringify(data) }),
   updateOpeningBalanceDocument: (id, data) => request(`/opening-balance/documents/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   confirmOpeningBalanceDocument: (id) => request(`/opening-balance/documents/${id}/confirm`, { method: 'POST' }),

@@ -1051,6 +1051,12 @@ function migrateBankAccounts() {
   if (!oblCols.includes('bank_account_id')) {
     run('ALTER TABLE opening_balance_lines ADD COLUMN bank_account_id TEXT REFERENCES bank_accounts(id)');
   }
+  if (!oblCols.includes('balance_mode')) {
+    run("ALTER TABLE opening_balance_lines ADD COLUMN balance_mode TEXT DEFAULT 'add'");
+  }
+  if (!oblCols.includes('target_amount')) {
+    run('ALTER TABLE opening_balance_lines ADD COLUMN target_amount REAL');
+  }
   try {
     run('CREATE INDEX IF NOT EXISTS idx_payments_bank_account ON payments(bank_account_id, date)');
   } catch {

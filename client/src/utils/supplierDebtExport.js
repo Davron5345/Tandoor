@@ -55,8 +55,8 @@ function drawRoundedRect(ctx, x, y, w, h, r) {
  *   branchName: string,
  *   dateFrom: string,
  *   dateTo: string,
- *   rows: Array<{ name: string, opening_debt: number, prihod: number, payment: number, closing_debt: number }>,
- *   totals: { opening_debt: number, prihod: number, payment: number, closing_debt: number },
+ *   rows: Array<{ name: string, opening_debt: number, prihod: number, payment: number, saldo_adjust?: number, closing_debt: number }>,
+ *   totals: { opening_debt: number, prihod: number, payment: number, saldo_adjust?: number, closing_debt: number },
  * }} options
  * @returns {HTMLCanvasElement}
  */
@@ -77,7 +77,7 @@ export function renderSupplierDebtReportCanvas({
   const gap = 0;
   const filterLineH = supplierFilterLabel ? 18 : 0;
 
-  const headers = ['Поставщик', 'Долг на начало', 'Приход', 'Оплата', 'Долг на конец'];
+  const headers = ['Поставщик', 'Долг на начало', 'Приход', 'Оплата', 'Корр. сальдо', 'Долг на конец'];
   const bodyFont = '500 15px "Segoe UI", system-ui, sans-serif';
   const headerFont = '700 14px "Segoe UI", system-ui, sans-serif';
   const titleFont = '800 28px "Segoe UI", system-ui, sans-serif';
@@ -95,7 +95,7 @@ export function renderSupplierDebtReportCanvas({
   nameColW = Math.max(nameColW, measureText(mctx, 'Итого', '700 15px "Segoe UI", system-ui, sans-serif') + 24);
   nameColW = Math.min(nameColW, 360);
 
-  const colWidths = [nameColW, numColMin, numColMin, numColMin, numColMin];
+  const colWidths = [nameColW, numColMin, numColMin, numColMin, numColMin, numColMin];
   const tableW = colWidths.reduce((s, w) => s + w, 0);
   const width = tableW + padding * 2;
   const height = padding
@@ -217,7 +217,7 @@ export function renderSupplierDebtReportCanvas({
   } else {
     rows.forEach((row, idx) => {
       paintDataRow(
-        [row.name, row.opening_debt, row.prihod, row.payment, row.closing_debt],
+        [row.name, row.opening_debt, row.prihod, row.payment, row.saldo_adjust || 0, row.closing_debt],
         idx % 2 === 0 ? '#ffffff' : '#fff8dc',
       );
     });
@@ -234,6 +234,7 @@ export function renderSupplierDebtReportCanvas({
       totals.opening_debt,
       totals.prihod,
       totals.payment,
+      totals.saldo_adjust || 0,
       totals.closing_debt,
     ];
     let x = padding;

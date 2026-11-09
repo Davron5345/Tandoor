@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   api, formatDate, formatMoney, formatPriceInput, parsePriceInput, normalizeQuantityInput, parseQuantityInput, STATUS_LABELS,
 } from '../api';
@@ -90,7 +91,30 @@ const emptyLine = (lineType) => ({
   unit_cost: 0,
   amount: 0,
   comment: '',
+  balance_mode: 'add',
+  target_amount: null,
 });
+
+function mapObLineFromApi(l) {
+  const isSet = l.balance_mode === 'set';
+  const target = l.target_amount != null ? l.target_amount : l.amount;
+  return {
+    line_type: l.line_type,
+    product_id: l.product_id || '',
+    variant_id: l.variant_id || null,
+    department_id: l.department_id || '',
+    counterparty_id: l.counterparty_id || '',
+    bank_account_id: l.bank_account_id || '',
+    quantity: parseQuantityInput(l.quantity) ?? 0,
+    unit_cost: l.unit_cost || 0,
+    amount: isSet ? (target || 0) : (l.amount || 0),
+    comment: l.comment || '',
+    counterparty_name: l.counterparty_name || '',
+    balance_mode: isSet ? 'set' : 'add',
+    target_amount: isSet ? target : null,
+    posted_amount: isSet ? (l.amount || 0) : null,
+  };
+}
 
 const emptyDoc = {
   date: todayLocalIso(),
@@ -133,18 +157,21 @@ function lineTotal(line) {
   return asMoneyNumber(line.amount);
 }
 
-function serializeObLines(lines) {
+function serializeObLines(lines, { setDebtToday = false } = {}) {
   return (lines || []).map((l) => {
     const quantity = asQtyNumber(l.quantity);
     const unit_cost = asMoneyNumber(l.unit_cost);
     const amount = l.line_type === 'stock'
       ? quantity * unit_cost
       : asMoneyNumber(l.amount);
+    const isSet = setDebtToday && l.line_type === 'creditor';
     return {
       ...l,
       quantity,
       unit_cost,
       amount,
+      balance_mode: isSet ? 'set' : 'add',
+      target_amount: isSet ? amount : null,
     };
   });
 }
@@ -246,7 +273,12 @@ export default function OpeningBalance() {
   const { show, Toast } = useToast();
   const { user } = useAuth();
   const { branchId, branchName } = useBranch();
+  const [searchParams, setSearchParams] = useSearchParams();
   const canEdit = hasPermission(user, 'opening_balance.edit');
+  const isAdmin = user?.role === 'admin';
+  const [setDebtToday, setSetDebtToday] = useState(false);
+  const [debtPreview, setDebtPreview] = useState({});
+  const openParamConsumed = useRef(null);
 
   const isReadOnly = !canEdit || (editId && form.status === 'confirmed');
 
@@ -279,18 +311,67 @@ export default function OpeningBalance() {
     }).catch(console.error);
   }, [branchId]);
 
+  const previewLines = createModalType ? createForm.lines : form.lines;
+  const previewDate = createModalType ? createForm.date : form.date;
+  const previewExcludeId = createModalType ? '' : (editId || '');
+
+  useEffect(() => {
+    if (!setDebtToday || !isAdmin) {
+      setDebtPreview({});
+      return undefined;
+    }
+    const ids = [...new Set(
+      (previewLines || [])
+        .filter((l) => l.line_type === 'creditor' && l.counterparty_id)
+        .map((l) => l.counterparty_id),
+    )];
+    if (ids.length === 0) {
+      setDebtPreview({});
+      return undefined;
+    }
+    let cancelled = false;
+    Promise.all(ids.map((id) => (
+      api.getOpeningBalanceCounterpartyDebt({
+        counterparty_id: id,
+        date: previewDate || todayLocalIso(),
+        exclude_document_id: previewExcludeId || undefined,
+      }).then((row) => [id, row]).catch(() => [id, null])
+    ))).then((pairs) => {
+      if (cancelled) return;
+      const next = {};
+      for (const [id, row] of pairs) {
+        if (row) next[id] = row;
+      }
+      setDebtPreview(next);
+    });
+    return () => { cancelled = true; };
+  }, [setDebtToday, isAdmin, previewLines, previewDate, previewExcludeId]);
+
   const openCreate = (lineType) => {
     setCreateForm({
       ...emptyDoc,
       date: todayLocalIso(),
       lines: defaultNewDocLines(lineType),
     });
+    setSetDebtToday(false);
+    setDebtPreview({});
     setCreateModalType(lineType);
   };
 
   const closeCreateModal = () => {
     setCreateModalType(null);
     setCreateForm(emptyDoc);
+    setSetDebtToday(false);
+    setDebtPreview({});
+  };
+
+  const toggleSetDebtToday = (checked) => {
+    setSetDebtToday(checked);
+    if (checked) {
+      const today = todayLocalIso();
+      if (createModalType) setCreateForm((f) => ({ ...f, date: today }));
+      else setForm((f) => ({ ...f, date: today }));
+    }
   };
 
   const updateCreateLine = (index, patch) => {
@@ -329,7 +410,7 @@ export default function OpeningBalance() {
       const doc = await api.createOpeningBalanceDocument({
         date: createForm.date,
         comment: createForm.comment,
-        lines: serializeObLines(lines),
+        lines: serializeObLines(lines, { setDebtToday: isAdmin && setDebtToday }),
       });
       if (andConfirm) {
         await api.confirmOpeningBalanceDocument(doc.id);
@@ -346,33 +427,34 @@ export default function OpeningBalance() {
     }
   };
 
-  const openDoc = async (id) => {
+  const openDoc = useCallback(async (id) => {
     try {
       const doc = await api.getOpeningBalanceDocument(id);
       setEditId(id);
+      const mapped = (doc.lines || []).map(mapObLineFromApi);
       setForm({
         date: doc.date?.slice(0, 10) || todayLocalIso(),
         comment: doc.comment || '',
         status: doc.status,
         number: doc.number,
-        lines: (doc.lines || []).map((l) => ({
-          line_type: l.line_type,
-          product_id: l.product_id || '',
-          variant_id: l.variant_id || null,
-          department_id: l.department_id || '',
-          counterparty_id: l.counterparty_id || '',
-          bank_account_id: l.bank_account_id || '',
-          quantity: parseQuantityInput(l.quantity) ?? 0,
-          unit_cost: l.unit_cost || 0,
-          amount: l.amount || 0,
-          comment: l.comment || '',
-        })),
+        lines: mapped,
       });
+      setSetDebtToday(mapped.some((l) => l.balance_mode === 'set'));
       setView('edit');
     } catch (e) {
       show(e.message, 'error');
     }
-  };
+  }, [show]);
+
+  useEffect(() => {
+    const openId = searchParams.get('open');
+    if (!openId || loading || openParamConsumed.current === openId) return;
+    openParamConsumed.current = openId;
+    openDoc(openId);
+    const next = new URLSearchParams(searchParams);
+    next.delete('open');
+    setSearchParams(next, { replace: true });
+  }, [loading, searchParams, setSearchParams, openDoc]);
 
   /** Открыть на редактирование; проведённый — сначала снять проведение. */
   const editDoc = async (d) => {
@@ -441,24 +523,15 @@ export default function OpeningBalance() {
   }, [form.lines]);
 
   const syncFormFromDoc = (doc) => {
+    const mapped = (doc.lines || []).map(mapObLineFromApi);
     setForm({
       date: doc.date?.slice(0, 10),
       comment: doc.comment || '',
       status: doc.status,
       number: doc.number,
-      lines: (doc.lines || []).map((l) => ({
-        line_type: l.line_type,
-        product_id: l.product_id || '',
-        variant_id: l.variant_id || null,
-        department_id: l.department_id || '',
-        counterparty_id: l.counterparty_id || '',
-        bank_account_id: l.bank_account_id || '',
-        quantity: parseQuantityInput(l.quantity) ?? 0,
-        unit_cost: l.unit_cost || 0,
-        amount: l.amount || 0,
-        comment: l.comment || '',
-      })),
+      lines: mapped,
     });
+    setSetDebtToday(mapped.some((l) => l.balance_mode === 'set'));
   };
 
   const save = async (andConfirm = false) => {
@@ -473,7 +546,11 @@ export default function OpeningBalance() {
     }
     setSaving(true);
     try {
-      const payload = { date: form.date, comment: form.comment, lines: serializeObLines(form.lines) };
+      const payload = {
+        date: form.date,
+        comment: form.comment,
+        lines: serializeObLines(form.lines, { setDebtToday: isAdmin && setDebtToday }),
+      };
       let doc;
       if (editId) {
         doc = await api.updateOpeningBalanceDocument(editId, payload);
@@ -553,6 +630,8 @@ export default function OpeningBalance() {
       clientList,
       supplierList,
       bankAccountList = [],
+      showSetDebt = false,
+      debtById = {},
     } = ctx;
     const total = lineTotal(line);
     return (
@@ -602,6 +681,19 @@ export default function OpeningBalance() {
                 placeholder={line.line_type === 'debtor' ? 'Найти клиента…' : 'Найти поставщика…'}
               />
             )
+          )}
+          {showSetDebt && line.line_type === 'creditor' && line.counterparty_id && debtById[line.counterparty_id] && (
+            <div className="ob-debt-hint">
+              Сейчас: {formatMoney(debtById[line.counterparty_id].balance)}
+              {' · '}
+              Корректировка:{' '}
+              {formatMoney(asMoneyNumber(line.amount) - Number(debtById[line.counterparty_id].balance || 0))}
+            </div>
+          )}
+          {showSetDebt && line.line_type === 'creditor' && line.posted_amount != null && readOnly && (
+            <div className="ob-debt-hint">
+              Проведена корректировка: {formatMoney(line.posted_amount)}
+            </div>
           )}
           {line.line_type === 'cash' && (
             <span className="text-muted">Сумма на дату документа</span>
@@ -673,6 +765,8 @@ export default function OpeningBalance() {
     clientList: clients,
     supplierList: suppliers,
     bankAccountList: bankAccounts,
+    showSetDebt: isAdmin && setDebtToday,
+    debtById: debtPreview,
   };
 
   const createLineCtx = {
@@ -682,6 +776,8 @@ export default function OpeningBalance() {
     clientList: clients,
     supplierList: suppliers,
     bankAccountList: bankAccounts,
+    showSetDebt: isAdmin && setDebtToday,
+    debtById: debtPreview,
   };
 
   const createModalLines = useMemo(
@@ -714,6 +810,7 @@ export default function OpeningBalance() {
             <input
               type="date"
               value={createForm.date}
+              disabled={isAdmin && setDebtToday}
               onChange={(e) => setCreateForm({ ...createForm, date: e.target.value })}
             />
           </div>
@@ -725,6 +822,19 @@ export default function OpeningBalance() {
               placeholder="Необязательно"
             />
           </div>
+          {isAdmin && createModalType === 'creditor' && (
+            <label className="ob-set-debt-check">
+              <input
+                type="checkbox"
+                checked={setDebtToday}
+                onChange={(e) => toggleSetDebtToday(e.target.checked)}
+              />
+              Долг на сегодня
+              <span className="ob-set-debt-check-hint">
+                Сумма — какой долг должен быть сейчас. Дальше идут приходы и оплаты.
+              </span>
+            </label>
+          )}
         </div>
 
         {isMoney ? (
@@ -1016,7 +1126,7 @@ export default function OpeningBalance() {
                 <input
                   type="date"
                   value={form.date}
-                  disabled={isReadOnly}
+                  disabled={isReadOnly || (isAdmin && setDebtToday)}
                   onChange={(e) => setForm({ ...form, date: e.target.value })}
                 />
               </div>
@@ -1029,6 +1139,20 @@ export default function OpeningBalance() {
                   placeholder="Например: перенос из Excel, инвентаризация"
                 />
               </div>
+              {isAdmin && form.lines.some((l) => l.line_type === 'creditor') && (
+                <label className="ob-set-debt-check">
+                  <input
+                    type="checkbox"
+                    checked={setDebtToday}
+                    disabled={isReadOnly}
+                    onChange={(e) => toggleSetDebtToday(e.target.checked)}
+                  />
+                  Долг на сегодня
+                  <span className="ob-set-debt-check-hint">
+                    Сумма — какой долг должен быть на дату документа.
+                  </span>
+                </label>
+              )}
             </div>
             <div className="opening-balance-doc-totals">
               <span>Касса: <strong>{formatMoney(formTotals.cash)}</strong></span>

@@ -455,8 +455,14 @@ export function ReconciliationReport() {
                     <tr
                       key={`${r.ref}-${idx}`}
                       className={r.docId ? 'report-row-clickable' : undefined}
-                      onClick={r.docId ? () => setPreviewDocId(r.docId) : undefined}
-                      title={r.docId ? 'Открыть документ (только просмотр)' : undefined}
+                      onClick={r.docId ? () => {
+                        if (r.docType === 'opening_balance') {
+                          window.open(`/opening-balance?open=${encodeURIComponent(r.docId)}`, '_blank', 'noopener');
+                          return;
+                        }
+                        setPreviewDocId(r.docId);
+                      } : undefined}
+                      title={r.docId ? (r.docType === 'opening_balance' ? 'Открыть начальное сальдо' : 'Открыть документ (только просмотр)') : undefined}
                     >
                       <td>{formatDate(r.date)}</td>
                       <td>{r.docId ? <span className="report-doc-link">{r.ref}</span> : r.ref}</td>

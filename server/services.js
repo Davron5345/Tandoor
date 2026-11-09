@@ -23,6 +23,7 @@ export {
   getDebtorsReport,
   getCreditorsReport,
   getLiableDebtsReport,
+  getCounterpartyDebtAsOf,
   getSupplierDebtMovementReport,
   getStats,
   getPnLReport,

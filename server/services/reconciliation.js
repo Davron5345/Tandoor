@@ -55,16 +55,38 @@ export function getReconciliationAct(branchId = DEFAULT_BRANCH_ID, filters = {})
   const docTypes = Object.keys(docOps);
 
   let initial = 0;
+  const obMovements = [];
   // Начальное сальдо — по контрагенту целиком; при фильтре по договору/фирме не учитываем
   if (!firmId && !contractId) {
-    const obRow = queryOne(`
-      SELECT COALESCE(SUM(obl.amount), 0) AS amount
+    const obLineType = kind === 'client' ? 'debtor' : 'creditor';
+    const obRows = queryAll(`
+      SELECT d.id, d.number, d.date, d.created_at, obl.amount, obl.balance_mode
       FROM opening_balance_lines obl
       JOIN documents d ON d.id = obl.document_id
       WHERE d.type = 'opening_balance' AND d.status = 'confirmed' AND d.branch_id = ?
         AND obl.counterparty_id = ? AND obl.line_type = ?
-    `, [branchId, counterpartyId, kind === 'client' ? 'debtor' : 'creditor']);
-    initial = (Number(cp.opening_balance) || 0) + (Number(obRow?.amount) || 0);
+      ORDER BY d.date, d.created_at
+    `, [branchId, counterpartyId, obLineType]);
+    initial = Number(cp.opening_balance) || 0;
+    for (const row of obRows) {
+      const amount = Number(row.amount) || 0;
+      if (Math.abs(amount) < 0.005) continue;
+      if (dateFrom && row.date < dateFrom) {
+        initial += amount;
+        continue;
+      }
+      if (dateTo && row.date > dateTo) continue;
+      obMovements.push({
+        docId: row.id,
+        docType: 'opening_balance',
+        date: row.date,
+        created_at: row.created_at,
+        ref: `Документ №${row.number}`,
+        operation: row.balance_mode === 'set' ? 'Корректировка долга' : 'Начальное сальдо',
+        debit: amount > 0 ? amount : 0,
+        credit: amount < 0 ? Math.abs(amount) : 0,
+      });
+    }
   }
 
   const docs = queryAll(`
@@ -111,6 +133,7 @@ export function getReconciliationAct(branchId = DEFAULT_BRANCH_ID, filters = {})
   });
 
   const movements = [
+    ...obMovements,
     ...docs.map((d) => {
       const op = docOps[d.type];
       const amount = Number(d.total_amount) || 0;

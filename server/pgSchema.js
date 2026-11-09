@@ -420,7 +420,9 @@ CREATE TABLE IF NOT EXISTS opening_balance_lines (
   unit_cost DOUBLE PRECISION DEFAULT 0,
   amount DOUBLE PRECISION DEFAULT 0,
   comment TEXT DEFAULT '',
-  sort_order INTEGER DEFAULT 0
+  sort_order INTEGER DEFAULT 0,
+  balance_mode TEXT DEFAULT 'add',
+  target_amount DOUBLE PRECISION
 );
 
 CREATE TABLE IF NOT EXISTS bank_accounts (

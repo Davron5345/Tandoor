@@ -96,7 +96,7 @@ export function SupplierDebtMovementReport() {
       .then(setReport)
       .catch((e) => {
         setLoadError(e.message || 'Не удалось загрузить отчёт');
-        setReport({ rows: [], totals: { opening_debt: 0, prihod: 0, payment: 0, closing_debt: 0 }, count: 0 });
+        setReport({ rows: [], totals: { opening_debt: 0, prihod: 0, payment: 0, saldo_adjust: 0, closing_debt: 0 }, count: 0 });
       })
       .finally(() => setLoading(false));
   }, [dateFrom, dateTo, supplierIds]);
@@ -106,7 +106,7 @@ export function SupplierDebtMovementReport() {
   }, [branchId, load]);
 
   const rows = report?.rows || [];
-  const totals = report?.totals || { opening_debt: 0, prihod: 0, payment: 0, closing_debt: 0 };
+  const totals = report?.totals || { opening_debt: 0, prihod: 0, payment: 0, saldo_adjust: 0, closing_debt: 0 };
 
   const activeTemplate = useMemo(
     () => templates.find((t) => t.id === activeTemplateId) || null,
@@ -312,6 +312,7 @@ export function SupplierDebtMovementReport() {
                 <th className="col-num">Долг на начало</th>
                 <th className="col-num">Приход</th>
                 <th className="col-num">Оплата</th>
+                <th className="col-num">Корр. сальдо</th>
                 <th className="col-num">Долг на конец</th>
               </tr>
             </thead>
@@ -322,12 +323,13 @@ export function SupplierDebtMovementReport() {
                   <td className="col-num">{formatMoney(row.opening_debt)}</td>
                   <td className="col-num">{formatMoney(row.prihod)}</td>
                   <td className="col-num">{formatMoney(row.payment)}</td>
+                  <td className="col-num">{formatMoney(row.saldo_adjust || 0)}</td>
                   <td className="col-num"><strong>{formatMoney(row.closing_debt)}</strong></td>
                 </tr>
               ))}
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="empty">
+                  <td colSpan={6} className="empty">
                     {loading ? 'Загрузка…' : 'Нет данных за выбранный период'}
                   </td>
                 </tr>
@@ -340,6 +342,7 @@ export function SupplierDebtMovementReport() {
                   <td className="col-num"><strong>{formatMoney(totals.opening_debt)}</strong></td>
                   <td className="col-num"><strong>{formatMoney(totals.prihod)}</strong></td>
                   <td className="col-num"><strong>{formatMoney(totals.payment)}</strong></td>
+                  <td className="col-num"><strong>{formatMoney(totals.saldo_adjust || 0)}</strong></td>
                   <td className="col-num debt-balance-creditors"><strong>{formatMoney(totals.closing_debt)}</strong></td>
                 </tr>
               </tfoot>

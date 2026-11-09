@@ -250,6 +250,96 @@ function returnedByCounterparty(branchId, returnType) {
  */
 export const COUNTERPARTY_REFUND_TYPE = { supplier: 'other_income', client: 'other_expense' };
 
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Живой долг контрагента на дату: НС с date ≤ asOf + начисления − возвраты − оплаты + денежные возвраты.
+ * `excludeDocumentId` — не учитывать этот документ НС (черновик/текущее проведение).
+ */
+export function getCounterpartyDebtAsOf(branchId, counterpartyId, asOfDate, opts = {}) {
+  const cp = queryOne(
+    'SELECT id, name, type, opening_balance FROM counterparties WHERE id = ? AND branch_id = ?',
+    [counterpartyId, branchId],
+  );
+  if (!cp) throw new Error('Контрагент не найден');
+  const asOf = asOfDate || '9999-12-31';
+  if (asOf !== '9999-12-31' && !DATE_RE.test(asOf)) throw new Error('Некорректная дата');
+
+  const kind = cp.type === 'supplier' ? 'supplier' : 'client';
+  const lineType = kind === 'client' ? 'debtor' : 'creditor';
+  const docType = kind === 'client' ? 'rashod' : 'prihod';
+  const returnType = kind === 'client' ? 'return_customer' : 'return_supplier';
+  const paymentType = kind === 'client' ? 'customer_income' : 'supplier_payment';
+  const refundType = COUNTERPARTY_REFUND_TYPE[kind];
+  const excludeDocumentId = opts.excludeDocumentId || null;
+
+  const openingRow = queryOne(`
+    SELECT COALESCE(SUM(obl.amount), 0) AS v
+    FROM opening_balance_lines obl
+    JOIN documents d ON d.id = obl.document_id
+    WHERE d.type = 'opening_balance' AND d.status = 'confirmed' AND d.branch_id = ?
+      AND obl.counterparty_id = ? AND obl.line_type = ?
+      AND d.date <= ?
+      ${excludeDocumentId ? 'AND d.id != ?' : ''}
+  `, excludeDocumentId
+    ? [branchId, counterpartyId, lineType, asOf, excludeDocumentId]
+    : [branchId, counterpartyId, lineType, asOf]);
+
+  const charged = Number(queryOne(`
+    SELECT COALESCE(SUM(total_amount), 0) AS v FROM documents
+    WHERE branch_id = ? AND counterparty_id = ? AND type = ? AND status = 'confirmed' AND date <= ?
+  `, [branchId, counterpartyId, docType, asOf])?.v) || 0;
+
+  const returned = Number(queryOne(`
+    SELECT COALESCE(SUM(total_amount), 0) AS v FROM documents
+    WHERE branch_id = ? AND counterparty_id = ? AND type = ? AND status = 'confirmed' AND date <= ?
+  `, [branchId, counterpartyId, returnType, asOf])?.v) || 0;
+
+  const paid = Number(queryOne(`
+    SELECT COALESCE(SUM(p.amount), 0) AS v
+    FROM payments p
+    LEFT JOIN documents d ON d.id = p.document_id
+    WHERE (p.branch_id = ? OR (p.branch_id IS NULL AND ? = ?))
+      AND p.type = ?
+      AND p.date <= ?
+      AND (
+        (
+          p.document_id IS NOT NULL
+          AND d.id IS NOT NULL
+          AND d.status = 'confirmed'
+          AND d.type = ?
+          AND d.counterparty_id = ?
+        )
+        OR (p.document_id IS NULL AND p.counterparty_id = ?)
+      )
+  `, [
+    branchId, branchId, DEFAULT_BRANCH_ID,
+    paymentType, asOf, docType, counterpartyId, counterpartyId,
+  ])?.v) || 0;
+
+  const refunded = Number(queryOne(`
+    SELECT COALESCE(SUM(p.amount), 0) AS v
+    FROM payments p
+    WHERE (p.branch_id = ? OR (p.branch_id IS NULL AND ? = ?))
+      AND p.type = ? AND p.document_id IS NULL AND p.counterparty_id = ? AND p.date <= ?
+  `, [branchId, branchId, DEFAULT_BRANCH_ID, refundType, counterpartyId, asOf])?.v) || 0;
+
+  const opening = (Number(cp.opening_balance) || 0) + (Number(openingRow?.v) || 0);
+  const netCharged = charged - returned;
+  const balance = Math.round((netCharged - paid + refunded + opening) * 100) / 100;
+  return {
+    counterparty_id: cp.id,
+    name: cp.name,
+    type: cp.type,
+    date: asOfDate || null,
+    opening,
+    charged: netCharged,
+    paid,
+    refunded,
+    balance,
+  };
+}
+
 /** Такие оплаты — расчёты с контрагентом (меняют долг), а не доход/расход P&L. */
 function counterpartySettlementSql(counterpartyType) {
   return `(p.document_id IS NULL AND p.counterparty_id IS NOT NULL AND EXISTS (
@@ -427,8 +517,17 @@ export function getSupplierDebtMovementReport(
           JOIN documents d ON d.id = obl.document_id
           WHERE d.type = 'opening_balance' AND d.status = 'confirmed' AND d.branch_id = ?
             AND obl.counterparty_id = c.id AND obl.line_type = 'creditor'
+            AND d.date < ?
         ), 0)
       ) AS base_opening,
+      COALESCE((
+        SELECT SUM(obl.amount)
+        FROM opening_balance_lines obl
+        JOIN documents d ON d.id = obl.document_id
+        WHERE d.type = 'opening_balance' AND d.status = 'confirmed' AND d.branch_id = ?
+          AND obl.counterparty_id = c.id AND obl.line_type = 'creditor'
+          AND d.date >= ? AND d.date <= ?
+      ), 0) AS ob_period,
       COALESCE((
         SELECT SUM(d.total_amount)
         FROM documents d
@@ -514,7 +613,8 @@ export function getSupplierDebtMovementReport(
     WHERE c.branch_id = ? AND c.type = 'supplier'${supplierFilter}
     ORDER BY c.name
   `, [
-    branchId,
+    branchId, dateFrom,
+    branchId, dateFrom, dateTo,
     branchId, dateFrom,
     branchId, dateFrom,
     branchId, branchId, DEFAULT_BRANCH_ID, dateFrom, unlinkedFlag,
@@ -537,13 +637,15 @@ export function getSupplierDebtMovementReport(
     const returned = row.return_period || 0;
     const prihod = prihodGross - returned;
     const payment = (row.paid_period || 0) - (row.refund_period || 0);
-    const closingDebt = openingDebt + prihod - payment;
+    const saldoAdjust = row.ob_period || 0;
+    const closingDebt = openingDebt + prihod - payment + saldoAdjust;
     return {
       id: row.id,
       name: row.name,
       opening_debt: openingDebt,
       prihod,
       payment,
+      saldo_adjust: saldoAdjust,
       closing_debt: closingDebt,
     };
   });
@@ -552,6 +654,7 @@ export function getSupplierDebtMovementReport(
     Math.abs(r.opening_debt) > 0.005
     || Math.abs(r.prihod) > 0.005
     || Math.abs(r.payment) > 0.005
+    || Math.abs(r.saldo_adjust) > 0.005
     || Math.abs(r.closing_debt) > 0.005
   ));
 
@@ -559,8 +662,9 @@ export function getSupplierDebtMovementReport(
     opening_debt: acc.opening_debt + row.opening_debt,
     prihod: acc.prihod + row.prihod,
     payment: acc.payment + row.payment,
+    saldo_adjust: acc.saldo_adjust + row.saldo_adjust,
     closing_debt: acc.closing_debt + row.closing_debt,
-  }), { opening_debt: 0, prihod: 0, payment: 0, closing_debt: 0 });
+  }), { opening_debt: 0, prihod: 0, payment: 0, saldo_adjust: 0, closing_debt: 0 });
 
   return {
     date_from: dateFrom,

@@ -34,6 +34,8 @@ const OB_LINE_FIELDS = [
   { key: 'quantity', label: 'Кол-во', kind: 'qty' },
   { key: 'unit_cost', label: 'Себест.', kind: 'money' },
   { key: 'amount', label: 'Сумма', kind: 'money' },
+  { key: 'target_amount', label: 'Установленный долг', kind: 'money' },
+  { key: 'balance_mode', label: 'Режим', kind: 'text' },
   { key: 'comment', label: 'Комментарий', kind: 'text' },
 ];
 
@@ -262,6 +264,7 @@ function buildChanges(prev, curr, lk) {
       if (l.department_id) parts.push(nameOf(lk.departments, l.department_id));
       if (l.counterparty_id) parts.push(nameOf(lk.counterparties, l.counterparty_id));
       if (l.bank_account_id) parts.push(nameOf(lk.bankAccounts, l.bank_account_id));
+      if (l.balance_mode === 'set') parts.push('установка долга');
       return parts.filter(Boolean).join(' · ');
     },
     fields: OB_LINE_FIELDS,
