@@ -113,6 +113,43 @@ export function textMatchesSearch(haystack, query) {
     || queryTerms.some((q) => term.includes(q)));
 }
 
+function digitsOnly(value) {
+  return String(value || '').replace(/\D/g, '');
+}
+
+export function counterpartyInnLabel(item) {
+  if (!item) return '';
+  if (item.inn) return String(item.inn);
+  const firms = Array.isArray(item.firms) ? item.firms : [];
+  const inns = [...new Set(firms.map((f) => f.inn).filter(Boolean))];
+  if (inns.length) return inns.join(', ');
+  const label = item.firms_label || '';
+  return /\d/.test(label) ? label : '';
+}
+
+export function counterpartyMatchesSearch(item, query) {
+  const q = (query || '').trim();
+  if (!q) return true;
+  if (!item) return false;
+
+  const firms = Array.isArray(item.firms) ? item.firms : [];
+  const text = [
+    item.name,
+    item.inn,
+    item.firms_label,
+    ...firms.map((f) => f.name),
+    ...firms.map((f) => f.inn),
+  ].filter(Boolean).join(' ');
+  if (textMatchesSearch(text, q)) return true;
+
+  const qDigits = digitsOnly(q);
+  if (qDigits.length >= 2) {
+    const inns = [item.inn, ...firms.map((f) => f.inn)];
+    if (inns.some((inn) => digitsOnly(inn).includes(qDigits))) return true;
+  }
+  return false;
+}
+
 function mergeHighlightRanges(ranges) {
   if (!ranges.length) return [];
   const sorted = [...ranges].sort((a, b) => a[0] - b[0]);

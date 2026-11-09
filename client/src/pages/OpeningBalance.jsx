@@ -9,6 +9,7 @@ import { useAuth } from '../AuthContext';
 import { useBranch } from '../BranchContext';
 import BranchChip from '../components/BranchChip';
 import ProductSelect from '../components/ProductSelect';
+import CounterpartySearchSelect from '../components/CounterpartySearchSelect';
 import { encodeProductPick, resolvePickFromProducts } from '../utils/productVariants';
 import { hasPermission } from '../permissions';
 import { todayLocalIso } from '../utils/date';
@@ -586,16 +587,21 @@ export default function OpeningBalance() {
             </div>
           )}
           {(line.line_type === 'debtor' || line.line_type === 'creditor') && (
-            <select
-              value={line.counterparty_id}
-              disabled={readOnly}
-              onChange={(e) => onUpdate(index, { counterparty_id: e.target.value })}
-            >
-              <option value="">Выберите контрагента…</option>
-              {(line.line_type === 'debtor' ? clientList : supplierList).map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
+            readOnly ? (
+              <span>
+                {(line.line_type === 'debtor' ? clientList : supplierList)
+                  .find((c) => c.id === line.counterparty_id)?.name
+                  || line.counterparty_name
+                  || '—'}
+              </span>
+            ) : (
+              <CounterpartySearchSelect
+                items={line.line_type === 'debtor' ? clientList : supplierList}
+                value={line.counterparty_id || ''}
+                onChange={(id) => onUpdate(index, { counterparty_id: id || '' })}
+                placeholder={line.line_type === 'debtor' ? 'Найти клиента…' : 'Найти поставщика…'}
+              />
+            )
           )}
           {line.line_type === 'cash' && (
             <span className="text-muted">Сумма на дату документа</span>

@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  counterpartyInnLabel,
+  counterpartyMatchesSearch,
   expandSearchTerms,
   splitTextBySearchHighlights,
   swapKeyboardLayout,
@@ -32,4 +34,21 @@ test('splitTextBySearchHighlights marks all occurrences', () => {
   const parts = splitTextBySearchHighlights('Нон — Нон буханка', 'нон');
   const highlighted = parts.filter((p) => p.highlighted).map((p) => p.text);
   assert.deepEqual(highlighted, ['Нон', 'Нон']);
+});
+
+test('counterparty search matches name, INN and firm INN', () => {
+  const item = {
+    id: '1',
+    name: 'Жалил',
+    inn: null,
+    firms_label: '308761740',
+    firms: [{ name: 'ООО Жалил', inn: '308761740' }],
+  };
+
+  assert.equal(counterpartyMatchesSearch(item, 'жал'), true);
+  assert.equal(counterpartyMatchesSearch(item, '308761740'), true);
+  assert.equal(counterpartyMatchesSearch(item, '308 761 740'), true);
+  assert.equal(counterpartyMatchesSearch(item, '30876'), true);
+  assert.equal(counterpartyMatchesSearch(item, '999999999'), false);
+  assert.equal(counterpartyInnLabel(item), '308761740');
 });

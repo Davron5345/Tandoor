@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { textMatchesSearch } from '../utils/searchNormalize';
+import { counterpartyInnLabel, counterpartyMatchesSearch } from '../utils/searchNormalize';
 import SearchHighlight from './SearchHighlight';
 
 export default function CounterpartySearchSelect({
@@ -20,11 +20,12 @@ export default function CounterpartySearchSelect({
   const dropdownRef = useRef(null);
 
   const selected = useMemo(() => items.find((i) => i.id === value), [items, value]);
+  const selectedInn = selected ? counterpartyInnLabel(selected) : '';
 
   const filtered = useMemo(() => {
     const q = search.trim();
     if (!q) return items;
-    return items.filter((i) => textMatchesSearch(i.name, q));
+    return items.filter((i) => counterpartyMatchesSearch(i, q));
   }, [items, search]);
 
   const close = () => {
@@ -43,14 +44,23 @@ export default function CounterpartySearchSelect({
     const input = wrapRef.current?.querySelector('input');
     if (!input) return;
     const rect = input.getBoundingClientRect();
-    const maxHeight = Math.min(280, Math.max(160, window.innerHeight - rect.bottom - 16));
+    const width = Math.min(
+      Math.max(rect.width, 320),
+      Math.max(rect.width, window.innerWidth - 16),
+    );
+    const left = Math.min(Math.max(8, rect.left), Math.max(8, window.innerWidth - width - 8));
+    const spaceBelow = window.innerHeight - rect.bottom - 16;
+    const spaceAbove = rect.top - 16;
+    const openUp = spaceBelow < 180 && spaceAbove > spaceBelow;
+    const maxHeight = Math.min(280, Math.max(160, openUp ? spaceAbove : spaceBelow));
     setDropdownStyle({
       position: 'fixed',
-      top: rect.bottom + 4,
-      left: rect.left,
-      width: rect.width,
+      top: openUp ? undefined : rect.bottom + 4,
+      bottom: openUp ? window.innerHeight - rect.top + 4 : undefined,
+      left,
+      width,
       maxHeight,
-      zIndex: 1200,
+      zIndex: 2600,
     });
   };
 
@@ -121,20 +131,31 @@ export default function CounterpartySearchSelect({
       {filtered.length === 0 ? (
         <li className="counterparty-search-select-empty">Не найдено</li>
       ) : (
-        filtered.map((item, index) => (
-          <li key={item.id}>
-            <button
-              type="button"
-              role="option"
-              aria-selected={value === item.id}
-              className={`counterparty-search-select-option${value === item.id ? ' selected' : ''}${highlightIndex === index ? ' highlighted' : ''}`}
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => pick(item.id)}
-            >
-              {search.trim() ? <SearchHighlight text={item.name} query={search} /> : item.name}
-            </button>
-          </li>
-        ))
+        filtered.map((item, index) => {
+          const innLabel = counterpartyInnLabel(item);
+          const q = search.trim();
+          return (
+            <li key={item.id}>
+              <button
+                type="button"
+                role="option"
+                aria-selected={value === item.id}
+                className={`counterparty-search-select-option${value === item.id ? ' selected' : ''}${highlightIndex === index ? ' highlighted' : ''}`}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => pick(item.id)}
+              >
+                <span className="counterparty-search-select-option-name">
+                  {q ? <SearchHighlight text={item.name} query={search} /> : item.name}
+                </span>
+                {innLabel ? (
+                  <span className="counterparty-search-select-option-inn">
+                    ИНН {q ? <SearchHighlight text={innLabel} query={search} /> : innLabel}
+                  </span>
+                ) : null}
+              </button>
+            </li>
+          );
+        })
       )}
     </ul>
   ) : null;
@@ -149,7 +170,7 @@ export default function CounterpartySearchSelect({
         type="search"
         className="counterparty-search-select-input"
         placeholder={placeholder}
-        value={open ? search : (selected?.name || '')}
+        value={open ? search : (selected ? (selectedInn ? `${selected.name} · ${selectedInn}` : selected.name) : '')}
         onChange={(e) => {
           setSearch(e.target.value);
           setOpen(true);

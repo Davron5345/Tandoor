@@ -81,7 +81,7 @@ export function ReconciliationReport() {
 
   const counterpartySearchItems = useMemo(
     () => counterparties.map((c) => ({
-      id: c.id,
+      ...c,
       name: `${c.name} (${c.type === 'supplier' ? 'поставщик' : 'клиент'})`,
     })),
     [counterparties],
