@@ -33,8 +33,27 @@ const CREATE_DOC_OPTIONS = [
 
 const CREATE_MODAL_WIDE = new Set(['stock', 'debtor', 'creditor']);
 
-function createModalTitle(type) {
-  return CREATE_DOC_OPTIONS.find((o) => o.type === type)?.label || 'Документ';
+function createModalTitle(type, docNumber) {
+  const label = CREATE_DOC_OPTIONS.find((o) => o.type === type)?.label || 'Документ';
+  return docNumber ? `${label} · №${docNumber}` : label;
+}
+
+function inferSingleLineType(doc) {
+  const types = [...new Set((doc.lines || []).map((l) => l.line_type).filter(Boolean))];
+  if (types.length === 1 && CREATE_DOC_OPTIONS.some((o) => o.type === types[0])) {
+    return types[0];
+  }
+  return null;
+}
+
+function formFromObDoc(doc) {
+  return {
+    date: doc.date?.slice(0, 10) || todayLocalIso(),
+    comment: doc.comment || '',
+    status: doc.status,
+    number: doc.number,
+    lines: (doc.lines || []).map(mapObLineFromApi),
+  };
 }
 
 /** Fallback названия в списке, если API ещё без `title`. */
@@ -269,6 +288,7 @@ export default function OpeningBalance() {
   const [createModalType, setCreateModalType] = useState(null);
   const [createForm, setCreateForm] = useState(emptyDoc);
   const [createSaving, setCreateSaving] = useState(false);
+  const [createModalReadOnly, setCreateModalReadOnly] = useState(false);
   const [historyDocId, setHistoryDocId] = useState(null);
   const { show, Toast } = useToast();
   const { user } = useAuth();
@@ -313,7 +333,7 @@ export default function OpeningBalance() {
 
   const previewLines = createModalType ? createForm.lines : form.lines;
   const previewDate = createModalType ? createForm.date : form.date;
-  const previewExcludeId = createModalType ? '' : (editId || '');
+  const previewExcludeId = editId || '';
 
   useEffect(() => {
     if (!setDebtToday || !isAdmin) {
@@ -348,6 +368,8 @@ export default function OpeningBalance() {
   }, [setDebtToday, isAdmin, previewLines, previewDate, previewExcludeId]);
 
   const openCreate = (lineType) => {
+    setEditId(null);
+    setCreateModalReadOnly(false);
     setCreateForm({
       ...emptyDoc,
       date: todayLocalIso(),
@@ -363,7 +385,23 @@ export default function OpeningBalance() {
     setCreateForm(emptyDoc);
     setSetDebtToday(false);
     setDebtPreview({});
+    setCreateModalReadOnly(false);
+    if (view !== 'edit') setEditId(null);
   };
+
+  const fillCreateModalFromDoc = useCallback((doc, { readOnly = false } = {}) => {
+    const type = inferSingleLineType(doc);
+    if (!type) return false;
+    const next = formFromObDoc(doc);
+    setCreateForm(next);
+    setSetDebtToday(isAdmin && next.lines.some((l) => l.balance_mode === 'set'));
+    setDebtPreview({});
+    setEditId(doc.id);
+    setCreateModalReadOnly(!!readOnly);
+    setCreateModalType(type);
+    setView('list');
+    return true;
+  }, [isAdmin]);
 
   const toggleSetDebtToday = (checked) => {
     setSetDebtToday(checked);
@@ -395,7 +433,7 @@ export default function OpeningBalance() {
   };
 
   const saveCreateModal = async (andConfirm = false) => {
-    if (!canEdit || !createModalType) return;
+    if (!canEdit || !createModalType || createModalReadOnly) return;
     if (!createForm.date) {
       show('Укажите дату документа', 'error');
       return;
@@ -407,11 +445,17 @@ export default function OpeningBalance() {
     }
     setCreateSaving(true);
     try {
-      const doc = await api.createOpeningBalanceDocument({
+      const payload = {
         date: createForm.date,
         comment: createForm.comment,
         lines: serializeObLines(lines, { setDebtToday: isAdmin && setDebtToday }),
-      });
+      };
+      let doc;
+      if (editId) {
+        doc = await api.updateOpeningBalanceDocument(editId, payload);
+      } else {
+        doc = await api.createOpeningBalanceDocument(payload);
+      }
       if (andConfirm) {
         await api.confirmOpeningBalanceDocument(doc.id);
         show('Документ проведён');
@@ -427,11 +471,16 @@ export default function OpeningBalance() {
     }
   };
 
-  const openDoc = useCallback(async (id) => {
+  const openDoc = useCallback(async (id, { readOnly } = {}) => {
     try {
       const doc = await api.getOpeningBalanceDocument(id);
-      setEditId(id);
       const mapped = (doc.lines || []).map(mapObLineFromApi);
+      const viewOnly = readOnly ?? (!canEdit || doc.status === 'confirmed');
+      if (fillCreateModalFromDoc(doc, { readOnly: viewOnly })) {
+        return;
+      }
+      setCreateModalType(null);
+      setEditId(id);
       setForm({
         date: doc.date?.slice(0, 10) || todayLocalIso(),
         comment: doc.comment || '',
@@ -444,7 +493,7 @@ export default function OpeningBalance() {
     } catch (e) {
       show(e.message, 'error');
     }
-  }, [show]);
+  }, [show, canEdit, fillCreateModalFromDoc]);
 
   useEffect(() => {
     const openId = searchParams.get('open');
@@ -473,7 +522,7 @@ export default function OpeningBalance() {
         return;
       }
     }
-    await openDoc(d.id);
+    await openDoc(d.id, { readOnly: false });
   };
 
   const addLine = (lineType) => {
@@ -564,21 +613,6 @@ export default function OpeningBalance() {
       } else {
         show('Черновик сохранён');
       }
-      await load();
-      syncFormFromDoc(doc);
-    } catch (e) {
-      show(e.message, 'error');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const confirmDoc = async () => {
-    if (!editId) return save(true);
-    setSaving(true);
-    try {
-      const doc = await api.confirmOpeningBalanceDocument(editId);
-      show('Документ проведён');
       await load();
       syncFormFromDoc(doc);
     } catch (e) {
@@ -770,7 +804,7 @@ export default function OpeningBalance() {
   };
 
   const createLineCtx = {
-    isReadOnly: false,
+    isReadOnly: createModalReadOnly,
     onUpdate: updateCreateLine,
     onRemove: removeCreateLine,
     clientList: clients,
@@ -810,7 +844,7 @@ export default function OpeningBalance() {
             <input
               type="date"
               value={createForm.date}
-              disabled={isAdmin && setDebtToday}
+              disabled={createModalReadOnly || (isAdmin && setDebtToday)}
               onChange={(e) => setCreateForm({ ...createForm, date: e.target.value })}
             />
           </div>
@@ -818,6 +852,7 @@ export default function OpeningBalance() {
             <label>Комментарий</label>
             <input
               value={createForm.comment}
+              disabled={createModalReadOnly}
               onChange={(e) => setCreateForm({ ...createForm, comment: e.target.value })}
               placeholder="Необязательно"
             />
@@ -827,6 +862,7 @@ export default function OpeningBalance() {
               <input
                 type="checkbox"
                 checked={setDebtToday}
+                disabled={createModalReadOnly}
                 onChange={(e) => toggleSetDebtToday(e.target.checked)}
               />
               Долг на сегодня
@@ -850,6 +886,7 @@ export default function OpeningBalance() {
                         <label>Счёт *</label>
                         <select
                           value={line.bank_account_id || ''}
+                          disabled={createModalReadOnly}
                           onChange={(e) => updateCreateLine(index, { bank_account_id: e.target.value })}
                         >
                           <option value="">— выберите р/с —</option>
@@ -867,13 +904,14 @@ export default function OpeningBalance() {
                           inputMode="decimal"
                           className="input-num"
                           value={typeof line.amount === 'string' ? line.amount : formatPriceInput(line.amount || 0)}
+                          disabled={createModalReadOnly}
                           onChange={(e) => {
                             updateCreateLine(index, { amount: formatPriceInput(e.target.value) });
                           }}
                           placeholder="0,00"
                         />
                       </div>
-                      {createForm.lines.filter((l) => l.line_type === 'bank').length > 1 && (
+                      {!createModalReadOnly && createForm.lines.filter((l) => l.line_type === 'bank').length > 1 && (
                         <div className="form-group">
                           <label>&nbsp;</label>
                           <button type="button" className="btn btn-ghost btn-sm" onClick={() => removeCreateLine(index)}>
@@ -883,9 +921,11 @@ export default function OpeningBalance() {
                       )}
                     </div>
                   ))}
-                <button type="button" className="btn btn-secondary btn-sm" onClick={() => addCreateLine('bank')}>
-                  + Счёт
-                </button>
+                {!createModalReadOnly && (
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={() => addCreateLine('bank')}>
+                    + Счёт
+                  </button>
+                )}
                 {bankAccounts.length === 0 && (
                   <p className="text-muted" style={{ marginTop: 8 }}>
                     Сначала создайте банковский счёт в разделе Банк.
@@ -904,6 +944,7 @@ export default function OpeningBalance() {
                       ? createForm.lines[moneyLineIndex].amount
                       : formatPriceInput(createForm.lines[moneyLineIndex]?.amount || 0)
                   }
+                  disabled={createModalReadOnly}
                   onChange={(e) => {
                     updateCreateLine(moneyLineIndex, { amount: formatPriceInput(e.target.value) });
                   }}
@@ -918,14 +959,16 @@ export default function OpeningBalance() {
         ) : (
           <>
             <div className="ob-create-modal-table-head">
-              <strong>{createModalTitle(createModalType)}</strong>
-              <button
-                type="button"
-                className="btn btn-sm btn-ghost"
-                onClick={() => addCreateLine(createModalType)}
-              >
-                {createModalType === 'stock' ? '+ Товар' : '+ Контрагент'}
-              </button>
+              <strong>{CREATE_DOC_OPTIONS.find((o) => o.type === createModalType)?.label}</strong>
+              {!createModalReadOnly && (
+                <button
+                  type="button"
+                  className="btn btn-sm btn-ghost"
+                  onClick={() => addCreateLine(createModalType)}
+                >
+                  {createModalType === 'stock' ? '+ Товар' : '+ Контрагент'}
+                </button>
+              )}
             </div>
             {createModalLines.length === 0 ? (
               <div className="empty" style={{ padding: 20 }}>
@@ -941,7 +984,7 @@ export default function OpeningBalance() {
                       <th className="col-num">Кол-во</th>
                       <th className="col-num">Сумма / цена</th>
                       <th className="col-num">Итого</th>
-                      <th></th>
+                      {!createModalReadOnly && <th></th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -971,7 +1014,17 @@ export default function OpeningBalance() {
             <CreateDocumentMenu onSelect={openCreate} />
           )}
           {view === 'edit' && (
-            <button type="button" className="btn btn-ghost" onClick={() => setView('list')}>← К списку</button>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={() => {
+                setView('list');
+                setEditId(null);
+                setSetDebtToday(false);
+              }}
+            >
+              ← К списку
+            </button>
           )}
         </div>
       </div>
@@ -1213,7 +1266,7 @@ export default function OpeningBalance() {
                   <button type="button" className="btn btn-primary" disabled={saving} onClick={() => save(false)}>
                     {saving ? 'Сохранение…' : 'Сохранить черновик'}
                   </button>
-                  <button type="button" className="btn btn-prihod" disabled={saving} onClick={confirmDoc}>
+                  <button type="button" className="btn btn-prihod" disabled={saving} onClick={() => save(true)}>
                     Провести документ
                   </button>
                 </>
@@ -1230,12 +1283,14 @@ export default function OpeningBalance() {
 
       {createModalType && (
         <Modal
-          title={createModalTitle(createModalType)}
+          title={createModalTitle(createModalType, createForm.number)}
           wide={CREATE_MODAL_WIDE.has(createModalType)}
           className="modal-ob-create"
-          dirty={createModalDirty}
+          dirty={!createModalReadOnly && createModalDirty}
           onClose={closeCreateModal}
-          footer={(
+          footer={createModalReadOnly ? (
+            <ModalCancelButton />
+          ) : (
             <>
               <ModalCancelButton />
               <button
